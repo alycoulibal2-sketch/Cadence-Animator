@@ -226,27 +226,38 @@ export class RigInstance {
       applyTexture();
     }
 
-    // classic R6 smiley
-    if (def.faceDecal) {
+    // Face: a user's custom layer stack (Face Presets) takes priority over the classic R6 smiley —
+    // both render the same way (stacked transparent planes just in front of the head surface).
+    if (def.name === 'Head' && this.item.faceLayers && this.item.faceLayers.length) {
+      this.item.faceLayers.forEach((layer, i) => this.#buildFacePlane(def, mesh, layer.dataUri, layer.opacity ?? 1, i));
+    } else if (def.faceDecal) {
       getClassicFace().then((dataUri) => {
-        if (!dataUri) return;
-        texLoader.load(dataUri, (tex) => {
-          tex.colorSpace = THREE.SRGBColorSpace;
-          const isHeadMesh = def.specialMesh && def.specialMesh.meshType === 'Head';
-          const w = isHeadMesh ? (def.specialMesh.scale?.[0] ?? 1.25) : def.size[0];
-          const h = isHeadMesh ? (def.specialMesh.scale?.[1] ?? 1.25) : def.size[1];
-          const depth = isHeadMesh ? (def.specialMesh.scale?.[2] ?? 1.25) : def.size[2];
-          const plane = new THREE.Mesh(
-            new THREE.PlaneGeometry(w * 0.9, h * 0.9),
-            new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
-          );
-          plane.rotation.y = Math.PI; // face -Z (Roblox front)
-          plane.position.z = -(depth / 2) * (isHeadMesh ? 0.82 : 1) - 0.012;
-          plane.raycast = () => { }; // click through to the head
-          mesh.add(plane);
-        });
+        if (dataUri) this.#buildFacePlane(def, mesh, dataUri, 1, 0);
       });
     }
+  }
+
+  // One decal plane parented to the head mesh, positioned just off its front surface. Layer
+  // index nudges each successive layer a hair further out so a multi-layer face (e.g. a base
+  // skin tone plus separate eyebrows/mouth layers) composites correctly instead of z-fighting.
+  #buildFacePlane(def, headMesh, dataUri, opacity, layerIndex) {
+    texLoader.load(dataUri, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const isHeadMesh = def.specialMesh && def.specialMesh.meshType === 'Head';
+      const w = isHeadMesh ? (def.specialMesh.scale?.[0] ?? 1.25) : def.size[0];
+      const h = isHeadMesh ? (def.specialMesh.scale?.[1] ?? 1.25) : def.size[1];
+      const depth = isHeadMesh ? (def.specialMesh.scale?.[2] ?? 1.25) : def.size[2];
+      const plane = new THREE.Mesh(
+        new THREE.PlaneGeometry(w * 0.9, h * 0.9),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity, depthWrite: false }),
+      );
+      plane.rotation.y = Math.PI; // face -Z (Roblox front)
+      plane.position.z = -(depth / 2) * (isHeadMesh ? 0.82 : 1) - 0.012 - layerIndex * 0.004;
+      plane.renderOrder = 10 + layerIndex;
+      plane.userData.isFaceLayer = true;
+      plane.raycast = () => { }; // click through to the head
+      headMesh.add(plane);
+    });
   }
 
   #computeSolveOrder() {

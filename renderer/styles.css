@@ -222,6 +222,25 @@ body {
 }
 .bridge-help { color: var(--text-2); font-size: 12px; line-height: 1.5; margin: 10px 0 0; }
 
+.face-preset-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.face-preset-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.face-preset-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+}
+.face-preset-thumb {
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--bg-4);
+  flex-shrink: 0;
+}
+.face-preset-name { flex: 1 1 auto; font-size: 12.5px; color: var(--text-1); }
+.face-preset-row .btn { padding: 4px 10px; font-size: 12px; }
+
 .update-chip {
   display: none;
 }

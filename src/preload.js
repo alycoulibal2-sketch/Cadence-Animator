@@ -38,6 +38,9 @@ contextBridge.exposeInMainWorld('cadence', {
   // roblox files
   parseRbx: (arrayBuffer, filename) => ipcRenderer.invoke('rbx:parseBuffer', arrayBuffer, filename),
 
+  // local images (face preset layers)
+  readImageAsDataUri: (p) => ipcRenderer.invoke('image:readAsDataUri', p),
+
   // studio bridge
   bridgeStatus: () => ipcRenderer.invoke('bridge:status'),
   bridgeSend: (type, payload, timeoutMs) => ipcRenderer.invoke('bridge:send', type, payload, timeoutMs),

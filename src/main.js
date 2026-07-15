@@ -439,6 +439,18 @@ ipcMain.handle('roblox:classicFace', () => {
   return null;
 });
 
+// Reads a user-picked local image file (for custom face layers) as a data URI — no Roblox
+// asset/upload involved, so this works fully offline and needs no authenticated session.
+ipcMain.handle('image:readAsDataUri', (_e, p) => {
+  const buf = fs.readFileSync(p);
+  const ext = path.extname(p).toLowerCase();
+  const mime = ext === '.png' ? 'image/png'
+    : (ext === '.jpg' || ext === '.jpeg') ? 'image/jpeg'
+    : ext === '.webp' ? 'image/webp'
+    : buf[0] === 0x89 ? 'image/png' : (buf[0] === 0xff ? 'image/jpeg' : 'application/octet-stream');
+  return `data:${mime};base64,${buf.toString('base64')}`;
+});
+
 // ---------------------------------------------------------------- IPC: rbxm parsing
 ipcMain.handle('rbx:parseBuffer', (_e, arrayBuffer, filename) => {
   const buf = Buffer.from(arrayBuffer);

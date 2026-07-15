@@ -175,6 +175,45 @@ export function renameItem(itemId, name) {
   markDirty();
 }
 
+// ---------------------------------------------------------------- attach & detach
+// A prop (weapon, tool, held item) rigidly follows another item's part every frame instead of
+// being independently keyed. `offset` is captured once at attach-time (by the caller, which has
+// access to the live solved poses state.js doesn't) so the prop keeps its exact current visual
+// position/orientation relative to the target part — no manual nudging to line it up.
+export function attachItem(itemId, targetItemId, targetPartId, offset) {
+  const item = getItem(itemId);
+  if (!item) return;
+  pushUndo();
+  item.attachedTo = { itemId: targetItemId, partId: targetPartId, offset };
+  emit('items');
+  markDirty();
+}
+// currentWorldOrigin: the item's live world origin at the moment of detaching (also supplied by
+// the caller), written back as its new static origin so it doesn't jump back to wherever it was
+// before it got attached.
+export function detachItem(itemId, currentWorldOrigin) {
+  const item = getItem(itemId);
+  if (!item || !item.attachedTo) return;
+  pushUndo();
+  item.attachedTo = null;
+  if (currentWorldOrigin) item.origin = currentWorldOrigin;
+  emit('items');
+  markDirty();
+}
+
+// A rig's current face is a stack of decal layers { dataUri, opacity } rendered on its Head part
+// — separate from the item's animated pose/keyframes, so swapping faces never touches animation.
+// The saved-preset LIBRARY itself is app-wide (in settings, not project state) since face presets
+// are meant to be reused across rigs and projects, not tied to one project file.
+export function setItemFace(itemId, layers) {
+  const item = getItem(itemId);
+  if (!item) return;
+  pushUndo();
+  item.faceLayers = layers && layers.length ? layers : null;
+  emit('items');
+  markDirty();
+}
+
 // ---------------------------------------------------------------- selection / playhead
 export function setSelection(itemId, partId, keepKeys = false) {
   state.selection.itemId = itemId;
@@ -505,6 +544,39 @@ export function stretchFrames(list, factor) {
   for (const g of grabbed) {
     const tr = trackObj(g.itemId, g.track, true);
     const nt = Math.max(0, Math.round(minT + (g.key.t - minT) * factor));
+    tr.keys = tr.keys.filter((k) => Math.abs(k.t - nt) > 1e-6);
+    g.key.t = nt;
+    tr.keys.push(g.key);
+    tr.keys.sort((a, b) => a.t - b.t);
+    moved.push({ itemId: g.itemId, track: g.track, t: nt });
+  }
+  emit('tracks', {});
+  markDirty();
+  return moved;
+}
+
+// Reverse: mirrors the selected keys' time order within their bounding range (same anchor
+// convention as stretchFrames). Each key keeps its own value + easing traveling with it to its
+// new slot — a simple, honest approximation rather than deriving mathematically exact reversed
+// curve shapes, which fits "reverse time" being a quick stylistic effect, not precision curve
+// editing (this is the same level of rigor stretchFrames already uses).
+export function reverseFrames(list) {
+  if (!list.length) return;
+  const byRef = list.map((r) => ({ ref: r, key: getKey(r.itemId, r.track, r.t) })).filter((x) => x.key);
+  if (!byRef.length) return;
+  const minT = Math.min(...byRef.map((x) => x.ref.t));
+  const maxT = Math.max(...byRef.map((x) => x.ref.t));
+  pushUndo();
+  const grabbed = byRef.map(({ ref, key }) => ({ itemId: ref.itemId, track: ref.track, key }));
+  for (const g of grabbed) {
+    const tr = trackObj(g.itemId, g.track);
+    if (!tr) continue;
+    tr.keys = tr.keys.filter((k) => k !== g.key);
+  }
+  const moved = [];
+  for (const g of grabbed) {
+    const tr = trackObj(g.itemId, g.track, true);
+    const nt = Math.round(minT + (maxT - g.key.t));
     tr.keys = tr.keys.filter((k) => Math.abs(k.t - nt) > 1e-6);
     g.key.t = nt;
     tr.keys.push(g.key);

@@ -27,6 +27,7 @@ export const viewport = {
   pointer: new THREE.Vector2(),
   editingDrag: false,
   onionGhosts: new Map(), // itemId -> OnionGhostSet
+  trackballMode: false,
 };
 
 // ---------------------------------------------------------------- onion skin
@@ -288,40 +289,61 @@ export function commitOverlays() {
 }
 
 // ---------------------------------------------------------------- per-frame update
+// Attached items (props held/carried by another item — see attachItem) are processed in a
+// second pass, after every unattached item already has a fresh solved pose this frame, so the
+// prop always reads its parent part's CURRENT position rather than a stale one from last frame.
 export function updateScene() {
   const p = S.state.project;
   if (!p) return;
   const t = S.state.playhead;
-  for (const item of p.items) {
-    const inst = viewport.instances.get(item.id);
-    if (!inst) continue;
-    const baseOrigin = item.origin || CF.IDENTITY;
-    let origin = S.evalTrackCF(item.id, '@origin', t, baseOrigin);
-    if (viewport.overlayOrigin.has(item.id)) origin = viewport.overlayOrigin.get(item.id);
-    if (item.kind === 'camera') {
-      const fov = S.evalTrackNum(item.id, '@fov', t, item.fov || 70);
-      inst.computeWorld(origin, fov);
-      inst.setBodyVisible(S.state.cameraView !== item.id);
-      inst.setFrustumVisible(S.state.cameraView !== item.id && S.state.selection.itemId === item.id);
-    } else {
-      const pose = S.evalPose(item, t);
-      const overlay = viewport.overlayPose.get(item.id);
-      if (overlay) Object.assign(pose, overlay);
-      inst.computeWorld(pose, origin);
-
-      const onionOn = p.onionSkin.enabledItemIds.includes(item.id);
-      if (onionOn) {
-        let ghosts = viewport.onionGhosts.get(item.id);
-        if (!ghosts) { ghosts = new OnionGhostSet(viewport.scene); viewport.onionGhosts.set(item.id, ghosts); }
-        ghosts.update(inst, item, t, p.onionSkin.range, p.length);
-      } else if (viewport.onionGhosts.has(item.id)) {
-        viewport.onionGhosts.get(item.id).dispose();
-        viewport.onionGhosts.delete(item.id);
-      }
-    }
-  }
+  const unattached = [], attached = [];
+  for (const item of p.items) (item.attachedTo ? attached : unattached).push(item);
+  for (const item of unattached) updateOneItem(item, t);
+  for (const item of attached) updateOneItem(item, t);
   updateGizmoAnchor();
   updateSelBox();
+}
+
+function updateOneItem(item, t) {
+  const inst = viewport.instances.get(item.id);
+  if (!inst) return;
+  if (item.attachedTo) {
+    const parentInst = viewport.instances.get(item.attachedTo.itemId);
+    const parentWorld = parentInst?.partWorld?.(item.attachedTo.partId);
+    let origin = parentWorld ? CF.mul(parentWorld, item.attachedTo.offset) : (item.origin || CF.IDENTITY);
+    if (viewport.overlayOrigin.has(item.id)) origin = viewport.overlayOrigin.get(item.id);
+    applyOrigin(item, inst, origin, t);
+    return;
+  }
+  const baseOrigin = item.origin || CF.IDENTITY;
+  let origin = S.evalTrackCF(item.id, '@origin', t, baseOrigin);
+  if (viewport.overlayOrigin.has(item.id)) origin = viewport.overlayOrigin.get(item.id);
+  applyOrigin(item, inst, origin, t);
+}
+
+function applyOrigin(item, inst, origin, t) {
+  const p = S.state.project;
+  if (item.kind === 'camera') {
+    const fov = S.evalTrackNum(item.id, '@fov', t, item.fov || 70);
+    inst.computeWorld(origin, fov);
+    inst.setBodyVisible(S.state.cameraView !== item.id);
+    inst.setFrustumVisible(S.state.cameraView !== item.id && S.state.selection.itemId === item.id);
+  } else {
+    const pose = S.evalPose(item, t);
+    const overlay = viewport.overlayPose.get(item.id);
+    if (overlay) Object.assign(pose, overlay);
+    inst.computeWorld(pose, origin);
+
+    const onionOn = p.onionSkin.enabledItemIds.includes(item.id);
+    if (onionOn) {
+      let ghosts = viewport.onionGhosts.get(item.id);
+      if (!ghosts) { ghosts = new OnionGhostSet(viewport.scene); viewport.onionGhosts.set(item.id, ghosts); }
+      ghosts.update(inst, item, t, p.onionSkin.range, p.length);
+    } else if (viewport.onionGhosts.has(item.id)) {
+      viewport.onionGhosts.get(item.id).dispose();
+      viewport.onionGhosts.delete(item.id);
+    }
+  }
 }
 
 export function render() {
@@ -422,6 +444,9 @@ function setPointerFromEvent(e) {
   viewport.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 }
 
+export function debugPick(e) {
+  return pick(e);
+}
 function pick(e) {
   setPointerFromEvent(e);
   viewport.raycaster.setFromCamera(viewport.pointer, viewport.camera);
@@ -436,9 +461,65 @@ function pick(e) {
   return hits.length ? hits[0].object : null;
 }
 
+// ---------------------------------------------------------------- trackball posing
+// Blender-style alternative to the rotate gizmo: click-drag the selected part anywhere on its
+// surface to spin it like a physical trackball, instead of dragging one axis ring at a time.
+// Classic Shoemake arcball technique — maps 2D mouse movement onto a virtual hemisphere and
+// takes the rotation between the start and current points, reuses the SAME dummy/overlay/commit
+// pipeline the translate/rotate gizmo already drives (onGizmoChange / onGizmoRelease below), so
+// undo, auto-key, and overlay preview all work identically no matter which tool posed the part.
+const trackball = { active: false, startVec: new THREE.Vector3(), startQuat: new THREE.Quaternion() };
+
+function arcballVector(ndcX, ndcY) {
+  const d2 = ndcX * ndcX + ndcY * ndcY;
+  if (d2 <= 1) return new THREE.Vector3(ndcX, ndcY, Math.sqrt(1 - d2));
+  return new THREE.Vector3(ndcX, ndcY, 0).normalize();
+}
+
+function startTrackballDrag(e) {
+  trackball.active = true;
+  viewport.editingDrag = true;
+  viewport.controls.enabled = false;
+  setPointerFromEvent(e);
+  trackball.startVec.copy(arcballVector(viewport.pointer.x, viewport.pointer.y));
+  trackball.startQuat.copy(viewport.dummy.quaternion);
+
+  const move = (me) => {
+    setPointerFromEvent(me);
+    const curVec = arcballVector(viewport.pointer.x, viewport.pointer.y);
+    const camLocalDelta = new THREE.Quaternion().setFromUnitVectors(trackball.startVec, curVec);
+    // camLocalDelta rotates around axes measured in camera space (arcballVector's x/y/z map to
+    // camera right/up/forward) — conjugate by the camera's world orientation to get the same
+    // rotation expressed in world space before applying it to the part.
+    const camQuat = viewport.camera.quaternion;
+    const worldDelta = camQuat.clone().multiply(camLocalDelta).multiply(camQuat.clone().invert());
+    viewport.dummy.quaternion.copy(worldDelta).multiply(trackball.startQuat);
+    viewport.dummy.updateMatrixWorld(true);
+    onGizmoChange();
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    trackball.active = false;
+    viewport.editingDrag = false;
+    viewport.controls.enabled = true;
+    onGizmoRelease();
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
 let downPos = null;
 function onPointerDown(e) {
   if (e.button !== 0) return;
+  if (viewport.trackballMode) {
+    const { itemId, partId } = S.state.selection;
+    const hit = pick(e);
+    if (itemId && partId && hit && hit.userData.itemId === itemId && hit.userData.partId === partId) {
+      startTrackballDrag(e);
+      return;
+    }
+  }
   downPos = [e.clientX, e.clientY];
   const up = (ue) => {
     window.removeEventListener('pointerup', up);
@@ -480,7 +561,16 @@ function onPointerMove(e) {
 
 // ---------------------------------------------------------------- public controls
 export function setGizmoMode(mode) {
-  viewport.gizmo.setMode(mode);
+  if (mode === 'trackball') {
+    viewport.trackballMode = true;
+    viewport.gizmo.enabled = false;
+    viewport.gizmo.visible = false;
+  } else {
+    viewport.trackballMode = false;
+    viewport.gizmo.enabled = true;
+    viewport.gizmo.visible = true;
+    viewport.gizmo.setMode(mode);
+  }
   S.emit('gizmo-mode', mode);
 }
 export function toggleGizmoSpace() {

@@ -1,7 +1,7 @@
 // App shell: wires everything together — commands, shortcuts, panels, playback, import/export flows.
 import * as S from './state.js';
 import * as CF from './cf.js';
-import { initViewport, updateScene, render, setGizmoMode, toggleGizmoSpace, focusSelected, frameAll, debugFrame, commitOverlays, getInstance, syncItems, refreshInstance, setHandlesVisible, setHandleSize, setRotationSnap } from './viewport.js';
+import { initViewport, updateScene, render, setGizmoMode, toggleGizmoSpace, focusSelected, frameAll, debugFrame, debugPick, commitOverlays, getInstance, syncItems, refreshInstance, setHandlesVisible, setHandleSize, setRotationSnap, viewport } from './viewport.js';
 import { initTimeline, requestDraw, copySelectedKeys, cutSelectedKeys, pasteKeys, pasteKeysIntoItem, duplicateAtPlayhead, zoomToFit, openSelectedKeyMenu, toggleItemCollapse, toggleCollapseAll } from './timeline.js';
 import { initCurveEditor, toggleCurveEditor, openCurveEditor } from './curves.js';
 import { initAudio, loadAudioFromPath, removeAudio, setAudioVolume, setAudioOffset, restoreAudio } from './audio.js';
@@ -58,7 +58,7 @@ async function boot() {
     window.__cadenceDebug = {
       S, CF, IO,
       addBuiltinRig, addCamera, keyCurrentPose, setGizmoMode,
-      getInstance, updateScene, render, focusSelected, frameAll, debugFrame, setHandlesVisible,
+      getInstance, updateScene, render, focusSelected, frameAll, debugFrame, debugPick, setHandlesVisible, viewport, refreshInstance,
     };
   } catch (e) {
     console.error('[boot] failed:', e && e.stack || e);
@@ -111,6 +111,7 @@ function registerAllCommands() {
   C({ title: 'Cycle tool (move / rotate)', shortcut: 'R', section: 'Animating', run: toolCycle });
   C({ title: 'Move tool', shortcut: 'W', section: 'Animating', run: () => setGizmoMode('translate') });
   C({ title: 'Rotate tool', shortcut: 'E', section: 'Animating', run: () => setGizmoMode('rotate') });
+  C({ title: 'Trackball tool', section: 'Animating', hint: 'drag the selected part anywhere to spin it freely, Blender-style', run: () => setGizmoMode('trackball') });
   C({ title: 'Toggle local / world space', shortcut: 'Y', section: 'Animating', run: () => toast(`Gizmo space: ${toggleGizmoSpace()}`) });
   C({ title: 'Toggle rotation grid snap', shortcut: 'C', section: 'Animating', run: toggleRotGrid });
   C({ title: 'Curve editor', hint: 'interactive bezier easing curves — now on the toolbar/right-click, C is taken by rotation grid', section: 'Animating', run: toggleCurveEditor });
@@ -132,6 +133,12 @@ function registerAllCommands() {
   C({ title: 'Repeat frames…', shortcut: 'Shift+L', section: 'Animating', run: repeatFramesFlow });
   C({ title: 'Stretch frames…', shortcut: 'Numpad 3', section: 'Animating', run: stretchFramesFlow });
   C({ title: 'Reflect rig (mirror left/right)', shortcut: 'Ctrl+R', section: 'Animating', run: mirrorSelectedItem });
+  C({ title: 'Reverse time', section: 'Effects', hint: 'flip the selected keyframe range back to front', run: reverseTimeFlow });
+  C({ title: 'Slow motion (2x)', section: 'Effects', hint: 'stretches the selected range to twice its length', run: slowMotionFlow });
+  C({ title: 'Stop motion', section: 'Effects', hint: 'holds each pose in the selected range for a choppy, stepped look', run: stopMotionFlow });
+  C({ title: 'Face Presets…', section: 'Effects', hint: 'save/apply a library of swappable faces, single or multi-layer', run: openFacePresetsFlow });
+  C({ title: 'Attach to…', section: 'Effects', hint: 'have the selected item rigidly follow a hand or other part on another rig', run: attachItemFlow });
+  C({ title: 'Detach', section: 'Effects', hint: 'release the selected item from whatever it\'s attached to', run: detachItemFlow });
   C({ title: 'Undo', shortcut: 'Ctrl+Z', section: 'General', run: () => S.undo() });
   C({ title: 'Redo', shortcut: 'Ctrl+Y', section: 'General', run: () => S.redo() });
   C({ title: 'Toggle snapping', hint: 'snap keys & playhead to whole frames', section: 'Animating', run: () => { S.state.snapping = !S.state.snapping; persistPrefs(); toast(`Snapping ${S.state.snapping ? 'on' : 'off'}`); } });
@@ -494,6 +501,176 @@ async function stretchFramesFlow() { // Keypad 3
   const moved = S.stretchFrames(sel, f);
   if (moved) S.setSelectedKeys(moved);
   toast('Stretched');
+}
+
+function reverseTimeFlow() {
+  const sel = S.state.selection.keys;
+  if (sel.length < 2) { toast('Select the keyframe range to reverse first', 'warn'); return; }
+  const moved = S.reverseFrames(sel);
+  if (moved) S.setSelectedKeys(moved);
+  toast('Reversed');
+}
+
+function slowMotionFlow() {
+  const sel = S.state.selection.keys;
+  if (sel.length < 2) { toast('Select the keyframe range to slow down first', 'warn'); return; }
+  const moved = S.stretchFrames(sel, 2);
+  if (moved) S.setSelectedKeys(moved);
+  toast('Slowed to half speed');
+}
+
+function stopMotionFlow() {
+  const sel = S.state.selection.keys;
+  if (sel.length < 2) { toast('Select the keyframe range for stop motion first', 'warn'); return; }
+  S.setEasing(sel, 'Constant', null, null);
+  toast('Stop-motion style applied');
+}
+
+// ================================================================ attach & detach
+// Rigidly follows another rig's part (a hand, typically) every frame instead of needing the prop
+// keyed alongside the carrying rig on every single frame — click Attach once, animate normally.
+async function attachItemFlow() {
+  const { itemId } = S.state.selection;
+  const propItem = itemId ? S.getItem(itemId) : null;
+  if (!propItem) { toast('Select the item to attach first', 'warn'); return; }
+  const candidates = S.state.project.items.filter((i) => i.id !== propItem.id && i.kind === 'rig');
+  if (!candidates.length) { toast('No other rig in the scene to attach to', 'warn'); return; }
+
+  const targetId = await chooseModal({
+    title: `Attach ${propItem.name} to…`,
+    options: candidates.map((i) => ({ id: i.id, label: i.name, desc: `${i.rig.parts.length} parts` })),
+  });
+  if (!targetId) return;
+  const targetItem = S.getItem(targetId);
+  const partName = await chooseModal({
+    title: `Attach to which part of ${targetItem.name}?`,
+    options: targetItem.rig.parts.map((p) => ({ id: p.name, label: p.name })),
+  });
+  if (!partName) return;
+  const targetPartDef = targetItem.rig.parts.find((p) => p.name === partName);
+  const targetInst = getInstance(targetId);
+  const propInst = getInstance(propItem.id);
+  if (!targetInst || !propInst) { toast('Rig not ready yet — try again in a moment', 'error'); return; }
+
+  const targetPartWorld = targetInst.partWorld(targetPartDef.id);
+  const propWorld = propInst.partWorld(propItem.rig.rootPart);
+  // offset = the prop's current world pose expressed relative to the target part, so re-deriving
+  // world = targetPartWorld * offset reproduces exactly where it is right now — no visual jump.
+  const offset = CF.mul(CF.inverse(targetPartWorld), propWorld);
+  S.attachItem(propItem.id, targetId, targetPartDef.id, offset);
+  toast(`${propItem.name} attached to ${targetItem.name} › ${partName}`);
+}
+
+function detachItemFlow() {
+  const { itemId } = S.state.selection;
+  const item = itemId ? S.getItem(itemId) : null;
+  if (!item || !item.attachedTo) { toast('Select an attached item first', 'warn'); return; }
+  const inst = getInstance(item.id);
+  const currentWorld = inst ? inst.partWorld(item.rig?.rootPart) : null;
+  S.detachItem(item.id, currentWorld);
+  toast(`${item.name} detached`);
+}
+
+// ================================================================ face presets
+async function openFacePresetsFlow() {
+  const { itemId } = S.state.selection;
+  const item = itemId ? S.getItem(itemId) : null;
+  if (!item || item.kind !== 'rig') { toast('Select a rig first', 'warn'); return; }
+
+  const list = document.createElement('div');
+  list.className = 'face-preset-list';
+
+  const renderList = () => {
+    list.innerHTML = '';
+    const presets = settings.facePresets || [];
+    if (!presets.length) {
+      const p = document.createElement('p');
+      p.className = 'bridge-help';
+      p.textContent = 'No saved presets yet — add a face below, then "Save as preset".';
+      list.appendChild(p);
+      return;
+    }
+    for (const preset of presets) {
+      const row = document.createElement('div');
+      row.className = 'face-preset-row';
+      const thumb = document.createElement('img');
+      thumb.className = 'face-preset-thumb';
+      thumb.src = preset.layers[0]?.dataUri || '';
+      const name = document.createElement('span');
+      name.className = 'face-preset-name';
+      name.textContent = `${preset.name} (${preset.layers.length} layer${preset.layers.length > 1 ? 's' : ''})`;
+      const applyBtn = document.createElement('button');
+      applyBtn.className = 'btn';
+      applyBtn.textContent = 'Apply';
+      applyBtn.addEventListener('click', () => {
+        S.setItemFace(item.id, structuredClone(preset.layers));
+        refreshInstance(item.id);
+        toast(`Applied "${preset.name}"`);
+      });
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn';
+      delBtn.textContent = 'Delete';
+      delBtn.addEventListener('click', () => {
+        settings.facePresets = (settings.facePresets || []).filter((p) => p.id !== preset.id);
+        window.cadence.setSettings(settings);
+        renderList();
+      });
+      row.append(thumb, name, applyBtn, delBtn);
+      list.appendChild(row);
+    }
+  };
+  renderList();
+
+  const actions = document.createElement('div');
+  actions.className = 'face-preset-actions';
+  const addLayerBtn = document.createElement('button');
+  addLayerBtn.className = 'btn';
+  addLayerBtn.textContent = '+ Add layer from image…';
+  addLayerBtn.addEventListener('click', async () => {
+    const paths = await window.cadence.openDialog({
+      title: 'Add face layer',
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+      properties: ['openFile'],
+    });
+    if (!paths) return;
+    const dataUri = await window.cadence.readImageAsDataUri(paths[0]);
+    const layers = [...(item.faceLayers || []), { dataUri, opacity: 1 }];
+    S.setItemFace(item.id, layers);
+    refreshInstance(item.id);
+    toast('Layer added');
+  });
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'btn';
+  clearBtn.textContent = 'Clear face';
+  clearBtn.addEventListener('click', () => {
+    S.setItemFace(item.id, null);
+    refreshInstance(item.id);
+    toast('Face cleared');
+  });
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn primary';
+  saveBtn.textContent = 'Save as preset…';
+  saveBtn.addEventListener('click', async () => {
+    if (!item.faceLayers || !item.faceLayers.length) { toast('Add at least one layer first', 'warn'); return; }
+    const name = await promptModal({ title: 'Save face preset', label: 'Preset name', placeholder: 'Happy' });
+    if (!name) return;
+    settings.facePresets = settings.facePresets || [];
+    settings.facePresets.push({ id: crypto.randomUUID(), name, layers: structuredClone(item.faceLayers) });
+    await window.cadence.setSettings(settings);
+    renderList();
+    toast(`Saved "${name}"`);
+  });
+  actions.append(addLayerBtn, clearBtn, saveBtn);
+
+  const container = document.createElement('div');
+  container.appendChild(actions);
+  container.appendChild(list);
+
+  modal({
+    title: `Face Presets — ${item.name}`,
+    body: container,
+    actions: [{ label: 'Close', primary: true, run: () => { } }],
+  });
 }
 
 function mirrorSelectedItem() { // Ctrl+R
@@ -1247,9 +1424,11 @@ function wireTransport() {
   // gizmo chips
   document.getElementById('moveBtn').addEventListener('click', () => setGizmoMode('translate'));
   document.getElementById('rotateBtn').addEventListener('click', () => setGizmoMode('rotate'));
+  document.getElementById('trackballBtn').addEventListener('click', () => setGizmoMode('trackball'));
   S.on('gizmo-mode', (m) => {
     document.getElementById('moveBtn').classList.toggle('active', m === 'translate');
     document.getElementById('rotateBtn').classList.toggle('active', m === 'rotate');
+    document.getElementById('trackballBtn').classList.toggle('active', m === 'trackball');
   });
   document.getElementById('moveBtn').classList.add('active');
 }
