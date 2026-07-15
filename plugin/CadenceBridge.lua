@@ -179,6 +179,8 @@ local function serializeRig(model, displayName)
 			cf = cfComponents(rel),
 			color = colorHex(p.Color),
 			transparency = p.Transparency,
+			material = p.Material.Name,
+			reflectance = p.Reflectance,
 		}
 		if p:IsA("Part") then
 			entry.shape = SHAPE_NAMES[p.Shape] or "Block"
@@ -208,11 +210,16 @@ local function serializeRig(model, displayName)
 				metalnessMap = sa.MetalnessMap,
 			}
 		end
-		local decal = p:FindFirstChildOfClass("Decal")
-		if decal and decal.Texture ~= "" then
-			if (not decal.Face) or decal.Face == Enum.NormalId.Front then
-				entry.faceDecal = decal.Texture
+		-- Every Decal on the part, on whatever face it's actually on — not just the front one.
+		-- A part can carry up to six (one per face); Studio builds commonly use more than Front.
+		local decals = {}
+		for _, c in ipairs(p:GetChildren()) do
+			if c:IsA("Decal") and c.Texture ~= "" then
+				table.insert(decals, { face = c.Face.Name, texture = c.Texture, transparency = c.Transparency })
 			end
+		end
+		if #decals > 0 then
+			entry.decals = decals
 		end
 		table.insert(parts, entry)
 	end

@@ -67,6 +67,61 @@ function headGeometry() {
   return geo;
 }
 
+// Roblox Material -> a reasonable PBR approximation. Roblox's own renderer uses a proprietary
+// baked material texture atlas we have no access to, so this is a best-effort visual match (right
+// roughness/metalness family, Neon actually glows) rather than a pixel-identical reproduction —
+// that's a real limit of rendering Roblox content in a from-scratch three.js scene, not a bug.
+const MATERIAL_PROPS = {
+  Plastic: { roughness: 0.82, metalness: 0.02 },
+  SmoothPlastic: { roughness: 0.25, metalness: 0.02 },
+  Neon: { roughness: 0.35, metalness: 0, emissive: 0.85 },
+  Metal: { roughness: 0.35, metalness: 0.9 },
+  CorrodedMetal: { roughness: 0.75, metalness: 0.7 },
+  DiamondPlate: { roughness: 0.3, metalness: 0.85 },
+  Foil: { roughness: 0.15, metalness: 0.95 },
+  Glass: { roughness: 0.05, metalness: 0.1, transparentBoost: 0.55 },
+  ForceField: { roughness: 0.1, metalness: 0.2, transparentBoost: 0.6 },
+  Ice: { roughness: 0.1, metalness: 0.05, transparentBoost: 0.35 },
+  Glacier: { roughness: 0.15, metalness: 0.05, transparentBoost: 0.25 },
+  Water: { roughness: 0.1, metalness: 0.1, transparentBoost: 0.4 },
+  Wood: { roughness: 0.88, metalness: 0 },
+  WoodPlanks: { roughness: 0.88, metalness: 0 },
+  Cardboard: { roughness: 0.95, metalness: 0 },
+  Leather: { roughness: 0.7, metalness: 0 },
+  Fabric: { roughness: 0.95, metalness: 0 },
+  Carpet: { roughness: 0.97, metalness: 0 },
+  Rubber: { roughness: 0.8, metalness: 0 },
+  Plaster: { roughness: 0.85, metalness: 0 },
+  Grass: { roughness: 1, metalness: 0 },
+  LeafyGrass: { roughness: 1, metalness: 0 },
+  Sand: { roughness: 1, metalness: 0 },
+  Snow: { roughness: 0.95, metalness: 0 },
+  Mud: { roughness: 0.9, metalness: 0 },
+  Ground: { roughness: 1, metalness: 0 },
+  Salt: { roughness: 0.9, metalness: 0 },
+};
+const UNKNOWN_MATERIAL_PROPS = { roughness: 0.92, metalness: 0 }; // stone/masonry family fallback
+function materialProps(name) {
+  // No `material` field at all (older saved projects, the hand-written builtin rig presets)
+  // means "never captured a Material" — Roblox's own actual default is Plastic, so that's the
+  // correct fallback here, not the generic stone/masonry bucket below (which is only for a
+  // material NAME that's present but somehow not in the lookup table, which shouldn't happen
+  // given every official Enum.Material name is mapped, but is a safer miss than assuming stone).
+  if (!name) return MATERIAL_PROPS.Plastic;
+  return MATERIAL_PROPS[name] || UNKNOWN_MATERIAL_PROPS;
+}
+
+// Roblox NormalId -> which local axis a decal plane's normal points along (sign) and how to
+// rotate a three.js PlaneGeometry (default normal +Z) to face that direction.
+const FACE_ORIENT = {
+  Front: { axis: 'z', sign: -1, rotY: Math.PI, rotX: 0 },
+  Back: { axis: 'z', sign: 1, rotY: 0, rotX: 0 },
+  Right: { axis: 'x', sign: 1, rotY: Math.PI / 2, rotX: 0 },
+  Left: { axis: 'x', sign: -1, rotY: -Math.PI / 2, rotX: 0 },
+  Top: { axis: 'y', sign: 1, rotY: 0, rotX: -Math.PI / 2 },
+  Bottom: { axis: 'y', sign: -1, rotY: 0, rotX: Math.PI / 2 },
+};
+
 // Real R15/Rthro part names — used only to pick a humanoid-shaped placeholder while the
 // actual mesh downloads (or in place of it, if the CDN 401s: some avatar assets require an
 // authenticated Roblox session that a bare desktop app doesn't have — this keeps the rig
@@ -153,14 +208,22 @@ export class RigInstance {
 
   #buildPart(def) {
     const geometry = partGeometry(def);
+    const mp = materialProps(def.material);
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(def.color || '#A3A2A5'),
-      roughness: 0.82,
-      metalness: 0.02,
+      roughness: mp.roughness,
+      metalness: Math.max(mp.metalness, (def.reflectance || 0) * 0.8),
     });
-    if (def.transparency > 0) {
+    if (mp.emissive) {
+      material.emissive = new THREE.Color(def.color || '#A3A2A5');
+      material.emissiveIntensity = mp.emissive;
+    }
+    // transparentBoost approximates glass/ice/water/forcefield always reading as at least
+    // somewhat see-through even at Transparency 0, which is how Roblox actually renders them.
+    const effectiveTransparency = Math.max(def.transparency || 0, mp.transparentBoost || 0);
+    if (effectiveTransparency > 0) {
       material.transparent = true;
-      material.opacity = 1 - def.transparency;
+      material.opacity = 1 - effectiveTransparency;
       if (def.transparency >= 1) material.visible = true; // handled via mesh.visible
     }
     const mesh = new THREE.Mesh(geometry, material);
@@ -171,7 +234,11 @@ export class RigInstance {
     if (def.transparency >= 1) mesh.visible = this.showRoot || def.id !== (this.item.rig.rootPart);
     if (def.transparency >= 0.99) mesh.visible = false;
     this.group.add(mesh);
-    this.parts.set(def.id, { def, mesh, world: CF.IDENTITY.slice(), extras: [] });
+    // baseEmissive: Neon's own glow color/intensity, restored by setHighlight() below instead of
+    // going to black like every other material — a Neon part must keep glowing even while some
+    // other part is selected, not just when this exact one is.
+    const baseEmissive = mp.emissive ? { color: new THREE.Color(def.color || '#A3A2A5'), intensity: mp.emissive } : null;
+    this.parts.set(def.id, { def, mesh, world: CF.IDENTITY.slice(), extras: [], baseEmissive });
 
     // async: texture (fixes the UGC "black head" bug: we always fetch + apply the real texture).
     // Modern UGC heads carry their texture on a SurfaceAppearance rather than MeshPart.TextureID —
@@ -229,35 +296,54 @@ export class RigInstance {
     // Face: a user's custom layer stack (Face Presets) takes priority over the classic R6 smiley —
     // both render the same way (stacked transparent planes just in front of the head surface).
     if (def.name === 'Head' && this.item.faceLayers && this.item.faceLayers.length) {
-      this.item.faceLayers.forEach((layer, i) => this.#buildFacePlane(def, mesh, layer.dataUri, layer.opacity ?? 1, i));
+      this.item.faceLayers.forEach((layer, i) => this.#buildFacePlane(def, mesh, layer.dataUri, layer.opacity ?? 1, 'Front', i));
     } else if (def.faceDecal) {
       getClassicFace().then((dataUri) => {
-        if (dataUri) this.#buildFacePlane(def, mesh, dataUri, 1, 0);
+        if (dataUri) this.#buildFacePlane(def, mesh, dataUri, 1, 'Front', 0);
+      });
+    }
+    // Every Decal Roblox has on this part, on whichever face(s) it's actually on — not just the
+    // one the classic-smiley path above assumes. A part can carry up to six simultaneously.
+    if (def.decals && def.decals.length) {
+      def.decals.forEach((d, i) => {
+        loadRobloxTexture(d.texture).then((tex) => {
+          if (tex) this.#buildFacePlane(def, mesh, null, 1 - (d.transparency || 0), d.face, i, tex);
+        });
       });
     }
   }
 
-  // One decal plane parented to the head mesh, positioned just off its front surface. Layer
-  // index nudges each successive layer a hair further out so a multi-layer face (e.g. a base
-  // skin tone plus separate eyebrows/mouth layers) composites correctly instead of z-fighting.
-  #buildFacePlane(def, headMesh, dataUri, opacity, layerIndex) {
-    texLoader.load(dataUri, (tex) => {
+  // One decal plane parented to the part, positioned just off the given face's surface. Layer
+  // index nudges each successive layer on the SAME face a hair further out so multiple stacked
+  // layers (e.g. a base skin tone plus separate eyebrows/mouth layers) composite correctly
+  // instead of z-fighting. `face` is a Roblox NormalId name; defaults to 'Front' for the
+  // Face-Presets/classic-smiley callers above, which only ever target the front of a head.
+  #buildFacePlane(def, partMesh, dataUri, opacity, face, layerIndex, preloadedTex) {
+    const place = (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
       const isHeadMesh = def.specialMesh && def.specialMesh.meshType === 'Head';
       const w = isHeadMesh ? (def.specialMesh.scale?.[0] ?? 1.25) : def.size[0];
       const h = isHeadMesh ? (def.specialMesh.scale?.[1] ?? 1.25) : def.size[1];
       const depth = isHeadMesh ? (def.specialMesh.scale?.[2] ?? 1.25) : def.size[2];
+      const shrink = isHeadMesh ? 0.82 : 1;
+      const orient = FACE_ORIENT[face] || FACE_ORIENT.Front;
+      const dims = orient.axis === 'z' ? [w, h] : orient.axis === 'x' ? [depth, h] : [w, depth];
+      const half = { x: w / 2, y: h / 2, z: depth / 2 }[orient.axis] * shrink;
       const plane = new THREE.Mesh(
-        new THREE.PlaneGeometry(w * 0.9, h * 0.9),
+        new THREE.PlaneGeometry(dims[0] * 0.9, dims[1] * 0.9),
         new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity, depthWrite: false }),
       );
-      plane.rotation.y = Math.PI; // face -Z (Roblox front)
-      plane.position.z = -(depth / 2) * (isHeadMesh ? 0.82 : 1) - 0.012 - layerIndex * 0.004;
+      plane.rotation.y = orient.rotY;
+      plane.rotation.x = orient.rotX;
+      const offset = (half + 0.012 + layerIndex * 0.004) * orient.sign;
+      plane.position[orient.axis] = offset;
       plane.renderOrder = 10 + layerIndex;
       plane.userData.isFaceLayer = true;
-      plane.raycast = () => { }; // click through to the head
-      headMesh.add(plane);
-    });
+      plane.raycast = () => { }; // click through to the part
+      partMesh.add(plane);
+    };
+    if (preloadedTex) place(preloadedTex);
+    else texLoader.load(dataUri, place);
   }
 
   #computeSolveOrder() {
@@ -362,6 +448,7 @@ export class RigInstance {
       if (!em) continue;
       if (id === partId && level === 2) em.set(0x3355ff), p.mesh.material.emissiveIntensity = 0.35;
       else if (id === partId && level === 1) em.set(0x223377), p.mesh.material.emissiveIntensity = 0.3;
+      else if (p.baseEmissive) em.copy(p.baseEmissive.color), p.mesh.material.emissiveIntensity = p.baseEmissive.intensity;
       else em.set(0x000000);
       p.mesh.material.needsUpdate = false;
     }

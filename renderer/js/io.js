@@ -119,6 +119,23 @@ function colorHex(c) {
 const SHAPE_NAMES = ['Ball', 'Block', 'Cylinder', 'Wedge', 'CornerWedge'];
 const MESHTYPE_NAMES = ['Head', 'Torso', 'Wedge', 'Sphere', 'Cylinder', 'FileMesh', 'Brick', 'Prism', 'Pyramid', 'ParallelRamp', 'RightAngleRamp', 'CornerWedge'];
 const NORMALID_FRONT = 5;
+const NORMALID_NAMES = ['Right', 'Top', 'Back', 'Left', 'Bottom', 'Front'];
+// Enum.Material's numeric Values, straight from Roblox's own docs — needed because the binary/XML
+// property is stored as a bare integer token, unlike the Studio bridge which reads p.Material.Name
+// directly with no guessing involved.
+const MATERIAL_NAMES = {
+  256: 'Plastic', 272: 'SmoothPlastic', 288: 'Neon',
+  512: 'Wood', 528: 'WoodPlanks',
+  784: 'Marble', 788: 'Basalt', 800: 'Slate', 804: 'CrackedLava', 816: 'Concrete', 820: 'Limestone',
+  832: 'Granite', 836: 'Pavement', 848: 'Brick', 864: 'Pebble', 880: 'Cobblestone', 896: 'Rock', 912: 'Sandstone',
+  1040: 'CorrodedMetal', 1056: 'DiamondPlate', 1072: 'Foil', 1088: 'Metal',
+  1280: 'Grass', 1284: 'LeafyGrass', 1296: 'Sand', 1312: 'Fabric', 1328: 'Snow', 1344: 'Mud', 1360: 'Ground',
+  1376: 'Asphalt', 1392: 'Salt',
+  1536: 'Ice', 1552: 'Glacier', 1568: 'Glass', 1584: 'ForceField',
+  1792: 'Air', 2048: 'Water',
+  2304: 'Cardboard', 2305: 'Carpet', 2306: 'CeramicTiles', 2307: 'ClayRoofTiles', 2308: 'RoofShingles',
+  2309: 'Leather', 2310: 'Plaster', 2311: 'Rubber',
+};
 
 // ---------------------------------------------------------------- rig from a model tree
 // Deep hierarchies are fine: we walk EVERY descendant (no 3-layer limit),
@@ -218,6 +235,8 @@ export function rigFromModelTree(modelNode) {
       cf: CF.mul(CF.inverse(rootCf), cf),
       color: colorHex(prop(pn, 'Color3uint8', 'Color')),
       transparency: prop(pn, 'Transparency') || 0,
+      material: MATERIAL_NAMES[prop(pn, 'material', 'Material')] || 'Plastic',
+      reflectance: prop(pn, 'reflectance', 'Reflectance') || 0,
     };
     const shapeToken = prop(pn, 'shape', 'Shape');
     if (pn.className === 'Part' && shapeToken !== undefined) def.shape = SHAPE_NAMES[shapeToken] || 'Block';
@@ -238,8 +257,15 @@ export function rigFromModelTree(modelNode) {
         offset: [offset.x, offset.y, offset.z],
       };
     }
-    const decal = pn.children.find((c) => c.className === 'Decal' && (prop(c, 'Face') === undefined || prop(c, 'Face') === NORMALID_FRONT));
-    if (decal) def.faceDecal = prop(decal, 'Texture') || '';
+    // Every Decal on the part, on whatever face it's actually on — not just the front one.
+    const decalNodes = pn.children.filter((c) => c.className === 'Decal' && prop(c, 'Texture'));
+    if (decalNodes.length) {
+      def.decals = decalNodes.map((c) => ({
+        face: NORMALID_NAMES[prop(c, 'Face') ?? NORMALID_FRONT] || 'Front',
+        texture: prop(c, 'Texture') || '',
+        transparency: prop(c, 'Transparency') || 0,
+      }));
+    }
     // Modern UGC heads texture via SurfaceAppearance, not MeshPart.TextureID — missing this is
     // exactly what causes the "UGC mesh head turns black" bug, so file imports capture it too.
     const sa = pn.children.find((c) => c.className === 'SurfaceAppearance');
