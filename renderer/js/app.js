@@ -1,7 +1,7 @@
 // App shell: wires everything together — commands, shortcuts, panels, playback, import/export flows.
 import * as S from './state.js';
 import * as CF from './cf.js';
-import { initViewport, updateScene, render, setGizmoMode, toggleGizmoSpace, focusSelected, frameAll, debugFrame, debugPick, commitOverlays, getInstance, syncItems, refreshInstance, setHandlesVisible, setHandleSize, setRotationSnap, viewport } from './viewport.js';
+import { initViewport, updateScene, render, setGizmoMode, toggleGizmoSpace, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, commitOverlays, getInstance, syncItems, refreshInstance, setHandlesVisible, setHandleSize, setRotationSnap, setTranslationSnap, viewport } from './viewport.js';
 import { initTimeline, requestDraw, copySelectedKeys, cutSelectedKeys, pasteKeys, pasteKeysIntoItem, duplicateAtPlayhead, zoomToFit, openSelectedKeyMenu, toggleItemCollapse, toggleCollapseAll } from './timeline.js';
 import { initCurveEditor, toggleCurveEditor, openCurveEditor } from './curves.js';
 import { initAudio, loadAudioFromPath, removeAudio, setAudioVolume, setAudioOffset, restoreAudio } from './audio.js';
@@ -24,6 +24,8 @@ async function boot() {
     S.state.handlesVisible = settings.handlesVisible ?? true;
     S.state.handleSize = settings.handleSize ?? 'normal';
     S.state.showSeconds = settings.showSeconds ?? false;
+    S.state.rotGridDegrees = settings.rotGridDegrees ?? 15;
+    S.state.posGridDistance = settings.posGridDistance ?? 1;
 
     initPanels(settings, (sizes) => { Object.assign(settings, sizes); window.cadence.setSettings(settings); });
 
@@ -58,7 +60,7 @@ async function boot() {
     window.__cadenceDebug = {
       S, CF, IO,
       addBuiltinRig, addCamera, keyCurrentPose, setGizmoMode,
-      getInstance, updateScene, render, focusSelected, frameAll, debugFrame, debugPick, setHandlesVisible, viewport, refreshInstance,
+      getInstance, updateScene, render, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, setHandlesVisible, viewport, refreshInstance,
     };
   } catch (e) {
     console.error('[boot] failed:', e && e.stack || e);
@@ -86,7 +88,18 @@ function loop(now) {
   }
   updateScene();
   render();
+  updateDragHud();
   requestAnimationFrame(loop);
+}
+
+let lastHudText = null;
+function updateDragHud() {
+  const hud = document.getElementById('dragHud');
+  const text = viewport.dragHud?.text ?? null;
+  if (text === lastHudText) return;
+  lastHudText = text;
+  hud.classList.toggle('show', !!text);
+  if (text) hud.textContent = text;
 }
 
 // ================================================================ commands & shortcuts
@@ -112,8 +125,11 @@ function registerAllCommands() {
   C({ title: 'Move tool', shortcut: 'W', section: 'Animating', run: () => setGizmoMode('translate') });
   C({ title: 'Rotate tool', shortcut: 'E', section: 'Animating', run: () => setGizmoMode('rotate') });
   C({ title: 'Trackball tool', section: 'Animating', hint: 'drag the selected part anywhere to spin it freely, Blender-style', run: () => setGizmoMode('trackball') });
+  C({ title: 'Scale tool', section: 'Animating', hint: 'resize the selected rig — this changes its actual size, not just this pose', run: () => setGizmoMode('scale') });
   C({ title: 'Toggle local / world space', shortcut: 'Y', section: 'Animating', run: () => toast(`Gizmo space: ${toggleGizmoSpace()}`) });
-  C({ title: 'Toggle rotation grid snap', shortcut: 'C', section: 'Animating', run: toggleRotGrid });
+  C({ title: 'Toggle rotation grid snap', shortcut: 'C', hint: 'or just hold Shift while dragging to snap on demand', section: 'Animating', run: toggleRotGrid });
+  C({ title: 'Toggle move grid snap', hint: 'or just hold Shift while dragging to snap on demand', section: 'Animating', run: toggleMoveGrid });
+  C({ title: 'Snap increments…', hint: 'change the fixed degree/stud values rotate & move snap to', section: 'Animating', run: setSnapIncrementsFlow });
   C({ title: 'Curve editor', hint: 'interactive bezier easing curves — now on the toolbar/right-click, C is taken by rotation grid', section: 'Animating', run: toggleCurveEditor });
   C({ title: 'Focus selected part', shortcut: 'F', section: 'Animating', run: focusSelected });
   C({ title: 'Fit animation length to last keyframe', shortcut: 'Shift+F', section: 'Animating', run: fitLengthToLastKeyframe });
@@ -364,6 +380,8 @@ function persistPrefs() {
   settings.handlesVisible = S.state.handlesVisible;
   settings.handleSize = S.state.handleSize;
   settings.showSeconds = S.state.showSeconds;
+  settings.rotGridDegrees = S.state.rotGridDegrees;
+  settings.posGridDistance = S.state.posGridDistance;
   window.cadence.setSettings(settings);
 }
 
@@ -699,6 +717,25 @@ function hideHandlesForce() { // Shift+H
 function toggleRotGrid() { // C
   setRotationSnap(!S.state.rotGridSnap);
   toast(`Rotation grid snap ${S.state.rotGridSnap ? `on (${S.state.rotGridDegrees}°)` : 'off'}`);
+}
+function toggleMoveGrid() {
+  setTranslationSnap(!S.state.posGridSnap);
+  toast(`Move grid snap ${S.state.posGridSnap ? `on (${S.state.posGridDistance} stud${S.state.posGridDistance === 1 ? '' : 's'})` : 'off'}`);
+}
+// Both rotate and move snapping default to off — hold Shift during any drag to snap to these
+// increments on demand instead, or use the toggle commands above to leave it on all the time.
+async function setSnapIncrementsFlow() {
+  const deg = await promptModal({ title: 'Rotation snap increment', label: 'Degrees', placeholder: '15', initial: String(S.state.rotGridDegrees), okLabel: 'Next' });
+  if (deg === null) return;
+  const d = parseFloat(deg);
+  if (d > 0) setRotationSnap(S.state.rotGridSnap, d);
+
+  const dist = await promptModal({ title: 'Move snap increment', label: 'Studs', placeholder: '1', initial: String(S.state.posGridDistance), okLabel: 'Save' });
+  if (dist === null) { persistPrefs(); return; }
+  const s = parseFloat(dist);
+  if (s > 0) setTranslationSnap(S.state.posGridSnap, s);
+  persistPrefs();
+  toast(`Snap increments: ${S.state.rotGridDegrees}° / ${S.state.posGridDistance} stud${S.state.posGridDistance === 1 ? '' : 's'}`);
 }
 
 function toggleOnionForSelected(forceOn) { // N (force on) / B (toggle)
@@ -1425,10 +1462,12 @@ function wireTransport() {
   document.getElementById('moveBtn').addEventListener('click', () => setGizmoMode('translate'));
   document.getElementById('rotateBtn').addEventListener('click', () => setGizmoMode('rotate'));
   document.getElementById('trackballBtn').addEventListener('click', () => setGizmoMode('trackball'));
+  document.getElementById('scaleBtn').addEventListener('click', () => setGizmoMode('scale'));
   S.on('gizmo-mode', (m) => {
     document.getElementById('moveBtn').classList.toggle('active', m === 'translate');
     document.getElementById('rotateBtn').classList.toggle('active', m === 'rotate');
     document.getElementById('trackballBtn').classList.toggle('active', m === 'trackball');
+    document.getElementById('scaleBtn').classList.toggle('active', m === 'scale');
   });
   document.getElementById('moveBtn').classList.add('active');
 }

@@ -32,6 +32,8 @@ export const state = {
   handleSize: 'normal', // 'normal' | 'small'
   rotGridSnap: false,
   rotGridDegrees: 15,
+  posGridSnap: false,
+  posGridDistance: 1,
   showSeconds: false,
   uiHidden: false, // Ctrl+H focus mode
   cameraTracksVisible: true,
@@ -586,6 +588,32 @@ export function reverseFrames(list) {
   emit('tracks', {});
   markDirty();
   return moved;
+}
+
+// ---------------------------------------------------------------- resize (Scale gizmo)
+// A resize is baked directly into the rig's REST definition (part sizes, joint offsets, mesh
+// scale) rather than being an animatable keyframed property — CFrames in this app are pure
+// position+rotation with no scale slot, and a real Roblox rig resize genuinely needs its part
+// sizes changed, not just a cosmetic render-time stretch, so the joint solver and every other
+// pose/animation code path never need to know scale exists at all.
+export function resizeItem(itemId, factor) {
+  const item = getItem(itemId);
+  if (!item || !item.rig || !(factor > 0) || Math.abs(factor - 1) < 1e-4) return;
+  pushUndo();
+  for (const p of item.rig.parts) {
+    p.size = p.size.map((s) => s * factor);
+    p.cf = p.cf.map((v, i) => (i < 3 ? v * factor : v)); // only the position components (0-2)
+    if (p.specialMesh) {
+      p.specialMesh.scale = (p.specialMesh.scale || [1, 1, 1]).map((s) => s * factor);
+      p.specialMesh.offset = (p.specialMesh.offset || [0, 0, 0]).map((o) => o * factor);
+    }
+  }
+  for (const j of item.rig.joints || []) {
+    j.c0 = j.c0.map((v, i) => (i < 3 ? v * factor : v));
+    j.c1 = j.c1.map((v, i) => (i < 3 ? v * factor : v));
+  }
+  emit('items');
+  markDirty();
 }
 
 // ---------------------------------------------------------------- mirror / reflect (Ctrl+R)

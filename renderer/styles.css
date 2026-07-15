@@ -414,6 +414,24 @@ body {
 .vp-chip.cam.show { display: block; animation: chipIn var(--dur-slow) var(--ease); }
 @keyframes chipIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 
+.drag-hud {
+  position: absolute;
+  bottom: 14px; left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(22,22,30,0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(124,140,255,0.4);
+  color: #cfd5ff;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  display: none;
+  pointer-events: none;
+}
+.drag-hud.show { display: block; }
+
 /* ---------------------------------------------------------------- inspector */
 #inspectorBody { flex: 1 1 auto; overflow-y: auto; padding: 4px 12px 30px; }
 .insp-section {

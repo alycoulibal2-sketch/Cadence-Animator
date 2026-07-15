@@ -28,7 +28,35 @@ export const viewport = {
   editingDrag: false,
   onionGhosts: new Map(), // itemId -> OnionGhostSet
   trackballMode: false,
+  dragHud: null, // { text } while a move/rotate/scale drag is live, read by app.js's render loop
 };
+
+// Snapshot of the dummy's transform at the start of the current drag — used both for the live
+// HUD readout (delta from here) and to detect whether a scale drag actually changed anything.
+export const dragStart = { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), scale: new THREE.Vector3() };
+// QA-only: drives the exact same drag-start/change/release path TransformControls itself would,
+// without needing to raycast synthetic pointer events against its picker geometry.
+export function debugSimulateDrag(applyFn) {
+  viewport.editingDrag = true;
+  dragStart.pos.copy(viewport.dummy.position);
+  dragStart.quat.copy(viewport.dummy.quaternion);
+  dragStart.scale.copy(viewport.dummy.scale);
+  applyFn(viewport.dummy);
+  viewport.dummy.updateMatrixWorld(true);
+  onGizmoChange();
+  const hud = viewport.dragHud;
+  onGizmoRelease();
+  viewport.editingDrag = false;
+  viewport.dragHud = null;
+  return hud;
+}
+let shiftHeld = false;
+function applyLiveSnap() {
+  const rotOn = S.state.rotGridSnap || shiftHeld;
+  const posOn = S.state.posGridSnap || shiftHeld;
+  viewport.gizmo.setRotationSnap(rotOn ? THREE.MathUtils.degToRad(S.state.rotGridDegrees) : null);
+  viewport.gizmo.setTranslationSnap(posOn ? S.state.posGridDistance : null);
+}
 
 // ---------------------------------------------------------------- onion skin
 // Ghost silhouettes of nearby frames, reusing the live rig's own (possibly still-loading)
@@ -178,13 +206,28 @@ export function initViewport(container) {
   gizmo.setSpace('local');
   gizmo.addEventListener('dragging-changed', (e) => {
     controls.enabled = !e.value;
-    if (e.value) viewport.editingDrag = true;
-    else {
+    if (e.value) {
+      viewport.editingDrag = true;
+      dragStart.pos.copy(dummy.position);
+      dragStart.quat.copy(dummy.quaternion);
+      dragStart.scale.copy(dummy.scale);
+      applyLiveSnap();
+    } else {
       viewport.editingDrag = false;
+      viewport.dragHud = null;
       onGizmoRelease();
     }
   });
   gizmo.addEventListener('objectChange', onGizmoChange);
+  // Shift held during a drag temporarily forces snap on, on top of whatever the persistent C-key
+  // toggle already has it at — released, it goes back to just the toggle's own state.
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Shift' && !shiftHeld) { shiftHeld = true; applyLiveSnap(); }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'Shift') { shiftHeld = false; applyLiveSnap(); }
+  });
+  window.addEventListener('blur', () => { shiftHeld = false; applyLiveSnap(); });
   const gizmoRoot = gizmo.getHelper ? gizmo.getHelper() : gizmo;
   gizmoRoot.traverse?.((o) => (o.userData.nonSelectable = true));
   scene.add(gizmoRoot);
@@ -414,9 +457,23 @@ function updateSelBox() {
 function onGizmoChange() {
   if (!viewport.editingDrag) return;
   const { itemId, partId } = S.state.selection;
-  if (!itemId || !partId) return;
+  if (!itemId) return;
   const inst = viewport.instances.get(itemId);
   if (!inst) return;
+
+  // trackball leaves the gizmo's own internal mode untouched (it never calls setMode while
+  // active — see setGizmoMode), so it must be checked first or a stale 'scale' mode from before
+  // switching to trackball would wrongly take the scale branch below.
+  if (!viewport.trackballMode && viewport.gizmo.getMode() === 'scale') {
+    // Resize is not part of the animatable pose pipeline — preview it by scaling the whole rig's
+    // render group directly, bake into the rest definition on release (see onGizmoRelease).
+    if (inst.group) inst.group.scale.copy(viewport.dummy.scale);
+    const factor = viewport.dummy.scale.x;
+    viewport.dragHud = { text: `Scale: ${(factor * 100).toFixed(0)}%` };
+    return;
+  }
+
+  if (!partId) return;
   viewport.dummy.updateMatrixWorld(true);
   const desired = CF.orthonormalize(CF.fromThreeMatrix(viewport.dummy.matrixWorld));
 
@@ -431,9 +488,29 @@ function onGizmoChange() {
     viewport.overlayPose.get(itemId)[r.joint] = r.transform;
   }
   S.emit('overlay');
+
+  if (viewport.trackballMode || viewport.gizmo.getMode() === 'rotate') {
+    const deg = THREE.MathUtils.radToDeg(dragStart.quat.angleTo(viewport.dummy.quaternion));
+    viewport.dragHud = { text: `Rotate: ${deg.toFixed(1)}°` };
+  } else {
+    const d = viewport.dummy.position.clone().sub(dragStart.pos);
+    viewport.dragHud = { text: `Move: ${d.x.toFixed(2)}, ${d.y.toFixed(2)}, ${d.z.toFixed(2)}` };
+  }
 }
 
 function onGizmoRelease() {
+  const { itemId } = S.state.selection;
+  if (!viewport.trackballMode && viewport.gizmo.getMode() === 'scale' && itemId) {
+    const inst = viewport.instances.get(itemId);
+    const factor = viewport.dummy.scale.x;
+    viewport.dummy.scale.set(1, 1, 1);
+    if (inst?.group) inst.group.scale.set(1, 1, 1);
+    if (Math.abs(factor - 1) > 0.001) {
+      S.resizeItem(itemId, factor);
+      refreshInstance(itemId);
+    }
+    return;
+  }
   if (S.state.autoKey) commitOverlays();
 }
 
@@ -483,6 +560,7 @@ function startTrackballDrag(e) {
   setPointerFromEvent(e);
   trackball.startVec.copy(arcballVector(viewport.pointer.x, viewport.pointer.y));
   trackball.startQuat.copy(viewport.dummy.quaternion);
+  dragStart.quat.copy(viewport.dummy.quaternion); // shared HUD snapshot, see onGizmoChange
 
   const move = (me) => {
     setPointerFromEvent(me);
@@ -503,6 +581,7 @@ function startTrackballDrag(e) {
     trackball.active = false;
     viewport.editingDrag = false;
     viewport.controls.enabled = true;
+    viewport.dragHud = null;
     onGizmoRelease();
   };
   window.addEventListener('pointermove', move);
@@ -606,5 +685,10 @@ export function setHandleSize(size) {
 export function setRotationSnap(on, degrees) {
   S.state.rotGridSnap = on;
   if (degrees) S.state.rotGridDegrees = degrees;
-  viewport.gizmo.setRotationSnap(on ? THREE.MathUtils.degToRad(S.state.rotGridDegrees) : null);
+  applyLiveSnap();
+}
+export function setTranslationSnap(on, distance) {
+  S.state.posGridSnap = on;
+  if (distance) S.state.posGridDistance = distance;
+  applyLiveSnap();
 }
