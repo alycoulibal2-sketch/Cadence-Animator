@@ -151,8 +151,15 @@ export function rigFromModelTree(modelNode) {
   const resolveRef = (v) => {
     if (!v) return null;
     if (v.refNode) return v.refNode;
+    if (v.refId !== undefined) {
+      // binary path: true instance identity via the referent id carried across IPC — required
+      // whenever two parts share a name (e.g. duplicate default "Part"s), since a name match
+      // alone can't tell them apart and would wire a Motor6D/Weld to the wrong instance.
+      const byId = nodeByBinaryRef.get(v.refId);
+      if (byId) return byId;
+    }
     if (v.refName !== undefined) {
-      // binary path: match by name among parts (already unique-ided); prefer exact single match
+      // last-resort fallback if the id lookup ever misses (e.g. ref points outside this model)
       const matches = partNodes.filter((p) => p.name === v.refName);
       return matches[0] || null;
     }

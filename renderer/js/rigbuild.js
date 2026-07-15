@@ -80,7 +80,13 @@ function partGeometry(def) {
       return new THREE.CapsuleGeometry(radius, length, 4, 12);
     }
     if (def.name === 'Head') {
-      return new THREE.SphereGeometry(Math.max(sx, sy, sz) / 2, 20, 16);
+      // R15/Rthro heads are gated MeshPart CDN assets that 401 without an authenticated Roblox
+      // session (see fetchMeshGeometry below) — the classic lathed head shape is a much closer
+      // stand-in than a bare sphere for the real default Roblox head while that fetch is pending
+      // or fails, and never affects the actual exported meshId/className data.
+      const g = headGeometry();
+      g.scale(sx, sy, sz);
+      return g;
     }
     return new THREE.BoxGeometry(sx, sy, sz); // torso pieces already read fine as boxes; replaced async if the mesh loads
   }

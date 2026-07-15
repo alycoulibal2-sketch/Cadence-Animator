@@ -1,7 +1,7 @@
 // App shell: wires everything together — commands, shortcuts, panels, playback, import/export flows.
 import * as S from './state.js';
 import * as CF from './cf.js';
-import { initViewport, updateScene, render, setGizmoMode, toggleGizmoSpace, focusSelected, commitOverlays, getInstance, syncItems, refreshInstance, setHandlesVisible, setHandleSize, setRotationSnap } from './viewport.js';
+import { initViewport, updateScene, render, setGizmoMode, toggleGizmoSpace, focusSelected, frameAll, commitOverlays, getInstance, syncItems, refreshInstance, setHandlesVisible, setHandleSize, setRotationSnap } from './viewport.js';
 import { initTimeline, requestDraw, copySelectedKeys, cutSelectedKeys, pasteKeys, pasteKeysIntoItem, duplicateAtPlayhead, zoomToFit, openSelectedKeyMenu, toggleItemCollapse, toggleCollapseAll } from './timeline.js';
 import { initCurveEditor, toggleCurveEditor, openCurveEditor } from './curves.js';
 import { initAudio, loadAudioFromPath, removeAudio, setAudioVolume, setAudioOffset, restoreAudio } from './audio.js';
@@ -56,9 +56,9 @@ async function boot() {
 
     // Internal QA hook — drives the app from the main process for automated smoke tests/screenshots.
     window.__cadenceDebug = {
-      S, CF,
+      S, CF, IO,
       addBuiltinRig, addCamera, keyCurrentPose, setGizmoMode,
-      getInstance, updateScene, render,
+      getInstance, updateScene, render, focusSelected, frameAll,
     };
   } catch (e) {
     console.error('[boot] failed:', e && e.stack || e);

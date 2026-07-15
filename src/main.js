@@ -468,6 +468,11 @@ function stripRefs(roots) {
         node.props[k] = target ? { refName: target.name, refId: v.__ref } : null;
       }
     }
+    // Keep this node's own referent (as a prop, so it survives IPC) so the renderer can resolve
+    // Part0/Part1 refs by true instance identity instead of falling back to name matching — two
+    // parts sharing a name (e.g. duplicate default "Part"s) would otherwise wire a Motor6D/Weld
+    // to the wrong instance.
+    if (node.referent !== undefined) node.props.__binref = node.referent;
     delete node.referent;
     node.children.forEach(resolve);
   };
