@@ -1,0 +1,591 @@
+// Project state, undo/redo, autosave, track evaluation.
+import * as CF from './cf.js';
+import { evalSegment } from './easing.js';
+
+// ---------------------------------------------------------------- events
+const listeners = new Map();
+export function on(type, cb) {
+  if (!listeners.has(type)) listeners.set(type, new Set());
+  listeners.get(type).add(cb);
+  return () => listeners.get(type).delete(cb);
+}
+export function emit(type, data) {
+  (listeners.get(type) || []).forEach((cb) => { try { cb(data); } catch (e) { console.error(e); } });
+  if (type !== 'playhead' && type !== 'playing') (listeners.get('any') || []).forEach((cb) => cb(type));
+}
+
+// ---------------------------------------------------------------- state
+export const state = {
+  project: null,
+  selection: { itemId: null, partId: null, keys: [] }, // keys: [{itemId, track, t}]
+  playhead: 0,
+  playing: false,
+  autoKey: true,
+  snapping: true,
+  loopPlayback: true,
+  cameraView: null, // itemId of camera being looked through, or null
+  clipboard: null,
+  dirty: false,
+  projectPath: null, // where Save writes; autosave is separate & automatic
+  // UI/session preferences (not project data — persisted via settings.json like autoKey/snapping)
+  handlesVisible: true,
+  handleSize: 'normal', // 'normal' | 'small'
+  rotGridSnap: false,
+  rotGridDegrees: 15,
+  showSeconds: false,
+  uiHidden: false, // Ctrl+H focus mode
+  cameraTracksVisible: true,
+};
+
+export function newProject(name = 'Untitled') {
+  state.project = {
+    version: 1,
+    id: crypto.randomUUID(),
+    name,
+    fps: 30,
+    length: 90,
+    loop: false,
+    priority: 'Action',
+    items: [],
+    tracks: {},
+    groups: [], // [{ id, keys: [{itemId, track, t}] }] — keys that move together (Ctrl+G)
+    onionSkin: { enabledItemIds: [], range: 3 },
+    audio: null, // { name, path, offset, volume }
+  };
+  state.selection = { itemId: null, partId: null, keys: [] };
+  state.playhead = 0;
+  state.projectPath = null;
+  undoStack.length = 0;
+  redoStack.length = 0;
+  emit('project');
+  scheduleAutosave();
+}
+
+export function loadProject(json, filePath = null) {
+  const p = typeof json === 'string' ? JSON.parse(json) : json;
+  if (!p || !Array.isArray(p.items)) throw new Error('Not a valid Cadence project file');
+  p.id = p.id || crypto.randomUUID();
+  p.groups = p.groups || [];
+  p.onionSkin = p.onionSkin || { enabledItemIds: [], range: 3 };
+  state.project = p;
+  state.projectPath = filePath;
+  state.selection = { itemId: null, partId: null, keys: [] };
+  state.playhead = 0;
+  undoStack.length = 0;
+  redoStack.length = 0;
+  emit('project');
+}
+
+export function serialize() {
+  return JSON.stringify(state.project);
+}
+
+// ---------------------------------------------------------------- undo/redo
+const undoStack = [];
+const redoStack = [];
+const UNDO_CAP = 120;
+
+function snapshot() {
+  const p = state.project;
+  return structuredClone({ items: p.items, tracks: p.tracks, groups: p.groups, onionSkin: p.onionSkin, length: p.length, fps: p.fps, loop: p.loop, priority: p.priority, name: p.name, audio: p.audio });
+}
+function applySnapshot(s) {
+  Object.assign(state.project, structuredClone(s));
+  emit('project');
+}
+export function pushUndo() {
+  undoStack.push(snapshot());
+  if (undoStack.length > UNDO_CAP) undoStack.shift();
+  redoStack.length = 0;
+}
+export function undo() {
+  if (!undoStack.length) return false;
+  redoStack.push(snapshot());
+  applySnapshot(undoStack.pop());
+  markDirty();
+  return true;
+}
+export function redo() {
+  if (!redoStack.length) return false;
+  undoStack.push(snapshot());
+  applySnapshot(redoStack.pop());
+  markDirty();
+  return true;
+}
+
+// ---------------------------------------------------------------- autosave
+let autosaveTimer = null;
+let lastAutosave = 0;
+export function markDirty() {
+  state.dirty = true;
+  emit('dirty');
+  scheduleAutosave();
+}
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(doAutosave, 600);
+}
+async function doAutosave() {
+  if (!state.project) return;
+  try {
+    await window.eclipse.autosaveWrite(state.project.id, serialize());
+    lastAutosave = Date.now();
+    emit('autosaved', lastAutosave);
+  } catch (e) {
+    console.error('autosave failed', e);
+  }
+}
+// Emergency flush on window close — nothing is ever lost, even on crash/close
+window.addEventListener('beforeunload', () => {
+  if (state.project) {
+    try {
+      // synchronous-ish best effort: fire and let main finish the write
+      window.eclipse.autosaveWrite(state.project.id, serialize());
+    } catch (_) { }
+  }
+});
+
+// ---------------------------------------------------------------- items
+export function addItem(item) {
+  pushUndo();
+  state.project.items.push(item);
+  state.project.tracks[item.id] = state.project.tracks[item.id] || {};
+  emit('items');
+  markDirty();
+  return item;
+}
+export function removeItem(itemId) {
+  pushUndo();
+  state.project.items = state.project.items.filter((i) => i.id !== itemId);
+  delete state.project.tracks[itemId];
+  if (state.selection.itemId === itemId) setSelection(null, null);
+  if (state.cameraView === itemId) state.cameraView = null;
+  emit('items');
+  markDirty();
+}
+export function getItem(itemId) {
+  return state.project.items.find((i) => i.id === itemId) || null;
+}
+export function renameItem(itemId, name) {
+  const it = getItem(itemId);
+  if (!it) return;
+  pushUndo();
+  it.name = name;
+  emit('items');
+  markDirty();
+}
+
+// ---------------------------------------------------------------- selection / playhead
+export function setSelection(itemId, partId, keepKeys = false) {
+  state.selection.itemId = itemId;
+  state.selection.partId = partId;
+  if (!keepKeys) state.selection.keys = [];
+  emit('selection');
+}
+export function setSelectedKeys(keys) {
+  state.selection.keys = keys;
+  emit('selection');
+}
+export function setPlayhead(t, snap = null) {
+  const doSnap = snap === null ? state.snapping && !state.playing : snap;
+  t = Math.max(0, Math.min(state.project.length, t));
+  state.playhead = doSnap ? Math.round(t) : t;
+  emit('playhead', state.playhead);
+}
+export function setPlaying(v) {
+  state.playing = v;
+  emit('playing', v);
+}
+
+// ---------------------------------------------------------------- tracks & keys
+function trackObj(itemId, track, create = false) {
+  const t = state.project.tracks;
+  if (!t[itemId]) { if (!create) return null; t[itemId] = {}; }
+  if (!t[itemId][track]) {
+    if (!create) return null;
+    t[itemId][track] = { keys: [] };
+  }
+  return t[itemId][track];
+}
+export function getTrack(itemId, track) { return trackObj(itemId, track, false); }
+export function getTracks(itemId) { return state.project.tracks[itemId] || {}; }
+
+export function setKey(itemId, track, t, value, opts = {}) {
+  if (!opts.noUndo) pushUndo();
+  const tr = trackObj(itemId, track, true);
+  const existing = tr.keys.find((k) => Math.abs(k.t - t) < 1e-6);
+  if (existing) {
+    if (value !== undefined) existing.v = value;
+    if (opts.es) existing.es = opts.es;
+    if (opts.ed) existing.ed = opts.ed;
+    if (opts.bez !== undefined) existing.bez = opts.bez;
+  } else {
+    tr.keys.push({ t, v: value, es: opts.es || 'Cubic', ed: opts.ed || 'Out', bez: opts.bez ?? null });
+    tr.keys.sort((a, b) => a.t - b.t);
+  }
+  emit('tracks', { itemId, track });
+  markDirty();
+}
+
+export function deleteKeys(list) {
+  if (!list.length) return;
+  pushUndo();
+  for (const { itemId, track, t } of list) {
+    const tr = trackObj(itemId, track);
+    if (!tr) continue;
+    tr.keys = tr.keys.filter((k) => Math.abs(k.t - t) > 1e-6);
+  }
+  state.selection.keys = [];
+  emit('tracks', {});
+  emit('selection');
+  markDirty();
+}
+
+export function moveKeys(list, dt, opts = {}) {
+  if (!list.length || dt === 0) return list;
+  if (!opts.noUndo) pushUndo();
+  // Grouped keys move together: if any key in `list` belongs to a group, pull in every
+  // other key of that group too (deduped) so dragging one moves the whole group.
+  const expanded = [...list];
+  const seen = new Set(list.map((k) => `${k.itemId}|${k.track}|${k.t}`));
+  for (const ref of list) {
+    const grp = findGroup(ref.itemId, ref.track, ref.t);
+    if (!grp) continue;
+    for (const k of grp.keys) {
+      const key = `${k.itemId}|${k.track}|${k.t}`;
+      if (!seen.has(key)) { seen.add(key); expanded.push(k); }
+    }
+  }
+  const moved = [];
+  // collect refs first (deleting/re-adding avoids collision weirdness)
+  const grabbed = [];
+  for (const { itemId, track, t } of expanded) {
+    const tr = trackObj(itemId, track);
+    if (!tr) continue;
+    const idx = tr.keys.findIndex((k) => Math.abs(k.t - t) < 1e-6);
+    if (idx < 0) continue;
+    grabbed.push({ itemId, track, origT: t, key: tr.keys[idx] });
+    tr.keys.splice(idx, 1);
+  }
+  for (const g of grabbed) {
+    const tr = trackObj(g.itemId, g.track, true);
+    let nt = Math.max(0, Math.min(state.project.length, g.key.t + dt));
+    // replace any key already at destination
+    tr.keys = tr.keys.filter((k) => Math.abs(k.t - nt) > 1e-6);
+    g.key.t = nt;
+    tr.keys.push(g.key);
+    tr.keys.sort((a, b) => a.t - b.t);
+    moved.push({ itemId: g.itemId, track: g.track, t: nt });
+    retargetGroupKey(g.itemId, g.track, g.origT, nt);
+  }
+  emit('tracks', {});
+  emit('groups');
+  markDirty();
+  return moved;
+}
+
+// ---------------------------------------------------------------- keyframe groups (Ctrl+G)
+function keyRefEq(a, b) {
+  return a.itemId === b.itemId && a.track === b.track && Math.abs(a.t - b.t) < 1e-6;
+}
+export function findGroup(itemId, track, t) {
+  const groups = state.project.groups || [];
+  return groups.find((g) => g.keys.some((k) => keyRefEq(k, { itemId, track, t }))) || null;
+}
+function retargetGroupKey(itemId, track, oldT, newT) {
+  const grp = findGroup(itemId, track, oldT);
+  if (!grp) return;
+  const k = grp.keys.find((k) => keyRefEq(k, { itemId, track, t: oldT }));
+  if (k) k.t = newT;
+}
+export function groupKeys(list) {
+  if (list.length < 2) return null;
+  pushUndo();
+  state.project.groups = state.project.groups || [];
+  // merge with any groups already touching these keys, and dedupe
+  const merged = [...list];
+  const seen = new Set(list.map((k) => `${k.itemId}|${k.track}|${k.t}`));
+  const survivors = [];
+  for (const g of state.project.groups) {
+    if (g.keys.some((k) => seen.has(`${k.itemId}|${k.track}|${k.t}`))) {
+      for (const k of g.keys) {
+        const key = `${k.itemId}|${k.track}|${k.t}`;
+        if (!seen.has(key)) { seen.add(key); merged.push(k); }
+      }
+    } else {
+      survivors.push(g);
+    }
+  }
+  survivors.push({ id: crypto.randomUUID(), keys: merged.map(({ itemId, track, t }) => ({ itemId, track, t })) });
+  state.project.groups = survivors;
+  emit('groups');
+  markDirty();
+  return survivors[survivors.length - 1];
+}
+export function ungroupKeys(list) {
+  if (!list.length) return false;
+  const groups = state.project.groups || [];
+  const targets = new Set(list.map((k) => `${k.itemId}|${k.track}|${k.t}`));
+  const remaining = groups.filter((g) => !g.keys.some((k) => targets.has(`${k.itemId}|${k.track}|${k.t}`)));
+  if (remaining.length === groups.length) return false;
+  pushUndo();
+  state.project.groups = remaining;
+  emit('groups');
+  markDirty();
+  return true;
+}
+
+export function setEasing(list, es, ed, bez, opts = {}) {
+  if (!list.length) return;
+  if (!opts.noUndo) pushUndo();
+  for (const { itemId, track, t } of list) {
+    const tr = trackObj(itemId, track);
+    if (!tr) continue;
+    const k = tr.keys.find((k) => Math.abs(k.t - t) < 1e-6);
+    if (!k) continue;
+    if (es !== undefined && es !== null) k.es = es;
+    if (ed !== undefined && ed !== null) k.ed = ed;
+    if (bez !== undefined) k.bez = bez;
+  }
+  emit('tracks', {});
+  markDirty();
+}
+
+export function getKey(itemId, track, t) {
+  const tr = trackObj(itemId, track);
+  if (!tr) return null;
+  return tr.keys.find((k) => Math.abs(k.t - t) < 1e-6) || null;
+}
+
+// ---------------------------------------------------------------- evaluation
+// CFrame track evaluation with per-segment easing (left key's easing shapes the segment)
+export function evalTrackCF(itemId, track, t, fallback = CF.IDENTITY) {
+  const tr = trackObj(itemId, track);
+  if (!tr || !tr.keys.length) return fallback;
+  const keys = tr.keys;
+  if (t <= keys[0].t) return keys[0].v;
+  if (t >= keys[keys.length - 1].t) return keys[keys.length - 1].v;
+  let lo = 0;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (t >= keys[i].t && t <= keys[i + 1].t) { lo = i; break; }
+  }
+  const a = keys[lo], b = keys[lo + 1];
+  const span = b.t - a.t || 1;
+  const alpha = evalSegment(a, (t - a.t) / span);
+  return CF.lerp(a.v, b.v, alpha);
+}
+
+export function evalTrackNum(itemId, track, t, fallback = 0) {
+  const tr = trackObj(itemId, track);
+  if (!tr || !tr.keys.length) return fallback;
+  const keys = tr.keys;
+  if (t <= keys[0].t) return keys[0].v;
+  if (t >= keys[keys.length - 1].t) return keys[keys.length - 1].v;
+  let lo = 0;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (t >= keys[i].t && t <= keys[i + 1].t) { lo = i; break; }
+  }
+  const a = keys[lo], b = keys[lo + 1];
+  const span = b.t - a.t || 1;
+  const alpha = evalSegment(a, (t - a.t) / span);
+  return a.v + (b.v - a.v) * alpha;
+}
+
+// ---------------------------------------------------------------- keyframe navigation (J/K)
+function allTimesForItem(itemId) {
+  const times = new Set();
+  const tracks = getTracks(itemId);
+  for (const tn of Object.keys(tracks)) for (const k of tracks[tn].keys) times.add(k.t);
+  return [...times].sort((a, b) => a - b);
+}
+export function prevKeyframeTime(itemId, t) {
+  const times = itemId ? allTimesForItem(itemId) : allProjectTimes();
+  let best = null;
+  for (const time of times) if (time < t - 1e-6 && (best === null || time > best)) best = time;
+  return best;
+}
+export function nextKeyframeTime(itemId, t) {
+  const times = itemId ? allTimesForItem(itemId) : allProjectTimes();
+  let best = null;
+  for (const time of times) if (time > t + 1e-6 && (best === null || time < best)) best = time;
+  return best;
+}
+function allProjectTimes() {
+  const times = new Set();
+  for (const itemId of Object.keys(state.project.tracks)) for (const t of allTimesForItem(itemId)) times.add(t);
+  return [...times];
+}
+
+export function selectAllKeys(itemId) {
+  const out = [];
+  const ids = itemId ? [itemId] : state.project.items.map((i) => i.id);
+  for (const id of ids) {
+    const tracks = getTracks(id);
+    for (const tn of Object.keys(tracks)) for (const k of tracks[tn].keys) out.push({ itemId: id, track: tn, t: k.t });
+  }
+  setSelectedKeys(out);
+  return out;
+}
+
+// ---------------------------------------------------------------- frame range tools
+// Split: insert a keyframe at time t with the currently-interpolated value — a no-visual-change
+// "refine the curve" operation you then nudge, matching Moon's M key.
+export function splitKeyframe(itemId, track, t) {
+  const isNumeric = track === '@fov';
+  const value = isNumeric ? evalTrackNum(itemId, track, t) : evalTrackCF(itemId, track, t);
+  setKey(itemId, track, t, value);
+}
+export function splitStride(itemId, track, tStart, tEnd, stride) {
+  if (stride <= 0) return;
+  pushUndo();
+  for (let t = tStart + stride; t < tEnd - 1e-6; t += stride) {
+    splitKeyframeNoUndo(itemId, track, t);
+  }
+  emit('tracks', {});
+  markDirty();
+}
+function splitKeyframeNoUndo(itemId, track, t) {
+  const isNumeric = track === '@fov';
+  const value = isNumeric ? evalTrackNum(itemId, track, t) : evalTrackCF(itemId, track, t);
+  setKey(itemId, track, t, value, { noUndo: true });
+}
+
+// Fill: bake every intermediate frame in [tStart, tEnd] into an explicit keyframe holding
+// the currently-interpolated value, at the given frame step — turns a smooth curve into
+// an explicit per-frame one so each frame can be hand-tuned independently.
+export function fillFrames(itemId, track, tStart, tEnd, step = 1) {
+  pushUndo();
+  const isNumeric = track === '@fov';
+  for (let t = Math.ceil(tStart); t <= Math.floor(tEnd); t += step) {
+    const value = isNumeric ? evalTrackNum(itemId, track, t) : evalTrackCF(itemId, track, t);
+    setKey(itemId, track, t, value, { noUndo: true });
+  }
+  emit('tracks', {});
+  markDirty();
+}
+
+// Repeat: duplicate the keyframe range spanned by `list` forward `times` more times back-to-back.
+export function repeatFrames(list, times) {
+  if (!list.length || times < 1) return;
+  const byRef = list.map((r) => ({ ref: r, key: getKey(r.itemId, r.track, r.t) })).filter((x) => x.key);
+  if (!byRef.length) return;
+  const minT = Math.min(...byRef.map((x) => x.ref.t));
+  const maxT = Math.max(...byRef.map((x) => x.ref.t));
+  const span = maxT - minT;
+  if (span <= 0) return;
+  pushUndo();
+  for (let rep = 1; rep <= times; rep++) {
+    const offset = (span + 1) * rep;
+    for (const { ref, key } of byRef) {
+      setKey(ref.itemId, ref.track, ref.t + offset, structuredClone(key.v), { noUndo: true, es: key.es, ed: key.ed, bez: key.bez });
+    }
+  }
+  const newEnd = maxT + (span + 1) * times;
+  if (newEnd > state.project.length) state.project.length = Math.ceil(newEnd);
+  emit('tracks', {});
+  emit('project-props');
+  markDirty();
+}
+
+// Stretch: scale the time-spacing of the selected keys by `factor`, anchored at the range start.
+export function stretchFrames(list, factor) {
+  if (!list.length || factor <= 0) return;
+  const byRef = list.map((r) => ({ ref: r, key: getKey(r.itemId, r.track, r.t) })).filter((x) => x.key);
+  if (!byRef.length) return;
+  const minT = Math.min(...byRef.map((x) => x.ref.t));
+  pushUndo();
+  // grab first (removes so we don't collide with ourselves while rewriting times)
+  const grabbed = byRef.map(({ ref, key }) => ({ itemId: ref.itemId, track: ref.track, key }));
+  for (const g of grabbed) {
+    const tr = trackObj(g.itemId, g.track);
+    if (!tr) continue;
+    tr.keys = tr.keys.filter((k) => k !== g.key);
+  }
+  const moved = [];
+  for (const g of grabbed) {
+    const tr = trackObj(g.itemId, g.track, true);
+    const nt = Math.max(0, Math.round(minT + (g.key.t - minT) * factor));
+    tr.keys = tr.keys.filter((k) => Math.abs(k.t - nt) > 1e-6);
+    g.key.t = nt;
+    tr.keys.push(g.key);
+    tr.keys.sort((a, b) => a.t - b.t);
+    moved.push({ itemId: g.itemId, track: g.track, t: nt });
+  }
+  emit('tracks', {});
+  markDirty();
+  return moved;
+}
+
+// ---------------------------------------------------------------- mirror / reflect (Ctrl+R)
+function mirrorPartnerName(name) {
+  if (/left/i.test(name)) return name.replace(/Left/g, 'Right').replace(/left/g, 'right');
+  if (/right/i.test(name)) return name.replace(/Right/g, 'Left').replace(/right/g, 'left');
+  return null;
+}
+// Swaps Left*/Right* joint tracks (mirroring each CFrame) and mirrors symmetric joints in place.
+export function mirrorItem(itemId) {
+  const tracks = getTracks(itemId);
+  const names = Object.keys(tracks).filter((n) => !n.startsWith('@'));
+  if (!names.length) return;
+  pushUndo();
+  const handled = new Set();
+  for (const name of names) {
+    if (handled.has(name)) continue;
+    const partner = mirrorPartnerName(name);
+    if (partner && tracks[partner] && !handled.has(partner)) {
+      const a = structuredClone(tracks[name].keys);
+      const b = structuredClone(tracks[partner].keys);
+      tracks[name].keys = b.map((k) => ({ ...k, v: CF.mirror(k.v) }));
+      tracks[partner].keys = a.map((k) => ({ ...k, v: CF.mirror(k.v) }));
+      handled.add(name); handled.add(partner);
+    } else if (!partner) {
+      tracks[name].keys = tracks[name].keys.map((k) => ({ ...k, v: CF.mirror(k.v) }));
+      handled.add(name);
+    }
+  }
+  emit('tracks', {});
+  markDirty();
+}
+
+// ---------------------------------------------------------------- onion skin (N/B/Alt+B)
+export function toggleOnionSkin(itemId) {
+  const os = state.project.onionSkin;
+  const i = os.enabledItemIds.indexOf(itemId);
+  if (i >= 0) os.enabledItemIds.splice(i, 1);
+  else os.enabledItemIds.push(itemId);
+  emit('onion');
+  markDirty();
+  return os.enabledItemIds.includes(itemId);
+}
+export function setOnionSkin(itemId, on) {
+  const os = state.project.onionSkin;
+  const has = os.enabledItemIds.includes(itemId);
+  if (on && !has) os.enabledItemIds.push(itemId);
+  else if (!on && has) os.enabledItemIds = os.enabledItemIds.filter((id) => id !== itemId);
+  else return;
+  emit('onion');
+  markDirty();
+}
+export function clearAllOnionSkins() {
+  state.project.onionSkin.enabledItemIds = [];
+  emit('onion');
+  markDirty();
+}
+
+// The pose of every joint of an item at time t: { [jointName]: cf }
+export function evalPose(item, t) {
+  const pose = {};
+  const tracks = getTracks(item.id);
+  for (const trackName of Object.keys(tracks)) {
+    if (trackName.startsWith('@')) continue;
+    pose[trackName] = evalTrackCF(item.id, trackName, t, CF.IDENTITY);
+  }
+  return pose;
+}
+
+export function setProjectProp(prop, value) {
+  pushUndo();
+  state.project[prop] = value;
+  emit('project-props');
+  markDirty();
+}

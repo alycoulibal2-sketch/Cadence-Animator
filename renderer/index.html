@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none';" />
+  <title>Cadence Animator</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- title bar -->
+  <header id="titlebar">
+    <div class="logo"><span class="note">♩</span> Cadence</div>
+    <div id="projectName" contenteditable="true" spellcheck="false">Untitled</div>
+    <div id="saveDot" title="Autosaves after every change"></div>
+    <div class="spacer"></div>
+    <button id="updateChip" class="chip-status update-chip" title="A new version is available">
+      <span class="dot"></span><span class="txt">Update available</span>
+    </button>
+    <div id="bridgeChip" class="chip-status" title="Roblox Studio bridge — click to install the plugin">
+      <span class="dot"></span><span class="txt">Studio offline</span>
+    </div>
+    <button id="mcpBtn" class="tb-btn" title="Let Claude drive this app directly via MCP">✨ Claude Control</button>
+    <button id="addBtn" class="tb-btn primary">＋ Add</button>
+    <button id="importBtn" class="tb-btn">Import</button>
+    <button id="exportBtn" class="tb-btn">Export</button>
+    <button id="shortcutsBtn" class="tb-btn" title="Keyboard shortcuts (?)">⌘ Shortcuts</button>
+    <div class="overlay-pad"></div>
+  </header>
+
+  <!-- main -->
+  <main id="main">
+    <aside id="explorer">
+      <div class="panel-head">
+        <span>Scene</span>
+        <button id="addItemBtn" class="icon-btn" title="Add rig, camera or audio">＋</button>
+      </div>
+      <div id="itemList"></div>
+    </aside>
+    <div class="resizer resizer-x" id="explorerResizer"></div>
+
+    <section id="viewportWrap">
+      <div id="viewport"></div>
+      <div id="vpChips">
+        <button id="moveBtn" class="vp-chip" title="Move tool (W)">✥ Move</button>
+        <button id="rotateBtn" class="vp-chip" title="Rotate tool (E)">⟳ Rotate</button>
+      </div>
+      <button id="camChip" class="vp-chip cam" title="Exit camera view (Esc)">🎥 Viewing camera — click to exit</button>
+    </section>
+
+    <div class="resizer resizer-x" id="inspectorResizer"></div>
+    <aside id="inspector">
+      <div class="panel-head"><span>Inspector</span></div>
+      <div id="inspectorBody"></div>
+    </aside>
+  </main>
+
+  <div class="resizer resizer-y" id="timelineResizer"></div>
+  <!-- timeline -->
+  <section id="timelinePanel">
+    <div id="transport">
+      <button id="stepBackBtn" class="tr-btn" title="Back 1 frame (←)">⏮</button>
+      <button id="playBtn" class="tr-btn big" title="Play / Pause (Space)">▶</button>
+      <button id="stopBtn" class="tr-btn" title="Stop (Shift+Space)">⏹</button>
+      <button id="stepFwdBtn" class="tr-btn" title="Forward 1 frame (→)">⏭</button>
+      <div class="frame-display">frame <span id="frameBox">0</span></div>
+      <div class="tr-field">fps <input id="fpsInput" type="number" min="1" max="120" value="30"></div>
+      <div class="tr-field">length <input id="lenInput" type="number" min="1" max="36000" value="90"></div>
+      <div class="spacer"></div>
+      <button id="loopBtn" class="tr-btn toggle" title="Loop playback">Loop</button>
+      <button id="autoKeyBtn" class="tr-btn toggle rec" title="Auto-key: record keys when you move parts (A)">● Auto-key</button>
+      <button id="keyBtn" class="tr-btn" title="Key current pose (S)">◆ Key</button>
+      <button id="curveBtn" class="tr-btn" title="Curve editor (C)">∿ Curves</button>
+      <button id="fitBtn" class="tr-btn" title="Zoom timeline to fit">⤢</button>
+    </div>
+    <div id="tlBody">
+      <div id="trackList"></div>
+      <div id="tlCanvasWrap"><canvas id="tlCanvas"></canvas></div>
+      <div id="curvePanel">
+        <div class="curve-head">
+          <span class="curve-title">Easing curve</span>
+          <select id="curveStyle" class="fld slim"></select>
+          <select id="curveDir" class="fld slim"></select>
+          <button id="curveToBezier" class="chip accent">Custom bezier</button>
+          <div id="curvePresets"></div>
+          <div class="spacer"></div>
+          <button id="curveClose" class="icon-btn">✕</button>
+        </div>
+        <div class="curve-canvas-wrap"><canvas id="curveCanvas"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- command palette -->
+  <div id="paletteBack" class="overlay-back">
+    <div id="palette">
+      <input id="paletteInput" type="text" placeholder="Type what you want to do… (add rig, export, easing…)" spellcheck="false">
+      <div id="paletteList"></div>
+      <div class="pal-foot">↑↓ navigate · Enter run · Esc close</div>
+    </div>
+  </div>
+
+  <!-- shortcuts -->
+  <div id="shortcutsBack" class="overlay-back">
+    <div id="shortcuts">
+      <div class="modal-title">Keyboard shortcuts</div>
+      <div id="shortcutsGrid"></div>
+    </div>
+  </div>
+
+  <!-- drop overlay -->
+  <div id="dropOverlay"><div class="drop-inner">Drop it — rigs (.rbxm), projects (.cadence), audio (.mp3/.wav)</div></div>
+
+  <!-- onboarding -->
+  <div id="onboarding" class="overlay-back">
+    <div class="onboard">
+      <div class="onboard-hero"><span class="note big">♩</span>
+        <h1>Cadence Animator</h1>
+        <p>Animate Roblox rigs in a real desktop app. Everything autosaves. Nothing ever wipes.</p>
+      </div>
+      <div class="onboard-grid">
+        <div class="ob-card"><span>➊</span><b>Add a rig</b>Press <kbd>＋ Add</kbd> — R6, R15, Rthro, your own avatar, or any asset ID.</div>
+        <div class="ob-card"><span>➋</span><b>Pose & key</b>Drag parts with the gizmo. <b>Auto-key</b> records keyframes as you go.</div>
+        <div class="ob-card"><span>➌</span><b>Polish</b>Scrub the timeline, right-click keys for easing, press <kbd>C</kbd> for bezier curves.</div>
+        <div class="ob-card"><span>➍</span><b>Ship it</b>Export straight into Studio, or publish to Roblox for an asset ID.</div>
+      </div>
+      <div class="onboard-tip">Lost? Press <kbd>Ctrl</kbd><kbd>K</kbd> and just type what you want to do.</div>
+      <div class="onboard-actions">
+        <button id="onboardPlugin" class="btn">Install Studio plugin</button>
+        <button id="onboardStart" class="btn primary">Start animating</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

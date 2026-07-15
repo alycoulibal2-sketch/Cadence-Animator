@@ -1,0 +1,63 @@
+{
+  "name": "cadence-animator",
+  "version": "0.2.0",
+  "description": "A standalone Roblox animation suite — the Moon Animator 2 successor. Animate Roblox rigs in a smooth desktop app, sync with Roblox Studio, and let Claude drive it directly via MCP.",
+  "main": "src/main.js",
+  "bin": {
+    "cadence-animator": "./bin/cadence-animator.js",
+    "cadence-animator-mcp": "./mcp-server/index.js"
+  },
+  "scripts": {
+    "start": "electron .",
+    "screenshot": "electron . --screenshot",
+    "dist": "electron-builder --win",
+    "release": "electron-builder --win --publish always",
+    "postinstall": "node ./bin/register-mcp.js"
+  },
+  "author": "alyco",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "electron-updater": "^6.8.9",
+    "fzstd": "^0.1.1",
+    "three": "^0.170.0",
+    "zod": "^3.25.76"
+  },
+  "build": {
+    "appId": "com.alyco.cadenceanimator",
+    "productName": "Cadence Animator",
+    "files": [
+      "src/**/*",
+      "renderer/**/*",
+      "rigs/**/*",
+      "plugin/**/*",
+      "mcp-server/**/*",
+      "bin/**/*",
+      "node_modules/**/*",
+      "!node_modules/electron-builder/**/*",
+      "!node_modules/three/examples/**/*.html"
+    ],
+    "extraResources": [],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "alycoulibal2-sketch",
+      "repo": "Cadence-Animator"
+    }
+  }
+}
