@@ -20,7 +20,8 @@ local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local KeyframeSequenceProvider = game:GetService("KeyframeSequenceProvider")
 local Players = game:GetService("Players")
 
-local BASE_URL = "http://127.0.0.1:35747"
+local BRIDGE_PORT = 35747
+local BASE_URL = "http://127.0.0.1:" .. BRIDGE_PORT
 
 -- ==================================================================== helpers
 
@@ -550,7 +551,9 @@ end
 
 local running = false
 local connected = false
-local setStatus -- forward decl, assigned once the toolbar button exists
+local lastError = nil        -- last reason a connect/poll attempt failed, shown in the status panel
+local lastContact = nil      -- os.clock() of the last successful request, for "last seen" display
+local setStatus -- forward decl, assigned once the toolbar + status panel exist
 
 local function poll()
 	while running do
@@ -561,8 +564,10 @@ local function poll()
 			break
 		end
 		if ok and res.Success then
+			lastContact = os.clock()
 			if not connected then
 				connected = true
+				lastError = nil
 				setStatus(true)
 			end
 			local okDecode, body = pcall(HttpService.JSONDecode, HttpService, res.Body)
@@ -574,6 +579,7 @@ local function poll()
 		else
 			if connected then
 				connected = false
+				lastError = (ok and res and ("HTTP " .. tostring(res.StatusCode))) or "Could not reach the app"
 				setStatus(false)
 			end
 			task.wait(2)
@@ -586,14 +592,18 @@ local function connect()
 		return
 	end
 	running = true
+	setStatus(nil) -- "connecting…" state
 	local ok, res = pcall(post, "/hello", { placeName = (game.Name ~= "" and game.Name) or "Untitled place" })
 	if ok and res.Success then
 		connected = true
+		lastError = nil
+		lastContact = os.clock()
 		setStatus(true)
 		task.spawn(poll)
 	else
 		running = false
 		connected = false
+		lastError = "Could not reach the app on port " .. BRIDGE_PORT
 		setStatus(false)
 		warn("[Cadence] Could not reach the Cadence Animator app at " .. BASE_URL .. ". Is the app running? Is 'Allow HTTP Requests' enabled in Game Settings > Security?")
 	end
@@ -602,22 +612,215 @@ end
 local function disconnect()
 	running = false
 	connected = false
+	lastError = nil
 	setStatus(false)
 end
+
+-- ==================================================================== status panel
+
+-- A dockable panel (not just a toolbar tint) so connection state, port, place, and last-contact
+-- time are always visible at a glance — previously the only feedback was whether one small
+-- toolbar icon looked pressed-in or not, which is why "am I actually connected?" was so hard to
+-- answer at a glance that a real, persistently-flapping bridge bug went unnoticed for a while.
+local widgetInfo = DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Right, false, false, 260, 280, 230, 230)
+local widget = plugin:CreateDockWidgetPluginGui("CadenceBridgeStatus", widgetInfo)
+widget.Title = "Cadence Bridge"
+widget.Name = "CadenceBridgeStatus"
+
+local root = Instance.new("Frame")
+root.Size = UDim2.fromScale(1, 1)
+root.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
+root.BorderSizePixel = 0
+root.Parent = widget
+
+local pad = Instance.new("UIPadding")
+pad.PaddingTop = UDim.new(0, 12)
+pad.PaddingBottom = UDim.new(0, 12)
+pad.PaddingLeft = UDim.new(0, 12)
+pad.PaddingRight = UDim.new(0, 12)
+pad.Parent = root
+
+local layout = Instance.new("UIListLayout")
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Padding = UDim.new(0, 8)
+layout.Parent = root
+
+local function row(order)
+	local f = Instance.new("Frame")
+	f.Size = UDim2.new(1, 0, 0, 18)
+	f.BackgroundTransparency = 1
+	f.LayoutOrder = order
+	f.Parent = root
+	return f
+end
+
+-- headline: dot + status text
+local headline = row(1)
+local dot = Instance.new("Frame")
+dot.Size = UDim2.fromOffset(10, 10)
+dot.Position = UDim2.fromOffset(0, 4)
+dot.BackgroundColor3 = Color3.fromRGB(140, 140, 148)
+dot.BorderSizePixel = 0
+local dotCorner = Instance.new("UICorner")
+dotCorner.CornerRadius = UDim.new(1, 0)
+dotCorner.Parent = dot
+dot.Parent = headline
+
+local statusText = Instance.new("TextLabel")
+statusText.Size = UDim2.new(1, -18, 1, 0)
+statusText.Position = UDim2.fromOffset(18, 0)
+statusText.BackgroundTransparency = 1
+statusText.Font = Enum.Font.GothamBold
+statusText.TextSize = 15
+statusText.TextXAlignment = Enum.TextXAlignment.Left
+statusText.TextColor3 = Color3.fromRGB(230, 230, 235)
+statusText.Text = "Disconnected"
+statusText.Parent = headline
+
+local function infoRow(order, label)
+	local f = row(order)
+	local l = Instance.new("TextLabel")
+	l.Size = UDim2.fromOffset(90, 18)
+	l.BackgroundTransparency = 1
+	l.Font = Enum.Font.Gotham
+	l.TextSize = 13
+	l.TextXAlignment = Enum.TextXAlignment.Left
+	l.TextColor3 = Color3.fromRGB(150, 150, 158)
+	l.Text = label
+	l.Parent = f
+	local v = Instance.new("TextLabel")
+	v.Size = UDim2.new(1, -90, 1, 0)
+	v.Position = UDim2.fromOffset(90, 0)
+	v.BackgroundTransparency = 1
+	v.Font = Enum.Font.GothamMedium
+	v.TextSize = 13
+	v.TextXAlignment = Enum.TextXAlignment.Left
+	v.TextColor3 = Color3.fromRGB(220, 220, 225)
+	v.TextTruncate = Enum.TextTruncate.AtEnd
+	v.Text = "—"
+	v.Parent = f
+	return v
+end
+
+local portValue = infoRow(2, "Port")
+portValue.Text = tostring(BRIDGE_PORT)
+local placeValue = infoRow(3, "Place")
+local lastSeenValue = infoRow(4, "Last contact")
+
+local errorText = Instance.new("TextLabel")
+errorText.Size = UDim2.new(1, 0, 0, 32)
+errorText.LayoutOrder = 5
+errorText.BackgroundTransparency = 1
+errorText.Font = Enum.Font.Gotham
+errorText.TextSize = 12
+errorText.TextWrapped = true
+errorText.TextXAlignment = Enum.TextXAlignment.Left
+errorText.TextYAlignment = Enum.TextYAlignment.Top
+errorText.TextColor3 = Color3.fromRGB(242, 104, 107)
+errorText.Text = ""
+errorText.Visible = false
+errorText.Parent = root
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(1, 0, 0, 30)
+toggleBtn.LayoutOrder = 6
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 13
+toggleBtn.BackgroundColor3 = Color3.fromRGB(90, 100, 235)
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Text = "🔌  Connect"
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 6)
+btnCorner.Parent = toggleBtn
+toggleBtn.Parent = root
+
+local helpText = Instance.new("TextLabel")
+helpText.Size = UDim2.new(1, 0, 0, 48)
+helpText.LayoutOrder = 7
+helpText.BackgroundTransparency = 1
+helpText.Font = Enum.Font.Gotham
+helpText.TextSize = 11.5
+helpText.TextWrapped = true
+helpText.TextXAlignment = Enum.TextXAlignment.Left
+helpText.TextYAlignment = Enum.TextYAlignment.Top
+helpText.TextColor3 = Color3.fromRGB(140, 140, 148)
+helpText.Text = "Cadence Animator must be running on this machine. This plugin connects OUT to it — nothing listens on Studio's side."
+helpText.Parent = root
 
 -- ==================================================================== toolbar UI
 
 local toolbar = plugin:CreateToolbar("Cadence Animator")
 
-local connectBtn = toolbar:CreateButton("Connect", "Connect to / disconnect from the Cadence Animator desktop app", "")
-local pushBtn = toolbar:CreateButton("Send Selection", "Send the selected rig to Cadence right now", "")
-local syncBtn = toolbar:CreateButton("Sync Pose", "Re-read the selected rig's current geometry (after using Studio's Move/Rotate tools) and push the correction to Cadence", "")
+-- iconname ("") is intentionally empty — a real custom icon needs an asset uploaded to Roblox,
+-- which requires an authenticated Roblox account this app has no way to act as. Per Roblox's own
+-- docs, when iconname is unset the button falls back to displaying `text` instead, so we pass an
+-- explicit emoji-prefixed label there rather than leaving these blank.
+local connectBtn = toolbar:CreateButton("Connect", "Connect to / disconnect from the Cadence Animator desktop app", "", "🔌 Connect")
+local statusBtn = toolbar:CreateButton("Status", "Show connection status, port, and place — click to open the Cadence Bridge panel", "", "📶 Status")
+local pushBtn = toolbar:CreateButton("Send Selection", "Send the selected rig to Cadence right now", "", "📤 Send Selection")
+local syncBtn = toolbar:CreateButton("Sync Pose", "Re-read the selected rig's current geometry (after using Studio's Move/Rotate tools) and push the correction to Cadence", "", "🔄 Sync Pose")
 
-setStatus = function(isOn)
-	connectBtn:SetActive(isOn)
+local function fmtAgo(clockTime)
+	if not clockTime then
+		return "never"
+	end
+	local s = math.floor(os.clock() - clockTime)
+	if s < 2 then
+		return "just now"
+	elseif s < 60 then
+		return s .. "s ago"
+	elseif s < 3600 then
+		return math.floor(s / 60) .. "m ago"
+	end
+	return math.floor(s / 3600) .. "h ago"
 end
 
+-- isOn: true = connected, false = disconnected/error, nil = connecting (transient)
+setStatus = function(isOn)
+	connectBtn:SetActive(isOn == true)
+	statusBtn:SetActive(widget.Enabled)
+	if isOn == nil then
+		dot.BackgroundColor3 = Color3.fromRGB(240, 185, 92)
+		statusText.Text = "Connecting…"
+	elseif isOn then
+		dot.BackgroundColor3 = Color3.fromRGB(95, 217, 154)
+		statusText.Text = "Connected"
+	else
+		dot.BackgroundColor3 = lastError and Color3.fromRGB(242, 104, 107) or Color3.fromRGB(140, 140, 148)
+		statusText.Text = lastError and "Connection error" or "Disconnected"
+	end
+	placeValue.Text = connected and ((game.Name ~= "" and game.Name) or "Untitled place") or "—"
+	lastSeenValue.Text = fmtAgo(lastContact)
+	errorText.Visible = lastError ~= nil
+	errorText.Text = lastError or ""
+	toggleBtn.Text = running and "🔌  Disconnect" or "🔌  Connect"
+	toggleBtn.BackgroundColor3 = running and Color3.fromRGB(60, 62, 72) or Color3.fromRGB(90, 100, 235)
+end
+
+-- keep "Last contact" fresh while the panel is open, even between poll ticks
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if widget.Enabled then
+			lastSeenValue.Text = fmtAgo(lastContact)
+		end
+	end
+end)
+
 connectBtn.Click:Connect(function()
+	if running then
+		disconnect()
+	else
+		connect()
+	end
+end)
+
+statusBtn.Click:Connect(function()
+	widget.Enabled = not widget.Enabled
+	statusBtn:SetActive(widget.Enabled)
+end)
+
+toggleBtn.MouseButton1Click:Connect(function()
 	if running then
 		disconnect()
 	else
@@ -672,6 +875,8 @@ syncBtn.Click:Connect(function()
 		warn("[Cadence] Could not reach the Cadence app — is it running and connected?")
 	end
 end)
+
+setStatus(false)
 
 -- ==================================================================== lifecycle
 

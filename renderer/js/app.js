@@ -1499,11 +1499,15 @@ function wireDragDrop() {
 }
 
 // ================================================================ bridge status
+let lastBridgeStatus = { connected: false, placeName: null, port: null, lastSeen: 0, bindError: null };
 function wireBridge() {
   const chip = document.getElementById('bridgeChip');
   const set = (s) => {
+    lastBridgeStatus = s;
     chip.classList.toggle('on', !!s.connected);
-    chip.querySelector('.txt').textContent = s.connected ? (s.placeName || 'Studio connected') : 'Studio offline';
+    chip.classList.toggle('error', !!s.bindError);
+    chip.querySelector('.txt').textContent = s.bindError ? 'Bridge error'
+      : s.connected ? (s.placeName || 'Studio connected') : 'Studio offline';
   };
   window.cadence.bridgeStatus().then(set);
   window.cadence.onBridgeStatus(set);
@@ -1532,7 +1536,52 @@ function wireBridge() {
       toast(`${target.name} re-synced from Studio’s current pose`);
     }
   });
-  chip.addEventListener('click', installPluginFlow);
+  chip.addEventListener('click', showBridgeStatusModal);
+}
+
+function timeAgo(ms) {
+  if (!ms) return 'never';
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 2) return 'just now';
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  return `${Math.round(s / 3600)}h ago`;
+}
+
+// Full status — port, place, connection state, and (if the bridge server itself failed to
+// start) exactly why — instead of just an on/off dot. Reachable any time by clicking the chip,
+// not just when disconnected, so it never gets in the way of just checking on things.
+function showBridgeStatusModal() {
+  const s = lastBridgeStatus;
+  const wrap = document.createElement('div');
+
+  if (s.bindError) {
+    const warn = document.createElement('p');
+    warn.className = 'bridge-warn';
+    warn.textContent = s.bindError;
+    wrap.appendChild(warn);
+  }
+
+  wrap.appendChild(fieldRow('Status', s.bindError ? 'Failed to start' : s.connected ? 'Connected' : 'Waiting for Studio'));
+  wrap.appendChild(fieldRow('Port', String(s.port || 35747)));
+  wrap.appendChild(fieldRow('Place', s.connected ? (s.placeName || 'Roblox Studio') : '—'));
+  wrap.appendChild(fieldRow('Last contact', s.connected || s.lastSeen ? timeAgo(s.lastSeen) : 'never'));
+
+  const howTo = document.createElement('p');
+  howTo.className = 'bridge-help';
+  howTo.innerHTML = s.connected
+    ? 'Connected — Studio is talking to this app on <b>127.0.0.1</b>. Use the <b>Send Selection</b> / <b>Sync Pose</b> buttons on the Cadence toolbar in Studio any time.'
+    : 'This app only listens — the connection is made from Studio\'s side. In Studio: open the <b>Cadence Animator</b> toolbar tab and click <b>Connect</b>. If it still won\'t connect, check Game Settings → Security → <b>Allow HTTP Requests</b> is on.';
+  wrap.appendChild(howTo);
+
+  modal({
+    title: 'Roblox Studio bridge',
+    body: wrap,
+    actions: [
+      { label: 'Install / reinstall plugin', run: () => installPluginFlow() },
+      { label: 'Close', primary: true, run: () => { } },
+    ],
+  });
 }
 
 async function installPluginFlow() {

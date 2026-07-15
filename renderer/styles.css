@@ -208,6 +208,19 @@ body {
 .chip-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
 .chip-status.on .dot { background: var(--good); box-shadow: 0 0 8px var(--good); }
 .chip-status.on { color: var(--text-1); border-color: rgba(95,217,154,0.25); }
+.chip-status.error .dot { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+.chip-status.error { color: var(--text-1); border-color: rgba(242,104,107,0.35); }
+
+.bridge-warn {
+  background: rgba(242,104,107,0.1);
+  border: 1px solid rgba(242,104,107,0.3);
+  color: var(--text-0);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  margin: 0 0 10px;
+}
+.bridge-help { color: var(--text-2); font-size: 12px; line-height: 1.5; margin: 10px 0 0; }
 
 .update-chip {
   display: none;

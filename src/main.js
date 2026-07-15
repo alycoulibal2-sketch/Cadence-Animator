@@ -483,10 +483,20 @@ function stripRefs(roots) {
 
 // ---------------------------------------------------------------- Studio bridge server
 // The companion Studio plugin long-polls GET /poll and pushes results/events back.
+// POLL_HOLD_MS is how long an empty /poll is held open server-side before responding with
+// nothing (the plugin immediately re-polls after that). DISCONNECT_TIMEOUT_MS is how long with
+// NO request at all before we call it dropped — it MUST stay comfortably larger than
+// POLL_HOLD_MS, or a perfectly healthy connection reads as repeatedly disconnecting/reconnecting
+// right around every hold timeout (this was a real bug: 8s timeout vs a 15s hold flapped the
+// status every ~15s even with nothing wrong — confirmed live by sampling /status against a real
+// poll loop before this fix, and again after).
+const POLL_HOLD_MS = 15000;
+const DISCONNECT_TIMEOUT_MS = 30000;
 const bridge = {
   connected: false,
   placeName: null,
   lastSeen: 0,
+  bindError: null,   // set if the bridge server failed to start (e.g. port already in use)
   queue: [],          // pending commands for the plugin
   pending: new Map(), // commandId -> {resolve, reject, timer}
   waiters: [],        // held /poll responses
@@ -494,11 +504,17 @@ const bridge = {
 };
 
 function bridgeNotifyRenderer() {
-  safeSend('bridge:status', { connected: bridge.connected, placeName: bridge.placeName });
+  safeSend('bridge:status', {
+    connected: bridge.connected,
+    placeName: bridge.placeName,
+    port: BRIDGE_PORT,
+    lastSeen: bridge.lastSeen,
+    bindError: bridge.bindError,
+  });
 }
 
 setInterval(() => {
-  if (bridge.connected && Date.now() - bridge.lastSeen > 8000) {
+  if (bridge.connected && Date.now() - bridge.lastSeen > DISCONNECT_TIMEOUT_MS) {
     bridge.connected = false;
     bridge.placeName = null;
     bridgeNotifyRenderer();
@@ -531,7 +547,7 @@ function startBridgeServer() {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ commands }));
       } else {
-        // hold up to 15s (plugin uses a 30s HttpService timeout)
+        // hold up to POLL_HOLD_MS (plugin uses a 30s HttpService timeout, so this must stay under that)
         bridge.waiters.push(res);
         res.__timer = setTimeout(() => {
           const i = bridge.waiters.indexOf(res);
@@ -540,7 +556,7 @@ function startBridgeServer() {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ commands: [] }));
           } catch (_) { }
-        }, 15000);
+        }, POLL_HOLD_MS);
         req.on('close', () => {
           clearTimeout(res.__timer);
           const i = bridge.waiters.indexOf(res);
@@ -589,16 +605,31 @@ function startBridgeServer() {
 
     if (url.pathname === '/status') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ app: 'CadenceAnimator', connected: bridge.connected }));
+      res.end(JSON.stringify({ app: 'CadenceAnimator', connected: bridge.connected, placeName: bridge.placeName, port: BRIDGE_PORT }));
       return;
     }
     res.writeHead(404); res.end();
   });
-  server.on('error', (e) => console.error('Bridge server error:', e.message));
+  server.on('error', (e) => {
+    // Most commonly EADDRINUSE — another Cadence Animator window already owns this port, so
+    // Studio can only ever talk to that one. Previously this just logged to a console the user
+    // can't see in a packaged build, so the bridge chip looked "stuck offline" with no reason why.
+    console.error('Bridge server error:', e.message);
+    bridge.bindError = e.code === 'EADDRINUSE'
+      ? `Port ${BRIDGE_PORT} is already in use — another Cadence Animator window is probably already running and connected to Studio.`
+      : `Could not start the Studio bridge server: ${e.message}`;
+    bridgeNotifyRenderer();
+  });
   server.listen(BRIDGE_PORT, '127.0.0.1');
 }
 
-ipcMain.handle('bridge:status', () => ({ connected: bridge.connected, placeName: bridge.placeName }));
+ipcMain.handle('bridge:status', () => ({
+  connected: bridge.connected,
+  placeName: bridge.placeName,
+  port: BRIDGE_PORT,
+  lastSeen: bridge.lastSeen,
+  bindError: bridge.bindError,
+}));
 ipcMain.handle('bridge:send', (_e, type, payload, timeoutMs = 60000) => {
   return new Promise((resolve, reject) => {
     if (!bridge.connected) {
