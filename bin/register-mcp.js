@@ -8,9 +8,23 @@ const { execFileSync } = require('child_process');
 
 const serverPath = path.join(__dirname, '..', 'mcp-server', 'index.js');
 
+// Runs `claude` reliably. execFileSync('claude', ...) alone fails here even when `claude` works
+// fine in any terminal: a global npm install puts a `claude.cmd` shim on Windows (not a real
+// .exe), execFileSync's raw CreateProcess call never consults PATHEXT the way a shell does, and
+// .cmd/.bat files can't be launched directly by CreateProcess at all regardless — they need
+// cmd.exe to interpret them. Routing through `cmd.exe /c` fixes both: it does real PATHEXT
+// resolution, and Node's own argv-array escaping (not shell:true, which naively concatenates)
+// keeps arguments containing spaces intact — this app's own install path commonly has one.
+function runClaudeCli(args, opts) {
+  if (process.platform === 'win32') {
+    return execFileSync('cmd.exe', ['/c', 'claude', ...args], opts);
+  }
+  return execFileSync('claude', args, opts);
+}
+
 function claudeAvailable() {
   try {
-    execFileSync('claude', ['--version'], { stdio: 'ignore' });
+    runClaudeCli(['--version'], { stdio: 'ignore' });
     return true;
   } catch (_) {
     return false;
@@ -25,7 +39,7 @@ function main() {
     return;
   }
   try {
-    execFileSync('claude', ['mcp', 'add', 'cadence-animator', '--', 'node', serverPath], { stdio: 'inherit' });
+    runClaudeCli(['mcp', 'add', 'cadence-animator', '--', 'node', serverPath], { stdio: 'inherit' });
     console.log('\n[cadence-animator] Registered the MCP server with Claude Code — launch Cadence Animator, then ask Claude to use it.\n');
   } catch (e) {
     console.log('\n[cadence-animator] Automatic MCP registration failed — you can add it manually:');

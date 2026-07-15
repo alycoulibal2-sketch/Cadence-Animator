@@ -333,13 +333,31 @@ function buildMcpCommand() {
   return { command: 'node', args: [serverPath], env: null };
 }
 
-ipcMain.handle('mcp:registerServer', () => {
+// Runs `claude` reliably — this is the actual fix for "Claude Control can't detect the CLI" even
+// on a machine where `claude` works fine in any terminal: a global npm install puts a
+// `claude.cmd` shim on Windows (not a real .exe), and execFileSync('claude', ...) does a raw
+// CreateProcess call that — unlike a real shell — never consults PATHEXT, so the bare word
+// 'claude' silently never resolves. .cmd/.bat files also can't be launched directly by
+// CreateProcess at all (a Node/Windows-documented limitation, not specific to this bug) — they
+// need cmd.exe to interpret them. Routing through `cmd.exe /c` fixes both problems in one step:
+// cmd.exe does its own real PATHEXT resolution, and Node's own argv-array escaping (NOT
+// shell:true, which does naive unescaped string concatenation) keeps arguments containing spaces
+// intact — verified directly, since this app's own install path ("...\Cadence Animator\...")
+// contains one.
+function runClaudeCli(args, opts) {
   const { execFileSync } = require('child_process');
+  if (process.platform === 'win32') {
+    return execFileSync('cmd.exe', ['/c', 'claude', ...args], opts);
+  }
+  return execFileSync('claude', args, opts);
+}
+
+ipcMain.handle('mcp:registerServer', () => {
   const { command, args, env } = buildMcpCommand();
   const manualCommand = `claude mcp add cadence-animator ${env ? Object.entries(env).map(([k, v]) => `--env ${k}=${v} `).join('') : ''}-- ${command} ${args.map((a) => `"${a}"`).join(' ')}`;
 
   try {
-    execFileSync('claude', ['--version'], { stdio: 'ignore' });
+    runClaudeCli(['--version'], { stdio: 'ignore' });
   } catch (_) {
     return { ok: false, reason: 'claude-not-found', manualCommand };
   }
@@ -347,7 +365,7 @@ ipcMain.handle('mcp:registerServer', () => {
     const mcpArgs = ['mcp', 'add', 'cadence-animator'];
     if (env) for (const [k, v] of Object.entries(env)) mcpArgs.push('--env', `${k}=${v}`);
     mcpArgs.push('--', command, ...args);
-    execFileSync('claude', mcpArgs, { stdio: 'ignore' });
+    runClaudeCli(mcpArgs, { stdio: 'ignore' });
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: 'register-failed', error: e.message, manualCommand };

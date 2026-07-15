@@ -1826,6 +1826,31 @@ async function installPluginFlow() {
 // ================================================================ MCP (Claude control)
 // Every handler here is designed to never show a blocking modal — Claude drives these
 // unattended, so anything that would normally prompt a human takes its parameters directly.
+
+// Pure (side-effect-free) origin resolution for an arbitrary frame, INCLUDING attached items —
+// this does NOT just read item.origin/its @origin track like the live render loop's per-frame
+// updateOneItem() effectively can get away with, because attachment there is resolved against
+// whatever the parent is CURRENTLY displaying (fine for a live per-frame pass where every item
+// shares the same current playhead). A pure query for an ARBITRARY frame has no such guarantee —
+// the parent's own live display could be sitting at a totally different frame — so an attached
+// item's origin here must recursively re-solve the parent's pose AT THIS SAME frame, not read
+// its current on-screen state. Recurses to correctly handle a prop attached to an already-
+// attached rig, too.
+function resolveItemOrigin(item, frame) {
+  if (item.attachedTo) {
+    const parentItem = S.getItem(item.attachedTo.itemId);
+    const parentInst = getInstance(item.attachedTo.itemId);
+    if (parentItem && parentInst && parentInst.solvePoseWorlds) {
+      const parentPose = S.evalPose(parentItem, frame);
+      const parentOrigin = resolveItemOrigin(parentItem, frame);
+      const parentWorlds = parentInst.solvePoseWorlds(parentPose, parentOrigin);
+      const parentPartWorld = parentWorlds.get(item.attachedTo.partId);
+      if (parentPartWorld) return CF.mul(parentPartWorld, item.attachedTo.offset);
+    }
+  }
+  return S.evalTrackCF(item.id, '@origin', frame, item.origin);
+}
+
 const MCP_HANDLERS = {
   get_state: () => JSON.parse(S.serialize()),
 
@@ -1888,7 +1913,7 @@ const MCP_HANDLERS = {
     const inst = getInstance(itemId);
     if (!inst || !inst.solvePoseWorlds) throw new Error('That item has no posable rig');
     const pose = S.evalPose(item, frame);
-    const origin = S.evalTrackCF(itemId, '@origin', frame, item.origin);
+    const origin = resolveItemOrigin(item, frame);
     const worlds = inst.solvePoseWorlds(pose, origin);
     const out = {};
     for (const [partId, cf] of worlds) out[partId] = cf;
@@ -1936,6 +1961,146 @@ const MCP_HANDLERS = {
     if (!data.keyframes.length) throw new Error(`${item.name} has no keyframes yet`);
     const res = await window.cadence.bridgeSend('buildAnimation', { data, rigName: item.name, studioId: item.studioId, publish: !!publish }, 120000);
     return res;
+  },
+
+  // ---------------------------------------------------------------- effects
+  reverse_frames: ({ keys }) => ({ moved: S.reverseFrames(keys) }),
+  set_easing: ({ keys, es, ed, bez }) => { S.setEasing(keys, es ?? null, ed ?? null, bez ?? null); return { ok: true }; },
+
+  // ---------------------------------------------------------------- resize
+  resize_item: ({ itemId, factor }) => {
+    if (!S.getItem(itemId)) throw new Error(`No item with id ${itemId}`);
+    S.resizeItem(itemId, factor);
+    refreshInstance(itemId);
+    return { ok: true };
+  },
+
+  // ---------------------------------------------------------------- face presets
+  add_face_layer: async ({ itemId, imagePath, opacity }) => {
+    const item = S.getItem(itemId);
+    if (!item) throw new Error(`No item with id ${itemId}`);
+    const dataUri = await window.cadence.readImageAsDataUri(imagePath);
+    const layers = [...(item.faceLayers || []), { dataUri, opacity: opacity ?? 1 }];
+    S.setItemFace(itemId, layers);
+    refreshInstance(itemId);
+    return { ok: true, layerCount: layers.length };
+  },
+  clear_face: ({ itemId }) => {
+    if (!S.getItem(itemId)) throw new Error(`No item with id ${itemId}`);
+    S.setItemFace(itemId, null);
+    refreshInstance(itemId);
+    return { ok: true };
+  },
+  list_face_presets: () => (settings.facePresets || []).map((p) => ({ id: p.id, name: p.name, layerCount: p.layers.length })),
+  save_face_preset: async ({ itemId, name }) => {
+    const item = S.getItem(itemId);
+    if (!item) throw new Error(`No item with id ${itemId}`);
+    if (!item.faceLayers || !item.faceLayers.length) throw new Error('This item has no face layers set yet — call add_face_layer first');
+    settings.facePresets = settings.facePresets || [];
+    const preset = { id: crypto.randomUUID(), name, layers: structuredClone(item.faceLayers) };
+    settings.facePresets.push(preset);
+    await window.cadence.setSettings(settings);
+    return { id: preset.id, name: preset.name };
+  },
+  apply_face_preset: ({ itemId, presetId }) => {
+    const item = S.getItem(itemId);
+    if (!item) throw new Error(`No item with id ${itemId}`);
+    const preset = (settings.facePresets || []).find((p) => p.id === presetId);
+    if (!preset) throw new Error(`No face preset with id ${presetId}`);
+    S.setItemFace(itemId, structuredClone(preset.layers));
+    refreshInstance(itemId);
+    return { ok: true };
+  },
+  delete_face_preset: async ({ presetId }) => {
+    settings.facePresets = (settings.facePresets || []).filter((p) => p.id !== presetId);
+    await window.cadence.setSettings(settings);
+    return { ok: true };
+  },
+
+  // ---------------------------------------------------------------- attach & detach
+  attach_item: ({ itemId, targetItemId, targetPartName }) => {
+    const propItem = S.getItem(itemId);
+    const targetItem = S.getItem(targetItemId);
+    if (!propItem) throw new Error(`No item with id ${itemId}`);
+    if (!targetItem || targetItem.kind !== 'rig') throw new Error(`No rig item with id ${targetItemId}`);
+    const targetPartDef = targetItem.rig.parts.find((p) => p.name === targetPartName);
+    if (!targetPartDef) throw new Error(`${targetItem.name} has no part named "${targetPartName}"`);
+    const targetInst = getInstance(targetItemId);
+    const propInst = getInstance(itemId);
+    if (!targetInst || !propInst) throw new Error('Rig not ready yet — try again in a moment');
+    const targetPartWorld = targetInst.partWorld(targetPartDef.id);
+    const propWorld = propItem.rig ? propInst.partWorld(propItem.rig.rootPart) : propInst.partWorld();
+    const offset = CF.mul(CF.inverse(targetPartWorld), propWorld);
+    S.attachItem(itemId, targetItemId, targetPartDef.id, offset);
+    return { ok: true };
+  },
+  detach_item: ({ itemId }) => {
+    const item = S.getItem(itemId);
+    if (!item) throw new Error(`No item with id ${itemId}`);
+    const inst = getInstance(itemId);
+    const currentWorld = inst ? inst.partWorld(item.rig?.rootPart) : null;
+    S.detachItem(itemId, currentWorld);
+    return { ok: true };
+  },
+
+  // ---------------------------------------------------------------- precision inspection
+  // These exist so Claude can check exact spatial facts (bounding boxes, degrees, whether two
+  // parts clip through each other) without rendering a screenshot and eyeballing it — the whole
+  // point of driving this app programmatically instead of like a human would.
+  get_bounding_box: ({ itemId, frame }) => {
+    const item = S.getItem(itemId);
+    if (!item || !item.rig) throw new Error(`No rig item with id ${itemId}`);
+    const inst = getInstance(itemId);
+    if (!inst || !inst.solvePoseWorlds) throw new Error('That item has no posable rig');
+    const pose = S.evalPose(item, frame);
+    const origin = resolveItemOrigin(item, frame);
+    const worlds = inst.solvePoseWorlds(pose, origin);
+    const boxes = {};
+    let overall = null;
+    for (const p of item.rig.parts) {
+      const world = worlds.get(p.id);
+      if (!world) continue;
+      const box = CF.worldAABB(p.size, world);
+      boxes[p.id] = box;
+      if (!overall) overall = { min: [...box.min], max: [...box.max] };
+      else {
+        for (let i = 0; i < 3; i++) {
+          overall.min[i] = Math.min(overall.min[i], box.min[i]);
+          overall.max[i] = Math.max(overall.max[i], box.max[i]);
+        }
+      }
+    }
+    return { parts: boxes, overall };
+  },
+
+  get_rotation_degrees: ({ itemId, track, frame }) => {
+    const item = S.getItem(itemId);
+    const cf = track === '@origin' && item
+      ? resolveItemOrigin(item, frame)
+      : S.evalTrackCF(itemId, track, frame);
+    const [rx, ry, rz] = CF.toEuler(cf);
+    const toDeg = (r) => +(r * 180 / Math.PI).toFixed(3);
+    return { x: toDeg(rx), y: toDeg(ry), z: toDeg(rz) };
+  },
+
+  // Conservative check: compares each part's world-space AXIS-ALIGNED bounding box, not its true
+  // oriented extent, so it can report a collision that isn't quite real when a part is rotated —
+  // always accurate for "definitely not touching", a useful but looser signal for "touching".
+  check_collision: ({ itemId, partA, partB, frame }) => {
+    const item = S.getItem(itemId);
+    if (!item || !item.rig) throw new Error(`No rig item with id ${itemId}`);
+    const inst = getInstance(itemId);
+    if (!inst || !inst.solvePoseWorlds) throw new Error('That item has no posable rig');
+    const defA = item.rig.parts.find((p) => p.id === partA || p.name === partA);
+    const defB = item.rig.parts.find((p) => p.id === partB || p.name === partB);
+    if (!defA) throw new Error(`No part "${partA}" on ${item.name}`);
+    if (!defB) throw new Error(`No part "${partB}" on ${item.name}`);
+    const pose = S.evalPose(item, frame);
+    const origin = resolveItemOrigin(item, frame);
+    const worlds = inst.solvePoseWorlds(pose, origin);
+    const boxA = CF.worldAABB(defA.size, worlds.get(defA.id));
+    const boxB = CF.worldAABB(defB.size, worlds.get(defB.id));
+    return { colliding: CF.aabbOverlap(boxA, boxB), boxA, boxB };
   },
 };
 

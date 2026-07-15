@@ -204,6 +204,89 @@ server.tool(
   async () => { try { return textResult(await call('dismiss_blocking_modal')); } catch (e) { return errorResult(e); } },
 );
 
+// ---------------------------------------------------------------- effects
+server.tool(
+  'reverse_frames', 'Reverse time within the range spanned by the given keyframes — the pose at the start ends up at the end and vice versa. Same operation as the app\'s one-click "Reverse Time".',
+  { keys: z.array(keyRefSchema) },
+  async ({ keys }) => { try { return textResult(await call('reverse_frames', { keys })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'set_easing', 'Bulk-set the easing style/direction on a list of keyframes at once — e.g. set them all to Constant for a stop-motion/stepped look (the app\'s one-click "Stop Motion" is exactly this).',
+  { keys: z.array(keyRefSchema), es: z.string().optional().describe('Linear, Constant, Sine, Quad, Cubic, Quart, Quint, Exponential, Circular, Back, Elastic, Bounce'), ed: z.enum(['In', 'Out', 'InOut']).optional() },
+  async ({ keys, es, ed }) => { try { return textResult(await call('set_easing', { keys, es, ed })); } catch (e) { return errorResult(e); } },
+);
+
+// ---------------------------------------------------------------- resize
+server.tool(
+  'resize_item', 'Resize a rig by a factor (2 = twice as big, 0.5 = half size). This is a REAL resize baked into the rig\'s actual part sizes and joint offsets, not a cosmetic stretch — an exported/re-imported rig is genuinely that size.',
+  { itemId: z.string(), factor: z.number().describe('e.g. 1.5 for 50% bigger, 0.5 for half size') },
+  async ({ itemId, factor }) => { try { return textResult(await call('resize_item', { itemId, factor })); } catch (e) { return errorResult(e); } },
+);
+
+// ---------------------------------------------------------------- face presets
+server.tool(
+  'add_face_layer', 'Add a face texture layer to a rig\'s head from a local image file (PNG/JPG/WebP). Stack multiple calls for a layered face (e.g. base skin + separate eyebrows).',
+  { itemId: z.string(), imagePath: z.string().describe('absolute path to a local image file'), opacity: z.number().min(0).max(1).optional() },
+  async ({ itemId, imagePath, opacity }) => { try { return textResult(await call('add_face_layer', { itemId, imagePath, opacity })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'clear_face', 'Remove all custom face layers from a rig\'s head, reverting to its default look.',
+  { itemId: z.string() },
+  async ({ itemId }) => { try { return textResult(await call('clear_face', { itemId })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'list_face_presets', 'List every saved face preset in the app-wide library (shared across all projects), with id, name, and layer count.',
+  {},
+  async () => { try { return textResult(await call('list_face_presets')); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'save_face_preset', 'Save a rig\'s CURRENT face layers (set via add_face_layer) as a named, reusable preset in the app-wide library.',
+  { itemId: z.string(), name: z.string() },
+  async ({ itemId, name }) => { try { return textResult(await call('save_face_preset', { itemId, name })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'apply_face_preset', 'Instantly apply a saved face preset (by id, from list_face_presets) to a rig.',
+  { itemId: z.string(), presetId: z.string() },
+  async ({ itemId, presetId }) => { try { return textResult(await call('apply_face_preset', { itemId, presetId })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'delete_face_preset', 'Remove a saved face preset from the library permanently.',
+  { presetId: z.string() },
+  async ({ presetId }) => { try { return textResult(await call('delete_face_preset', { presetId })); } catch (e) { return errorResult(e); } },
+);
+
+// ---------------------------------------------------------------- attach & detach
+server.tool(
+  'attach_item', 'Rigidly attach one item (a prop — weapon, tool, held item) to a part on another rig (e.g. a hand) so it follows automatically every frame from now on, at its exact current relative position — no manual per-frame keying of the prop needed.',
+  { itemId: z.string().describe('the item to attach (the prop)'), targetItemId: z.string().describe('the rig to attach it to'), targetPartName: z.string().describe('e.g. "RightHand"') },
+  async ({ itemId, targetItemId, targetPartName }) => { try { return textResult(await call('attach_item', { itemId, targetItemId, targetPartName })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'detach_item', 'Release an item from whatever it\'s attached to — it stays exactly where it currently is (no snap/jump), free to animate independently again.',
+  { itemId: z.string() },
+  async ({ itemId }) => { try { return textResult(await call('detach_item', { itemId })); } catch (e) { return errorResult(e); } },
+);
+
+// ---------------------------------------------------------------- precision inspection
+// These give exact structured facts instead of a screenshot to eyeball — checking a pose this
+// way is faster and strictly more precise than looking at a render, which is the entire point of
+// Claude driving this app directly rather than through a human's eyes.
+server.tool(
+  'get_bounding_box', 'Get the exact world-space axis-aligned bounding box of every part of a rig at a given frame, plus one combined box for the whole rig — use this to check reach/extent or spot obviously-wrong poses (e.g. a hand nowhere near where it should be) without rendering anything.',
+  { itemId: z.string(), frame: z.number() },
+  async ({ itemId, frame }) => { try { return textResult(await call('get_bounding_box', { itemId, frame })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'get_rotation_degrees', 'Get a joint\'s (or @origin\'s) rotation at a frame as human-readable XYZ Euler degrees instead of a raw 3x3 CFrame matrix — much easier to sanity-check than mentally decoding rotation matrix components.',
+  { itemId: z.string(), track: z.string(), frame: z.number() },
+  async ({ itemId, track, frame }) => { try { return textResult(await call('get_rotation_degrees', { itemId, track, frame })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'check_collision', 'Check whether two parts on the same rig are clipping into each other at a given frame, via their world-space bounding boxes. Conservative: uses AXIS-ALIGNED boxes, so it can flag a near-miss as colliding when a part is rotated, but a "not colliding" result is always trustworthy.',
+  { itemId: z.string(), partA: z.string().describe('part id or name'), partB: z.string().describe('part id or name'), frame: z.number() },
+  async ({ itemId, partA, partB, frame }) => { try { return textResult(await call('check_collision', { itemId, partA, partB, frame })); } catch (e) { return errorResult(e); } },
+);
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

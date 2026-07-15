@@ -149,6 +149,36 @@ export function almostEqual(a, b, eps = 1e-6) {
   return true;
 }
 
+// World-space axis-aligned bounding box of a box of `size` sitting at world CFrame `cf` — sweeps
+// all 8 local corners through the rotation, not just the center, so it accounts for the part's
+// current orientation (an axis-aligned box around a ROTATED part is necessarily looser than its
+// true oriented extent — exact for collision purposes only when the part isn't rotated relative
+// to whatever it's being compared against, but always a safe/conservative bound otherwise).
+export function worldAABB(size, cf) {
+  const [px, py, pz, m00, m01, m02, m10, m11, m12, m20, m21, m22] = cf;
+  const hx = size[0] / 2, hy = size[1] / 2, hz = size[2] / 2;
+  let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (const sx of [-hx, hx]) {
+    for (const sy of [-hy, hy]) {
+      for (const sz of [-hz, hz]) {
+        const wx = px + m00 * sx + m01 * sy + m02 * sz;
+        const wy = py + m10 * sx + m11 * sy + m12 * sz;
+        const wz = pz + m20 * sx + m21 * sy + m22 * sz;
+        if (wx < minX) minX = wx; if (wx > maxX) maxX = wx;
+        if (wy < minY) minY = wy; if (wy > maxY) maxY = wy;
+        if (wz < minZ) minZ = wz; if (wz > maxZ) maxZ = wz;
+      }
+    }
+  }
+  return { min: [minX, minY, minZ], max: [maxX, maxY, maxZ] };
+}
+
+export function aabbOverlap(a, b) {
+  return a.min[0] <= b.max[0] && a.max[0] >= b.min[0]
+    && a.min[1] <= b.max[1] && a.max[1] >= b.min[1]
+    && a.min[2] <= b.max[2] && a.max[2] >= b.min[2];
+}
+
 // three.js interop -------------------------------------------------------
 export function toThreeMatrix(cf, m4) {
   // three Matrix4.set takes row-major args
