@@ -57,17 +57,13 @@ R6, R15, Rthro, Rthro Slender ship built in. Anything else — your own avatar, 
 
 Cadence checks GitHub Releases for a newer version shortly after launch, and via **Check for updates** in the command palette any time. If one's found, a chip appears in the title bar — click it to download, then click again (or "Restart now" in the confirm dialog) to install. Nothing downloads or installs without you clicking; a background check never interrupts you.
 
-This only works in the **installed** build (the NSIS installer, not the portable exe — a portable app has nothing for the updater to replace in place) and only once `package.json`'s `build.publish.owner`/`repo` point at a real GitHub repo with actual releases published to it.
+This only works in the **installed** build (the NSIS installer, not the portable exe — a portable app has nothing for the updater to replace in place). Published to [alycoulibal2-sketch/Cadence-Animator](https://github.com/alycoulibal2-sketch/Cadence-Animator).
 
 ### Cutting a new release
 
-One-time setup:
-1. Create a GitHub repo (public is simplest — no token needed for users to *check* for updates, only for you to *publish*).
-2. Fix `package.json`'s `build.publish.owner` to your GitHub username (it starts as `REPLACE_ME_GITHUB_USERNAME`).
-3. Push this project's code to that repo.
-4. Generate a GitHub Personal Access Token with `repo` scope (Settings → Developer settings → Personal access tokens).
+You'll need a GitHub Personal Access Token with `repo` scope (Settings → Developer settings → Personal access tokens) to publish. Set it as an env var, never commit it or put it in a URL that lands in `.git/config`.
 
-Every release after that:
+Every release:
 1. Bump `version` in `package.json` (and re-sync `package-lock.json`'s version with `npm install --package-lock-only`) — electron-updater compares this against what's installed, so it must go up.
 2. `GH_TOKEN=<your token> npm run release` — builds the installer/portable exe and publishes a GitHub Release with them attached, tagged from `package.json`'s version.
 3. Done. Anyone on an older version sees the update chip next time they open the app (or within its periodic check).

@@ -347,9 +347,16 @@ body {
 }
 .empty-hint b { color: var(--text-2); }
 
-#viewportWrap { flex: 1 1 auto; position: relative; min-width: 0; }
-#viewport { position: absolute; inset: 0; }
-#viewport canvas { display: block; }
+#viewportWrap { flex: 1 1 auto; position: relative; min-width: 0; overflow: hidden; }
+#viewport { position: absolute; inset: 0; overflow: hidden; }
+/* A <canvas> is a "replaced element" — three.js sets its width/height ATTRIBUTES directly
+   (renderer.setSize(..., false) skips touching CSS style), and without an explicit CSS size
+   here the canvas ignores its absolutely-positioned parent's inset:0 box and renders at its
+   own intrinsic (attribute) size instead — which can be larger than the container (surviving
+   a resize of #explorer/#inspector) and visually bleed over neighboring panels. Forcing it to
+   100%/100% makes it always exactly fill #viewport, which resize()'s ResizeObserver keeps
+   correctly sized to the actual available space. */
+#viewport canvas { display: block; width: 100% !important; height: 100% !important; }
 
 #vpChips {
   position: absolute;

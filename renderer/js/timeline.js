@@ -8,6 +8,7 @@ import { openCurveEditor } from './curves.js';
 const ROW_H = 26;
 const RULER_H = 30;
 const AUDIO_ROW_H = 44;
+const PAD_LEFT = 14; // breathing room so frame-0 keyframes aren't flush against the canvas edge
 
 export const tl = {
   listEl: null,
@@ -153,21 +154,31 @@ function trackForSelection() {
 }
 
 // ---------------------------------------------------------------- coords
-const frameToX = (f) => (f - tl.scrollX) * tl.pxPerFrame;
-const xToFrame = (x) => x / tl.pxPerFrame + tl.scrollX;
-function rowTop(i) {
-  let y = RULER_H - tl.scrollY;
+const frameToX = (f) => (f - tl.scrollX) * tl.pxPerFrame + PAD_LEFT;
+const xToFrame = (x) => (x - PAD_LEFT) / tl.pxPerFrame + tl.scrollX;
+// "Logical" = content-space Y, independent of the current scroll position (scrollY subtracted
+// back out to get an actual on-screen pixel). Box-select needs the logical form so a drag that
+// spans more rows than fit on screen at once keeps working correctly through an auto-scroll.
+function rowTopLogical(i) {
+  let y = RULER_H;
   for (let k = 0; k < i; k++) y += tl.rows[k].kind === 'audio' ? AUDIO_ROW_H : ROW_H;
   return y;
 }
+function rowTop(i) { return rowTopLogical(i) - tl.scrollY; }
 function rowAtY(y) {
-  let acc = RULER_H - tl.scrollY;
+  const logicalY = y + tl.scrollY;
+  let acc = RULER_H;
   for (let i = 0; i < tl.rows.length; i++) {
     const h = tl.rows[i].kind === 'audio' ? AUDIO_ROW_H : ROW_H;
-    if (y >= acc && y < acc + h) return i;
+    if (logicalY >= acc && logicalY < acc + h) return i;
     acc += h;
   }
   return -1;
+}
+function trackListContentHeight() {
+  let h = RULER_H;
+  for (const row of tl.rows) h += row.kind === 'audio' ? AUDIO_ROW_H : ROW_H;
+  return h + 60; // matches renderList()'s trailing spacer
 }
 
 function ensurePlayheadVisible() {
@@ -178,8 +189,32 @@ function ensurePlayheadVisible() {
   if (x < 0) tl.scrollX = Math.max(0, S.state.playhead - 2);
 }
 
+// A box-select drag can only cover whatever's currently visible unless the list scrolls to
+// reveal more rows while you're still holding the drag — this is what makes that possible:
+// runs every frame (not just on pointermove, since the mouse can sit still near an edge).
+const AUTOSCROLL_EDGE = 30;    // px from the top/bottom edge that starts auto-scrolling
+const AUTOSCROLL_MAX_SPEED = 18; // px/frame at full depth into the edge zone
+function autoScrollTick() {
+  const d = tl.drag;
+  if (d?.kind !== 'box') return;
+  const h = tl.canvas.clientHeight;
+  const y = d.lastRawY;
+  let dy = 0;
+  if (y < RULER_H + AUTOSCROLL_EDGE) dy = -Math.min(AUTOSCROLL_MAX_SPEED, (RULER_H + AUTOSCROLL_EDGE - y) * 0.6);
+  else if (y > h - AUTOSCROLL_EDGE) dy = Math.min(AUTOSCROLL_MAX_SPEED, (y - (h - AUTOSCROLL_EDGE)) * 0.6);
+  if (dy === 0) return;
+  const maxScroll = Math.max(0, trackListContentHeight() - tl.listEl.clientHeight);
+  const next = Math.max(0, Math.min(maxScroll, tl.listEl.scrollTop + dy));
+  if (next === tl.scrollY) return;
+  tl.scrollY = next;           // set directly rather than waiting on the 'scroll' event's async
+  tl.listEl.scrollTop = next;  // round-trip, so rowY1 below always reflects the true new offset
+  d.rowY1 = d.lastRawY + tl.scrollY; // extend the logical selection to include newly-revealed rows
+  tl.needsDraw = true;
+}
+
 // ---------------------------------------------------------------- draw
 function drawLoop() {
+  autoScrollTick();
   if (tl.needsDraw) { draw(); tl.needsDraw = false; }
   requestAnimationFrame(drawLoop);
 }
@@ -286,9 +321,13 @@ function draw() {
     }
   }
 
-  // box select
+  // box select — f0/f1 (frames) and rowY0/rowY1 (logical/scroll-invariant Y) are converted back
+  // to the CURRENT on-screen position here, so the box always draws correctly relative to
+  // whatever's scrolled into view right now, even mid-auto-scroll.
   if (tl.drag?.kind === 'box') {
-    const { x0, y0, x1, y1 } = tl.drag;
+    const { f0, f1, rowY0, rowY1 } = tl.drag;
+    const x0 = frameToX(f0), x1 = frameToX(f1);
+    const y0 = rowY0 - tl.scrollY, y1 = rowY1 - tl.scrollY;
     ctx.fillStyle = 'rgba(124,140,255,0.12)';
     ctx.strokeStyle = 'rgba(124,140,255,0.7)';
     ctx.fillRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
@@ -458,7 +497,11 @@ function onPointerDown(e) {
     }
     tl.drag = { kind: 'move', startX: x, dt: 0 };
   } else {
-    tl.drag = { kind: 'box', x0: x, y0: y, x1: x, y1: y, additive: e.shiftKey };
+    // f0/f1 (frame numbers) and rowY0/rowY1 (logical row-space Y) are scroll-invariant — the
+    // drag stays correct through horizontal AND vertical scrolling/auto-scrolling mid-select,
+    // unlike raw canvas pixels which silently go stale the moment the view scrolls.
+    const f = xToFrame(x), ly = y + tl.scrollY;
+    tl.drag = { kind: 'box', f0: f, f1: f, rowY0: ly, rowY1: ly, lastRawY: y, additive: e.shiftKey };
     if (!e.shiftKey) S.setSelectedKeys([]);
   }
   tl.needsDraw = true;
@@ -482,7 +525,9 @@ function onPointerMove(e) {
     d.dt = dt;
     tl.needsDraw = true;
   } else if (d.kind === 'box') {
-    d.x1 = x; d.y1 = y;
+    d.f1 = xToFrame(x);
+    d.rowY1 = y + tl.scrollY;
+    d.lastRawY = y; // raw (non-logical) canvas Y, used by the auto-scroll edge check below
     tl.needsDraw = true;
   } else if (d.kind === 'audio') {
     let off = d.startOffset + (x - d.startX) / tl.pxPerFrame;
@@ -501,19 +546,22 @@ window.addEventListener('pointerup', () => {
     const moved = S.moveKeys(S.state.selection.keys, d.dt);
     S.setSelectedKeys(moved);
   } else if (d.kind === 'box') {
-    const x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1);
-    const y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
+    // Compare against frame numbers / logical row positions, not stale on-screen pixels — a
+    // drag that auto-scrolled (or was scrolled manually) mid-select still resolves correctly,
+    // since neither coordinate space depends on where the view happened to be at release time.
+    const fMin = Math.min(d.f0, d.f1), fMax = Math.max(d.f0, d.f1);
+    const slopFrames = 4 / tl.pxPerFrame;
+    const rowY0 = Math.min(d.rowY0, d.rowY1), rowY1 = Math.max(d.rowY0, d.rowY1);
     const picked = d.additive ? [...S.state.selection.keys] : [];
     for (let i = 0; i < tl.rows.length; i++) {
       const row = tl.rows[i];
       if (row.kind !== 'track') continue;
-      const top = rowTop(i);
-      if (top + ROW_H < y0 || top > y1) continue;
+      const top = rowTopLogical(i);
+      if (top + ROW_H < rowY0 || top > rowY1) continue;
       const tr = S.getTrack(row.itemId, row.track);
       if (!tr) continue;
       for (const k of tr.keys) {
-        const kx = frameToX(k.t);
-        if (kx >= x0 - 4 && kx <= x1 + 4) picked.push({ itemId: row.itemId, track: row.track, t: k.t });
+        if (k.t >= fMin - slopFrames && k.t <= fMax + slopFrames) picked.push({ itemId: row.itemId, track: row.track, t: k.t });
       }
     }
     S.setSelectedKeys(picked);
