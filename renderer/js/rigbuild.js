@@ -4,7 +4,7 @@ import * as CF from './cf.js';
 
 let classicFacePromise = null;
 function getClassicFace() {
-  if (!classicFacePromise) classicFacePromise = window.eclipse.classicFace();
+  if (!classicFacePromise) classicFacePromise = window.cadence.classicFace();
   return classicFacePromise;
 }
 
@@ -23,7 +23,7 @@ function fetchMeshGeometry(meshId) {
   const id = String(meshId).match(/(\d{4,})/)?.[1];
   if (!id) return Promise.reject(new Error('bad mesh id'));
   if (!meshGeoCache.has(id)) {
-    meshGeoCache.set(id, window.eclipse.fetchMesh(id).then((data) => {
+    meshGeoCache.set(id, window.cadence.fetchMesh(id).then((data) => {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(data.positions, 3));
       geo.setAttribute('normal', new THREE.Float32BufferAttribute(data.normals, 3));
@@ -39,7 +39,7 @@ function fetchMeshGeometry(meshId) {
 function loadRobloxTexture(texId) {
   const id = String(texId).match(/(\d{4,})/)?.[1];
   if (!id) return Promise.resolve(null);
-  return window.eclipse.fetchTexture(id).then((dataUri) => new Promise((resolve) => {
+  return window.cadence.fetchTexture(id).then((dataUri) => new Promise((resolve) => {
     texLoader.load(dataUri, (t) => { t.colorSpace = THREE.SRGBColorSpace; resolve(t); }, undefined, () => resolve(null));
   })).catch(() => null);
 }

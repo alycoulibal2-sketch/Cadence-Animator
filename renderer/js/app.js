@@ -18,14 +18,14 @@ let settings = {};
 // ================================================================ boot
 async function boot() {
   try {
-    settings = await window.eclipse.getSettings() || {};
+    settings = await window.cadence.getSettings() || {};
     S.state.autoKey = settings.autoKey ?? true;
     S.state.snapping = settings.snapping ?? true;
     S.state.handlesVisible = settings.handlesVisible ?? true;
     S.state.handleSize = settings.handleSize ?? 'normal';
     S.state.showSeconds = settings.showSeconds ?? false;
 
-    initPanels(settings, (sizes) => { Object.assign(settings, sizes); window.eclipse.setSettings(settings); });
+    initPanels(settings, (sizes) => { Object.assign(settings, sizes); window.cadence.setSettings(settings); });
 
     initViewport(document.getElementById('viewport'));
     initTimeline({
@@ -46,7 +46,7 @@ async function boot() {
     wireBridge();
     initMcp();
 
-    builtinRigs = await window.eclipse.builtinRigs().catch(() => null);
+    builtinRigs = await window.cadence.builtinRigs().catch(() => null);
 
     S.newProject();
     await offerRecovery();
@@ -357,7 +357,7 @@ function persistPrefs() {
   settings.handlesVisible = S.state.handlesVisible;
   settings.handleSize = S.state.handleSize;
   settings.showSeconds = S.state.showSeconds;
-  window.eclipse.setSettings(settings);
+  window.cadence.setSettings(settings);
 }
 
 // ================================================================ Moon-parity keybind flows
@@ -673,7 +673,7 @@ function addRigItem(rig, name, studioId) {
 }
 
 async function addBuiltinRig(key) {
-  if (!builtinRigs) builtinRigs = await window.eclipse.builtinRigs();
+  if (!builtinRigs) builtinRigs = await window.cadence.builtinRigs();
   const rig = builtinRigs[key];
   if (!rig) { toast('Rig preset missing', 'error'); return null; }
   return addRigItem(rig, rig.name);
@@ -684,9 +684,9 @@ async function addAvatarFlow() {
   if (!username) return;
   const prog = toastProgress(`Looking up ${username}…`);
   try {
-    const user = await window.eclipse.lookupUser(username);
+    const user = await window.cadence.lookupUser(username);
     prog.update(`Building ${user.displayName}'s avatar in Studio…`);
-    const res = await window.eclipse.bridgeSend('buildAvatar', { userId: user.id }, 90000);
+    const res = await window.cadence.bridgeSend('buildAvatar', { userId: user.id }, 90000);
     addRigItem(res.rig, user.displayName, res.studioId);
     prog.done(`${user.displayName} added`);
   } catch (e) {
@@ -697,7 +697,7 @@ async function addAvatarFlow() {
 async function addFromStudioSelection() {
   const prog = toastProgress('Fetching selected rig from Studio…');
   try {
-    const res = await window.eclipse.bridgeSend('getSelectedRig', {}, 60000);
+    const res = await window.cadence.bridgeSend('getSelectedRig', {}, 60000);
     addRigItem(res.rig, null, res.studioId);
     prog.done(`${res.rig.name} added from Studio`);
   } catch (e) {
@@ -711,13 +711,13 @@ async function addByAssetIdFlow() {
   const prog = toastProgress('Importing asset…');
   // Prefer the Studio bridge (InsertService handles every asset type); fall back to direct download
   try {
-    const res = await window.eclipse.bridgeSend('insertAsset', { assetId: id }, 90000);
+    const res = await window.cadence.bridgeSend('insertAsset', { assetId: id }, 90000);
     addRigItem(res.rig, null, res.studioId);
     prog.done(`${res.rig.name} imported`);
     return;
   } catch (_) { /* fall through to web */ }
   try {
-    const asset = await window.eclipse.fetchAsset(id);
+    const asset = await window.cadence.fetchAsset(id);
     const bytes = Uint8Array.from(atob(asset.base64), (c) => c.charCodeAt(0));
     await importModelBuffer(bytes.buffer, `asset ${id}`);
     prog.done('Imported');
@@ -727,13 +727,13 @@ async function addByAssetIdFlow() {
 }
 
 async function addFromFileFlow() {
-  const paths = await window.eclipse.openDialog({
+  const paths = await window.cadence.openDialog({
     title: 'Import Roblox model',
     filters: [{ name: 'Roblox models', extensions: ['rbxm', 'rbxmx'] }],
     properties: ['openFile'],
   });
   if (!paths) return;
-  const data = await window.eclipse.readFileBinary(paths[0]);
+  const data = await window.cadence.readFileBinary(paths[0]);
   const arr = data instanceof ArrayBuffer ? data : new Uint8Array(data.data || data).buffer;
   await importModelBuffer(arr, paths[0].split(/[\\/]/).pop());
 }
@@ -744,7 +744,7 @@ function treeRootsFromParse(parsed) {
 }
 
 async function importModelBuffer(arrayBuffer, label) {
-  const parsed = await window.eclipse.parseRbx(arrayBuffer, label);
+  const parsed = await window.cadence.parseRbx(arrayBuffer, label);
   const roots = treeRootsFromParse(parsed);
 
   // What's inside? Rigs and/or KeyframeSequences (AnimSaves exports)
@@ -812,15 +812,15 @@ async function importSequencesFlow(sequences) {
 }
 
 async function importAnimFileFlow() {
-  const paths = await window.eclipse.openDialog({
+  const paths = await window.cadence.openDialog({
     title: 'Import animation',
     filters: [{ name: 'Roblox files', extensions: ['rbxm', 'rbxmx'] }],
     properties: ['openFile'],
   });
   if (!paths) return;
-  const data = await window.eclipse.readFileBinary(paths[0]);
+  const data = await window.cadence.readFileBinary(paths[0]);
   const arr = data instanceof ArrayBuffer ? data : new Uint8Array(data.data || data).buffer;
-  const parsed = await window.eclipse.parseRbx(arr, paths[0]);
+  const parsed = await window.cadence.parseRbx(arr, paths[0]);
   const roots = treeRootsFromParse(parsed);
   const sequences = IO.findByClass(roots, 'KeyframeSequence');
   if (!sequences.length) { toast('No KeyframeSequence in that file — use "Add from file" for rigs', 'warn'); return; }
@@ -834,7 +834,7 @@ async function importAnimByIdFlow() {
   if (!rigItems.length) { toast('Add a rig first', 'warn'); return; }
   const prog = toastProgress('Fetching animation…');
   try {
-    const res = await window.eclipse.bridgeSend('getAnimationById', { assetId: id }, 60000);
+    const res = await window.cadence.bridgeSend('getAnimationById', { assetId: id }, 60000);
     let target = S.getItem(S.state.selection.itemId);
     if (!target || target.kind !== 'rig') target = rigItems[0];
     const r = IO.applyAnimationToItem(target, res.anim);
@@ -847,7 +847,7 @@ async function importAnimByIdFlow() {
 async function importAnimSavesFlow() {
   const prog = toastProgress('Reading AnimSaves from Studio…');
   try {
-    const res = await window.eclipse.bridgeSend('listAnimSaves', {}, 30000);
+    const res = await window.cadence.bridgeSend('listAnimSaves', {}, 30000);
     prog.done(`Found ${res.rigs.length} rig(s) with saves`);
     const flat = [];
     for (const r of res.rigs) for (const a of r.anims) flat.push({ rig: r.name, anim: a });
@@ -858,7 +858,7 @@ async function importAnimSavesFlow() {
     });
     if (pick === null) return;
     const chosen = flat[Number(pick)];
-    const res2 = await window.eclipse.bridgeSend('getAnimSave', { rigName: chosen.rig, animName: chosen.anim }, 60000);
+    const res2 = await window.cadence.bridgeSend('getAnimSave', { rigName: chosen.rig, animName: chosen.anim }, 60000);
     const rigItems = S.state.project.items.filter((i) => i.kind === 'rig');
     if (!rigItems.length) { toast('Add a rig first', 'warn'); return; }
     let target = S.getItem(S.state.selection.itemId);
@@ -885,7 +885,7 @@ function addCamera() {
 }
 
 async function addAudioFlow() {
-  const paths = await window.eclipse.openDialog({
+  const paths = await window.cadence.openDialog({
     title: 'Add audio',
     filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac'] }],
     properties: ['openFile'],
@@ -924,7 +924,7 @@ async function exportFlow(mode) {
   if (mode === 'studio' || mode === 'publish') {
     const prog = toastProgress(mode === 'publish' ? 'Sending to Studio for publishing…' : 'Building KeyframeSequence in Studio…');
     try {
-      const res = await window.eclipse.bridgeSend('buildAnimation', { data, rigName: item.name, studioId: item.studioId, publish: mode === 'publish' }, 120000);
+      const res = await window.cadence.bridgeSend('buildAnimation', { data, rigName: item.name, studioId: item.studioId, publish: mode === 'publish' }, 120000);
       if (mode === 'publish') {
         prog.done(res.publishHint || 'Sent! Open the Animation Editor in Studio to publish and get an asset ID.', 'success');
       } else {
@@ -938,25 +938,25 @@ async function exportFlow(mode) {
 
   const xml = IO.buildKeyframeSequenceXML(data);
   if (mode === 'file') {
-    const p = await window.eclipse.saveDialog({
+    const p = await window.cadence.saveDialog({
       title: 'Save animation',
       defaultPath: `${name}.rbxmx`,
       filters: [{ name: 'Roblox XML model', extensions: ['rbxmx'] }],
     });
     if (!p) return;
-    await window.eclipse.writeFile(p, xml);
+    await window.cadence.writeFile(p, xml);
     toast('Saved — drag the file into Roblox Studio to import');
-    window.eclipse.showItemInFolder(p);
+    window.cadence.showItemInFolder(p);
   } else if (mode === 'rigfile') {
-    const p = await window.eclipse.saveDialog({
+    const p = await window.cadence.saveDialog({
       title: 'Save rig + animation',
       defaultPath: `${item.name}.rbxmx`,
       filters: [{ name: 'Roblox XML model', extensions: ['rbxmx'] }],
     });
     if (!p) return;
-    await window.eclipse.writeFile(p, IO.buildRigModelXML(item, IO.innerXml(xml)));
+    await window.cadence.writeFile(p, IO.buildRigModelXML(item, IO.innerXml(xml)));
     toast('Saved — drop it into Studio: rig, joints and AnimSaves included');
-    window.eclipse.showItemInFolder(p);
+    window.cadence.showItemInFolder(p);
   }
 }
 
@@ -975,14 +975,14 @@ async function newProjectFlow() {
 }
 
 async function openProjectFlow() {
-  const paths = await window.eclipse.openDialog({
+  const paths = await window.cadence.openDialog({
     title: 'Open project',
     filters: [{ name: 'Cadence project', extensions: ['cadence', 'json'] }],
     properties: ['openFile'],
   });
   if (!paths) return;
   try {
-    const text = await window.eclipse.readFile(paths[0]);
+    const text = await window.cadence.readFile(paths[0]);
     S.loadProject(text, paths[0]);
     await restoreAudio();
     toast(`Opened ${S.state.project.name}`);
@@ -994,7 +994,7 @@ async function openProjectFlow() {
 async function saveProjectFlow(saveAs) {
   let p = S.state.projectPath;
   if (saveAs || !p) {
-    p = await window.eclipse.saveDialog({
+    p = await window.cadence.saveDialog({
       title: 'Save project',
       defaultPath: `${S.state.project.name}.cadence`,
       filters: [{ name: 'Cadence project', extensions: ['cadence'] }],
@@ -1002,21 +1002,21 @@ async function saveProjectFlow(saveAs) {
     if (!p) return;
     S.state.projectPath = p;
   }
-  await window.eclipse.writeFile(p, S.serialize());
+  await window.cadence.writeFile(p, S.serialize());
   S.state.dirty = false;
   S.emit('dirty');
   toast('Project saved');
 }
 
 async function offerRecovery(always = false) {
-  const saves = await window.eclipse.autosaveList().catch(() => []);
+  const saves = await window.cadence.autosaveList().catch(() => []);
   if (!saves.length) { if (always) toast('No autosaves yet'); return; }
   if (!always && Date.now() - saves[0].mtime > 1000 * 60 * 60 * 24 * 7) return;
   if (!always && saves[0].id === S.state.project.id) return;
   const opts = [];
   for (const sv of saves.slice(0, 6)) {
     try {
-      const text = await window.eclipse.autosaveRead(sv.id);
+      const text = await window.cadence.autosaveRead(sv.id);
       const proj = JSON.parse(text);
       // Every launch autosaves the fresh empty project — don't nag "restore?" for sessions
       // that never actually had anything in them (they're still reachable via the explicit command).
@@ -1086,20 +1086,20 @@ function wireUpdateChip() {
     }
   };
 
-  window.eclipse.getUpdateState().then(render);
-  window.eclipse.onUpdateState(render);
+  window.cadence.getUpdateState().then(render);
+  window.cadence.onUpdateState(render);
 
   chip.addEventListener('click', async () => {
-    const s = await window.eclipse.getUpdateState();
+    const s = await window.cadence.getUpdateState();
     if (s.status === 'available') {
-      await window.eclipse.downloadUpdate();
+      await window.cadence.downloadUpdate();
     } else if (s.status === 'ready') {
       modal({
         title: 'Restart to finish updating?',
         body: `<p>Cadence will close and reopen on v${s.info?.version || 'the new version'}. Everything autosaves, so nothing will be lost.</p>`,
         actions: [
           { label: 'Not now', run: () => { } },
-          { label: 'Restart now', primary: true, run: () => window.eclipse.installUpdate() },
+          { label: 'Restart now', primary: true, run: () => window.cadence.installUpdate() },
         ],
       });
     }
@@ -1108,7 +1108,7 @@ function wireUpdateChip() {
 
 async function checkForUpdatesFlow() {
   const prog = toastProgress('Checking for updates…');
-  const s = await window.eclipse.checkForUpdate();
+  const s = await window.cadence.checkForUpdate();
   if (s.status === 'available') prog.done(`Update available: v${s.info?.version} — click the chip in the title bar to download`, 'success');
   else if (s.status === 'not-available') prog.done(s.error || 'You’re on the latest version', s.error ? 'warn' : 'success');
   else if (s.status === 'error') prog.done('Could not check for updates: ' + s.error, 'error');
@@ -1118,7 +1118,7 @@ async function checkForUpdatesFlow() {
 async function enableClaudeControlFlow() {
   const prog = toastProgress('Registering with Claude Code…');
   try {
-    const res = await window.eclipse.registerMcpServer();
+    const res = await window.cadence.registerMcpServer();
     if (res.ok) {
       prog.done('Done — ask Claude to work on your animation. Restart Claude Code if it was already running.', 'success');
       return;
@@ -1484,7 +1484,7 @@ function wireDragDrop() {
         } else if (name.endsWith('.rbxm') || name.endsWith('.rbxmx')) {
           await importModelBuffer(await file.arrayBuffer(), file.name);
         } else if (/\.(mp3|wav|ogg|m4a|flac)$/.test(name)) {
-          const path = await window.eclipse.storeAudio(file.name, await file.arrayBuffer());
+          const path = await window.cadence.storeAudio(file.name, await file.arrayBuffer());
           await loadAudioFromPath(path, file.name);
           toast('Audio added');
         } else {
@@ -1505,9 +1505,9 @@ function wireBridge() {
     chip.classList.toggle('on', !!s.connected);
     chip.querySelector('.txt').textContent = s.connected ? (s.placeName || 'Studio connected') : 'Studio offline';
   };
-  window.eclipse.bridgeStatus().then(set);
-  window.eclipse.onBridgeStatus(set);
-  window.eclipse.onBridgeEvent(async (ev) => {
+  window.cadence.bridgeStatus().then(set);
+  window.cadence.onBridgeStatus(set);
+  window.cadence.onBridgeEvent(async (ev) => {
     if (ev.type === 'rigPushed' && ev.data?.rig) {
       addRigItem(ev.data.rig, null, ev.data.studioId);
       toast(`${ev.data.rig.name} sent from Studio`);
@@ -1537,7 +1537,7 @@ function wireBridge() {
 
 async function installPluginFlow() {
   try {
-    const dest = await window.eclipse.installPlugin();
+    const dest = await window.cadence.installPlugin();
     const wrap = document.createElement('div');
     const intro = document.createElement('p');
     intro.textContent = 'Cadence Bridge was copied to:';
@@ -1654,7 +1654,7 @@ const MCP_HANDLERS = {
 
   save_project: async () => {
     if (S.state.projectPath) {
-      await window.eclipse.writeFile(S.state.projectPath, S.serialize());
+      await window.cadence.writeFile(S.state.projectPath, S.serialize());
       S.state.dirty = false;
       S.emit('dirty');
       return { savedTo: S.state.projectPath };
@@ -1667,20 +1667,20 @@ const MCP_HANDLERS = {
     if (!item || item.kind !== 'rig') throw new Error(`No rig item with id ${itemId}`);
     const data = IO.buildExportData(item, { name: name || item.name });
     if (!data.keyframes.length) throw new Error(`${item.name} has no keyframes yet`);
-    const res = await window.eclipse.bridgeSend('buildAnimation', { data, rigName: item.name, studioId: item.studioId, publish: !!publish }, 120000);
+    const res = await window.cadence.bridgeSend('buildAnimation', { data, rigName: item.name, studioId: item.studioId, publish: !!publish }, 120000);
     return res;
   },
 };
 
 function initMcp() {
-  window.eclipse.onMcpCommand(async ({ id, type, payload }) => {
+  window.cadence.onMcpCommand(async ({ id, type, payload }) => {
     const handler = MCP_HANDLERS[type];
-    if (!handler) { window.eclipse.mcpRespond(id, false, null, `Unknown MCP command: ${type}`); return; }
+    if (!handler) { window.cadence.mcpRespond(id, false, null, `Unknown MCP command: ${type}`); return; }
     try {
       const data = await handler(payload || {});
-      window.eclipse.mcpRespond(id, true, data ?? null, null);
+      window.cadence.mcpRespond(id, true, data ?? null, null);
     } catch (e) {
-      window.eclipse.mcpRespond(id, false, null, e.message || String(e));
+      window.cadence.mcpRespond(id, false, null, e.message || String(e));
     }
   });
 }
@@ -1692,7 +1692,7 @@ function showOnboarding() {
   document.getElementById('onboardStart').addEventListener('click', () => {
     back.classList.remove('show');
     settings.onboarded = true;
-    window.eclipse.setSettings(settings);
+    window.cadence.setSettings(settings);
   });
   document.getElementById('onboardPlugin').addEventListener('click', installPluginFlow);
 }

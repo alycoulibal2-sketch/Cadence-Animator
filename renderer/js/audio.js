@@ -24,7 +24,7 @@ export function hasAudio() { return !!au.buffer; }
 
 export async function loadAudioFromPath(path, name) {
   ensureCtx();
-  const data = await window.eclipse.readFileBinary(path);
+  const data = await window.cadence.readFileBinary(path);
   const arr = data instanceof ArrayBuffer ? data : new Uint8Array(data.data || data).buffer;
   au.buffer = await au.ctx.decodeAudioData(arr.slice(0));
   au.duration = au.buffer.duration;
@@ -42,7 +42,7 @@ export async function restoreAudio() {
   if (a && a.path) {
     try {
       ensureCtx();
-      const data = await window.eclipse.readFileBinary(a.path);
+      const data = await window.cadence.readFileBinary(a.path);
       const arr = data instanceof ArrayBuffer ? data : new Uint8Array(data.data || data).buffer;
       au.buffer = await au.ctx.decodeAudioData(arr.slice(0));
       au.duration = au.buffer.duration;

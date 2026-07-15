@@ -1,7 +1,7 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('eclipse', {
+contextBridge.exposeInMainWorld('cadence', {
   // settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (s) => ipcRenderer.invoke('settings:set', s),

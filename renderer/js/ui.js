@@ -14,7 +14,7 @@ export function copyableRow(text) {
   btn.title = 'Copy to clipboard';
   btn.textContent = '⧉';
   btn.addEventListener('click', async () => {
-    await window.eclipse.copyText(text);
+    await window.cadence.copyText(text);
     btn.textContent = '✓';
     btn.classList.add('copied');
     toast('Copied to clipboard', 'success', 1600);

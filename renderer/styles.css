@@ -172,11 +172,6 @@ body {
   gap: 6px;
   letter-spacing: 0.2px;
 }
-.logo .note {
-  color: var(--accent);
-  font-size: 15px;
-  filter: drop-shadow(0 0 6px var(--accent-glow));
-}
 #projectName {
   font-size: 12.5px;
   color: var(--text-2);
@@ -812,7 +807,6 @@ body {
 }
 .overlay-back.show .onboard { transform: translateY(0) scale(1); opacity: 1; }
 .onboard-hero { text-align: center; margin-bottom: 28px; }
-.onboard-hero .note.big { font-size: 40px; color: var(--accent); filter: drop-shadow(0 0 20px var(--accent-glow)); }
 .onboard-hero h1 { font-size: 24px; margin: 10px 0 6px; color: var(--text-0); font-weight: 700; }
 .onboard-hero p { color: var(--text-2); font-size: 13.5px; margin: 0; }
 .onboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

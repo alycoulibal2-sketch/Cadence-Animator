@@ -1,5 +1,5 @@
 // Draggable dividers for the explorer/inspector/timeline panels. Sizes persist across
-// relaunches the same way other UI prefs do (settings.json via window.eclipse.setSettings).
+// relaunches the same way other UI prefs do (settings.json via window.cadence.setSettings).
 
 const DEFAULTS = { explorerWidth: 250, inspectorWidth: 250, timelineHeight: 300 };
 const CLAMP = {

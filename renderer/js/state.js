@@ -128,7 +128,7 @@ function scheduleAutosave() {
 async function doAutosave() {
   if (!state.project) return;
   try {
-    await window.eclipse.autosaveWrite(state.project.id, serialize());
+    await window.cadence.autosaveWrite(state.project.id, serialize());
     lastAutosave = Date.now();
     emit('autosaved', lastAutosave);
   } catch (e) {
@@ -140,7 +140,7 @@ window.addEventListener('beforeunload', () => {
   if (state.project) {
     try {
       // synchronous-ish best effort: fire and let main finish the write
-      window.eclipse.autosaveWrite(state.project.id, serialize());
+      window.cadence.autosaveWrite(state.project.id, serialize());
     } catch (_) { }
   }
 });
