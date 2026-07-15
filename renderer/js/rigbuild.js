@@ -11,12 +11,10 @@ function getClassicFace() {
 const texLoader = new THREE.TextureLoader();
 const meshGeoCache = new Map(); // meshId -> Promise<THREE.BufferGeometry>
 
-// Rendered-only shrink applied to every part around its own center: two parts that touch flush
-// at a joint (the normal case) end up with a small visible seam instead of solid contact, so the
-// handle marker sitting exactly on that shared boundary reads as floating in a gap rather than
-// half-buried in both parts. Cosmetic only — `p.world` (the real CFrame used for gizmos/IK/export)
-// is never touched, only the mesh's rendered matrix.
-export const PART_GAP_SCALE = 0.88;
+// Parts render at their true Roblox size (flush, touching — same as Studio). Handle markers stay
+// visibly on top via depthTest:false + renderOrder instead of physically prying parts apart, which
+// used to leave a visible seam at every joint and made rigs read as disassembled.
+export const PART_GAP_SCALE = 1;
 const partGapVector = new THREE.Vector3(PART_GAP_SCALE, PART_GAP_SCALE, PART_GAP_SCALE);
 
 function fetchMeshGeometry(meshId) {
@@ -44,19 +42,26 @@ function loadRobloxTexture(texId) {
   })).catch(() => null);
 }
 
-// Classic "head" special mesh: lathe profile approximating the bevelled cylinder
+// Classic "head" special mesh: a rounded-cylinder lathe profile (flat disc top/bottom, bevelled
+// corners, straight sides in between) approximating Roblox's bevelled-cylinder head. Unit size
+// (1 wide, 1 tall) — callers scale it to the actual head dimensions.
 function headGeometry() {
+  const R = 0.42;  // side radius
+  const H = 0.5;   // half height
+  const r = 0.16;  // corner bevel radius
+  const N = 10;    // segments per corner arc
   const pts = [];
-  const N = 12;
-  // profile from bottom center out: bevelled cylinder, unit size (1 wide, 1 tall)
-  pts.push(new THREE.Vector2(0, -0.5));
-  pts.push(new THREE.Vector2(0.34, -0.5));
+  pts.push(new THREE.Vector2(0, -H));
+  pts.push(new THREE.Vector2(R - r, -H));
   for (let i = 0; i <= N; i++) {
-    const a = -Math.PI / 2 + (i / N) * Math.PI;
-    pts.push(new THREE.Vector2(0.34 + 0.16 * Math.cos(a), Math.sin(a) * 0.34 * 0.5 / 0.34 * 0.32 + (a < 0 ? -0.18 : 0.18)));
+    const a = -Math.PI / 2 + (i / N) * (Math.PI / 2);
+    pts.push(new THREE.Vector2(R - r + r * Math.cos(a), -H + r + r * Math.sin(a)));
   }
-  pts.push(new THREE.Vector2(0.34, 0.5));
-  pts.push(new THREE.Vector2(0, 0.5));
+  for (let i = 0; i <= N; i++) {
+    const a = (i / N) * (Math.PI / 2);
+    pts.push(new THREE.Vector2(R - r + r * Math.cos(a), H - r + r * Math.sin(a)));
+  }
+  pts.push(new THREE.Vector2(0, H));
   const geo = new THREE.LatheGeometry(pts, 24);
   geo.computeVertexNormals();
   return geo;
@@ -168,6 +173,28 @@ export class RigInstance {
     this.group.add(mesh);
     this.parts.set(def.id, { def, mesh, world: CF.IDENTITY.slice(), extras: [] });
 
+    // async: texture (fixes the UGC "black head" bug: we always fetch + apply the real texture).
+    // Modern UGC heads carry their texture on a SurfaceAppearance rather than MeshPart.TextureID —
+    // prefer that when present, since it's what actually renders in-game.
+    const sa = def.surfaceAppearance;
+    const applyTexture = () => {
+      const texId = (sa && sa.colorMap) || (def.className === 'MeshPart' ? def.textureId : (def.specialMesh && def.specialMesh.textureId));
+      if (texId) {
+        loadRobloxTexture(texId).then((tex) => {
+          if (!tex) return;
+          material.map = tex;
+          material.color.set('#ffffff');
+          material.needsUpdate = true;
+        });
+      }
+      if (sa && sa.roughnessMap) {
+        loadRobloxTexture(sa.roughnessMap).then((tex) => { if (tex) { material.roughnessMap = tex; material.needsUpdate = true; } });
+      }
+      if (sa && sa.normalMap) {
+        loadRobloxTexture(sa.normalMap).then((tex) => { if (tex) { material.normalMap = tex; material.needsUpdate = true; } });
+      }
+    };
+
     // async: real mesh geometry
     const smFile = def.specialMesh && def.specialMesh.meshType === 'FileMesh' && def.specialMesh.meshId;
     const meshId = def.className === 'MeshPart' ? def.meshId : (smFile ? def.specialMesh.meshId : null);
@@ -190,27 +217,13 @@ export class RigInstance {
         }
         mesh.geometry.dispose();
         mesh.geometry = g;
-      }).catch(() => { /* keep placeholder box */ });
-    }
-
-    // async: texture (fixes the UGC "black head" bug: we always fetch + apply the real texture).
-    // Modern UGC heads carry their texture on a SurfaceAppearance rather than MeshPart.TextureID —
-    // prefer that when present, since it's what actually renders in-game.
-    const sa = def.surfaceAppearance;
-    const texId = (sa && sa.colorMap) || (def.className === 'MeshPart' ? def.textureId : (def.specialMesh && def.specialMesh.textureId));
-    if (texId) {
-      loadRobloxTexture(texId).then((tex) => {
-        if (!tex) return;
-        material.map = tex;
-        material.color.set('#ffffff');
-        material.needsUpdate = true;
-      });
-    }
-    if (sa && sa.roughnessMap) {
-      loadRobloxTexture(sa.roughnessMap).then((tex) => { if (tex) { material.roughnessMap = tex; material.needsUpdate = true; } });
-    }
-    if (sa && sa.normalMap) {
-      loadRobloxTexture(sa.normalMap).then((tex) => { if (tex) { material.normalMap = tex; material.needsUpdate = true; } });
+        // only now — the placeholder's UVs don't match the real mesh's layout, so a texture
+        // applied before this would smear/misalign (this is what caused the R15 head to render
+        // with a dark band when its mesh CDN fetch 401s but the texture fetch still succeeds)
+        applyTexture();
+      }).catch(() => { /* keep placeholder shape, skip texture — its UVs wouldn't match anyway */ });
+    } else {
+      applyTexture();
     }
 
     // classic R6 smiley

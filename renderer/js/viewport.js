@@ -498,6 +498,12 @@ export function frameAll() {
   viewport.controls.target.set(0, 2.5, 0);
   viewport.camera.position.set(9, 7, 12);
 }
+// QA-only: arbitrary camera placement for scripted close-up screenshots.
+export function debugFrame(target, pos) {
+  viewport.controls.target.set(target[0], target[1], target[2]);
+  viewport.camera.position.set(pos[0], pos[1], pos[2]);
+  viewport.controls.update();
+}
 
 export function setHandlesVisible(v) {
   S.state.handlesVisible = v;
