@@ -42,6 +42,10 @@
       "!node_modules/three/examples/**/*.html"
     ],
     "extraResources": [],
+    "asarUnpack": [
+      "mcp-server/**/*",
+      "node_modules/**/*"
+    ],
     "win": {
       "target": [
         { "target": "nsis", "arch": ["x64"] },

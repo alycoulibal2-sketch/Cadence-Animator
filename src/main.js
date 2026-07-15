@@ -319,17 +319,49 @@ ipcMain.handle('plugin:install', () => {
   return dest;
 });
 
+// Finds a real system `node` binary the same way runClaudeCli finds `claude` — via the OS's own
+// PATH search, not a bare execFileSync('node', ...) call that would miss anything installed as a
+// non-.exe shim. Returns null (not a throw) if none is found, so callers can fall back cleanly.
+function resolveSystemNode() {
+  const { execFileSync } = require('child_process');
+  const finder = process.platform === 'win32' ? 'where' : 'which';
+  try {
+    const out = execFileSync(finder, ['node'], { encoding: 'utf8' });
+    const first = out.split(/\r?\n/).map((s) => s.trim()).find(Boolean);
+    return first || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------- IPC: MCP server registration
 // npm installs register themselves via bin/register-mcp.js at postinstall (a plain system `node`
-// process can run the loose mcp-server/index.js file directly). A packaged .exe has no separate
-// Node.js runtime and the script lives inside app.asar, so instead we point Claude Code at the
-// exe itself running in "act as Node" mode — Electron's well-known ELECTRON_RUN_AS_NODE trick —
-// which can read its own bundled asar resources where a vanilla system `node` could not.
+// process can run the loose mcp-server/index.js file directly, no asar involved at all).
+//
+// A packaged .exe has no separate Node.js runtime bundled, and the script normally lives inside
+// app.asar which a vanilla system `node` can't read into — so historically this pointed Claude
+// Code at the exe itself running in "act as Node" mode (Electron's ELECTRON_RUN_AS_NODE trick).
+// That works, but the exe is the FULL ~85MB Electron/Chromium binary — measurably slow to cold-
+// start as a throwaway "just run this one script" process, and materially worse when the user
+// also has the real app open at the same time (the normal case, since they'd want to actually
+// see what Claude is doing) — confirmed directly: over 20s to connect under that contention,
+// long enough that Claude Code's own reconnect UI gave up and reported a failure even though the
+// server would have come up fine given more time.
+//
+// mcp-server/**/* and node_modules/**/* are both asarUnpack'd (see package.json) specifically so
+// a real system `node.exe` CAN read them directly with no asar involved — prefer that whenever
+// one is actually installed (extremely common; anyone who installed this app via npm already has
+// one), and only fall back to the heavier Electron-exe trick if truly no system Node exists.
 function buildMcpCommand() {
-  const serverPath = path.join(app.getAppPath(), 'mcp-server', 'index.js');
   if (app.isPackaged) {
-    return { command: process.execPath, args: [serverPath], env: { ELECTRON_RUN_AS_NODE: '1' } };
+    const unpackedServerPath = path.join(app.getAppPath() + '.unpacked', 'mcp-server', 'index.js');
+    const systemNode = resolveSystemNode();
+    if (systemNode) {
+      return { command: systemNode, args: [unpackedServerPath], env: null };
+    }
+    return { command: process.execPath, args: [path.join(app.getAppPath(), 'mcp-server', 'index.js')], env: { ELECTRON_RUN_AS_NODE: '1' } };
   }
+  const serverPath = path.join(app.getAppPath(), 'mcp-server', 'index.js');
   return { command: 'node', args: [serverPath], env: null };
 }
 
