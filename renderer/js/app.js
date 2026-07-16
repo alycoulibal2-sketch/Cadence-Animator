@@ -1925,6 +1925,57 @@ const MCP_HANDLERS = {
     return { pose, worlds: out };
   },
 
+  // Pure query — which way a part is actually facing in world space, and whether that's toward
+  // or away from the current viewport camera. Exists because a screenshot alone often can't
+  // settle this: a resting humanoid pose reads almost identically from the front and the back
+  // unless the face happens to be in frame, and even then a partial/angled view is ambiguous
+  // to eyeball. This gives an exact numeric answer instead of guessing from pixels.
+  get_facing: ({ itemId, frame, partId }) => {
+    const item = S.getItem(itemId);
+    if (!item) throw new Error(`No item with id ${itemId}`);
+    const inst = getInstance(itemId);
+    if (!inst || !inst.solvePoseWorlds) throw new Error('That item has no posable rig');
+    const pose = S.evalPose(item, frame);
+    const origin = resolveItemOrigin(item, frame);
+    const worlds = inst.solvePoseWorlds(pose, origin);
+    const pid = partId || (worlds.has('Head') ? 'Head' : item.rig.rootPart);
+    const cf = worlds.get(pid);
+    if (!cf) throw new Error(`No part named "${pid}" on this rig — try one of: ${[...worlds.keys()].join(', ')}`);
+
+    // Roblox's LookVector convention (matches this app's own FACE_ORIENT.Front in rigbuild.js):
+    // "forward" is local -Z, carried into world space by the part's rotation columns.
+    const fx = -cf[5], fy = -cf[8], fz = -cf[11];
+    const flen = Math.hypot(fx, fy, fz) || 1;
+    const forward = [fx / flen, fy / flen, fz / flen];
+
+    const cam = viewport.camera.position;
+    const [px, py, pz] = cf;
+    const tx = cam.x - px, ty = cam.y - py, tz = cam.z - pz;
+    const tlen = Math.hypot(tx, ty, tz) || 1;
+    const toCamera = [tx / tlen, ty / tlen, tz / tlen];
+    const camDot = forward[0] * toCamera[0] + forward[1] * toCamera[1] + forward[2] * toCamera[2];
+    const cameraAngleDegrees = Math.round(Math.acos(Math.max(-1, Math.min(1, camDot))) * 180 / Math.PI);
+
+    // Compass-style label on the world XZ plane, purely as a human-readable hint alongside the
+    // exact vector — 0° = world -Z, 90° = world +X, matching Roblox's own bearing convention.
+    const bearingDegrees = Math.round((Math.atan2(forward[0], -forward[2]) * 180 / Math.PI + 360) % 360);
+    const dirs = ['-Z (north)', '+X/-Z (northeast)', '+X (east)', '+X/+Z (southeast)', '+Z (south)', '-X/+Z (southwest)', '-X (west)', '-X/-Z (northwest)'];
+    const compass = dirs[Math.round(bearingDegrees / 45) % 8];
+    const facingCamera = camDot > 0;
+
+    return {
+      partId: pid,
+      forward,
+      bearingDegrees,
+      compass,
+      cameraAngleDegrees,
+      facingCamera,
+      note: facingCamera
+        ? `Facing roughly toward the current camera (${cameraAngleDegrees}° off dead-on) — a render_frame screenshot right now should show its front/face.`
+        : `Facing away from the current camera (${cameraAngleDegrees}° off dead-on, >90°) — a render_frame screenshot right now shows its back, not its face.`,
+    };
+  },
+
   validate_animation: ({ itemId }) => validateAnimation(itemId),
 
   // Resolves only after the new pose has actually been computed AND painted at least once

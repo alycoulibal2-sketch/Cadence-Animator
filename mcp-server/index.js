@@ -153,6 +153,13 @@ server.tool(
 );
 
 server.tool(
+  'get_facing',
+  'Get the exact world-space direction a rig part is facing (default: its Head, i.e. which way its face points), plus whether that direction currently points toward or away from the viewport camera. Use this instead of guessing from a screenshot — a resting humanoid pose often looks nearly identical from the front and the back, and even an in-frame face can be at an angle that\'s hard to judge by eye. Returns a unit vector, a compass-style bearing, the angle off dead-on from the camera, and a plain-language note on whether a render_frame screenshot right now would show the front or the back.',
+  { itemId: z.string(), frame: z.number(), partId: z.string().optional().describe('Which part to check (defaults to "Head" if the rig has one, else its root part).') },
+  async ({ itemId, frame, partId }) => { try { return textResult(await call('get_facing', { itemId, frame, partId })); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
   'validate_animation',
   'Run automated quality checks on a rig\'s animation: corrupted/degenerate keyframes, rotation or position "pops" (implausibly large per-frame jumps that usually mean a mistake, not intentional fast motion), joints that were never animated, and a held-pose tail after the last keyframe. Run this after making edits instead of assuming they look right — this is how you check "every frame" without rendering every frame.',
   { itemId: z.string() },
