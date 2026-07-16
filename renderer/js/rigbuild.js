@@ -240,6 +240,35 @@ export class RigInstance {
     const baseEmissive = mp.emissive ? { color: new THREE.Color(def.color || '#A3A2A5'), intensity: mp.emissive } : null;
     this.parts.set(def.id, { def, mesh, world: CF.IDENTITY.slice(), extras: [], baseEmissive });
 
+    // Face: a user's custom layer stack (Face Presets) takes priority over every rig's default
+    // face. Below that, R15/Rthro/RthroSlender heads carry their default face baked into the CDN
+    // mesh/texture (111092388570647) the same way real Roblox Studio does — but that asset is
+    // gated behind an authenticated Roblox session and 401s in this bare desktop app (see
+    // headFaceFallback below), so `hasCustomFace` alone doesn't tell us whether *some* face will
+    // end up on screen. R6's Head has no CDN texture at all — faceDecal is its only face source,
+    // so it always renders the classic smiley immediately, unconditionally.
+    const hasCustomFace = def.name === 'Head' && this.item.faceLayers && this.item.faceLayers.length;
+    if (hasCustomFace) {
+      this.item.faceLayers.forEach((layer, i) => this.#buildFacePlane(def, mesh, layer.dataUri, layer.opacity ?? 1, 'Front', i));
+    } else if (def.faceDecal) {
+      getClassicFace().then((dataUri) => {
+        if (dataUri) this.#buildFacePlane(def, mesh, dataUri, 1, 'Front', 0);
+      });
+    }
+    // Guaranteed default face for R15-family heads: shows the classic smiley — exactly what
+    // Roblox Studio's own default rigs read as — as soon as it's clear the real baked-in CDN face
+    // won't arrive, and never at all if the real one does (avoids a doubled-up face). Guarded by
+    // `headFaceShown` since either the mesh-geometry failure path or the texture failure path
+    // below can trigger it, and only one should ever actually build the plane.
+    let headFaceShown = hasCustomFace || !!def.faceDecal;
+    const headFaceFallback = () => {
+      if (headFaceShown || def.name !== 'Head' || def.className !== 'MeshPart') return;
+      headFaceShown = true;
+      getClassicFace().then((dataUri) => {
+        if (dataUri) this.#buildFacePlane(def, mesh, dataUri, 1, 'Front', 0);
+      });
+    };
+
     // async: texture (fixes the UGC "black head" bug: we always fetch + apply the real texture).
     // Modern UGC heads carry their texture on a SurfaceAppearance rather than MeshPart.TextureID —
     // prefer that when present, since it's what actually renders in-game.
@@ -248,11 +277,14 @@ export class RigInstance {
       const texId = (sa && sa.colorMap) || (def.className === 'MeshPart' ? def.textureId : (def.specialMesh && def.specialMesh.textureId));
       if (texId) {
         loadRobloxTexture(texId).then((tex) => {
-          if (!tex) return;
+          if (!tex) { headFaceFallback(); return; }
+          headFaceShown = true; // the real CDN texture won — never show the fallback smiley too
           material.map = tex;
           material.color.set('#ffffff');
           material.needsUpdate = true;
         });
+      } else {
+        headFaceFallback();
       }
       if (sa && sa.roughnessMap) {
         loadRobloxTexture(sa.roughnessMap).then((tex) => { if (tex) { material.roughnessMap = tex; material.needsUpdate = true; } });
@@ -288,19 +320,9 @@ export class RigInstance {
         // applied before this would smear/misalign (this is what caused the R15 head to render
         // with a dark band when its mesh CDN fetch 401s but the texture fetch still succeeds)
         applyTexture();
-      }).catch(() => { /* keep placeholder shape, skip texture — its UVs wouldn't match anyway */ });
+      }).catch(() => { headFaceFallback(); /* keep placeholder shape, skip texture — its UVs wouldn't match anyway */ });
     } else {
       applyTexture();
-    }
-
-    // Face: a user's custom layer stack (Face Presets) takes priority over the classic R6 smiley —
-    // both render the same way (stacked transparent planes just in front of the head surface).
-    if (def.name === 'Head' && this.item.faceLayers && this.item.faceLayers.length) {
-      this.item.faceLayers.forEach((layer, i) => this.#buildFacePlane(def, mesh, layer.dataUri, layer.opacity ?? 1, 'Front', i));
-    } else if (def.faceDecal) {
-      getClassicFace().then((dataUri) => {
-        if (dataUri) this.#buildFacePlane(def, mesh, dataUri, 1, 'Front', 0);
-      });
     }
     // Every Decal Roblox has on this part, on whichever face(s) it's actually on — not just the
     // one the classic-smiley path above assumes. A part can carry up to six simultaneously.

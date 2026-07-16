@@ -500,7 +500,10 @@ ipcMain.handle('roblox:userId', async (_e, username) => {
   return { id: hit.id, name: hit.name, displayName: hit.displayName };
 });
 
-// Classic smiley face from the local Roblox Studio install (for R6 heads)
+// Classic smiley face from the local Roblox Studio install — R6's only face source, and the
+// guaranteed-to-render default/fallback face for every other builtin rig too (see headFaceFallback
+// in rigbuild.js), since this reads straight off disk and never depends on an authenticated
+// Roblox web session the way the R15-family CDN face texture does.
 ipcMain.handle('roblox:classicFace', () => {
   try {
     const versionsDirs = [
