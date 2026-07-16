@@ -13,6 +13,24 @@ const isScreenshotRun = process.argv.some((a) => a.startsWith('--screenshot'));
 
 let win = null;
 
+// Only one Cadence window/process should ever be running at once: both the Studio bridge and the
+// MCP control server below bind fixed local ports, and a second process launched for "a new
+// project" would silently lose the race for those ports (whichever process bound first keeps
+// answering Claude/Studio; the second just sits there looking dead, with no clue why). Bailing
+// out here — before any port is touched — means opening the app again always reaches the same
+// live process instead of spawning a competitor.
+//
+// app.quit() alone isn't enough to guarantee that: it only marks the app to quit once the event
+// loop gets to it, and app.whenReady() can still resolve and run its callback (createWindow,
+// startBridgeServer, startMcpServer — the exact port binds we're trying to avoid) in the
+// meantime. gotSingleInstanceLock is checked again inside that callback below to actually skip
+// them, not just rely on quit's timing — verified directly: without that check, a second launch
+// still logged its own "port already in use" errors before quitting.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
+
 // A renderer crash (this sandbox sees intermittent GPU/software-rendering crashes under load)
 // can leave `win` alive but its webContents/frame gone — guard every push to the renderer
 // through this instead of the bare `win && !win.isDestroyed()` check used before, which missed
@@ -145,7 +163,15 @@ function createWindow() {
   }
 }
 
+app.on('second-instance', () => {
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  }
+});
+
 app.whenReady().then(() => {
+  if (!gotSingleInstanceLock) return;
   createWindow();
   startBridgeServer();
   startMcpServer();
@@ -393,6 +419,12 @@ ipcMain.handle('mcp:registerServer', () => {
   } catch (_) {
     return { ok: false, reason: 'claude-not-found', manualCommand };
   }
+  // `mcp add` errors out if cadence-animator is already registered (e.g. from an earlier click,
+  // or an earlier app version) — remove any existing entry first so this button always works
+  // instead of failing with a confusing "setup failed" the second time it's ever pressed.
+  try {
+    runClaudeCli(['mcp', 'remove', 'cadence-animator', '-s', 'local'], { stdio: 'ignore' });
+  } catch (_) { /* fine if it wasn't registered yet */ }
   try {
     const mcpArgs = ['mcp', 'add', 'cadence-animator'];
     if (env) for (const [k, v] of Object.entries(env)) mcpArgs.push('--env', `${k}=${v}`);
@@ -717,6 +749,7 @@ ipcMain.handle('bridge:send', (_e, type, payload, timeoutMs = 60000) => {
 // is a direct push+response over IPC instead of the Studio bridge's long-poll queue.
 const mcpPending = new Map(); // id -> {resolve, reject, timer}
 let mcpNextId = 1;
+let mcpBindError = null; // set if the MCP control server failed to start (e.g. port already in use)
 
 function sendToRenderer(type, payload, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
@@ -780,6 +813,18 @@ function startMcpServer() {
     }
     res.writeHead(404); res.end();
   });
-  server.on('error', (e) => console.error('MCP server error:', e.message));
+  server.on('error', (e) => {
+    // Previously just console.error'd — invisible in a packaged build, so "Claude builds but
+    // the app never reacts" had no visible cause at all. Most commonly EADDRINUSE: another
+    // Cadence process (a leftover from before the single-instance lock above, or a genuine
+    // zombie left behind by a crash) already owns this port and answers Claude's calls instead —
+    // against whatever window IT has, not the one actually on screen.
+    console.error('MCP server error:', e.message);
+    mcpBindError = e.code === 'EADDRINUSE'
+      ? `Port ${MCP_PORT} is already in use — another Cadence Animator process is running and is the one actually talking to Claude. Close it (Task Manager, if closing the window alone doesn't) and reopen this app.`
+      : `Could not start the Claude control server: ${e.message}`;
+  });
   server.listen(MCP_PORT, '127.0.0.1');
 }
+
+ipcMain.handle('mcp:bindStatus', () => ({ error: mcpBindError }));

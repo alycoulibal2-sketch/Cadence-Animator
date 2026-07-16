@@ -1330,6 +1330,11 @@ async function checkForUpdatesFlow() {
 }
 
 async function enableClaudeControlFlow() {
+  const bindStatus = await window.cadence.mcpBindStatus().catch(() => null);
+  if (bindStatus && bindStatus.error) {
+    toast(bindStatus.error, 'error');
+    return;
+  }
   const prog = toastProgress('Registering with Claude Code…');
   try {
     const res = await window.cadence.registerMcpServer();
@@ -2115,6 +2120,12 @@ function initMcp() {
       window.cadence.mcpRespond(id, false, null, e.message || String(e));
     }
   });
+
+  // Surface a failed-to-start control server immediately, instead of the user only discovering
+  // it later as "I asked Claude to do something and this window just didn't react."
+  window.cadence.mcpBindStatus().then((s) => {
+    if (s && s.error) toast(s.error, 'error');
+  }).catch(() => { });
 }
 
 // ================================================================ onboarding

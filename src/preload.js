@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('cadence', {
   onMcpCommand: (cb) => ipcRenderer.on('mcp:command', (_e, cmd) => cb(cmd)),
   mcpRespond: (id, ok, data, error) => ipcRenderer.send('mcp:response', { id, ok, data, error }),
   registerMcpServer: () => ipcRenderer.invoke('mcp:registerServer'),
+  mcpBindStatus: () => ipcRenderer.invoke('mcp:bindStatus'),
 
   // auto-update
   checkForUpdate: () => ipcRenderer.invoke('update:check'),
