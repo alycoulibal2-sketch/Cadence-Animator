@@ -594,3 +594,107 @@ export function buildRigModelXML(item, animXmlInner) {
 export function innerXml(fullXml) {
   return fullXml.replace(/^<roblox[^>]*>\n?/, '').replace(/\n?<\/roblox>$/, '');
 }
+
+// ---------------------------------------------------------------- camera → script export
+// Turns a camera item's animation into a self-contained Luau LocalScript that plays the exact
+// same motion in-game. Every frame is baked explicitly (project-fps samples of the @origin and
+// @fov tracks, easing included) and the runtime just lerps between adjacent baked frames — the
+// same "bake, don't translate easing" philosophy buildExportData uses, so editor and in-game
+// playback match exactly with a tiny generic runtime.
+export function buildCameraScriptData(item) {
+  const p = S.state.project;
+  const tracks = S.getTracks(item.id);
+  let lastKey = 0;
+  for (const tn of ['@origin', '@fov']) {
+    for (const k of tracks[tn]?.keys || []) lastKey = Math.max(lastKey, k.t);
+  }
+  const endFrame = Math.max(0, Math.ceil(lastKey));
+  const frames = [];
+  const rnd = (v) => {
+    const r = Math.round(v * 1e4) / 1e4;
+    return Object.is(r, -0) ? 0 : r;
+  };
+  for (let f = 0; f <= endFrame; f++) {
+    const cf = S.evalTrackCF(item.id, '@origin', f, item.origin || CF.IDENTITY);
+    const fov = S.evalTrackNum(item.id, '@fov', f, item.fov || 70);
+    frames.push([...cf.map(rnd), rnd(fov)]);
+  }
+  return { name: item.name, fps: p.fps, loop: p.loop, frames };
+}
+
+export function buildCameraScriptLua(data, opts = {}) {
+  const rows = data.frames.map((f) => `\t{${f.join(',')}},`).join('\n');
+  const header = opts.name || `${data.name} camera animation`;
+  return `-- ${header}
+-- Exported from Cadence Animator. Put this LocalScript in StarterPlayer > StarterPlayerScripts.
+-- It plays automatically; set AUTOPLAY to false and fire the "PlayCameraAnimation" BindableEvent
+-- it creates (parented to this script) to trigger it from your own code instead.
+
+local RunService = game:GetService("RunService")
+
+local FPS = ${data.fps}
+local LOOP = ${data.loop ? 'true' : 'false'}
+local AUTOPLAY = true
+
+-- One row per frame: x,y,z, r00,r01,r02, r10,r11,r12, r20,r21,r22, fov
+local FRAMES = {
+${rows}
+}
+
+local camera = workspace.CurrentCamera
+
+local function frameAt(i)
+	local f = FRAMES[i]
+	return CFrame.new(f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9], f[10], f[11], f[12]), f[13]
+end
+
+local playing = false
+local function play()
+	if playing or #FRAMES == 0 then return end
+	playing = true
+	local prevType = camera.CameraType
+	camera.CameraType = Enum.CameraType.Scriptable
+	local t0 = os.clock()
+	local conn
+	conn = RunService.RenderStepped:Connect(function()
+		local t = (os.clock() - t0) * FPS
+		local last = #FRAMES - 1
+		if t >= last then
+			if LOOP and last > 0 then
+				t = t % last
+			else
+				local cf, fov = frameAt(#FRAMES)
+				camera.CFrame, camera.FieldOfView = cf, fov
+				conn:Disconnect()
+				camera.CameraType = prevType
+				playing = false
+				return
+			end
+		end
+		local i = math.floor(t)
+		local a = t - i
+		local cf1, fov1 = frameAt(i + 1)
+		local cf2, fov2 = frameAt(math.min(i + 2, #FRAMES))
+		camera.CFrame = cf1:Lerp(cf2, a)
+		camera.FieldOfView = fov1 + (fov2 - fov1) * a
+	end)
+end
+
+local trigger = Instance.new("BindableEvent")
+trigger.Name = "PlayCameraAnimation"
+trigger.Parent = script
+trigger.Event:Connect(play)
+
+if AUTOPLAY then play() end
+`;
+}
+
+// The same script wrapped as a .rbxmx LocalScript — droppable straight into Studio.
+export function buildCameraScriptRbxmx(name, luaSource) {
+  return `<roblox version="4">
+<Item class="LocalScript" referent="ECLCAM0"><Properties>
+<string name="Name">${esc(name)}</string>
+<ProtectedString name="Source">${esc(luaSource)}</ProtectedString>
+</Properties></Item>
+</roblox>`;
+}

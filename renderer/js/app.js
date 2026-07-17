@@ -226,6 +226,7 @@ function registerAllCommands() {
   C({ title: 'Export to Roblox Studio', shortcut: 'Numpad 5', section: 'Export', hint: 'creates the KeyframeSequence directly in Studio', run: () => exportFlow('studio') });
   C({ title: 'Export .rbxmx animation file', section: 'Export', hint: 'drop it into Studio later', run: () => exportFlow('file') });
   C({ title: 'Export rig + animation as one file', section: 'Export', run: () => exportFlow('rigfile') });
+  C({ title: 'Export camera → script…', section: 'Export', hint: 'a LocalScript that replays the camera motion in-game', run: exportCameraScriptFlow });
   C({ title: 'Publish to Roblox (get asset ID)…', section: 'Export', run: () => exportFlow('publish') });
 
   C({ title: 'Animation settings…', shortcut: 'Numpad 8', section: 'Project', run: animationSettingsFlow });
@@ -1289,6 +1290,58 @@ async function exportFlow(mode) {
   }
 }
 
+// Camera animation → a reusable in-game asset: a self-contained LocalScript (as .lua source or a
+// .rbxmx you drop into Studio) that replays the exact camera motion. Distinct from exportFlow,
+// which only handles rig KeyframeSequences — Roblox animations can't drive a camera.
+async function exportCameraScriptFlow() {
+  const cams = S.state.project.items.filter((i) => i.kind === 'camera');
+  if (!cams.length) { toast('Add a camera first (＋ Add → Camera)', 'warn'); return; }
+  let cam = S.getItem(S.state.selection.itemId);
+  if (!cam || cam.kind !== 'camera') {
+    if (cams.length === 1) cam = cams[0];
+    else {
+      const pick = await chooseModal({
+        title: 'Export which camera?',
+        options: cams.map((i) => ({ id: i.id, label: i.name, icon: '🎥' })),
+      });
+      if (!pick) return;
+      cam = S.getItem(pick);
+    }
+  }
+  const name = await promptModal({ title: 'Camera script name', label: 'Name', initial: `${S.state.project.name} camera`, okLabel: 'Next' });
+  if (!name) return;
+  const data = IO.buildCameraScriptData(cam);
+  if (data.frames.length <= 1) toast('This camera has no keyframes — exporting a static one-frame script', 'warn');
+  const lua = IO.buildCameraScriptLua(data, { name });
+
+  const dest = await chooseModal({
+    title: 'Export camera script as…',
+    options: [
+      { id: 'rbxmx', label: 'Studio file (.rbxmx)', desc: 'a LocalScript — drop it into StarterPlayerScripts', icon: '📦' },
+      { id: 'lua', label: 'Luau source (.lua)', desc: 'paste into any script yourself', icon: '📄' },
+      { id: 'clipboard', label: 'Copy to clipboard', desc: 'the Luau source, ready to paste', icon: '📋' },
+    ],
+  });
+  if (!dest) return;
+  if (dest === 'clipboard') {
+    await navigator.clipboard.writeText(lua);
+    toast('Camera script copied — paste it into a LocalScript in StarterPlayerScripts');
+    return;
+  }
+  const ext = dest === 'lua' ? 'lua' : 'rbxmx';
+  const p = await window.cadence.saveDialog({
+    title: 'Save camera script',
+    defaultPath: `${name}.${ext}`,
+    filters: dest === 'lua'
+      ? [{ name: 'Luau script', extensions: ['lua', 'luau'] }]
+      : [{ name: 'Roblox XML model', extensions: ['rbxmx'] }],
+  });
+  if (!p) return;
+  await window.cadence.writeFile(p, dest === 'lua' ? lua : IO.buildCameraScriptRbxmx(name, lua));
+  toast(dest === 'lua' ? 'Saved Luau source' : 'Saved — drop the file into StarterPlayer → StarterPlayerScripts in Studio');
+  window.cadence.showItemInFolder(p);
+}
+
 function friendlyBridgeError(e) {
   const msg = String(e.message || e);
   if (msg.includes('not connected')) {
@@ -1637,9 +1690,11 @@ async function exportMenuFlow() {
       { id: 'publish', label: 'Publish to Roblox', desc: 'opens Studio’s upload dialog → asset ID', icon: '🚀' },
       { id: 'file', label: 'Animation file (.rbxmx)', desc: 'drop into Studio anytime', icon: '📄' },
       { id: 'rigfile', label: 'Rig + animation file', desc: 'one file with rig, joints, AnimSaves', icon: '📦' },
+      { id: 'camscript', label: 'Camera → script', desc: 'a LocalScript that replays the camera motion in-game', icon: '🎥' },
     ],
   });
-  if (pick) exportFlow(pick);
+  if (pick === 'camscript') exportCameraScriptFlow();
+  else if (pick) exportFlow(pick);
 }
 
 function wireTransport() {
@@ -2244,6 +2299,23 @@ const MCP_HANDLERS = {
       return { savedTo: S.state.projectPath };
     }
     return { savedTo: null, note: 'No file path chosen yet (use Save As in the app once) — autosave already has every change.' };
+  },
+
+  // Camera → reusable script. Returns the Luau source (and writes a file if savePath given, as
+  // .lua source or .rbxmx LocalScript depending on the path's extension).
+  export_camera_script: async ({ itemId, name, savePath }) => {
+    const item = S.getItem(itemId);
+    if (!item || item.kind !== 'camera') throw new Error(`No camera item with id ${itemId}`);
+    const data = IO.buildCameraScriptData(item);
+    const scriptName = name || `${item.name} script`;
+    const lua = IO.buildCameraScriptLua(data, { name: scriptName });
+    let savedTo = null;
+    if (savePath) {
+      const content = /\.rbxmx$/i.test(savePath) ? IO.buildCameraScriptRbxmx(scriptName, lua) : lua;
+      await window.cadence.writeFile(savePath, content);
+      savedTo = savePath;
+    }
+    return { frames: data.frames.length, fps: data.fps, loop: data.loop, savedTo, source: savedTo ? undefined : lua };
   },
 
   export_to_studio: async ({ itemId, name, publish }) => {
