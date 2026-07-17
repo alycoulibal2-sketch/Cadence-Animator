@@ -311,7 +311,9 @@ export function syncItems() {
 function makeInstance(item) {
   if (item.kind === 'camera') return new CameraInstance(item, viewport.scene);
   if (item.kind === 'vfx') return new VfxInstance(item, viewport.scene);
-  return new RigInstance(item, viewport.scene);
+  return new RigInstance(item, viewport.scene, {
+    onMeshError: (def, kind, reason) => S.emit('mesh-error', { itemId: item.id, itemName: item.name, partName: def.name, kind, reason }),
+  });
 }
 
 export function getInstance(itemId) { return viewport.instances.get(itemId); }

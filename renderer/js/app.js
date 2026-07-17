@@ -58,6 +58,7 @@ async function boot() {
     wireDragDrop();
     wireKeyboard();
     wireBridge();
+    wireMeshErrors();
     initMcp();
     initMobileBroadcast();
 
@@ -2249,6 +2250,23 @@ function wireDragDrop() {
 
 // ================================================================ bridge status
 let lastBridgeStatus = { connected: false, placeName: null, port: null, lastSeen: 0, bindError: null };
+// A part's real CDN mesh/texture failing to load used to be 100% silent — it just permanently
+// kept its box/flat-grey placeholder with no visible sign anything went wrong, which read
+// (very reasonably) as "the app simplified my model." Surface it instead. Deduped per
+// itemId+partName+kind so a rig with several affected parts gets one toast per part, not a
+// storm, and re-adding/re-fetching later can still report the same failure again (the Set is
+// scoped to this boot, not permanent suppression).
+const reportedMeshErrors = new Set();
+function wireMeshErrors() {
+  S.on('mesh-error', ({ itemId, itemName, partName, kind, reason }) => {
+    const key = `${itemId}|${partName}|${kind}`;
+    if (reportedMeshErrors.has(key)) return;
+    reportedMeshErrors.add(key);
+    const what = kind === 'texture' ? 'texture' : 'mesh';
+    toast(`${itemName} › ${partName}: real ${what} failed to load, showing a placeholder instead (${reason})`, 'warn');
+  });
+}
+
 function wireBridge() {
   const chip = document.getElementById('bridgeChip');
   const set = (s) => {

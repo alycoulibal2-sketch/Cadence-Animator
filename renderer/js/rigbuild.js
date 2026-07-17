@@ -169,9 +169,16 @@ const handleGeoNormal = new THREE.SphereGeometry(0.22, 12, 10);
 const handleGeoSmall = new THREE.SphereGeometry(0.12, 12, 10);
 
 export class RigInstance {
-  constructor(item, scene) {
+  // opts.onMeshError(def, kind, reason): kind is 'mesh' | 'texture' — called whenever a part's
+  // real CDN geometry/texture fails to load and it's about to silently stay on its placeholder
+  // (a box, or flat grey) with no other visible sign anything went wrong. Previously nothing
+  // called this at all — a mesh or texture 404/401/network hiccup just permanently looked like
+  // "the app simplified my model" with zero error surfaced anywhere. See viewport.js's makeInstance
+  // for where this gets wired to an actual toast.
+  constructor(item, scene, opts = {}) {
     this.item = item;
     this.scene = scene;
+    this.onMeshError = opts.onMeshError || null;
     this.group = new THREE.Group();
     this.group.name = item.name;
     this.parts = new Map();   // partId -> { def, mesh, world: cf }
@@ -277,7 +284,11 @@ export class RigInstance {
       const texId = (sa && sa.colorMap) || (def.className === 'MeshPart' ? def.textureId : (def.specialMesh && def.specialMesh.textureId));
       if (texId) {
         loadRobloxTexture(texId).then((tex) => {
-          if (!tex) { headFaceFallback(); return; }
+          if (!tex) {
+            headFaceFallback();
+            if (def.name !== 'Head') this.onMeshError?.(def, 'texture', `texture ${texId} failed to load`);
+            return;
+          }
           headFaceShown = true; // the real CDN texture won — never show the fallback smiley too
           material.map = tex;
           material.color.set('#ffffff');
@@ -320,7 +331,10 @@ export class RigInstance {
         // applied before this would smear/misalign (this is what caused the R15 head to render
         // with a dark band when its mesh CDN fetch 401s but the texture fetch still succeeds)
         applyTexture();
-      }).catch(() => { headFaceFallback(); /* keep placeholder shape, skip texture — its UVs wouldn't match anyway */ });
+      }).catch((err) => {
+        headFaceFallback(); // keep placeholder shape, skip texture — its UVs wouldn't match anyway
+        if (def.name !== 'Head') this.onMeshError?.(def, 'mesh', err?.message || String(err));
+      });
     } else {
       applyTexture();
     }
