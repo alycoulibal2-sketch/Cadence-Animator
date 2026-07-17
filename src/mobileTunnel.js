@@ -6,6 +6,28 @@
 // a relay ourselves. Trade-off (surfaced in the UI, not hidden): the URL is different every time
 // a tunnel is started, so the phone re-pairs (rescans the QR) after a desktop restart.
 const fs = require('fs');
+const path = require('path');
+const { app } = require('electron');
+
+// The `cloudflared` package computes its own binary path via `path.join(__dirname, '..', 'bin',
+// ...)` relative to its OWN module location. In a packaged build that resolves to somewhere
+// inside app.asar (e.g. `resources\app.asar\node_modules\cloudflared\bin\cloudflared.exe`) — a
+// path that isn't a real file on disk, since asar is a single packed archive, not a directory.
+// Electron's patched `fs` module transparently reads through to the `app.asar.unpacked` sibling
+// for file *reads*, but `child_process.spawn()` (used to actually launch the exe) needs a real
+// path and gets `ENOENT` — this shipped broken in 0.2.13/0.2.14 for exactly this reason (confirmed:
+// `resources/app.asar.unpacked/node_modules/cloudflared/bin/cloudflared.exe` genuinely exists in
+// the packaged build; only the *default path the library computes* is wrong). Same root cause as
+// `buildMcpCommand()` in main.js needing `app.getAppPath() + '.unpacked'` for the MCP server path.
+// Must happen *before* requiring 'cloudflared' — its bin path is computed once at module load
+// from `process.env.CLOUDFLARED_BIN`.
+if (app.isPackaged) {
+  process.env.CLOUDFLARED_BIN = path.join(
+    app.getAppPath() + '.unpacked', 'node_modules', 'cloudflared', 'bin',
+    process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared',
+  );
+}
+
 const { bin, install, Tunnel } = require('cloudflared');
 
 const START_TIMEOUT_MS = 20000;
