@@ -31,6 +31,12 @@ export function initTimeline({ listEl, canvasEl, wrapEl }) {
   tl.wrap = wrapEl;
   tl.ctx = canvasEl.getContext('2d');
 
+  // The canvas pushes every lane down by its RULER_H-tall frame ruler (see rowTopLogical), so the
+  // DOM label list must carry the same top offset or every name renders a full row above its keys.
+  // Set here from the same constant (not duplicated in styles.css) so the two can never drift —
+  // trackListContentHeight() below already assumes this offset exists.
+  listEl.style.paddingTop = RULER_H + 'px';
+
   const ro = new ResizeObserver(() => { fitCanvas(); tl.needsDraw = true; });
   ro.observe(wrapEl);
   fitCanvas();
