@@ -3,6 +3,7 @@
 import * as CF from './cf.js';
 import * as S from './state.js';
 import { needsBaking, evalSegment } from './easing.js';
+import { getInstance } from './viewport.js';
 
 // ---------------------------------------------------------------- XML (.rbxmx)
 export function parseRbxmx(text) {
@@ -381,13 +382,49 @@ export function applyAnimationToItem(item, anim, opts = {}) {
   return { added, skipped, tracks: raw.size };
 }
 
+// ---------------------------------------------------------------- unparented (world-space) export
+// Roblox's own KeyframeSequence format has no concept of "unparented" — every Pose is inherently
+// parent-relative. So a track authored in world space (see state.js's setTrackSpace) gets
+// converted back to an ordinary parent-relative Transform at export time, key by key, using the
+// live rig instance to resolve exactly what each key's part0/part1 world CFrames were AT THAT
+// KEYFRAME'S OWN TIME (not the currently-displayed frame) — reusing the same math
+// transformForWorld uses for a live gizmo drag, just driven by solvePoseWorlds instead of a
+// currently-posed instance. This is the ONLY place a world-space track's meaning changes; the
+// track itself is left untouched (a derived copy is baked, not written back).
+function convertWorldTracksToLocal(item, tracks, unparented, inst) {
+  const jointByName = new Map((item.rig.joints || []).map((j) => [j.name, j]));
+  const out = { ...tracks };
+  for (const trackName of unparented) {
+    const tr = tracks[trackName];
+    const j = jointByName.get(trackName);
+    if (!tr || !j) continue;
+    out[trackName] = {
+      keys: tr.keys.map((k) => {
+        const t = k.t;
+        const fullPose = S.evalPose(item, t); // includes this track's OLD (world) value at t
+        const origin = S.evalTrackCF(item.id, '@origin', t, item.origin || CF.IDENTITY);
+        const worlds = inst.solvePoseWorlds(fullPose, origin, unparented);
+        const p0World = worlds.get(j.part0), p1World = worlds.get(j.part1);
+        const local = CF.orthonormalize(CF.mul(CF.mul(CF.mul(CF.inverse(j.c0), CF.inverse(p0World)), p1World), j.c1));
+        return { ...k, v: local };
+      }),
+    };
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- animation export
 // Produces the neutral form; segments with non-native easing get baked per frame
 // so the uploaded animation matches the editor EXACTLY (no translation gap).
 export function buildExportData(item, opts = {}) {
   const p = S.state.project;
   const fps = p.fps;
-  const tracks = S.getTracks(item.id);
+  let tracks = S.getTracks(item.id);
+  const unparented = S.unparentedSet(item.id);
+  if (unparented.size) {
+    const inst = getInstance(item.id);
+    if (inst?.solvePoseWorlds) tracks = convertWorldTracksToLocal(item, tracks, unparented, inst);
+  }
   const rig = item.rig;
   const partNameByJoint = new Map();
   const jointDefByName = new Map();

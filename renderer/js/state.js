@@ -409,6 +409,36 @@ export function getKey(itemId, track, t) {
   return tr.keys.find((k) => Math.abs(k.t - t) < 1e-6) || null;
 }
 
+// ---------------------------------------------------------------- unparented (world-space) tracks
+// A track with space:'world' stores its keys as ORIGIN-relative part CFrames instead of
+// parent-relative joint Transforms — the limb animates independently of its parent hierarchy, so
+// the motion pastes onto rigs with different proportions and reproduces the same path in space.
+export function trackSpace(itemId, track) {
+  return getTrack(itemId, track)?.space === 'world' ? 'world' : 'local';
+}
+export function unparentedSet(itemId) {
+  const out = new Set();
+  const tracks = getTracks(itemId);
+  for (const [name, tr] of Object.entries(tracks)) {
+    if (tr.space === 'world' && !name.startsWith('@')) out.add(name);
+  }
+  return out;
+}
+// `convertValue(t, v)` is supplied by the caller (it needs FK the state layer doesn't have) and
+// is called with the track still in its OLD space, so evaluation during conversion is consistent.
+export function setTrackSpace(itemId, track, space, convertValue) {
+  const tr = trackObj(itemId, track, true);
+  const from = tr.space === 'world' ? 'world' : 'local';
+  if (from === space) return false;
+  pushUndo();
+  if (convertValue) for (const k of tr.keys) k.v = convertValue(k.t, k.v);
+  if (space === 'world') tr.space = 'world';
+  else delete tr.space;
+  emit('tracks', { itemId, track });
+  markDirty();
+  return true;
+}
+
 // ---------------------------------------------------------------- evaluation
 // CFrame track evaluation with per-segment easing (left key's easing shapes the segment)
 export function evalTrackCF(itemId, track, t, fallback = CF.IDENTITY) {

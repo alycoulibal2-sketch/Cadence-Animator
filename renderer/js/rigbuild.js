@@ -398,13 +398,21 @@ export class RigInstance {
   // Pure pose solve: writes resolved world CFrames for every part into `out` (partId -> cf)
   // without touching any live mesh. Shared by computeWorld() (the displayed pose) and
   // solvePoseWorlds() (queries for onion skin / MCP frame inspection that must not disturb it).
-  #solve(pose, originCF, out) {
+  // `unparented` (optional Set of joint names): those joints' pose values are ORIGIN-relative
+  // part CFrames rather than parent-relative Transforms — the "unparented animation" feature,
+  // where a limb's motion is authored in rig space so it survives retargeting to rigs with
+  // different proportions. Its children still chain off it normally.
+  #solve(pose, originCF, out, unparented) {
     const rootId = this.item.rig.rootPart;
     out.set(rootId, originCF);
     for (const j of this.solveOrder) {
+      const isMotor = this.jointByPart1.get(j.part1) === j;
+      if (isMotor && unparented && unparented.has(j.name) && pose[j.name]) {
+        out.set(j.part1, CF.mul(originCF, pose[j.name]));
+        continue;
+      }
       const p0World = out.get(j.part0);
       if (!p0World) continue;
-      const isMotor = this.jointByPart1.get(j.part1) === j;
       const transform = isMotor ? (pose[j.name] || CF.IDENTITY) : CF.IDENTITY;
       // Part1 = Part0 * C0 * Transform * C1^-1
       out.set(j.part1, CF.mul(CF.mul(CF.mul(p0World, j.c0), transform), CF.inverse(j.c1)));
@@ -416,9 +424,9 @@ export class RigInstance {
   }
 
   // pose: { [jointName]: transformCF }, originCF: world cf of root part — updates the displayed rig.
-  computeWorld(pose, originCF) {
+  computeWorld(pose, originCF, unparented) {
     if (!this.parts.has(this.item.rig.rootPart)) return;
-    const worlds = this.#solve(pose, originCF, new Map());
+    const worlds = this.#solve(pose, originCF, new Map(), unparented);
     for (const [id, p] of this.parts) {
       p.world = worlds.get(id) || p.world;
       CF.toThreeMatrix(p.world, p.mesh.matrix);
@@ -436,8 +444,8 @@ export class RigInstance {
 
   // Side-effect-free: world CFrame per partId for an arbitrary pose, without touching the
   // displayed instance. Used for onion skin ghosts and for MCP frame-inspection tools.
-  solvePoseWorlds(pose, originCF) {
-    return this.#solve(pose, originCF, new Map());
+  solvePoseWorlds(pose, originCF, unparented) {
+    return this.#solve(pose, originCF, new Map(), unparented);
   }
 
   setHandlesVisible(v) {
@@ -452,10 +460,16 @@ export class RigInstance {
     return this.parts.get(partId)?.world || CF.IDENTITY;
   }
 
-  // Given a desired world CFrame for a part, return the joint transform that produces it
-  transformForWorld(partId, desiredWorld) {
+  // Given a desired world CFrame for a part, return the joint value that produces it — a
+  // parent-relative Transform normally, or (for an "unparented" joint — see #solve) an
+  // origin-relative world CFrame instead, since that IS what its track stores.
+  transformForWorld(partId, desiredWorld, unparented) {
     const j = this.jointByPart1.get(partId);
     if (!j) return null;
+    if (unparented && unparented.has(j.name)) {
+      const origin = this.parts.get(this.item.rig.rootPart).world;
+      return { joint: j.name, transform: CF.orthonormalize(CF.mul(CF.inverse(origin), desiredWorld)), space: 'world' };
+    }
     const p0 = this.parts.get(j.part0);
     // Transform = C0^-1 * Part0World^-1 * desired * C1
     return {

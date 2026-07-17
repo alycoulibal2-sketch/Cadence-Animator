@@ -97,7 +97,7 @@ async function boot() {
       S, CF, IO,
       addBuiltinRig, addCamera, keyCurrentPose, setGizmoMode,
       getInstance, updateScene, render, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, setHandlesVisible, viewport, refreshInstance,
-      applyTheme, currentTheme, openThemeFlow, riggingToolsFlow, buildChain, solveIK,
+      applyTheme, currentTheme, openThemeFlow, riggingToolsFlow, buildChain, solveIK, setUnparented,
     };
   } catch (e) {
     console.error('[boot] failed:', e && e.stack || e);
@@ -188,6 +188,7 @@ function registerAllCommands() {
   C({ title: 'Repeat frames…', shortcut: 'Shift+L', section: 'Animating', run: repeatFramesFlow });
   C({ title: 'Stretch frames…', shortcut: 'Numpad 3', section: 'Animating', run: stretchFramesFlow });
   C({ title: 'Reflect rig (mirror left/right)', shortcut: 'Ctrl+R', section: 'Animating', run: mirrorSelectedItem });
+  C({ title: 'Toggle unparented animation on selected track', section: 'Animating', hint: 'stores the track in origin-relative world space so it pastes correctly onto other rigs', run: toggleUnparentedFlow });
   C({ title: 'Reverse time', section: 'Effects', hint: 'flip the selected keyframe range back to front', run: reverseTimeFlow });
   C({ title: 'Slow motion (2x)', section: 'Effects', hint: 'stretches the selected range to twice its length', run: slowMotionFlow });
   C({ title: 'Stop motion', section: 'Effects', hint: 'holds each pose in the selected range for a choppy, stepped look', run: stopMotionFlow });
@@ -852,6 +853,44 @@ async function riggingToolsFlow() {
     body: wrap,
     actions: [{ label: 'Done', primary: true, run: () => { } }],
   });
+}
+
+// ================================================================ unparented animation
+// Toggles whether a joint's track stores parent-relative Transforms (normal) or origin-relative
+// world CFrames ("unparented" — the motion is authored in rig space, so pasting it onto a
+// different rig with different bone lengths/proportions reproduces the same path through space
+// instead of a parent-relative wobble that only looked right on the original rig). Conversion is
+// exact and lossless in both directions — it re-derives each existing key's value under the new
+// interpretation using the rig's actual solved pose at that key's own time, so switching back and
+// forth never drifts the pose.
+function setUnparented(itemId, jointName, toWorld) {
+  const item = S.getItem(itemId);
+  const inst = getInstance(itemId);
+  const j = (item?.rig?.joints || []).find((jj) => jj.name === jointName);
+  if (!item || !inst || !j) { toast('Joint not ready — try again in a moment', 'error'); return; }
+  const unparentedBefore = S.unparentedSet(itemId); // membership under the OLD interpretation
+  const nextSpace = toWorld ? 'world' : 'local';
+  const changed = S.setTrackSpace(itemId, jointName, nextSpace, (t) => {
+    const fullPose = S.evalPose(item, t);
+    const origin = resolveItemOrigin(item, t);
+    const worlds = inst.solvePoseWorlds(fullPose, origin, unparentedBefore);
+    const p0World = worlds.get(j.part0), p1World = worlds.get(j.part1);
+    if (toWorld) return CF.orthonormalize(CF.mul(CF.inverse(origin), p1World));
+    return CF.orthonormalize(CF.mul(CF.mul(CF.mul(CF.inverse(j.c0), CF.inverse(p0World)), p1World), j.c1));
+  });
+  if (!changed) return;
+  refreshInstance(itemId);
+  toast(`${jointName} is now ${toWorld ? 'unparented (world-space)' : 'parent-relative again'}`);
+}
+
+async function toggleUnparentedFlow() {
+  const { itemId } = S.state.selection;
+  const track = selectedTrackName();
+  if (!itemId || !track || track === '@origin' || track === '@fov') { toast('Select a joint track first', 'warn'); return; }
+  const item = S.getItem(itemId);
+  const j = (item?.rig?.joints || []).find((jj) => jj.name === track && jj.kind !== 'weld');
+  if (!j) { toast('That track has no Motor6D joint to convert', 'warn'); return; }
+  setUnparented(itemId, track, S.trackSpace(itemId, track) !== 'world');
 }
 
 function mirrorSelectedItem() { // Ctrl+R
@@ -1965,9 +2004,10 @@ function wireInspector() {
       const sec = section(partDef ? partDef.name : 'Part');
       if (j) {
         sec.appendChild(fieldRow('Joint', j.name));
+        const isWorld = S.trackSpace(itemId, j.name) === 'world';
         const cur = S.evalTrackCF(itemId, j.name, S.state.playhead);
         const [rx, ry, rz] = CF.toEuler(cur).map((r) => Math.round((r * 180) / Math.PI * 100) / 100);
-        sec.appendChild(vecField('Position', [cur[0], cur[1], cur[2]], (vals) => {
+        sec.appendChild(vecField(isWorld ? 'Position (origin-relative)' : 'Position', [cur[0], cur[1], cur[2]], (vals) => {
           const next = CF.setPosition(cur, vals[0], vals[1], vals[2]);
           S.setKey(itemId, j.name, Math.round(S.state.playhead), next);
         }));
@@ -1975,6 +2015,7 @@ function wireInspector() {
           const next = CF.fromEuler(vals[0] * Math.PI / 180, vals[1] * Math.PI / 180, vals[2] * Math.PI / 180, cur[0], cur[1], cur[2]);
           S.setKey(itemId, j.name, Math.round(S.state.playhead), next);
         }));
+        sec.appendChild(checkField('Unparented (world-space)', isWorld, () => setUnparented(itemId, j.name, !isWorld)));
         sec.appendChild(button('Reset joint to rest pose', () => {
           S.setKey(itemId, j.name, Math.round(S.state.playhead), CF.IDENTITY.slice());
         }));
@@ -2337,7 +2378,7 @@ const MCP_HANDLERS = {
     if (!inst || !inst.solvePoseWorlds) throw new Error('That item has no posable rig');
     const pose = S.evalPose(item, frame);
     const origin = resolveItemOrigin(item, frame);
-    const worlds = inst.solvePoseWorlds(pose, origin);
+    const worlds = inst.solvePoseWorlds(pose, origin, S.unparentedSet(itemId));
     const out = {};
     for (const [partId, cf] of worlds) out[partId] = cf;
     return { pose, worlds: out };
@@ -2355,7 +2396,7 @@ const MCP_HANDLERS = {
     if (!inst || !inst.solvePoseWorlds) throw new Error('That item has no posable rig');
     const pose = S.evalPose(item, frame);
     const origin = resolveItemOrigin(item, frame);
-    const worlds = inst.solvePoseWorlds(pose, origin);
+    const worlds = inst.solvePoseWorlds(pose, origin, S.unparentedSet(itemId));
     const pid = partId || (worlds.has('Head') ? 'Head' : item.rig.rootPart);
     const cf = worlds.get(pid);
     if (!cf) throw new Error(`No part named "${pid}" on this rig — try one of: ${[...worlds.keys()].join(', ')}`);
@@ -2547,6 +2588,14 @@ const MCP_HANDLERS = {
     return { chain: res.chain, errorStuds: +res.error.toFixed(4), keyed: key !== false ? Math.round(f) : null, pose: res.pose };
   },
 
+  // ---------------------------------------------------------------- unparented animation
+  set_track_space: ({ itemId, track, space }) => {
+    if (space !== 'world' && space !== 'local') throw new Error('space must be "world" or "local"');
+    setUnparented(itemId, track, space === 'world');
+    return { itemId, track, space: S.trackSpace(itemId, track) };
+  },
+  get_track_space: ({ itemId, track }) => ({ space: S.trackSpace(itemId, track) }),
+
   // ---------------------------------------------------------------- rigging tools
   create_joint: ({ itemId, name, kind, part0, part1 }) => {
     const j = S.addJoint(itemId, { name, kind: kind === 'weld' ? 'weld' : undefined, part0, part1 });
@@ -2601,7 +2650,7 @@ const MCP_HANDLERS = {
     if (!inst || !inst.solvePoseWorlds) throw new Error('That item has no posable rig');
     const pose = S.evalPose(item, frame);
     const origin = resolveItemOrigin(item, frame);
-    const worlds = inst.solvePoseWorlds(pose, origin);
+    const worlds = inst.solvePoseWorlds(pose, origin, S.unparentedSet(itemId));
     const boxes = {};
     let overall = null;
     for (const p of item.rig.parts) {
@@ -2644,7 +2693,7 @@ const MCP_HANDLERS = {
     if (!defB) throw new Error(`No part "${partB}" on ${item.name}`);
     const pose = S.evalPose(item, frame);
     const origin = resolveItemOrigin(item, frame);
-    const worlds = inst.solvePoseWorlds(pose, origin);
+    const worlds = inst.solvePoseWorlds(pose, origin, S.unparentedSet(itemId));
     const boxA = CF.worldAABB(defA.size, worlds.get(defA.id));
     const boxB = CF.worldAABB(defB.size, worlds.get(defB.id));
     return { colliding: CF.aabbOverlap(boxA, boxB), boxA, boxB };

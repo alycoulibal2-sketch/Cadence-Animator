@@ -86,11 +86,12 @@ class OnionGhostSet {
     for (const [offset] of this.slotMeshes) {
       if (!wanted.has(offset)) this.#disposeSlot(offset);
     }
+    const unparented = S.unparentedSet(item.id);
     for (const offset of wanted) {
       const t = playhead + offset;
       const pose = S.evalPose(item, t);
       const origin = S.evalTrackCF(item.id, '@origin', t, item.origin || CF.IDENTITY);
-      const worlds = inst.solvePoseWorlds(pose, origin); // pure — never touches the displayed rig
+      const worlds = inst.solvePoseWorlds(pose, origin, unparented); // pure — never touches the displayed rig
       const isPast = offset < 0;
       const falloff = 1 - (Math.abs(offset) - 1) / range;
       const opacity = Math.max(0.05, 0.32 * falloff);
@@ -395,7 +396,7 @@ function applyOrigin(item, inst, origin, t) {
     const pose = S.evalPose(item, t);
     const overlay = viewport.overlayPose.get(item.id);
     if (overlay) Object.assign(pose, overlay);
-    inst.computeWorld(pose, origin);
+    inst.computeWorld(pose, origin, S.unparentedSet(item.id));
 
     const onionOn = p.onionSkin.enabledItemIds.includes(item.id);
     if (onionOn) {
@@ -539,7 +540,7 @@ function onGizmoChange() {
   if (isOrigin) {
     viewport.overlayOrigin.set(itemId, desired);
   } else {
-    const r = inst.transformForWorld?.(partId, desired);
+    const r = inst.transformForWorld?.(partId, desired, S.unparentedSet(itemId));
     if (!r) { viewport.overlayOrigin.set(itemId, desired); return; }
     if (!viewport.overlayPose.has(itemId)) viewport.overlayPose.set(itemId, {});
     viewport.overlayPose.get(itemId)[r.joint] = r.transform;
