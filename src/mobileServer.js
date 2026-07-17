@@ -23,6 +23,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const { app } = require('electron');
 const { WebSocketServer } = require('ws');
 
@@ -64,18 +65,64 @@ function resolveWithin(baseDir, urlRest) {
   return resolved;
 }
 
-function sendFile(res, filePath) {
-  fs.readFile(filePath, (err, buf) => {
-    if (err) { res.writeHead(404); res.end('Not found'); return; }
+function acceptsGzip(req) {
+  return (req.headers['accept-encoding'] || '').includes('gzip');
+}
+
+// Everything served here (the shared renderer modules, three.js, the mobile page itself) is
+// plain text/JS/JSON — compresses very well, and this app was shipping it completely
+// uncompressed and with `Cache-Control: no-cache` (a full ~1.5MB re-download, three.js alone
+// being 1.3MB uncompressed, on *every single page load*). Over a phone on cellular through a
+// free Cloudflare quick tunnel that's plausibly the entire "takes forever to load" experience.
+// Compress once per file (cached by mtime) and reuse the compressed bytes for every request.
+const gzipCache = new Map(); // filePath -> { mtimeMs, buf, gz }
+
+function sendFile(req, res, filePath) {
+  fs.stat(filePath, (statErr, st) => {
+    if (statErr) { res.writeHead(404); res.end('Not found'); return; }
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
-    res.end(buf);
+    const contentType = MIME[ext] || 'application/octet-stream';
+    const cached = gzipCache.get(filePath);
+    if (cached && cached.mtimeMs === st.mtimeMs) {
+      sendWithEncoding(req, res, contentType, cached);
+      return;
+    }
+    fs.readFile(filePath, (err, buf) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      const entry = { mtimeMs: st.mtimeMs, buf, gz: zlib.gzipSync(buf) };
+      gzipCache.set(filePath, entry);
+      sendWithEncoding(req, res, contentType, entry);
+    });
   });
 }
 
-function sendJson(res, status, obj) {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
-  res.end(JSON.stringify(obj));
+function sendWithEncoding(req, res, contentType, entry) {
+  // These files only change if the app itself is rebuilt/restarted — and a restart always gets
+  // a brand-new tunnel origin anyway (see mobileTunnel.js), so there's no stale-cache-across-an-
+  // update risk in caching them aggressively for the life of one session.
+  const headers = { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=3600' };
+  if (acceptsGzip(req)) {
+    res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip' });
+    res.end(entry.gz);
+  } else {
+    res.writeHead(200, headers);
+    res.end(entry.buf);
+  }
+}
+
+function sendJson(req, res, status, obj, cacheable = false) {
+  const body = Buffer.from(JSON.stringify(obj));
+  const headers = { 'Content-Type': 'application/json; charset=utf-8' };
+  // Roblox mesh/texture content for a given asset id never changes — safe to cache hard, unlike
+  // the default (uncacheable) case used for command results/errors.
+  if (cacheable) headers['Cache-Control'] = 'public, max-age=86400';
+  if (acceptsGzip(req) && body.length > 512) {
+    res.writeHead(status, { ...headers, 'Content-Encoding': 'gzip' });
+    res.end(zlib.gzipSync(body));
+  } else {
+    res.writeHead(status, headers);
+    res.end(body);
+  }
 }
 
 // deps: { sendToRenderer(type, payload, timeoutMs) -> Promise, robloxAssets, notifyClientConnected }
@@ -122,19 +169,19 @@ function createMobileServer({ sendToRenderer, robloxAssets, notifyClientConnecte
     const meshMatch = url.pathname.match(/^\/api\/mesh\/([^/]+)$/);
     const texMatch = url.pathname.match(/^\/api\/texture\/([^/]+)$/);
     if (meshMatch) {
-      try { sendJson(res, 200, await robloxAssets.fetchMeshData(decodeURIComponent(meshMatch[1]))); }
-      catch (e) { sendJson(res, 502, { error: e.message }); }
+      try { sendJson(req, res, 200, await robloxAssets.fetchMeshData(decodeURIComponent(meshMatch[1])), true); }
+      catch (e) { sendJson(req, res, 502, { error: e.message }); }
       return true;
     }
     if (texMatch) {
       try {
         const dataUri = await robloxAssets.fetchTextureDataUri(decodeURIComponent(texMatch[1]));
-        sendJson(res, 200, { dataUri });
-      } catch (e) { sendJson(res, 502, { error: e.message }); }
+        sendJson(req, res, 200, { dataUri }, true);
+      } catch (e) { sendJson(req, res, 502, { error: e.message }); }
       return true;
     }
     if (url.pathname === '/api/classicFace') {
-      sendJson(res, 200, { dataUri: robloxAssets.getClassicFaceDataUri() });
+      sendJson(req, res, 200, { dataUri: robloxAssets.getClassicFaceDataUri() }, true);
       return true;
     }
     return false;
@@ -148,7 +195,7 @@ function createMobileServer({ sendToRenderer, robloxAssets, notifyClientConnecte
         const rest = url.pathname.slice(root.urlPrefix.length);
         const filePath = resolveWithin(root.diskDir(), rest);
         if (!filePath) { res.writeHead(400); res.end(); return; }
-        sendFile(res, filePath);
+        sendFile(req, res, filePath);
         return;
       }
     }
@@ -158,7 +205,7 @@ function createMobileServer({ sendToRenderer, robloxAssets, notifyClientConnecte
     const rest = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
     const filePath = resolveWithin(mobileRoot, rest);
     if (!filePath) { res.writeHead(400); res.end(); return; }
-    sendFile(res, filePath);
+    sendFile(req, res, filePath);
   }
 
   function handleWsMessage(ws, raw) {
