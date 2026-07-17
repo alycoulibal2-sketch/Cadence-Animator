@@ -51,8 +51,37 @@ async function boot() {
 
     builtinRigs = await window.cadence.builtinRigs().catch(() => null);
 
-    S.newProject();
-    await offerRecovery();
+    // Auto-resume whatever project was active last time instead of always starting blank and
+    // relying on a dismissible/gated recovery prompt to get back to it — a missed or accidentally
+    // dismissed prompt (or one suppressed by its own >7-day-old / looks-empty filters) previously
+    // read as "my project got deleted," even though the autosave file was sitting untouched on
+    // disk the whole time (autosaves are never pruned — see main.js's autosave:write).
+    let resumed = false;
+    if (settings.lastProjectId) {
+      try {
+        const text = await window.cadence.autosaveRead(settings.lastProjectId);
+        S.loadProject(text);
+        await restoreAudio();
+        resumed = true;
+      } catch (_) { /* that autosave is gone/unreadable — fall through to the usual flow below */ }
+    }
+    if (!resumed) {
+      S.newProject();
+      // Still offered as a one-time fallback for anyone upgrading from a version that never
+      // recorded settings.lastProjectId at all, so their existing (never-deleted) autosaves
+      // remain reachable on the very first launch after updating.
+      await offerRecovery();
+    }
+    // Record whichever project ended up active right away (covers the fresh-blank-project and
+    // offerRecovery-picked cases, whose id wouldn't otherwise be written until something *else*
+    // changes) — then keep it current for every future switch, since both newProject() and
+    // loadProject() emit 'project'.
+    settings.lastProjectId = S.state.project.id;
+    window.cadence.setSettings(settings);
+    S.on('project', () => {
+      settings.lastProjectId = S.state.project.id;
+      window.cadence.setSettings(settings);
+    });
     if (!settings.onboarded) showOnboarding();
 
     requestAnimationFrame(loop);
@@ -195,7 +224,7 @@ function registerAllCommands() {
   C({ title: 'Publish to Roblox (get asset ID)…', section: 'Export', run: () => exportFlow('publish') });
 
   C({ title: 'Animation settings…', shortcut: 'Numpad 8', section: 'Project', run: animationSettingsFlow });
-  C({ title: 'New project', shortcut: 'Ctrl+N', section: 'Project', run: newProjectFlow });
+  C({ title: 'New project', shortcut: 'Ctrl+N', section: 'Project', run: closeFileFlow }); // closeFileFlow already guards on unsaved changes before starting fresh
   C({ title: 'Open project…', shortcut: 'Ctrl+O', section: 'Project', run: openProjectFlow });
   C({ title: 'Save project', shortcut: 'Ctrl+S / Numpad 0', section: 'Project', run: () => saveProjectFlow(false) });
   C({ title: 'Save project as…', shortcut: 'Ctrl+Shift+S', section: 'Project', run: () => saveProjectFlow(true) });
@@ -252,7 +281,7 @@ function wireKeyboard() {
     // ---- project file ops
     else if (kl === 's' && ctrl) { stop(); saveProjectFlow(shift); }
     else if (kl === 'o' && ctrl) { stop(); openProjectFlow(); }
-    else if (kl === 'n' && ctrl) { stop(); newProjectFlow(); }
+    else if (kl === 'n' && ctrl) { stop(); closeFileFlow(); } // guards on unsaved changes first
     else if (kl === 'r' && ctrl) { stop(); mirrorSelectedItem(); }
     else if (kl === 'h' && ctrl) { stop(); toggleHideUI(); }
     else if (kl === 'b' && ctrl) { stop(); toggleHandles(); }
@@ -1243,7 +1272,24 @@ async function offerRecovery(always = false) {
   if (!opts.length) return;
   const pick = await chooseModal({
     title: always ? 'Restore an autosave' : 'Welcome back — restore where you left off?',
-    options: [...opts, { id: 'fresh', label: 'Start fresh', desc: 'keep autosaves for later', icon: '✨' }],
+    options: [...opts, { id: 'fresh', label: 'Start fresh', desc: 'keep autosaves for later', icon: '✨', noDelete: true }],
+    onDelete: (o) => new Promise((resolve) => {
+      modal({
+        title: 'Delete this autosave?',
+        body: `<p>"${o.label}" will be permanently deleted, including its backup history. This can't be undone.</p>`,
+        actions: [
+          { label: 'Cancel', run: () => resolve(false) },
+          {
+            label: 'Delete', primary: true, run: async () => {
+              await window.cadence.autosaveDelete(o.id);
+              toast(`Deleted "${o.label}"`, 'info');
+              resolve(true);
+            },
+          },
+        ],
+        onClose: () => resolve(false),
+      });
+    }),
   });
   if (pick && pick !== 'fresh') {
     const chosen = opts.find((o) => o.id === pick);

@@ -85,6 +85,36 @@ function createWindow() {
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   win.once('ready-to-show', () => win.show());
 
+  // The renderer's old beforeunload-based "emergency flush" was fire-and-forget: it sent one more
+  // autosave IPC call and returned immediately, with no guarantee the write ever completed before
+  // the process exited — so the last few seconds of a session (since the last periodic autosave)
+  // could be lost at the exact moment of closing. This intercepts the real window close instead:
+  // ask the renderer to flush and actually wait for its acknowledgement (bounded by a safety
+  // timeout so a hung/crashed renderer can never block quitting forever) before letting the
+  // window actually close.
+  let closeFlushDone = false;
+  let closeFlushInProgress = false;
+  win.on('close', (e) => {
+    if (closeFlushDone) return; // second pass, from our own win.close() below — let it proceed
+    e.preventDefault();
+    if (closeFlushInProgress) return; // already waiting on a flush from an earlier close attempt
+    closeFlushInProgress = true;
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      closeFlushDone = true;
+      win.close();
+    };
+    const timer = setTimeout(finish, 2000);
+    ipcMain.once('app:flushComplete', () => { clearTimeout(timer); finish(); });
+    if (win.webContents && !win.webContents.isDestroyed()) {
+      win.webContents.send('app:flushBeforeClose');
+    } else {
+      finish();
+    }
+  });
+
   const LEVELS = ['VERBOSE', 'INFO', 'WARNING', 'ERROR'];
   // Packaged Windows builds have no attached console, so stdout from console.log below is
   // invisible when launched normally — mirror everything to a file so it's debuggable either way.
@@ -296,6 +326,17 @@ ipcMain.handle('autosave:list', () => {
 });
 ipcMain.handle('autosave:read', (_e, projectId) => {
   return fs.readFileSync(path.join(autosaveDir(), `${projectId}.cadence`), 'utf8');
+});
+// The only way a project's autosave ever goes away — everything else in this file only ever
+// writes/rotates, never prunes. Reachable from the "Restore an autosave…" picker, confirmation-
+// gated there since this is the one genuinely destructive action in this whole area.
+ipcMain.handle('autosave:delete', (_e, projectId) => {
+  const dir = autosaveDir();
+  try { fs.unlinkSync(path.join(dir, `${projectId}.cadence`)); } catch (_) { }
+  for (let i = 1; i <= 10; i++) {
+    try { fs.unlinkSync(path.join(dir, `${projectId}.bak${i}`)); } catch (_) { }
+  }
+  return true;
 });
 
 // ---------------------------------------------------------------- IPC: audio store (for drag&dropped files)

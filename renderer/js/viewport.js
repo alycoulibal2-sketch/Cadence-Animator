@@ -454,6 +454,19 @@ function updateSelBox() {
   }
 }
 
+// Resizing is always whole-rig and uniform (matches Roblox Studio's Model-scale: every handle —
+// single-axis, planar, or the center cube — drives the same one proportional factor, never a
+// lopsided per-axis stretch). Stock TransformControls still reports independent x/y/z deltas on
+// `viewport.dummy.scale` depending on which literal handle was grabbed, so the axis that moved
+// furthest from 1 is treated as "the" drag and its value is used for all three — for a single-axis
+// handle that's exactly the axis you dragged; for a planar/uniform handle all axes already agree.
+function dominantScaleFactor(v) {
+  const dx = Math.abs(v.x - 1), dy = Math.abs(v.y - 1), dz = Math.abs(v.z - 1);
+  if (dx >= dy && dx >= dz) return v.x;
+  return dy >= dz ? v.y : v.z;
+}
+let liveScaleFactor = 1;
+
 function onGizmoChange() {
   if (!viewport.editingDrag) return;
   const { itemId, partId } = S.state.selection;
@@ -467,9 +480,9 @@ function onGizmoChange() {
   if (!viewport.trackballMode && viewport.gizmo.getMode() === 'scale') {
     // Resize is not part of the animatable pose pipeline — preview it by scaling the whole rig's
     // render group directly, bake into the rest definition on release (see onGizmoRelease).
-    if (inst.group) inst.group.scale.copy(viewport.dummy.scale);
-    const factor = viewport.dummy.scale.x;
-    viewport.dragHud = { text: `Scale: ${(factor * 100).toFixed(0)}%` };
+    liveScaleFactor = dominantScaleFactor(viewport.dummy.scale);
+    if (inst.group) inst.group.scale.setScalar(liveScaleFactor);
+    viewport.dragHud = { text: `Scale: ${(liveScaleFactor * 100).toFixed(0)}%` };
     return;
   }
 
@@ -502,9 +515,14 @@ function onGizmoRelease() {
   const { itemId } = S.state.selection;
   if (!viewport.trackballMode && viewport.gizmo.getMode() === 'scale' && itemId) {
     const inst = viewport.instances.get(itemId);
-    const factor = viewport.dummy.scale.x;
+    // Bake exactly the factor that was just being live-previewed — reading a fresh
+    // `viewport.dummy.scale.x` here (instead of the same value onGizmoChange already computed
+    // and showed in the HUD) was the bug: dragging any handle but X/uniform would preview one
+    // thing and then bake a different (often no-op) result on release.
+    const factor = liveScaleFactor;
     viewport.dummy.scale.set(1, 1, 1);
     if (inst?.group) inst.group.scale.set(1, 1, 1);
+    liveScaleFactor = 1;
     if (Math.abs(factor - 1) > 0.001) {
       S.resizeItem(itemId, factor);
       refreshInstance(itemId);

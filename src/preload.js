@@ -20,6 +20,11 @@ contextBridge.exposeInMainWorld('cadence', {
   autosaveWrite: (id, data) => ipcRenderer.invoke('autosave:write', id, data),
   autosaveList: () => ipcRenderer.invoke('autosave:list'),
   autosaveRead: (id) => ipcRenderer.invoke('autosave:read', id),
+  autosaveDelete: (id) => ipcRenderer.invoke('autosave:delete', id),
+
+  // close-time flush handshake (see main.js's win.on('close', ...))
+  onFlushBeforeClose: (cb) => ipcRenderer.on('app:flushBeforeClose', () => cb()),
+  flushComplete: () => ipcRenderer.send('app:flushComplete'),
 
   // rigs
   builtinRigs: () => ipcRenderer.invoke('rig:builtins'),

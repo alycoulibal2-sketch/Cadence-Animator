@@ -177,8 +177,10 @@ export function promptModal({ title, label, placeholder = '', initial = '', okLa
   });
 }
 
-export function chooseModal({ title, options }) {
-  // options: [{id, label, desc, icon}]
+export function chooseModal({ title, options, onDelete }) {
+  // options: [{id, label, desc, icon}]. onDelete (optional): async (option) => boolean — return
+  // true to remove that card from the list without closing the modal (the caller owns any
+  // confirmation step; this just renders the trash affordance and reacts to the result).
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
     wrap.className = 'choose-grid';
@@ -197,6 +199,17 @@ export function chooseModal({ title, options }) {
       card.querySelector('.t').textContent = o.label;
       card.querySelector('.d').textContent = o.desc || '';
       card.addEventListener('click', () => { resolved = true; resolve(o.id); m.close(); });
+      if (onDelete && !o.noDelete) {
+        const del = document.createElement('span');
+        del.className = 'choose-card-delete';
+        del.title = 'Delete';
+        del.textContent = '🗑';
+        del.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (await onDelete(o)) card.remove();
+        });
+        card.appendChild(del);
+      }
       wrap.appendChild(card);
     }
   });

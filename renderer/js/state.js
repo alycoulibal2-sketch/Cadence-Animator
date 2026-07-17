@@ -124,27 +124,37 @@ export function markDirty() {
   scheduleAutosave();
 }
 function scheduleAutosave() {
+  // Capture *this* project object now, not just "whatever state.project is" — newProject()/
+  // loadProject() reassign state.project to a brand-new object rather than mutating the old one
+  // in place, so without this capture a project-switch inside the 600ms debounce window (e.g. a
+  // rapid edit immediately followed by Ctrl+N) would cancel the pending write for the outgoing
+  // project and silently redirect it onto the incoming blank one, losing the last edit(s) for
+  // good. Ongoing edits to the *same* project are unaffected: each edit re-captures the (still
+  // current) object reference, and its in-place mutations are naturally visible when the timer
+  // fires and serializes it.
+  const project = state.project;
   clearTimeout(autosaveTimer);
-  autosaveTimer = setTimeout(doAutosave, 600);
+  autosaveTimer = setTimeout(() => doAutosave(project), 600);
 }
-async function doAutosave() {
-  if (!state.project) return;
+async function doAutosave(project) {
+  if (!project) return;
   try {
-    await window.cadence.autosaveWrite(state.project.id, serialize());
+    await window.cadence.autosaveWrite(project.id, JSON.stringify(project));
     lastAutosave = Date.now();
     emit('autosaved', lastAutosave);
   } catch (e) {
     console.error('autosave failed', e);
   }
 }
-// Emergency flush on window close — nothing is ever lost, even on crash/close
-window.addEventListener('beforeunload', () => {
+// Emergency flush on window close — main.js's win.on('close', ...) intercepts the real close,
+// asks for this, and actually waits for flushComplete() before letting the window close for
+// real (bounded by its own safety timeout), instead of the old beforeunload-based flush which
+// fired the write and returned immediately with no guarantee it ever finished in time.
+window.cadence.onFlushBeforeClose(async () => {
   if (state.project) {
-    try {
-      // synchronous-ish best effort: fire and let main finish the write
-      window.cadence.autosaveWrite(state.project.id, serialize());
-    } catch (_) { }
+    try { await window.cadence.autosaveWrite(state.project.id, serialize()); } catch (_) { }
   }
+  window.cadence.flushComplete();
 });
 
 // ---------------------------------------------------------------- items
