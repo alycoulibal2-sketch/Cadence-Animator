@@ -12,6 +12,7 @@ import * as IO from './io.js';
 import { validateAnimation } from './validate.js';
 import { initPanels } from './panels.js';
 import { THEMES, ACCENTS, DEFAULT_THEME, DEFAULT_ACCENT, applyTheme, currentTheme } from './themes.js';
+import { buildChain, solveIK } from './ik.js';
 
 let builtinRigs = null;
 let settings = {};
@@ -27,6 +28,7 @@ async function boot() {
     S.state.showSeconds = settings.showSeconds ?? false;
     S.state.rotGridDegrees = settings.rotGridDegrees ?? 15;
     S.state.posGridDistance = settings.posGridDistance ?? 1;
+    S.state.ikChainLength = settings.ikChainLength ?? 3;
 
     initPanels(settings, (sizes) => { Object.assign(settings, sizes); window.cadence.setSettings(settings); });
 
@@ -95,7 +97,7 @@ async function boot() {
       S, CF, IO,
       addBuiltinRig, addCamera, keyCurrentPose, setGizmoMode,
       getInstance, updateScene, render, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, setHandlesVisible, viewport, refreshInstance,
-      applyTheme, currentTheme, openThemeFlow, riggingToolsFlow,
+      applyTheme, currentTheme, openThemeFlow, riggingToolsFlow, buildChain, solveIK,
     };
   } catch (e) {
     console.error('[boot] failed:', e && e.stack || e);
@@ -160,6 +162,8 @@ function registerAllCommands() {
   C({ title: 'Move tool', shortcut: 'W', section: 'Animating', run: () => setGizmoMode('translate') });
   C({ title: 'Rotate tool', shortcut: 'E', section: 'Animating', run: () => setGizmoMode('rotate') });
   C({ title: 'Trackball tool', section: 'Animating', hint: 'drag the selected part anywhere to spin it freely, Blender-style', run: () => setGizmoMode('trackball') });
+  C({ title: 'IK tool', shortcut: 'T', section: 'Animating', hint: 'drag a hand/foot and the joints up the chain follow automatically', run: () => setGizmoMode('ik') });
+  C({ title: 'IK chain length…', section: 'Animating', hint: 'how many joints up the chain the IK tool adjusts (default 3)', run: ikChainLengthFlow });
   C({ title: 'Scale tool', section: 'Animating', hint: 'resize the selected rig — this changes its actual size, not just this pose', run: () => setGizmoMode('scale') });
   C({ title: 'Toggle local / world space', shortcut: 'Y', section: 'Animating', run: () => toast(`Gizmo space: ${toggleGizmoSpace()}`) });
   C({ title: 'Toggle rotation grid snap', shortcut: 'C', hint: 'or just hold Shift while dragging to snap on demand', section: 'Animating', run: toggleRotGrid });
@@ -352,6 +356,7 @@ function wireKeyboard() {
     else if (kl === 'o' && shift) { stop(); cameraRotateFlow(); }
     else if (kl === 'p' && shift) { stop(); jumpToItemFlow(); }
     else if (kl === 't' && shift) { stop(); toggleSecondsDisplay(); }
+    else if (kl === 't') { stop(); setGizmoMode('ik'); }
     else if (k === '?') showShortcuts();
     else if (k === 'Escape') { hideShortcuts(); if (S.state.cameraView) toggleCameraView(); }
   });
@@ -420,6 +425,7 @@ function persistPrefs() {
   settings.showSeconds = S.state.showSeconds;
   settings.rotGridDegrees = S.state.rotGridDegrees;
   settings.posGridDistance = S.state.posGridDistance;
+  settings.ikChainLength = S.state.ikChainLength;
   window.cadence.setSettings(settings);
 }
 
@@ -871,6 +877,15 @@ function hideHandlesForce() { // Shift+H
   persistPrefs();
   toast('Handles hidden');
 }
+async function ikChainLengthFlow() {
+  const v = await promptModal({ title: 'IK chain length', label: 'Joints the IK tool adjusts up the chain (1–8)', initial: String(S.state.ikChainLength), okLabel: 'Save' });
+  if (v === null) return;
+  const n = Math.max(1, Math.min(8, parseInt(v, 10) || 3));
+  S.state.ikChainLength = n;
+  persistPrefs();
+  toast(`IK chain length: ${n} joint${n > 1 ? 's' : ''}`);
+}
+
 function toggleRotGrid() { // C
   setRotationSnap(!S.state.rotGridSnap);
   toast(`Rotation grid snap ${S.state.rotGridSnap ? `on (${S.state.rotGridDegrees}°)` : 'off'}`);
@@ -1867,11 +1882,13 @@ function wireTransport() {
   document.getElementById('moveBtn').addEventListener('click', () => setGizmoMode('translate'));
   document.getElementById('rotateBtn').addEventListener('click', () => setGizmoMode('rotate'));
   document.getElementById('trackballBtn').addEventListener('click', () => setGizmoMode('trackball'));
+  document.getElementById('ikBtn').addEventListener('click', () => setGizmoMode('ik'));
   document.getElementById('scaleBtn').addEventListener('click', () => setGizmoMode('scale'));
   S.on('gizmo-mode', (m) => {
     document.getElementById('moveBtn').classList.toggle('active', m === 'translate');
     document.getElementById('rotateBtn').classList.toggle('active', m === 'rotate');
     document.getElementById('trackballBtn').classList.toggle('active', m === 'trackball');
+    document.getElementById('ikBtn').classList.toggle('active', m === 'ik');
     document.getElementById('scaleBtn').classList.toggle('active', m === 'scale');
   });
   document.getElementById('moveBtn').classList.add('active');
@@ -2500,6 +2517,34 @@ const MCP_HANDLERS = {
     settings.facePresets = (settings.facePresets || []).filter((p) => p.id !== presetId);
     await window.cadence.setSettings(settings);
     return { ok: true };
+  },
+
+  // ---------------------------------------------------------------- inverse kinematics
+  // Position a limb's end part at an exact world point; the joint chain above it solves to
+  // reach it. By default the result is keyed at the frame — pass key:false for a dry run that
+  // just reports the solved transforms and the residual error.
+  solve_ik: ({ itemId, partId, target, chainLength, frame, key }) => {
+    const item = S.getItem(itemId);
+    if (!item || !item.rig) throw new Error(`No rig item with id ${itemId}`);
+    const inst = getInstance(itemId);
+    if (!inst || !inst.solvePoseWorlds) throw new Error('That item has no posable rig');
+    const partDef = item.rig.parts.find((p) => p.id === partId || p.name === partId);
+    if (!partDef) throw new Error(`No part "${partId}" on ${item.name}`);
+    if (!Array.isArray(target) || target.length !== 3) throw new Error('target must be [x, y, z] in world studs');
+    const f = frame ?? Math.round(S.state.playhead);
+    const origin = resolveItemOrigin(item, f);
+    const res = solveIK(inst, item, partDef.id, target, {
+      chainLength: chainLength ?? S.state.ikChainLength,
+      basePose: S.evalPose(item, f),
+      origin,
+      frame: f,
+    });
+    if (!res) throw new Error(`${partDef.name} has no Motor6D chain above it to solve`);
+    if (key !== false) {
+      S.pushUndo();
+      for (const [joint, cf] of Object.entries(res.pose)) S.setKey(itemId, joint, Math.round(f), cf, { noUndo: true });
+    }
+    return { chain: res.chain, errorStuds: +res.error.toFixed(4), keyed: key !== false ? Math.round(f) : null, pose: res.pose };
   },
 
   // ---------------------------------------------------------------- rigging tools

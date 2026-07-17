@@ -34,6 +34,7 @@ export const state = {
   rotGridDegrees: 15,
   posGridSnap: false,
   posGridDistance: 1,
+  ikChainLength: 3, // how many joints up the chain the IK tool adjusts
   showSeconds: false,
   uiHidden: false, // Ctrl+H focus mode
   cameraTracksVisible: true,

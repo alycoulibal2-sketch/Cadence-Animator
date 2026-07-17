@@ -8,6 +8,7 @@ import * as CF from './cf.js';
 import * as S from './state.js';
 import { RigInstance, CameraInstance, PART_GAP_SCALE } from './rigbuild.js';
 import { viewportPalette } from './themes.js';
+import { buildChain, solveIK } from './ik.js';
 
 const ghostGapVector = new THREE.Vector3(PART_GAP_SCALE, PART_GAP_SCALE, PART_GAP_SCALE);
 
@@ -29,6 +30,7 @@ export const viewport = {
   editingDrag: false,
   onionGhosts: new Map(), // itemId -> OnionGhostSet
   trackballMode: false,
+  ikMode: false, // IK tool: drag a limb's end part, the joint chain above it follows
   dragHud: null, // { text } while a move/rotate/scale drag is live, read by app.js's render loop
 };
 
@@ -509,6 +511,30 @@ function onGizmoChange() {
   const desired = CF.orthonormalize(CF.fromThreeMatrix(viewport.dummy.matrixWorld));
 
   const item = S.getItem(itemId);
+
+  // IK: the dragged gizmo is a TARGET the limb chases, not the part's own new transform. The
+  // solved chain transforms land in overlayPose exactly like a normal single-joint edit, so
+  // preview, auto-key, commit, and undo all ride the existing pipeline unchanged. A part with
+  // no motor chain above it (the root, a loose part) falls through to the regular move below.
+  if (viewport.ikMode && !viewport.trackballMode && item?.rig && partId !== '@origin' && partId !== '@camera') {
+    const chain = buildChain(item, partId, S.state.ikChainLength);
+    if (chain.length) {
+      const target = [viewport.dummy.position.x, viewport.dummy.position.y, viewport.dummy.position.z];
+      const basePose = S.evalPose(item, S.state.playhead);
+      Object.assign(basePose, viewport.overlayPose.get(itemId) || {});
+      // Displayed root world = the true current origin, including attachment/overlay effects.
+      const origin = inst.partWorld(item.rig.rootPart);
+      const res = solveIK(inst, item, partId, target, { basePose, origin });
+      if (res) {
+        if (!viewport.overlayPose.has(itemId)) viewport.overlayPose.set(itemId, {});
+        Object.assign(viewport.overlayPose.get(itemId), res.pose);
+        S.emit('overlay');
+        viewport.dragHud = { text: `IK (${res.chain.length} joint${res.chain.length > 1 ? 's' : ''}): ${res.error.toFixed(2)} studs off target` };
+        return;
+      }
+    }
+  }
+
   const isOrigin = partId === '@origin' || partId === '@camera' || partId === item?.rig?.rootPart;
   if (isOrigin) {
     viewport.overlayOrigin.set(itemId, desired);
@@ -676,6 +702,7 @@ function onPointerMove(e) {
 
 // ---------------------------------------------------------------- public controls
 export function setGizmoMode(mode) {
+  viewport.ikMode = mode === 'ik';
   if (mode === 'trackball') {
     viewport.trackballMode = true;
     viewport.gizmo.enabled = false;
@@ -684,7 +711,9 @@ export function setGizmoMode(mode) {
     viewport.trackballMode = false;
     viewport.gizmo.enabled = true;
     viewport.gizmo.visible = true;
-    viewport.gizmo.setMode(mode);
+    // IK drives the translate gizmo (drag the target point); the branch in onGizmoChange
+    // decides whether the drag means "move this part" or "solve the chain toward here".
+    viewport.gizmo.setMode(mode === 'ik' ? 'translate' : mode);
   }
   S.emit('gizmo-mode', mode);
 }
