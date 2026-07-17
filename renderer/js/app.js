@@ -11,6 +11,7 @@ import { STYLES, DIRECTIONS } from './easing.js';
 import * as IO from './io.js';
 import { validateAnimation } from './validate.js';
 import { initPanels } from './panels.js';
+import { THEMES, ACCENTS, DEFAULT_THEME, DEFAULT_ACCENT, applyTheme, currentTheme } from './themes.js';
 
 let builtinRigs = null;
 let settings = {};
@@ -28,6 +29,9 @@ async function boot() {
     S.state.posGridDistance = settings.posGridDistance ?? 1;
 
     initPanels(settings, (sizes) => { Object.assign(settings, sizes); window.cadence.setSettings(settings); });
+
+    // Theme before viewport init — the three.js scene reads the active palette when it's built.
+    applyTheme(settings.theme || DEFAULT_THEME, settings.accent || DEFAULT_ACCENT);
 
     initViewport(document.getElementById('viewport'));
     initTimeline({
@@ -91,6 +95,7 @@ async function boot() {
       S, CF, IO,
       addBuiltinRig, addCamera, keyCurrentPose, setGizmoMode,
       getInstance, updateScene, render, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, setHandlesVisible, viewport, refreshInstance,
+      applyTheme, currentTheme, openThemeFlow,
     };
   } catch (e) {
     console.error('[boot] failed:', e && e.stack || e);
@@ -233,6 +238,7 @@ function registerAllCommands() {
   C({ title: 'Restore an autosave…', section: 'Project', hint: 'every change is autosaved — nothing is ever lost', run: () => offerRecovery(true) });
   C({ title: 'Hide UI (focus mode)', shortcut: 'Ctrl+H', section: 'Project', run: toggleHideUI });
 
+  C({ title: 'Themes & customization…', section: 'General', hint: 'switch the app theme and accent color', run: openThemeFlow });
   C({ title: 'Install / repair Studio plugin', section: 'Studio', hint: 'copies Cadence Bridge into your Plugins folder', run: installPluginFlow });
   C({ title: 'Enable Claude Control (MCP)', section: 'Studio', hint: 'let Claude drive this app directly — add rigs, key exact poses, verify frames', run: enableClaudeControlFlow });
   C({ title: 'Check for updates', section: 'General', run: checkForUpdatesFlow });
@@ -856,6 +862,85 @@ async function jumpToItemFlow() { // Shift+P
 function toggleHideUI() { // Ctrl+H
   S.state.uiHidden = !S.state.uiHidden;
   document.body.classList.toggle('ui-hidden', S.state.uiHidden);
+}
+
+// ================================================================ themes & customization
+// Everything applies live (click = see it immediately) and persists right away — there's no
+// Apply/Cancel step to get wrong, and Esc/Close simply keeps whatever is currently showing.
+function openThemeFlow() {
+  const wrap = document.createElement('div');
+
+  const themeTitle = document.createElement('div');
+  themeTitle.className = 'insp-title';
+  themeTitle.textContent = 'Theme';
+  const grid = document.createElement('div');
+  grid.className = 'theme-grid';
+
+  const accentTitle = document.createElement('div');
+  accentTitle.className = 'insp-title';
+  accentTitle.textContent = 'Accent color';
+  const accentRow = document.createElement('div');
+  accentRow.className = 'accent-row';
+
+  const persist = () => {
+    const cur = currentTheme();
+    settings.theme = cur.theme;
+    settings.accent = cur.accent;
+    window.cadence.setSettings(settings);
+  };
+  const refreshSelection = () => {
+    const cur = currentTheme();
+    grid.querySelectorAll('.theme-card').forEach((c) => c.classList.toggle('selected', c.dataset.theme === cur.theme));
+    accentRow.querySelectorAll('.accent-swatch').forEach((s) => s.classList.toggle('selected', s.dataset.hex.toLowerCase() === cur.accent.toLowerCase()));
+  };
+
+  for (const [key, theme] of Object.entries(THEMES)) {
+    const card = document.createElement('div');
+    card.className = 'theme-card';
+    card.dataset.theme = key;
+    // Mini preview strip painted from the theme's own palette, so each card shows its actual
+    // colors regardless of which theme is currently active. Colors are assigned via the CSSOM
+    // (el.style.x = …), NOT style="…" attributes in an HTML string — the app's CSP has no
+    // 'unsafe-inline' for styles, so attribute styles are silently dropped (same failure class
+    // as the onclick= handlers documented in palette.js).
+    card.innerHTML = `<div class="theme-preview"><span></span><span></span><span class="acc"></span></div><div class="t"></div><div class="d"></div>`;
+    const prev = card.querySelector('.theme-preview');
+    prev.style.background = theme.vars['--bg-1'];
+    prev.style.border = `1px solid ${theme.vars['--border']}`;
+    const [s1, s2] = prev.querySelectorAll('span');
+    s1.style.background = theme.vars['--bg-3'];
+    s2.style.background = theme.vars['--text-2'];
+    card.querySelector('.t').textContent = theme.label;
+    card.querySelector('.d').textContent = theme.desc;
+    card.addEventListener('click', () => {
+      applyTheme(key, currentTheme().accent);
+      persist();
+      refreshSelection();
+    });
+    grid.appendChild(card);
+  }
+
+  for (const acc of ACCENTS) {
+    const sw = document.createElement('button');
+    sw.className = 'accent-swatch';
+    sw.dataset.hex = acc.hex;
+    sw.title = acc.label;
+    sw.style.background = acc.hex;
+    sw.addEventListener('click', () => {
+      applyTheme(currentTheme().theme, acc.hex);
+      persist();
+      refreshSelection();
+    });
+    accentRow.appendChild(sw);
+  }
+
+  wrap.append(themeTitle, grid, accentTitle, accentRow);
+  refreshSelection();
+  modal({
+    title: 'Themes & customization',
+    body: wrap,
+    actions: [{ label: 'Done', primary: true, run: () => { } }],
+  });
 }
 
 function toggleCameraTracks() { // Ctrl+Space
@@ -2126,6 +2211,17 @@ const MCP_HANDLERS = {
     return new Promise((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve({ frame: S.state.playhead })));
     });
+  },
+
+  set_theme: ({ theme, accent }) => {
+    if (theme && !THEMES[theme]) throw new Error(`Unknown theme "${theme}" — one of: ${Object.keys(THEMES).join(', ')}`);
+    const cur = currentTheme();
+    applyTheme(theme || cur.theme, accent || cur.accent);
+    const next = currentTheme();
+    settings.theme = next.theme;
+    settings.accent = next.accent;
+    window.cadence.setSettings(settings);
+    return { theme: next.theme, accent: next.accent, available: Object.keys(THEMES), accents: ACCENTS.map((a) => a.hex) };
   },
 
   set_project_props: ({ fps, length, loop, priority, name }) => {

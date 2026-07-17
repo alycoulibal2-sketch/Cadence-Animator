@@ -7,6 +7,7 @@ import { TransformControls } from '../vendor/three/TransformControls.js';
 import * as CF from './cf.js';
 import * as S from './state.js';
 import { RigInstance, CameraInstance, PART_GAP_SCALE } from './rigbuild.js';
+import { viewportPalette } from './themes.js';
 
 const ghostGapVector = new THREE.Vector3(PART_GAP_SCALE, PART_GAP_SCALE, PART_GAP_SCALE);
 
@@ -191,6 +192,23 @@ export function initViewport(container) {
   grid.position.y = 0.0;
   grid.userData.nonSelectable = true;
   scene.add(grid);
+
+  // Scene surfaces can't inherit CSS variables — retint them from the active theme's palette,
+  // both now (a persisted non-default theme is applied before initViewport runs) and on switch.
+  const applySceneTheme = () => {
+    const pal = viewportPalette();
+    scene.background.set(pal.bg);
+    scene.fog.color.set(pal.bg);
+    ground.material.color.set(pal.ground);
+    // GridHelper bakes its two colors into vertex colors at construction — cheapest correct
+    // retint is tinting the line material against white vertex colors, so approximate with the
+    // major color for the whole grid (visually indistinguishable at viewport zoom levels).
+    grid.material.color.set(pal.grid1);
+    grid.material.vertexColors = false;
+    grid.material.needsUpdate = true;
+  };
+  applySceneTheme();
+  S.on('theme', applySceneTheme);
 
   const axes = new THREE.AxesHelper(2.4);
   axes.position.y = 0.01;

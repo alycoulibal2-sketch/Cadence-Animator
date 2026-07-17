@@ -52,7 +52,7 @@ export function initTimeline({ listEl, canvasEl, wrapEl }) {
     tl.needsDraw = true;
   });
 
-  ['tracks', 'items', 'selection', 'project', 'overlay', 'project-props', 'audio', 'groups'].forEach((ev) =>
+  ['tracks', 'items', 'selection', 'project', 'overlay', 'project-props', 'audio', 'groups', 'theme'].forEach((ev) =>
     S.on(ev, () => { rebuildRows(); tl.needsDraw = true; }));
   S.on('playhead', () => { tl.needsDraw = true; ensurePlayheadVisible(); });
 
@@ -234,14 +234,17 @@ function draw() {
   ctx.clearRect(0, 0, w, h);
   if (!p) return;
 
+  // Canvas can't inherit CSS vars — read the theme's palette per draw (cheap: draws only happen
+  // on needsDraw, and getComputedStyle here was already the established pattern for --accent).
   const styles = getComputedStyle(document.documentElement);
-  const cAccent = styles.getPropertyValue('--accent').trim() || '#7c8cff';
-  const cKey = '#c9cbe0';
+  const themeVar = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
+  const cAccent = themeVar('--accent', '#7c8cff');
+  const cKey = themeVar('--text-1', '#c9cbe0');
   const cKeySel = cAccent;
 
   // out-of-range shading
   const endX = frameToX(p.length);
-  ctx.fillStyle = 'rgba(255,255,255,0.025)';
+  ctx.fillStyle = themeVar('--tl-shade', 'rgba(255,255,255,0.025)');
   if (endX < w) ctx.fillRect(endX, 0, w - endX, h);
 
   // row stripes + per-row keys
@@ -251,10 +254,10 @@ function draw() {
     const rh = row.kind === 'audio' ? AUDIO_ROW_H : ROW_H;
     if (y + rh < RULER_H || y > h) continue;
     if (row.kind === 'item') {
-      ctx.fillStyle = 'rgba(255,255,255,0.045)';
+      ctx.fillStyle = themeVar('--tl-stripe-item', 'rgba(255,255,255,0.045)');
       ctx.fillRect(0, y, w, rh);
     } else if (i % 2 === 0) {
-      ctx.fillStyle = 'rgba(255,255,255,0.014)';
+      ctx.fillStyle = themeVar('--tl-stripe-alt', 'rgba(255,255,255,0.014)');
       ctx.fillRect(0, y, w, rh);
     }
     if (row.kind === 'audio') drawAudioRow(ctx, y, rh, w);
@@ -262,7 +265,7 @@ function draw() {
 
   // grid lines
   const step = niceStep(tl.pxPerFrame);
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.strokeStyle = themeVar('--tl-grid', 'rgba(255,255,255,0.05)');
   ctx.beginPath();
   const first = Math.floor(tl.scrollX / step) * step;
   for (let f = first; f <= tl.scrollX + w / tl.pxPerFrame; f += step) {
@@ -286,12 +289,14 @@ function draw() {
       const times = new Set();
       const tracks = S.getTracks(row.itemId);
       for (const tn of Object.keys(tracks)) for (const k of tracks[tn].keys) times.add(k.t);
-      ctx.fillStyle = 'rgba(201,203,224,0.55)';
+      ctx.fillStyle = cKey;
+      ctx.globalAlpha = 0.55;
       for (const t of times) {
         const x = frameToX(t);
         if (x < -6 || x > w + 6) continue;
         drawDiamond(ctx, x, cy, 3.4);
       }
+      ctx.globalAlpha = 1;
     } else {
       const tr = S.getTrack(row.itemId, row.track);
       if (!tr) continue;
@@ -320,7 +325,7 @@ function draw() {
           drawDiamond(ctx, x, cy, isSel ? 5.5 : 4.5);
         }
         if (k.bez || (k.es && k.es !== 'Linear' && k.es !== 'Cubic')) {
-          ctx.fillStyle = 'rgba(124,140,255,0.8)';
+          ctx.fillStyle = cAccent;
           ctx.fillRect(x - 1, cy + 8, 2, 2);
         }
       }
@@ -334,18 +339,20 @@ function draw() {
     const { f0, f1, rowY0, rowY1 } = tl.drag;
     const x0 = frameToX(f0), x1 = frameToX(f1);
     const y0 = rowY0 - tl.scrollY, y1 = rowY1 - tl.scrollY;
-    ctx.fillStyle = 'rgba(124,140,255,0.12)';
-    ctx.strokeStyle = 'rgba(124,140,255,0.7)';
+    ctx.fillStyle = themeVar('--accent-glow', 'rgba(124,140,255,0.35)');
+    ctx.strokeStyle = cAccent;
+    ctx.globalAlpha = 0.5;
     ctx.fillRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+    ctx.globalAlpha = 1;
     ctx.strokeRect(Math.min(x0, x1) + 0.5, Math.min(y0, y1) + 0.5, Math.abs(x1 - x0), Math.abs(y1 - y0));
   }
 
   // ruler
-  ctx.fillStyle = '#14141b';
+  ctx.fillStyle = themeVar('--tl-ruler-bg', '#14141b');
   ctx.fillRect(0, 0, w, RULER_H);
-  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.strokeStyle = themeVar('--border', 'rgba(255,255,255,0.08)');
   ctx.beginPath(); ctx.moveTo(0, RULER_H + 0.5); ctx.lineTo(w, RULER_H + 0.5); ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillStyle = themeVar('--tl-ruler-text', 'rgba(255,255,255,0.45)');
   ctx.font = '10px Inter, system-ui, sans-serif';
   ctx.textAlign = 'center';
   for (let f = first; f <= tl.scrollX + w / tl.pxPerFrame; f += step) {
@@ -364,14 +371,13 @@ function draw() {
   ctx.beginPath();
   ctx.moveTo(px - 6, 14); ctx.lineTo(px + 6, 14); ctx.lineTo(px, 26); ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = '#0d0d12';
   ctx.font = 'bold 10px Inter, system-ui, sans-serif';
   const label = String(Math.round(S.state.playhead * 10) / 10);
   const lw = ctx.measureText(label).width + 10;
   ctx.fillStyle = cAccent;
   roundRect(ctx, px - lw / 2, 0, lw, 13, 4);
   ctx.fill();
-  ctx.fillStyle = '#101016';
+  ctx.fillStyle = themeVar('--tl-label-text', '#101016');
   ctx.fillText(label, px, 9.5);
 }
 

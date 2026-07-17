@@ -107,12 +107,18 @@ function draw() {
   const w = cv.canvas.clientWidth, h = cv.canvas.clientHeight;
   ctx.clearRect(0, 0, w, h);
 
+  // Ink color from the active theme (the old fixed white-alpha was invisible on Light).
+  const styles = getComputedStyle(document.documentElement);
+  const ink = styles.getPropertyValue('--text-1').trim() || '#c9cbe0';
+
   const found = firstSelectedKey();
   ctx.font = '11px Inter, system-ui, sans-serif';
   if (!found) {
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillStyle = ink;
+    ctx.globalAlpha = 0.5;
     ctx.textAlign = 'center';
     ctx.fillText('Select a keyframe to edit its outgoing curve', w / 2, h / 2);
+    ctx.globalAlpha = 1;
     return;
   }
   const { key } = found;
@@ -120,7 +126,8 @@ function draw() {
   cv.dirSel.value = key.ed || 'Out';
 
   // grid
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.strokeStyle = ink;
+  ctx.globalAlpha = 0.12;
   ctx.beginPath();
   for (let gy = 0; gy <= 1; gy += 0.25) {
     ctx.moveTo(X(0, w), Y(gy, h)); ctx.lineTo(X(1, w), Y(gy, h));
@@ -129,19 +136,24 @@ function draw() {
     ctx.moveTo(X(gx, w), Y(Y_MIN, h)); ctx.lineTo(X(gx, w), Y(Y_MAX, h));
   }
   ctx.stroke();
+  ctx.globalAlpha = 1;
   // baseline 0 and 1
-  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+  ctx.strokeStyle = ink;
+  ctx.globalAlpha = 0.3;
   ctx.beginPath();
   ctx.moveTo(X(0, w), Y(0, h)); ctx.lineTo(X(1, w), Y(0, h));
   ctx.moveTo(X(0, w), Y(1, h)); ctx.lineTo(X(1, w), Y(1, h));
   ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = ink;
+  ctx.globalAlpha = 0.6;
   ctx.textAlign = 'right';
   ctx.fillText('0', PAD.l - 8, Y(0, h) + 3);
   ctx.fillText('1', PAD.l - 8, Y(1, h) + 3);
+  ctx.globalAlpha = 1;
 
   // curve
-  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#7c8cff';
+  const accent = styles.getPropertyValue('--accent').trim() || '#7c8cff';
   ctx.strokeStyle = accent;
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -157,21 +169,25 @@ function draw() {
   // bezier handles
   if (key.bez) {
     const [x1, y1, x2, y2] = key.bez;
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.strokeStyle = ink;
+    ctx.globalAlpha = 0.55;
     ctx.beginPath();
     ctx.moveTo(X(0, w), Y(0, h)); ctx.lineTo(X(x1, w), Y(y1, h));
     ctx.moveTo(X(1, w), Y(1, h)); ctx.lineTo(X(x2, w), Y(y2, h));
     ctx.stroke();
+    ctx.globalAlpha = 1;
     for (const [hx, hy, name] of [[x1, y1, 'p1'], [x2, y2, 'p2']]) {
       ctx.beginPath();
       ctx.arc(X(hx, w), Y(hy, h), 6, 0, Math.PI * 2);
-      ctx.fillStyle = cv.drag === name ? '#ffffff' : accent;
+      ctx.fillStyle = cv.drag === name ? (styles.getPropertyValue('--text-0').trim() || '#ffffff') : accent;
       ctx.fill();
     }
   } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillStyle = ink;
+    ctx.globalAlpha = 0.5;
     ctx.textAlign = 'left';
     ctx.fillText(`${key.es || 'Linear'} · ${key.ed || 'Out'} — click "Custom bezier" to sculpt freely`, PAD.l, 16);
+    ctx.globalAlpha = 1;
   }
 }
 
