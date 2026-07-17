@@ -588,7 +588,12 @@ export function buildRigModelXML(item, animXmlInner) {
   lines.push(`<roblox version="4">`);
   lines.push(`<Item class="Model" referent="${ref()}"><Properties><string name="Name">${esc(item.name)}</string></Properties>`);
   for (const p of rig.parts) {
-    const cls = p.className === 'MeshPart' ? 'MeshPart' : 'Part';
+    // A customMesh part (from meshImport.js's FBX/GLB/OBJ import) has exact geometry but no
+    // real Roblox mesh asset id — Studio's MeshPart requires one, so export it as a plain Part
+    // sized to its bounding box instead of an invalid MeshPart with no MeshId. The rig's size,
+    // joints, and animation still carry over exactly; only the precise silhouette doesn't (that
+    // would need the mesh separately uploaded to Roblox as a real asset first).
+    const cls = p.className === 'MeshPart' && !p.customMesh ? 'MeshPart' : 'Part';
     lines.push(`<Item class="${cls}" referent="${refByPart.get(p.id)}"><Properties>` +
       `<string name="Name">${esc(p.name)}</string>` +
       `<CoordinateFrame name="CFrame">${cfXml(p.cf)}</CoordinateFrame>` +

@@ -105,6 +105,7 @@ async function boot() {
       addBuiltinRig, addCamera, keyCurrentPose, setGizmoMode,
       getInstance, updateScene, render, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, setHandlesVisible, viewport, refreshInstance,
       applyTheme, currentTheme, openThemeFlow, riggingToolsFlow, buildChain, solveIK, setUnparented, addVfxItem,
+      addRigItem, importExternalMeshFlow,
     };
   } catch (e) {
     console.error('[boot] failed:', e && e.stack || e);
@@ -1245,14 +1246,45 @@ async function addByAssetIdFlow() {
 
 async function addFromFileFlow() {
   const paths = await window.cadence.openDialog({
-    title: 'Import Roblox model',
-    filters: [{ name: 'Roblox models', extensions: ['rbxm', 'rbxmx'] }],
+    title: 'Import a model',
+    filters: [
+      { name: 'All supported models', extensions: ['rbxm', 'rbxmx', 'fbx', 'glb', 'gltf', 'obj'] },
+      { name: 'Roblox models', extensions: ['rbxm', 'rbxmx'] },
+      { name: '3D models (exact geometry)', extensions: ['fbx', 'glb', 'gltf', 'obj'] },
+    ],
     properties: ['openFile'],
   });
   if (!paths) return;
+  const name = paths[0].split(/[\\/]/).pop();
   const data = await window.cadence.readFileBinary(paths[0]);
   const arr = data instanceof ArrayBuffer ? data : new Uint8Array(data.data || data).buffer;
-  await importModelBuffer(arr, paths[0].split(/[\\/]/).pop());
+  await importAnyModelBuffer(arr, name);
+}
+
+const EXTERNAL_MESH_EXTENSIONS = new Set(['fbx', 'glb', 'gltf', 'obj']);
+// Roblox-format (.rbxm/.rbxmx) files go through importModelBuffer's CDN-mesh-fetching pipeline;
+// anything else with a recognized 3D extension goes through meshImport.js's exact-geometry path.
+// One shared entry point so drag&drop and the Import dialog never drift out of sync on which
+// extensions route where.
+async function importAnyModelBuffer(arrayBuffer, name) {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  if (EXTERNAL_MESH_EXTENSIONS.has(ext)) return importExternalMeshFlow(arrayBuffer, name);
+  return importModelBuffer(arrayBuffer, name);
+}
+
+async function importExternalMeshFlow(arrayBuffer, name) {
+  const prog = toastProgress(`Importing ${name} — reading exact geometry…`);
+  try {
+    const { importExternalMesh } = await import('./meshImport.js');
+    const rig = await importExternalMesh(arrayBuffer, name);
+    const item = addRigItem(rig, rig.name);
+    const triCount = rig.parts.reduce((n, p) => n + (p.customMesh ? p.customMesh.indices.length / 3 : 0), 0);
+    prog.done(`Imported ${rig.name} — ${rig.parts.length} part${rig.parts.length > 1 ? 's' : ''}, ${triCount} triangles, exact geometry`, 'success');
+    return item;
+  } catch (e) {
+    prog.done(`Could not import ${name}: ${e.message}`, 'error');
+    return null;
+  }
 }
 
 function treeRootsFromParse(parsed) {
@@ -1487,7 +1519,10 @@ async function exportFlow(mode) {
     });
     if (!p) return;
     await window.cadence.writeFile(p, IO.buildRigModelXML(item, IO.innerXml(xml)));
-    toast('Saved — drop it into Studio: rig, joints and AnimSaves included');
+    const hasCustomMesh = item.rig.parts.some((prt) => prt.customMesh);
+    toast(hasCustomMesh
+      ? 'Saved — rig, joints and AnimSaves included, but parts imported from FBX/GLB/OBJ export as plain sized boxes (Studio needs an uploaded mesh asset for the exact shape)'
+      : 'Saved — drop it into Studio: rig, joints and AnimSaves included');
     window.cadence.showItemInFolder(p);
   }
 }
@@ -1855,7 +1890,7 @@ async function addMenuFlow() {
       { id: 'avatar', label: 'Your Roblox avatar…', desc: 'type any username', icon: '👤' },
       { id: 'studio', label: 'From Studio selection', desc: 'select a rig in Studio first', icon: '🔗' },
       { id: 'asset', label: 'From asset ID…', desc: 'any model on Roblox', icon: '🌐' },
-      { id: 'file', label: 'From file…', desc: '.rbxm / .rbxmx — or just drop it here', icon: '📄' },
+      { id: 'file', label: 'From file…', desc: '.rbxm/.rbxmx, or .fbx/.glb/.obj with exact geometry — or just drop it here', icon: '📄' },
       { id: 'camera', label: 'Camera', desc: 'animatable, with FOV track', icon: '🎥' },
       { id: 'vfx', label: 'VFX emitter', desc: 'particle emitter — rate/lifetime/speed tracks', icon: '✨' },
       { id: 'audio', label: 'Audio track…', desc: 'waveform + scrubbing', icon: '🔊' },
@@ -2231,8 +2266,8 @@ function wireDragDrop() {
           S.loadProject(text);
           await restoreAudio();
           toast(`Opened ${S.state.project.name}`);
-        } else if (name.endsWith('.rbxm') || name.endsWith('.rbxmx')) {
-          await importModelBuffer(await file.arrayBuffer(), file.name);
+        } else if (/\.(rbxm|rbxmx|fbx|glb|gltf|obj)$/.test(name)) {
+          await importAnyModelBuffer(await file.arrayBuffer(), file.name);
         } else if (/\.(mp3|wav|ogg|m4a|flac)$/.test(name)) {
           const path = await window.cadence.storeAudio(file.name, await file.arrayBuffer());
           await loadAudioFromPath(path, file.name);

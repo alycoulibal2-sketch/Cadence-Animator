@@ -131,8 +131,23 @@ const LIMB_PART_NAMES = new Set([
   'LeftUpperLeg', 'LeftLowerLeg', 'LeftFoot', 'RightUpperLeg', 'RightLowerLeg', 'RightFoot',
 ]);
 
+// Embedded exact geometry from a locally-imported FBX/GLB/OBJ file (see meshImport.js) — the data
+// is already fully in memory (no CDN round-trip), so this is synchronous and can never fall back
+// to a placeholder: there's no async fetch to fail. Built once here and never touched again.
+function customMeshGeometry(def) {
+  const cm = def.customMesh;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(cm.positions, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(cm.normals, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(cm.uvs, 2));
+  geo.setIndex(cm.indices);
+  geo.computeBoundingBox();
+  return geo;
+}
+
 function partGeometry(def) {
   const [sx, sy, sz] = def.size;
+  if (def.customMesh) return customMeshGeometry(def);
   if (def.className === 'MeshPart' || (def.specialMesh && def.specialMesh.meshType === 'FileMesh' && def.specialMesh.meshId)) {
     if (LIMB_PART_NAMES.has(def.name)) {
       const radius = Math.max(0.08, (sx + sz) / 4);
