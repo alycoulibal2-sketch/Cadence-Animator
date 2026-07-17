@@ -47,6 +47,7 @@ async function boot() {
     wireKeyboard();
     wireBridge();
     initMcp();
+    initMobileBroadcast();
 
     builtinRigs = await window.cadence.builtinRigs().catch(() => null);
 
@@ -1271,6 +1272,7 @@ function wireTopBar() {
   document.getElementById('exportBtn').addEventListener('click', () => exportMenuFlow());
   document.getElementById('camChip').addEventListener('click', toggleCameraView);
   document.getElementById('mcpBtn').addEventListener('click', enableClaudeControlFlow);
+  document.getElementById('mobileBtn').addEventListener('click', openMobilePanelFlow);
   document.getElementById('shortcutsBtn').addEventListener('click', showShortcuts);
 
   wireUpdateChip();
@@ -1362,6 +1364,98 @@ async function enableClaudeControlFlow() {
   } catch (e) {
     prog.done('Could not register: ' + e.message, 'error');
   }
+}
+
+// ================================================================ mobile companion
+// Pushes a snapshot of the live project to any connected phones whenever something meaningful
+// changes, throttled to ~15Hz so continuous playback/scrubbing doesn't flood the WS connection.
+// 'any' already excludes 'playhead'/'playing' (see state.js's emit()), so those are subscribed
+// separately here.
+function initMobileBroadcast() {
+  const THROTTLE_MS = 66;
+  let lastSent = 0;
+  let pendingTimer = null;
+
+  function sendNow() {
+    lastSent = performance.now();
+    if (!S.state.project) return;
+    window.cadence.mobileBroadcastState({
+      project: S.state.project,
+      playhead: S.state.playhead,
+      selection: S.state.selection,
+    });
+  }
+  function throttledSend() {
+    const elapsed = performance.now() - lastSent;
+    if (elapsed >= THROTTLE_MS) { sendNow(); return; }
+    if (pendingTimer) return;
+    pendingTimer = setTimeout(() => { pendingTimer = null; sendNow(); }, THROTTLE_MS - elapsed);
+  }
+  S.on('any', throttledSend);
+  S.on('playhead', throttledSend);
+  S.on('playing', throttledSend);
+  // A phone just connected while nothing else was changing — send it a snapshot right away
+  // instead of leaving it blank until the next real edit happens to trigger a broadcast.
+  window.cadence.onMobileClientConnected(() => sendNow());
+}
+
+async function openMobilePanelFlow() {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <p>Scan this on your phone to view this animation live and make small edits — works from anywhere, not just this WiFi. The link changes each time you enable this, so you'll re-scan after restarting the app.</p>
+    <div class="mobile-qr-wrap"><span class="mobile-qr-loading">Starting…</span></div>
+    <div class="mobile-url-row"></div>
+    <label class="mobile-edit-toggle"><input type="checkbox" id="mobileEditToggle" checked> Allow small edits from the phone (unchecked = view only)</label>
+    <p class="mobile-connected"></p>
+  `;
+  const qrWrap = wrap.querySelector('.mobile-qr-wrap');
+  const urlRow = wrap.querySelector('.mobile-url-row');
+  const connectedEl = wrap.querySelector('.mobile-connected');
+
+  let pollTimer = null;
+  const stopPolling = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+
+  modal({
+    title: '📱 Mobile Access',
+    body: wrap,
+    actions: [
+      {
+        label: 'Disable', run: async () => {
+          await window.cadence.mobileDisable();
+          stopPolling();
+          qrWrap.innerHTML = '<span class="mobile-qr-loading">Disabled</span>';
+          urlRow.innerHTML = '';
+          connectedEl.textContent = '';
+          return true; // keep the modal open so the "Disabled" state is visible
+        },
+      },
+      { label: 'Done', primary: true, run: () => { } },
+    ],
+    onClose: stopPolling,
+  });
+
+  const res = await window.cadence.mobileEnable();
+  if (!res.ok) {
+    qrWrap.innerHTML = `<span class="mobile-qr-fail">${res.error || 'Could not start mobile access'}</span>`;
+    return;
+  }
+  qrWrap.innerHTML = res.qrDataUrl
+    ? `<img src="${res.qrDataUrl}" alt="Scan to connect" width="240" height="240">`
+    : '<span class="mobile-qr-fail">Could not generate a QR code — use the link below.</span>';
+  urlRow.innerHTML = '';
+  if (res.pairingUrl) urlRow.appendChild(copyableRow(res.pairingUrl));
+  if (res.tunnelError) toast(`Internet access unavailable (${res.tunnelError}) — falling back to same-WiFi only.`, 'warn');
+
+  wrap.querySelector('#mobileEditToggle').addEventListener('change', (e) => {
+    window.cadence.mobileSetEditingAllowed(e.target.checked);
+  });
+
+  pollTimer = setInterval(async () => {
+    const st = await window.cadence.mobileStatus().catch(() => null);
+    if (!st) return;
+    const n = st.server.connectedCount;
+    connectedEl.textContent = n === 0 ? 'No phones connected yet' : n === 1 ? '1 phone connected' : `${n} phones connected`;
+  }, 2000);
 }
 
 async function addMenuFlow() {

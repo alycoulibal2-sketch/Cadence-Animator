@@ -53,6 +53,14 @@ contextBridge.exposeInMainWorld('cadence', {
   registerMcpServer: () => ipcRenderer.invoke('mcp:registerServer'),
   mcpBindStatus: () => ipcRenderer.invoke('mcp:bindStatus'),
 
+  // mobile companion (phone viewer/remote)
+  mobileEnable: () => ipcRenderer.invoke('mobile:enable'),
+  mobileDisable: () => ipcRenderer.invoke('mobile:disable'),
+  mobileStatus: () => ipcRenderer.invoke('mobile:status'),
+  mobileSetEditingAllowed: (allowed) => ipcRenderer.invoke('mobile:setEditingAllowed', allowed),
+  mobileBroadcastState: (payload) => ipcRenderer.send('mobile:broadcastState', payload),
+  onMobileClientConnected: (cb) => ipcRenderer.on('mobile:clientConnected', () => cb()),
+
   // auto-update
   checkForUpdate: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),

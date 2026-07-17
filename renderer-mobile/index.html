@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none';" />
+  <meta name="theme-color" content="#0d0d12" />
+  <title>Cadence Mobile</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header id="topbar">
+    <span class="logo">Cadence</span>
+    <span id="projectName">—</span>
+    <span id="connStatus" class="conn-status">Connecting…</span>
+  </header>
+
+  <main id="main">
+    <div id="viewport"></div>
+
+    <section id="itemsBar">
+      <div id="itemList"></div>
+    </section>
+
+    <section id="transport">
+      <button id="stepBackBtn" class="tr-btn" title="Previous frame">⏮</button>
+      <button id="playBtn" class="tr-btn big" title="Play/pause (local preview)">▶</button>
+      <button id="stepFwdBtn" class="tr-btn" title="Next frame">⏭</button>
+      <input id="scrubSlider" type="range" min="0" max="90" step="1" value="0" />
+      <span id="frameReadout">0</span>
+    </section>
+
+    <section id="inspector">
+      <div class="insp-row">
+        <select id="jointSelect"><option value="">Select a joint…</option></select>
+        <label class="onion-toggle"><input type="checkbox" id="onionToggle" /> Onion skin</label>
+      </div>
+      <div id="keyInfo" class="insp-empty">No keyframe at this frame for the selected joint.</div>
+      <div id="nudgeGrid" class="nudge-grid" hidden>
+        <span class="axis-label">Rotate X</span>
+        <button class="nudge-btn" data-axis="x" data-deg="-5">−5°</button>
+        <button class="nudge-btn" data-axis="x" data-deg="5">+5°</button>
+        <span class="axis-label">Rotate Y</span>
+        <button class="nudge-btn" data-axis="y" data-deg="-5">−5°</button>
+        <button class="nudge-btn" data-axis="y" data-deg="5">+5°</button>
+        <span class="axis-label">Rotate Z</span>
+        <button class="nudge-btn" data-axis="z" data-deg="-5">−5°</button>
+        <button class="nudge-btn" data-axis="z" data-deg="5">+5°</button>
+        <select id="easingStyle"></select>
+        <select id="easingDir"><option value="In">In</option><option value="Out">Out</option><option value="InOut">InOut</option></select>
+        <button id="deleteKeyBtn" class="nudge-btn danger">Delete key</button>
+      </div>
+      <div class="insp-row">
+        <button id="undoBtn" class="tr-btn">Undo</button>
+        <button id="redoBtn" class="tr-btn">Redo</button>
+        <label class="edit-lock-label" id="editLockLabel" hidden>View only (edits disabled on desktop)</label>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module" src="/js/mobile-app.js"></script>
+</body>
+</html>

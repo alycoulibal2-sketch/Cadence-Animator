@@ -3,9 +3,13 @@ const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard } = r
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const os = require('os');
 const { parse: parseRbxBin } = require('./lib/rbxbin');
-const { parseMesh } = require('./lib/rbxmesh');
 const { autoUpdater } = require('electron-updater');
+const robloxAssets = require('./lib/robloxAssets');
+const { createMobileServer, MOBILE_PORT } = require('./mobileServer');
+const { createMobileTunnel } = require('./mobileTunnel');
+const QRCode = require('qrcode');
 
 const BRIDGE_PORT = 35747;
 const MCP_PORT = 35748;
@@ -43,17 +47,6 @@ function safeSend(channel, payload) {
 
 // ---------------------------------------------------------------- paths
 const userData = () => app.getPath('userData');
-const cacheDir = (sub) => {
-  const d = path.join(userData(), 'cache', sub);
-  try {
-    fs.mkdirSync(d, { recursive: true });
-  } catch (e) {
-    // A locked/permission-denied cache folder shouldn't break asset fetching — every caller
-    // below already treats "not on disk" as a cache miss and falls back to fetching fresh.
-    console.error('cache dir unavailable, continuing without disk cache:', d, e.message);
-  }
-  return d;
-};
 const autosaveDir = () => {
   const d = path.join(userData(), 'autosaves');
   fs.mkdirSync(d, { recursive: true });
@@ -249,24 +242,6 @@ ipcMain.handle('update:install', () => {
 });
 ipcMain.handle('update:getState', () => updateState);
 
-// ---------------------------------------------------------------- helpers
-async function robloxFetch(url) {
-  const res = await fetch(url, { headers: { 'User-Agent': 'CadenceAnimator/0.1' }, redirect: 'follow' });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-  return Buffer.from(await res.arrayBuffer());
-}
-
-function normalizeAssetId(idOrUrl) {
-  if (typeof idOrUrl === 'number') return String(idOrUrl);
-  const s = String(idOrUrl).trim();
-  const m = s.match(/(\d{4,})/);
-  return m ? m[1] : null;
-}
-
-function assetUrl(id) {
-  return `https://assetdelivery.roblox.com/v1/asset/?id=${id}`;
-}
-
 // ---------------------------------------------------------------- IPC: settings & files
 ipcMain.handle('settings:get', () => readSettings());
 ipcMain.handle('settings:set', (_e, s) => { writeSettings(s); return true; });
@@ -443,50 +418,9 @@ ipcMain.handle('rig:builtins', () => {
 });
 
 // ---------------------------------------------------------------- IPC: Roblox web
-ipcMain.handle('roblox:fetchAsset', async (_e, idOrUrl) => {
-  const id = normalizeAssetId(idOrUrl);
-  if (!id) throw new Error('Could not parse an asset id from: ' + idOrUrl);
-  const buf = await robloxFetch(assetUrl(id));
-  return { id, base64: buf.toString('base64') };
-});
-
-const meshMemCache = new Map();
-ipcMain.handle('roblox:mesh', async (_e, meshIdOrUrl) => {
-  const id = normalizeAssetId(meshIdOrUrl);
-  if (!id) throw new Error('Bad mesh id: ' + meshIdOrUrl);
-  if (meshMemCache.has(id)) return meshMemCache.get(id);
-  const diskPath = path.join(cacheDir('mesh'), `${id}.json`);
-  let result;
-  if (fs.existsSync(diskPath)) {
-    result = JSON.parse(fs.readFileSync(diskPath, 'utf8'));
-  } else {
-    const buf = await robloxFetch(assetUrl(id));
-    const geo = parseMesh(buf);
-    result = {
-      positions: Array.from(geo.positions),
-      normals: Array.from(geo.normals),
-      uvs: Array.from(geo.uvs),
-      indices: Array.from(geo.indices),
-    };
-    try { fs.writeFileSync(diskPath, JSON.stringify(result)); } catch (_) { /* disk cache best-effort only */ }
-  }
-  meshMemCache.set(id, result);
-  return result;
-});
-
-ipcMain.handle('roblox:texture', async (_e, texIdOrUrl) => {
-  const id = normalizeAssetId(texIdOrUrl);
-  if (!id) throw new Error('Bad texture id: ' + texIdOrUrl);
-  const diskPath = path.join(cacheDir('tex'), `${id}.bin`);
-  let buf;
-  if (fs.existsSync(diskPath)) buf = fs.readFileSync(diskPath);
-  else {
-    buf = await robloxFetch(assetUrl(id));
-    try { fs.writeFileSync(diskPath, buf); } catch (_) { /* disk cache best-effort only */ }
-  }
-  const mime = buf[0] === 0x89 ? 'image/png' : (buf[0] === 0xff ? 'image/jpeg' : 'application/octet-stream');
-  return `data:${mime};base64,${buf.toString('base64')}`;
-});
+ipcMain.handle('roblox:fetchAsset', (_e, idOrUrl) => robloxAssets.fetchAssetBase64(idOrUrl));
+ipcMain.handle('roblox:mesh', (_e, meshIdOrUrl) => robloxAssets.fetchMeshData(meshIdOrUrl));
+ipcMain.handle('roblox:texture', (_e, texIdOrUrl) => robloxAssets.fetchTextureDataUri(texIdOrUrl));
 
 ipcMain.handle('roblox:userId', async (_e, username) => {
   const res = await fetch('https://users.roblox.com/v1/usernames/users', {
@@ -504,25 +438,7 @@ ipcMain.handle('roblox:userId', async (_e, username) => {
 // guaranteed-to-render default/fallback face for every other builtin rig too (see headFaceFallback
 // in rigbuild.js), since this reads straight off disk and never depends on an authenticated
 // Roblox web session the way the R15-family CDN face texture does.
-ipcMain.handle('roblox:classicFace', () => {
-  try {
-    const versionsDirs = [
-      path.join(process.env.LOCALAPPDATA || '', 'Roblox', 'Versions'),
-      'C:/Program Files (x86)/Roblox/Versions',
-      'C:/Program Files/Roblox/Versions',
-    ];
-    for (const vd of versionsDirs) {
-      if (!fs.existsSync(vd)) continue;
-      for (const v of fs.readdirSync(vd)) {
-        const facePath = path.join(vd, v, 'content', 'textures', 'face.png');
-        if (fs.existsSync(facePath)) {
-          return 'data:image/png;base64,' + fs.readFileSync(facePath).toString('base64');
-        }
-      }
-    }
-  } catch (_) { }
-  return null;
-});
+ipcMain.handle('roblox:classicFace', () => robloxAssets.getClassicFaceDataUri());
 
 // Reads a user-picked local image file (for custom face layers) as a data URI — no Roblox
 // asset/upload involved, so this works fully offline and needs no authenticated session.
@@ -831,3 +747,75 @@ function startMcpServer() {
 }
 
 ipcMain.handle('mcp:bindStatus', () => ({ error: mcpBindError }));
+
+// ---------------------------------------------------------------- mobile companion (phone viewer/remote)
+// Opt-in only — nothing here starts until the user clicks "Enable" in the Mobile panel. Reuses
+// sendToRenderer() (the exact same function handleMcpCommand above uses for Claude's MCP calls)
+// so any allowlisted command a phone sends gets undo + autosave for free, same as an MCP edit.
+const mobileServerInst = createMobileServer({
+  sendToRenderer,
+  robloxAssets,
+  notifyClientConnected: () => safeSend('mobile:clientConnected', {}),
+});
+const mobileTunnelInst = createMobileTunnel();
+
+function firstLanAddress() {
+  const ifaces = os.networkInterfaces();
+  for (const name of Object.keys(ifaces)) {
+    for (const iface of ifaces[name] || []) {
+      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+    }
+  }
+  return null;
+}
+
+ipcMain.handle('mobile:enable', async () => {
+  const s = await mobileServerInst.start();
+  if (s.bindError) return { ok: false, error: s.bindError };
+
+  const { url: tunnelUrl, error: tunnelError } = await mobileTunnelInst.start(MOBILE_PORT);
+  const lan = firstLanAddress();
+  const lanUrl = lan ? `http://${lan}:${MOBILE_PORT}` : null;
+  const primaryUrl = tunnelUrl || lanUrl;
+  // Token travels as a URL *fragment* (#token=...), not a query string — fragments are never
+  // sent to any server or logged (not by cloudflared, not in any Referer header), so this is the
+  // only part of the pairing link that's genuinely never exposed in a log anywhere.
+  const pairingUrl = primaryUrl ? `${primaryUrl}/#token=${s.token}` : null;
+  const qrDataUrl = pairingUrl ? await QRCode.toDataURL(pairingUrl, { margin: 1, width: 320 }).catch(() => null) : null;
+  return {
+    ok: true,
+    token: s.token,
+    tunnelUrl: tunnelUrl || null,
+    tunnelError: tunnelUrl ? null : (tunnelError || 'Could not start a Cloudflare tunnel.'),
+    lanUrl, // same-WiFi fallback if the tunnel couldn't start
+    pairingUrl,
+    qrDataUrl,
+  };
+});
+
+ipcMain.handle('mobile:disable', () => {
+  mobileTunnelInst.stop();
+  mobileServerInst.stop();
+  return true;
+});
+
+ipcMain.handle('mobile:status', () => ({
+  server: mobileServerInst.status(),
+  tunnel: mobileTunnelInst.status(),
+}));
+
+ipcMain.handle('mobile:setEditingAllowed', (_e, allowed) => {
+  mobileServerInst.setEditingAllowed(allowed);
+  return true;
+});
+
+ipcMain.on('mobile:broadcastState', (_e, payload) => {
+  mobileServerInst.broadcastState(payload);
+});
+
+app.on('before-quit', () => {
+  // Don't leave a cloudflared child process or an internet-reachable server running after the
+  // app itself has closed.
+  try { mobileTunnelInst.stop(); } catch (_) { }
+  try { mobileServerInst.stop(); } catch (_) { }
+});

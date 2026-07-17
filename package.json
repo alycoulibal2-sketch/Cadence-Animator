@@ -22,9 +22,12 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "cloudflared": "^0.7.1",
     "electron-updater": "^6.8.9",
     "fzstd": "^0.1.1",
+    "qrcode": "^1.5.4",
     "three": "^0.170.0",
+    "ws": "^8.18.0",
     "zod": "^3.25.76"
   },
   "build": {
@@ -33,6 +36,7 @@
     "files": [
       "src/**/*",
       "renderer/**/*",
+      "renderer-mobile/**/*",
       "rigs/**/*",
       "plugin/**/*",
       "mcp-server/**/*",
