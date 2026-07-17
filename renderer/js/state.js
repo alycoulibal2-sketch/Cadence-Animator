@@ -214,6 +214,18 @@ export function detachItem(itemId, currentWorldOrigin) {
   markDirty();
 }
 
+// VFX emitter appearance (color/size/transparency-over-particle-life, spread, gravity, pool cap)
+// — NOT keyframed, unlike @rate/@lifetime/@speed, since these describe a single particle's own
+// look across ITS short life rather than something meaningful to animate across the timeline.
+export function setVfxEmitter(itemId, patch) {
+  const item = getItem(itemId);
+  if (!item || item.kind !== 'vfx') return;
+  pushUndo();
+  item.emitter = { ...item.emitter, ...patch };
+  emit('items');
+  markDirty();
+}
+
 // A rig's current face is a stack of decal layers { dataUri, opacity } rendered on its Head part
 // — separate from the item's animated pose/keyframes, so swapping faces never touches animation.
 // The saved-preset LIBRARY itself is app-wide (in settings, not project state) since face presets
@@ -510,11 +522,16 @@ export function selectAllKeys(itemId) {
 }
 
 // ---------------------------------------------------------------- frame range tools
+// Every plain-number (non-CFrame) track name — @fov for cameras, @rate/@lifetime/@speed for VFX
+// emitters — shares one predicate so a new numeric track never needs updating in more than one
+// place (this was previously just `track === '@fov'`, repeated three times).
+const NUMERIC_TRACKS = new Set(['@fov', '@rate', '@lifetime', '@speed']);
+function isNumericTrack(track) { return NUMERIC_TRACKS.has(track); }
+
 // Split: insert a keyframe at time t with the currently-interpolated value — a no-visual-change
 // "refine the curve" operation you then nudge, matching Moon's M key.
 export function splitKeyframe(itemId, track, t) {
-  const isNumeric = track === '@fov';
-  const value = isNumeric ? evalTrackNum(itemId, track, t) : evalTrackCF(itemId, track, t);
+  const value = isNumericTrack(track) ? evalTrackNum(itemId, track, t) : evalTrackCF(itemId, track, t);
   setKey(itemId, track, t, value);
 }
 export function splitStride(itemId, track, tStart, tEnd, stride) {
@@ -527,8 +544,7 @@ export function splitStride(itemId, track, tStart, tEnd, stride) {
   markDirty();
 }
 function splitKeyframeNoUndo(itemId, track, t) {
-  const isNumeric = track === '@fov';
-  const value = isNumeric ? evalTrackNum(itemId, track, t) : evalTrackCF(itemId, track, t);
+  const value = isNumericTrack(track) ? evalTrackNum(itemId, track, t) : evalTrackCF(itemId, track, t);
   setKey(itemId, track, t, value, { noUndo: true });
 }
 
@@ -537,7 +553,7 @@ function splitKeyframeNoUndo(itemId, track, t) {
 // an explicit per-frame one so each frame can be hand-tuned independently.
 export function fillFrames(itemId, track, tStart, tEnd, step = 1) {
   pushUndo();
-  const isNumeric = track === '@fov';
+  const isNumeric = isNumericTrack(track);
   for (let t = Math.ceil(tStart); t <= Math.floor(tEnd); t += step) {
     const value = isNumeric ? evalTrackNum(itemId, track, t) : evalTrackCF(itemId, track, t);
     setKey(itemId, track, t, value, { noUndo: true });

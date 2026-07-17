@@ -13,9 +13,15 @@ import { validateAnimation } from './validate.js';
 import { initPanels } from './panels.js';
 import { THEMES, ACCENTS, DEFAULT_THEME, DEFAULT_ACCENT, applyTheme, currentTheme } from './themes.js';
 import { buildChain, solveIK } from './ik.js';
+import { VFX_DEFAULTS } from './vfx.js';
 
 let builtinRigs = null;
 let settings = {};
+
+function itemIcon(kind) { return kind === 'camera' ? '🎥' : kind === 'vfx' ? '✨' : '🧍'; }
+// The one "always-selectable, no-part-picking" partId an item's kind defaults to when it has no
+// joints — mirrors what clicking the item's icon in the viewport already gives you.
+function defaultPartId(kind) { return kind === 'camera' ? '@camera' : kind === 'vfx' ? '@vfx' : null; }
 
 // ================================================================ boot
 async function boot() {
@@ -97,7 +103,7 @@ async function boot() {
       S, CF, IO,
       addBuiltinRig, addCamera, keyCurrentPose, setGizmoMode,
       getInstance, updateScene, render, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, setHandlesVisible, viewport, refreshInstance,
-      applyTheme, currentTheme, openThemeFlow, riggingToolsFlow, buildChain, solveIK, setUnparented,
+      applyTheme, currentTheme, openThemeFlow, riggingToolsFlow, buildChain, solveIK, setUnparented, addVfxItem,
     };
   } catch (e) {
     console.error('[boot] failed:', e && e.stack || e);
@@ -220,6 +226,7 @@ function registerAllCommands() {
   C({ title: 'Add from Roblox asset ID…', section: 'Add', run: addByAssetIdFlow });
   C({ title: 'Add from file (.rbxm / .rbxmx)…', section: 'Add', run: addFromFileFlow });
   C({ title: 'Add camera', section: 'Add', run: addCamera });
+  C({ title: 'Add VFX emitter', section: 'Add', hint: 'a particle emitter with keyframeable rate/lifetime/speed', run: addVfxItem });
   C({ title: 'Add audio track…', section: 'Add', hint: 'mp3 / wav / ogg with waveform', run: addAudioFlow });
   C({ title: 'Add items…', shortcut: 'Numpad 9', section: 'Add', run: addMenuFlow });
   C({ title: 'Rotate camera…', shortcut: 'Shift+O', section: 'Add', run: cameraRotateFlow });
@@ -397,6 +404,9 @@ function keyCurrentPose() {
   for (const tn of Object.keys(tracks)) {
     if (!tracks[tn].keys.length) continue;
     if (tn === '@fov') S.setKey(itemId, tn, t, S.evalTrackNum(itemId, tn, t, item.fov || 70), { noUndo: true });
+    else if (tn === '@rate' || tn === '@lifetime' || tn === '@speed') {
+      S.setKey(itemId, tn, t, S.evalTrackNum(itemId, tn, t, item.emitter?.[tn.slice(1)] ?? 1), { noUndo: true });
+    }
     else S.setKey(itemId, tn, t, S.evalTrackCF(itemId, tn, t, tn === '@origin' ? (item.origin || CF.IDENTITY) : CF.IDENTITY), { noUndo: true });
     n++;
   }
@@ -434,7 +444,7 @@ function persistPrefs() {
 function selectedTrackName() {
   const { itemId, partId } = S.state.selection;
   if (!itemId || !partId) return null;
-  if (partId === '@origin' || partId === '@camera') return '@origin';
+  if (partId === '@origin' || partId === '@camera' || partId === '@vfx') return '@origin';
   const item = S.getItem(itemId);
   const j = (item?.rig?.joints || []).find((j) => j.part1 === partId && j.kind !== 'weld');
   return j ? j.name : null;
@@ -616,7 +626,9 @@ async function attachItemFlow() {
   if (!targetInst || !propInst) { toast('Rig not ready yet — try again in a moment', 'error'); return; }
 
   const targetPartWorld = targetInst.partWorld(targetPartDef.id);
-  const propWorld = propInst.partWorld(propItem.rig.rootPart);
+  // A camera/VFX prop's partWorld() ignores its arg (there's only ever the one world CFrame);
+  // only a rig prop needs its actual root part id.
+  const propWorld = propItem.rig ? propInst.partWorld(propItem.rig.rootPart) : propInst.partWorld();
   // offset = the prop's current world pose expressed relative to the target part, so re-deriving
   // world = targetPartWorld * offset reproduces exactly where it is right now — no visual jump.
   const offset = CF.mul(CF.inverse(targetPartWorld), propWorld);
@@ -1026,11 +1038,11 @@ async function jumpToItemFlow() { // Shift+P
   if (!items.length) { toast('No items yet', 'warn'); return; }
   const pick = await chooseModal({
     title: 'Jump to item',
-    options: items.map((i) => ({ id: i.id, label: i.name, icon: i.kind === 'camera' ? '🎥' : '🧍' })),
+    options: items.map((i) => ({ id: i.id, label: i.name, icon: itemIcon(i.kind) })),
   });
   if (!pick) return;
   const item = S.getItem(pick);
-  S.setSelection(pick, item.kind === 'camera' ? '@camera' : null);
+  S.setSelection(pick, defaultPartId(item.kind));
   focusSelected();
 }
 
@@ -1386,6 +1398,21 @@ function addCamera() {
   S.addItem(item);
   S.setSelection(item.id, '@camera');
   toast('Camera added — press 0 to look through it');
+}
+
+function addVfxItem() {
+  const item = {
+    id: crypto.randomUUID(),
+    kind: 'vfx',
+    name: `VFX ${S.state.project.items.filter((i) => i.kind === 'vfx').length + 1}`,
+    origin: [0, 2, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+    emitter: { ...VFX_DEFAULTS },
+    visible: true,
+  };
+  S.addItem(item);
+  S.setSelection(item.id, '@vfx');
+  toast('VFX emitter added — set its rate/lifetime/speed in the Inspector, then scrub the timeline');
+  return item;
 }
 
 async function addAudioFlow() {
@@ -1829,6 +1856,7 @@ async function addMenuFlow() {
       { id: 'asset', label: 'From asset ID…', desc: 'any model on Roblox', icon: '🌐' },
       { id: 'file', label: 'From file…', desc: '.rbxm / .rbxmx — or just drop it here', icon: '📄' },
       { id: 'camera', label: 'Camera', desc: 'animatable, with FOV track', icon: '🎥' },
+      { id: 'vfx', label: 'VFX emitter', desc: 'particle emitter — rate/lifetime/speed tracks', icon: '✨' },
       { id: 'audio', label: 'Audio track…', desc: 'waveform + scrubbing', icon: '🔊' },
     ],
   });
@@ -1838,6 +1866,7 @@ async function addMenuFlow() {
   else if (pick === 'asset') addByAssetIdFlow();
   else if (pick === 'file') addFromFileFlow();
   else if (pick === 'camera') addCamera();
+  else if (pick === 'vfx') addVfxItem();
   else if (pick === 'audio') addAudioFlow();
   else addBuiltinRig(pick);
 }
@@ -1941,9 +1970,9 @@ function wireExplorer() {
       const row = document.createElement('div');
       row.className = 'item-row' + (S.state.selection.itemId === item.id ? ' selected' : '');
       row.innerHTML = `<span class="ic"></span><span class="nm"></span><button class="eye" title="Show / hide">${item.visible !== false ? '👁' : '·'}</button><button class="del" title="Remove">✕</button>`;
-      row.querySelector('.ic').textContent = item.kind === 'camera' ? '🎥' : '🧍';
+      row.querySelector('.ic').textContent = itemIcon(item.kind);
       row.querySelector('.nm').textContent = item.name;
-      row.addEventListener('click', () => S.setSelection(item.id, item.kind === 'camera' ? '@camera' : null));
+      row.addEventListener('click', () => S.setSelection(item.id, defaultPartId(item.kind)));
       row.querySelector('.nm').addEventListener('dblclick', async (e) => {
         e.stopPropagation();
         const name = await promptModal({ title: 'Rename', label: 'Name', initial: item.name });
@@ -2026,7 +2055,8 @@ function wireInspector() {
     }
 
     if (item) {
-      const sec = section(item.kind === 'camera' ? 'Camera' : 'Rig');
+      let sectionsAlreadyAppended = false;
+      const sec = section(item.kind === 'camera' ? 'Camera' : item.kind === 'vfx' ? 'VFX Emitter' : 'Rig');
       sec.appendChild(fieldRow('Name', item.name));
       if (item.kind === 'camera') {
         const fov = S.evalTrackNum(item.id, '@fov', S.state.playhead, item.fov || 70);
@@ -2034,12 +2064,49 @@ function wireInspector() {
           S.setKey(item.id, '@fov', Math.round(S.state.playhead), Math.max(5, Math.min(120, v)));
         }));
         sec.appendChild(button(S.state.cameraView === item.id ? 'Exit camera view' : 'Look through camera', toggleCameraView));
+      } else if (item.kind === 'vfx') {
+        const em = item.emitter || VFX_DEFAULTS;
+        const rate = S.evalTrackNum(item.id, '@rate', S.state.playhead, em.rate ?? 8);
+        const lifetime = S.evalTrackNum(item.id, '@lifetime', S.state.playhead, em.lifetime ?? 1.5);
+        const speed = S.evalTrackNum(item.id, '@speed', S.state.playhead, em.speed ?? 4);
+        sec.appendChild(numField('Rate (particles/sec)', Math.round(rate * 10) / 10, (v) => S.setKey(item.id, '@rate', Math.round(S.state.playhead), Math.max(0, v))));
+        sec.appendChild(numField('Lifetime (sec)', Math.round(lifetime * 100) / 100, (v) => S.setKey(item.id, '@lifetime', Math.round(S.state.playhead), Math.max(0.05, v))));
+        sec.appendChild(numField('Speed (studs/sec)', Math.round(speed * 100) / 100, (v) => S.setKey(item.id, '@speed', Math.round(S.state.playhead), v)));
+        el.appendChild(sec);
+
+        const appearance = section('Particle appearance');
+        const colorRow = (label, key) => {
+          const d = document.createElement('div');
+          d.className = 'insp-row';
+          const input = document.createElement('input');
+          input.type = 'color';
+          input.className = 'fld';
+          input.value = em[key];
+          input.addEventListener('input', () => S.setVfxEmitter(item.id, { [key]: input.value }));
+          d.innerHTML = `<span class="l">${label}</span>`;
+          d.appendChild(input);
+          return d;
+        };
+        appearance.appendChild(colorRow('Color (start)', 'colorStart'));
+        appearance.appendChild(colorRow('Color (end)', 'colorEnd'));
+        appearance.appendChild(numField('Size (start)', em.sizeStart, (v) => S.setVfxEmitter(item.id, { sizeStart: Math.max(0.01, v) })));
+        appearance.appendChild(numField('Size (end)', em.sizeEnd, (v) => S.setVfxEmitter(item.id, { sizeEnd: Math.max(0.01, v) })));
+        appearance.appendChild(rangeField('Transparency (start)', em.transparencyStart, (v) => S.setVfxEmitter(item.id, { transparencyStart: v })));
+        appearance.appendChild(rangeField('Transparency (end)', em.transparencyEnd, (v) => S.setVfxEmitter(item.id, { transparencyEnd: v })));
+        appearance.appendChild(numField('Spread (degrees)', em.spreadDegrees, (v) => S.setVfxEmitter(item.id, { spreadDegrees: Math.max(0, Math.min(90, v)) })));
+        appearance.appendChild(numField('Gravity (studs/sec²)', em.gravity, (v) => S.setVfxEmitter(item.id, { gravity: v })));
+        appearance.appendChild(numField('Max particles', em.maxParticles, (v) => {
+          S.setVfxEmitter(item.id, { maxParticles: Math.max(1, Math.min(2000, Math.round(v))) });
+          refreshInstance(item.id); // pool size only changes on rebuild
+        }));
+        el.appendChild(appearance);
+        sectionsAlreadyAppended = true; // sec + appearance both already appended above
       } else {
         sec.appendChild(fieldRow('Joints', String((item.rig.joints || []).filter((j) => j.kind !== 'weld').length)));
         sec.appendChild(fieldRow('Parts', String(item.rig.parts.length)));
         sec.appendChild(button('Rigging tools…', riggingToolsFlow));
       }
-      el.appendChild(sec);
+      if (!sectionsAlreadyAppended) el.appendChild(sec);
     }
 
     // animation section (always)
@@ -2321,6 +2388,7 @@ const MCP_HANDLERS = {
   list_items: () => S.state.project.items.map((i) => ({
     id: i.id, name: i.name, kind: i.kind,
     joints: i.rig ? (i.rig.joints || []).filter((j) => j.kind !== 'weld').map((j) => j.name) : undefined,
+    emitter: i.kind === 'vfx' ? i.emitter : undefined,
     tracks: Object.keys(S.getTracks(i.id)),
     studioId: i.studioId || null,
   })),
@@ -2349,6 +2417,19 @@ const MCP_HANDLERS = {
     addCamera();
     const item = S.state.project.items[S.state.project.items.length - 1];
     return { itemId: item.id, name: item.name };
+  },
+  // ---------------------------------------------------------------- VFX
+  add_vfx: ({ name, emitter }) => {
+    const item = addVfxItem();
+    if (name) S.renameItem(item.id, name);
+    if (emitter) S.setVfxEmitter(item.id, emitter);
+    return { itemId: item.id, name: item.name, emitter: item.emitter };
+  },
+  set_vfx_emitter: ({ itemId, ...patch }) => {
+    const item = S.getItem(itemId);
+    if (!item || item.kind !== 'vfx') throw new Error(`No VFX item with id ${itemId}`);
+    S.setVfxEmitter(itemId, patch);
+    return { emitter: S.getItem(itemId).emitter };
   },
   remove_item: ({ itemId }) => { S.removeItem(itemId); return { ok: true }; },
 

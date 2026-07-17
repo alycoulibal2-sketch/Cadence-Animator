@@ -6,9 +6,10 @@ import { OrbitControls } from '../vendor/three/OrbitControls.js';
 import { TransformControls } from '../vendor/three/TransformControls.js';
 import * as CF from './cf.js';
 import * as S from './state.js';
-import { RigInstance, CameraInstance, PART_GAP_SCALE } from './rigbuild.js';
+import { RigInstance, CameraInstance, VfxInstance, PART_GAP_SCALE } from './rigbuild.js';
 import { viewportPalette } from './themes.js';
 import { buildChain, solveIK } from './ik.js';
+import { sampleParticles } from './vfx.js';
 
 const ghostGapVector = new THREE.Vector3(PART_GAP_SCALE, PART_GAP_SCALE, PART_GAP_SCALE);
 
@@ -299,12 +300,18 @@ export function syncItems() {
   }
   for (const item of items) {
     if (!viewport.instances.has(item.id)) {
-      const inst = item.kind === 'camera' ? new CameraInstance(item, viewport.scene) : new RigInstance(item, viewport.scene);
+      const inst = makeInstance(item);
       inst.setHandlesVisible?.(S.state.handlesVisible);
       inst.setHandleSize?.(S.state.handleSize);
       viewport.instances.set(item.id, inst);
     }
   }
+}
+
+function makeInstance(item) {
+  if (item.kind === 'camera') return new CameraInstance(item, viewport.scene);
+  if (item.kind === 'vfx') return new VfxInstance(item, viewport.scene);
+  return new RigInstance(item, viewport.scene);
 }
 
 export function getInstance(itemId) { return viewport.instances.get(itemId); }
@@ -316,7 +323,7 @@ export function refreshInstance(itemId) {
   if (!item) return;
   const old = viewport.instances.get(itemId);
   if (old) old.dispose();
-  const inst = item.kind === 'camera' ? new CameraInstance(item, viewport.scene) : new RigInstance(item, viewport.scene);
+  const inst = makeInstance(item);
   viewport.instances.set(itemId, inst);
   if (S.state.selection.itemId === itemId) onSelectionChanged();
 }
@@ -392,6 +399,20 @@ function applyOrigin(item, inst, origin, t) {
     inst.computeWorld(origin, fov);
     inst.setBodyVisible(S.state.cameraView !== item.id);
     inst.setFrustumVisible(S.state.cameraView !== item.id && S.state.selection.itemId === item.id);
+  } else if (item.kind === 'vfx') {
+    // Each particle's spawn-time origin is resolved independently (it may have been a different
+    // frame's pose for a moving/attached emitter) — reuse the exact same per-frame origin logic
+    // updateOneItem just used for `t`, generalized to arbitrary spawn frames `f`.
+    const resolveOriginAt = (f) => {
+      if (item.attachedTo) {
+        const parentInst = viewport.instances.get(item.attachedTo.itemId);
+        const parentWorld = parentInst?.partWorld?.(item.attachedTo.partId);
+        return parentWorld ? CF.mul(parentWorld, item.attachedTo.offset) : (item.origin || CF.IDENTITY);
+      }
+      return S.evalTrackCF(item.id, '@origin', f, item.origin || CF.IDENTITY);
+    };
+    const particles = sampleParticles(item, Math.round(t), p.fps, resolveOriginAt);
+    inst.computeWorld(origin, particles);
   } else {
     const pose = S.evalPose(item, t);
     const overlay = viewport.overlayPose.get(item.id);
@@ -430,7 +451,7 @@ function selectedWorld() {
   if (!itemId || !partId) return null;
   const inst = viewport.instances.get(itemId);
   if (!inst) return null;
-  if (partId === '@origin' || partId === '@camera') {
+  if (partId === '@origin' || partId === '@camera' || partId === '@vfx') {
     const item = S.getItem(itemId);
     let origin = S.evalTrackCF(itemId, '@origin', S.state.playhead, item.origin || CF.IDENTITY);
     if (viewport.overlayOrigin.has(itemId)) origin = viewport.overlayOrigin.get(itemId);
@@ -536,7 +557,7 @@ function onGizmoChange() {
     }
   }
 
-  const isOrigin = partId === '@origin' || partId === '@camera' || partId === item?.rig?.rootPart;
+  const isOrigin = partId === '@origin' || partId === '@camera' || partId === '@vfx' || partId === item?.rig?.rootPart;
   if (isOrigin) {
     viewport.overlayOrigin.set(itemId, desired);
   } else {

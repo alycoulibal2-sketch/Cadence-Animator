@@ -565,3 +565,86 @@ export class CameraInstance {
     this.scene.remove(this.helper);
   }
 }
+
+// Shared across every VFX item — a small soft-radial-gradient sprite texture, generated once via
+// canvas (no network fetch, so it's unaffected by the app's CSP) instead of every particle being
+// a hard-edged flat square.
+let particleTexture = null;
+function getParticleTexture() {
+  if (particleTexture) return particleTexture;
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 32, 32);
+  particleTexture = new THREE.CanvasTexture(c);
+  return particleTexture;
+}
+
+// VFX items get a small selectable emitter icon plus a pool of reusable Sprites (billboards,
+// always face the camera automatically) standing in for particles — a fixed-size pool sized to
+// the item's maxParticles cap, toggling visibility per-slot each frame rather than
+// creating/destroying sprites continuously.
+export class VfxInstance {
+  constructor(item, scene) {
+    this.item = item;
+    this.scene = scene;
+    this.group = new THREE.Group();
+    this.group.name = item.name;
+
+    const iconMat = new THREE.MeshBasicMaterial({ color: 0xffaa55, transparent: true, opacity: 0.85 });
+    this.icon = new THREE.Mesh(new THREE.OctahedronGeometry(0.28, 0), iconMat);
+    this.icon.userData = { itemId: item.id, partId: '@vfx', partName: 'Emitter' };
+    this.icon.matrixAutoUpdate = false;
+    this.group.add(this.icon);
+
+    const cap = Math.max(1, Math.min(2000, item.emitter?.maxParticles || 150));
+    this.pool = [];
+    const tex = getParticleTexture();
+    for (let i = 0; i < cap; i++) {
+      const mat = new THREE.SpriteMaterial({ map: tex, color: 0xffffff, transparent: true, depthWrite: false });
+      const spr = new THREE.Sprite(mat);
+      spr.visible = false;
+      spr.userData.nonSelectable = true;
+      this.group.add(spr);
+      this.pool.push(spr);
+    }
+    scene.add(this.group);
+    this.world = CF.IDENTITY.slice();
+  }
+
+  // particles: sampleParticles()'s output — { pos, size, color:[r,g,b], opacity }[]
+  computeWorld(originCF, particles) {
+    this.world = originCF;
+    CF.toThreeMatrix(originCF, this.icon.matrix);
+    this.icon.matrixWorldNeedsUpdate = true;
+    for (let i = 0; i < this.pool.length; i++) {
+      const spr = this.pool[i];
+      const p = particles[i];
+      if (!p) { spr.visible = false; continue; }
+      spr.visible = true;
+      spr.position.set(p.pos[0], p.pos[1], p.pos[2]);
+      spr.scale.setScalar(p.size);
+      spr.material.color.setRGB(p.color[0], p.color[1], p.color[2]);
+      spr.material.opacity = p.opacity;
+    }
+  }
+
+  partWorld() { return this.world; }
+  setHighlight(partId, level) {
+    this.icon.material.color.set(level === 2 ? 0x7c8cff : level === 1 ? 0xffe08a : 0xffaa55);
+  }
+  setFrustumVisible() { }
+  setBodyVisible(v) { this.icon.visible = v; }
+
+  dispose() {
+    this.scene.remove(this.group);
+    this.group.traverse((o) => {
+      if (o.material) { o.material.dispose(); }
+      if (o.geometry) o.geometry.dispose();
+    });
+  }
+}

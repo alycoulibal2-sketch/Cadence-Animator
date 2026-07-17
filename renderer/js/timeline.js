@@ -80,9 +80,13 @@ function rebuildRows() {
     if (item.kind === 'camera' && !S.state.cameraTracksVisible) continue;
     tl.rows.push({ kind: 'item', itemId: item.id, label: item.name });
     if (tl.collapsed.has(item.id)) continue;
-    tl.rows.push({ kind: 'track', itemId: item.id, track: '@origin', label: item.kind === 'camera' ? 'Camera Position' : 'Rig Origin', depth: 1 });
+    tl.rows.push({ kind: 'track', itemId: item.id, track: '@origin', label: item.kind === 'camera' ? 'Camera Position' : item.kind === 'vfx' ? 'Emitter Position' : 'Rig Origin', depth: 1 });
     if (item.kind === 'camera') {
       tl.rows.push({ kind: 'track', itemId: item.id, track: '@fov', label: 'Field of View', depth: 1 });
+    } else if (item.kind === 'vfx') {
+      tl.rows.push({ kind: 'track', itemId: item.id, track: '@rate', label: 'Emission Rate', depth: 1 });
+      tl.rows.push({ kind: 'track', itemId: item.id, track: '@lifetime', label: 'Particle Lifetime', depth: 1 });
+      tl.rows.push({ kind: 'track', itemId: item.id, track: '@speed', label: 'Particle Speed', depth: 1 });
     } else if (item.rig) {
       for (const j of item.rig.joints || []) {
         if (j.kind === 'weld') continue;
@@ -114,7 +118,7 @@ function renderList() {
       div.appendChild(name);
       const icon = document.createElement('span');
       icon.className = 'kind-icon';
-      icon.textContent = item?.kind === 'camera' ? '🎥' : '🧍';
+      icon.textContent = item?.kind === 'camera' ? '🎥' : item?.kind === 'vfx' ? '✨' : '🧍';
       div.prepend(icon);
       div.addEventListener('click', () => {
         S.setSelection(row.itemId, null);
@@ -135,7 +139,7 @@ function renderList() {
       div.style.paddingLeft = '26px';
       div.addEventListener('click', () => {
         const item = S.getItem(row.itemId);
-        if (row.track === '@origin' || row.track === '@fov') S.setSelection(row.itemId, item?.kind === 'camera' ? '@camera' : '@origin');
+        if (row.track.startsWith('@')) S.setSelection(row.itemId, item?.kind === 'camera' ? '@camera' : item?.kind === 'vfx' ? '@vfx' : '@origin');
         else S.setSelection(row.itemId, row.part1 || null);
       });
       const isSelTrack = sel.itemId === row.itemId && trackForSelection() === row.track;
@@ -154,7 +158,7 @@ function trackForSelection() {
   const { itemId, partId } = S.state.selection;
   if (!itemId || !partId) return null;
   const item = S.getItem(itemId);
-  if (partId === '@origin' || partId === '@camera') return '@origin';
+  if (partId === '@origin' || partId === '@camera' || partId === '@vfx') return '@origin';
   const j = (item?.rig?.joints || []).find((j) => j.part1 === partId && j.kind !== 'weld');
   return j ? j.name : null;
 }
@@ -594,6 +598,10 @@ function onDblClick(e) {
   if (row.track === '@fov') {
     const item = S.getItem(row.itemId);
     S.setKey(row.itemId, row.track, f, S.evalTrackNum(row.itemId, '@fov', f, item.fov || 70));
+  } else if (row.track === '@rate' || row.track === '@lifetime' || row.track === '@speed') {
+    const item = S.getItem(row.itemId);
+    const key = row.track.slice(1);
+    S.setKey(row.itemId, row.track, f, S.evalTrackNum(row.itemId, row.track, f, item.emitter?.[key] ?? 1));
   } else if (row.track === '@origin') {
     const item = S.getItem(row.itemId);
     S.setKey(row.itemId, row.track, f, S.evalTrackCF(row.itemId, '@origin', f, item.origin || [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]));
