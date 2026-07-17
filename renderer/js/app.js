@@ -95,7 +95,7 @@ async function boot() {
       S, CF, IO,
       addBuiltinRig, addCamera, keyCurrentPose, setGizmoMode,
       getInstance, updateScene, render, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, setHandlesVisible, viewport, refreshInstance,
-      applyTheme, currentTheme, openThemeFlow,
+      applyTheme, currentTheme, openThemeFlow, riggingToolsFlow,
     };
   } catch (e) {
     console.error('[boot] failed:', e && e.stack || e);
@@ -188,6 +188,7 @@ function registerAllCommands() {
   C({ title: 'Slow motion (2x)', section: 'Effects', hint: 'stretches the selected range to twice its length', run: slowMotionFlow });
   C({ title: 'Stop motion', section: 'Effects', hint: 'holds each pose in the selected range for a choppy, stepped look', run: stopMotionFlow });
   C({ title: 'Face Presets…', section: 'Effects', hint: 'save/apply a library of swappable faces, single or multi-layer', run: openFacePresetsFlow });
+  C({ title: 'Rigging Tools…', section: 'Effects', hint: 'create/convert/delete Motor6D joints and welds — rig up loose parts in-app', run: riggingToolsFlow });
   C({ title: 'Attach to…', section: 'Effects', hint: 'have the selected item rigidly follow a hand or other part on another rig', run: attachItemFlow });
   C({ title: 'Detach', section: 'Effects', hint: 'release the selected item from whatever it\'s attached to', run: detachItemFlow });
   C({ title: 'Undo', shortcut: 'Ctrl+Z', section: 'General', run: () => S.undo() });
@@ -725,6 +726,125 @@ async function openFacePresetsFlow() {
     title: `Face Presets — ${item.name}`,
     body: container,
     actions: [{ label: 'Close', primary: true, run: () => { } }],
+  });
+}
+
+// ================================================================ rigging tools
+// Weld/joint a rig together inside Cadence: create Motor6D joints (animatable) and Welds (rigid)
+// between any two parts, convert between the two, or delete them — enough to turn a jointless
+// imported model into a fully animatable rig without ever opening Studio's rig editors.
+async function riggingToolsFlow() {
+  const { itemId } = S.state.selection;
+  const item = itemId ? S.getItem(itemId) : null;
+  if (!item || item.kind !== 'rig') { toast('Select a rig first', 'warn'); return; }
+  const rig = item.rig;
+  const partName = (id) => rig.parts.find((p) => p.id === id)?.name || id;
+
+  const wrap = document.createElement('div');
+  const list = document.createElement('div');
+  list.className = 'rig-joint-list';
+
+  const refresh3D = () => { refreshInstance(item.id); };
+
+  const renderList = () => {
+    list.innerHTML = '';
+    const joints = rig.joints || [];
+    if (!joints.length) {
+      const p = document.createElement('p');
+      p.className = 'bridge-help';
+      p.textContent = 'No joints yet — this model is a pile of loose parts. Create Motor6D joints below to make it animatable.';
+      list.appendChild(p);
+      return;
+    }
+    for (const j of joints) {
+      const row = document.createElement('div');
+      row.className = 'rig-joint-row';
+      row.innerHTML = `<span class="kind"></span><span class="nm"></span><span class="parts"></span>
+        <button class="btn small conv"></button><button class="btn small del">🗑</button>`;
+      row.querySelector('.kind').textContent = j.kind === 'weld' ? '🔗' : '⚙';
+      row.querySelector('.kind').title = j.kind === 'weld' ? 'Weld (rigid)' : 'Motor6D (animatable)';
+      row.querySelector('.nm').textContent = j.name;
+      row.querySelector('.parts').textContent = `${partName(j.part0)} → ${partName(j.part1)}`;
+      const conv = row.querySelector('.conv');
+      conv.textContent = j.kind === 'weld' ? 'Make Motor6D' : 'Make Weld';
+      conv.title = j.kind === 'weld' ? 'Convert to an animatable joint' : 'Freeze into a rigid weld (its keyframes are deleted)';
+      conv.addEventListener('click', () => {
+        try {
+          S.convertJoint(item.id, j.name);
+          refresh3D(); renderList();
+          toast(`${j.name} is now a ${j.kind === 'weld' ? 'Weld' : 'Motor6D'}`);
+        } catch (e) { toast(e.message, 'error'); }
+      });
+      row.querySelector('.del').title = 'Delete this joint' + (j.kind !== 'weld' ? ' (its keyframes are deleted too)' : '');
+      row.querySelector('.del').addEventListener('click', () => {
+        try {
+          S.removeJoint(item.id, j.name);
+          refresh3D(); renderList();
+          toast(`Deleted ${j.name}`);
+        } catch (e) { toast(e.message, 'error'); }
+      });
+      list.appendChild(row);
+    }
+  };
+  renderList();
+
+  // inline creator — everything in one modal, no stacked pickers
+  const form = document.createElement('div');
+  form.className = 'rig-joint-form';
+  const mkSelect = (labelText) => {
+    const label = document.createElement('label');
+    label.className = 'fld-label';
+    label.textContent = labelText;
+    const sel = document.createElement('select');
+    sel.className = 'fld';
+    for (const p of rig.parts) sel.add(new Option(p.name, p.id));
+    return { label, sel };
+  };
+  const p0 = mkSelect('Part0 (parent — stays put)');
+  const p1 = mkSelect('Part1 (child — moves with the joint)');
+  const kindLabel = document.createElement('label');
+  kindLabel.className = 'fld-label';
+  kindLabel.textContent = 'Joint type';
+  const kindSel = document.createElement('select');
+  kindSel.className = 'fld';
+  kindSel.add(new Option('Motor6D — animatable', 'motor'));
+  kindSel.add(new Option('Weld — rigid', 'weld'));
+  const nameLabel = document.createElement('label');
+  nameLabel.className = 'fld-label';
+  nameLabel.textContent = 'Joint name (optional)';
+  const nameInput = document.createElement('input');
+  nameInput.className = 'fld';
+  nameInput.placeholder = 'defaults to <Part1>Joint';
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn primary';
+  addBtn.textContent = '＋ Create joint';
+  addBtn.addEventListener('click', () => {
+    try {
+      const j = S.addJoint(item.id, {
+        name: nameInput.value.trim() || undefined,
+        kind: kindSel.value === 'weld' ? 'weld' : undefined,
+        part0: p0.sel.value,
+        part1: p1.sel.value,
+      });
+      refresh3D(); renderList();
+      nameInput.value = '';
+      toast(`Created ${j.name}${j.kind === 'weld' ? ' (weld)' : ' — it now has a timeline track'}`);
+    } catch (e) { toast(e.message, 'error'); }
+  });
+  form.append(p0.label, p0.sel, p1.label, p1.sel, kindLabel, kindSel, nameLabel, nameInput, addBtn);
+
+  const listTitle = document.createElement('div');
+  listTitle.className = 'insp-title';
+  listTitle.textContent = 'Joints';
+  const formTitle = document.createElement('div');
+  formTitle.className = 'insp-title';
+  formTitle.textContent = 'New joint';
+  wrap.append(listTitle, list, formTitle, form);
+
+  modal({
+    title: `Rigging Tools — ${item.name}`,
+    body: wrap,
+    actions: [{ label: 'Done', primary: true, run: () => { } }],
   });
 }
 
@@ -1859,6 +1979,7 @@ function wireInspector() {
       } else {
         sec.appendChild(fieldRow('Joints', String((item.rig.joints || []).filter((j) => j.kind !== 'weld').length)));
         sec.appendChild(fieldRow('Parts', String(item.rig.parts.length)));
+        sec.appendChild(button('Rigging tools…', riggingToolsFlow));
       }
       el.appendChild(sec);
     }
@@ -2379,6 +2500,23 @@ const MCP_HANDLERS = {
     settings.facePresets = (settings.facePresets || []).filter((p) => p.id !== presetId);
     await window.cadence.setSettings(settings);
     return { ok: true };
+  },
+
+  // ---------------------------------------------------------------- rigging tools
+  create_joint: ({ itemId, name, kind, part0, part1 }) => {
+    const j = S.addJoint(itemId, { name, kind: kind === 'weld' ? 'weld' : undefined, part0, part1 });
+    refreshInstance(itemId);
+    return { name: j.name, kind: j.kind || 'motor', part0: j.part0, part1: j.part1 };
+  },
+  remove_joint: ({ itemId, name }) => {
+    S.removeJoint(itemId, name);
+    refreshInstance(itemId);
+    return { ok: true };
+  },
+  convert_joint: ({ itemId, name }) => {
+    const j = S.convertJoint(itemId, name);
+    refreshInstance(itemId);
+    return { name: j.name, kind: j.kind || 'motor' };
   },
 
   // ---------------------------------------------------------------- attach & detach

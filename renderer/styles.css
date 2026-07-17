@@ -811,6 +811,22 @@ body {
 .accent-swatch:hover { transform: scale(1.12); }
 .accent-swatch.selected { border-color: var(--text-0); }
 
+/* rigging tools */
+.rig-joint-list { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto; margin: 6px 0 14px; }
+.rig-joint-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-s);
+  background: var(--bg-2);
+  border: 1px solid var(--border-soft);
+  font-size: 12px;
+}
+.rig-joint-row .nm { font-weight: 600; color: var(--text-0); white-space: nowrap; }
+.rig-joint-row .parts { color: var(--text-3); flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rig-joint-form { display: flex; flex-direction: column; gap: 4px; }
+.rig-joint-form .fld { width: 100%; margin-bottom: 6px; }
+.rig-joint-form .btn { align-self: flex-start; margin-top: 4px; }
+
 .mobile-qr-wrap {
   display: flex; align-items: center; justify-content: center;
   min-height: 240px;

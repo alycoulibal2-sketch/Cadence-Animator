@@ -626,6 +626,107 @@ export function resizeItem(itemId, factor) {
   markDirty();
 }
 
+// ---------------------------------------------------------------- rigging tools
+// In-app joint editing: build an animatable rig out of loose parts (or fix a broken one) without
+// round-tripping through Studio. Joints live in item.rig.joints — the same definitions imports
+// produce — so everything downstream (solver, timeline, export) picks them up with no special
+// casing. Callers must refreshInstance(itemId) afterward to rebuild the three.js instance.
+
+// Walks the joint graph upward from `partId` (part1 → part0). Used to reject cycles: a new joint
+// part0→part1 is invalid if part1 is already an ancestor of part0.
+function jointAncestors(rig, partId) {
+  const out = new Set();
+  let cur = partId;
+  for (let i = 0; i < (rig.joints || []).length + 1; i++) {
+    const j = (rig.joints || []).find((jj) => jj.part1 === cur);
+    if (!j || out.has(j.part0)) break;
+    out.add(j.part0);
+    cur = j.part0;
+  }
+  return out;
+}
+
+export function addJoint(itemId, { name, kind, part0, part1 }) {
+  const item = getItem(itemId);
+  if (!item || !item.rig) throw new Error('No rig on that item');
+  const rig = item.rig;
+  const p0 = rig.parts.find((p) => p.id === part0 || p.name === part0);
+  const p1 = rig.parts.find((p) => p.id === part1 || p.name === part1);
+  if (!p0) throw new Error(`No part "${part0}" on ${item.name}`);
+  if (!p1) throw new Error(`No part "${part1}" on ${item.name}`);
+  if (p0.id === p1.id) throw new Error('Part0 and Part1 must be different parts');
+  const isMotor = kind !== 'weld';
+  if (isMotor && p1.id === rig.rootPart) throw new Error('The root part cannot be driven by a joint — pick it as Part0 instead');
+  if (isMotor && (rig.joints || []).some((j) => j.kind !== 'weld' && j.part1 === p1.id)) {
+    throw new Error(`${p1.name} is already driven by another Motor6D — delete that joint first`);
+  }
+  if (jointAncestors(rig, p0.id).has(p1.id)) throw new Error('That would create a joint cycle');
+
+  // Unique joint name (motor track names ARE joint names — a duplicate would merge tracks).
+  let jointName = name || `${p1.name}Joint`;
+  const taken = new Set((rig.joints || []).map((j) => j.name));
+  let i = 2;
+  while (taken.has(jointName)) jointName = `${name || `${p1.name}Joint`}#${i++}`;
+
+  // C0/C1 from the REST definition (parts' root-relative bind CFrames), not the current animated
+  // pose — creating a joint mid-animation must not bake today's pose into the rig's geometry.
+  // Pivot at Part1's rest origin (Studio's own convention when scripting a Motor6D), so
+  // C0 = P0rest⁻¹ · P1rest and C1 = identity.
+  const c0 = CF.mul(CF.inverse(p0.cf), p1.cf);
+  const c1 = CF.IDENTITY.slice();
+
+  pushUndo();
+  rig.joints = rig.joints || [];
+  const joint = { name: jointName, part0: p0.id, part1: p1.id, c0, c1 };
+  if (!isMotor) joint.kind = 'weld';
+  rig.joints.push(joint);
+  emit('items');
+  markDirty();
+  return joint;
+}
+
+export function removeJoint(itemId, jointName) {
+  const item = getItem(itemId);
+  if (!item || !item.rig) throw new Error('No rig on that item');
+  const j = (item.rig.joints || []).find((jj) => jj.name === jointName);
+  if (!j) throw new Error(`No joint named "${jointName}" on ${item.name}`);
+  pushUndo();
+  item.rig.joints = item.rig.joints.filter((jj) => jj !== j);
+  // A motor's animation track dies with it — orphan tracks would silently re-merge if a
+  // same-named joint is ever recreated.
+  if (j.kind !== 'weld' && state.project.tracks[itemId]) delete state.project.tracks[itemId][jointName];
+  emit('items');
+  emit('tracks', {});
+  markDirty();
+  return true;
+}
+
+// Weld → Motor6D makes a rigid attachment animatable; Motor6D → Weld freezes it (and drops its
+// track, same reasoning as removeJoint).
+export function convertJoint(itemId, jointName) {
+  const item = getItem(itemId);
+  if (!item || !item.rig) throw new Error('No rig on that item');
+  const j = (item.rig.joints || []).find((jj) => jj.name === jointName);
+  if (!j) throw new Error(`No joint named "${jointName}" on ${item.name}`);
+  if (j.kind === 'weld') {
+    const p1 = item.rig.parts.find((p) => p.id === j.part1);
+    if (p1 && j.part1 === item.rig.rootPart) throw new Error('The root part cannot be driven by a motor');
+    if ((item.rig.joints || []).some((jj) => jj !== j && jj.kind !== 'weld' && jj.part1 === j.part1)) {
+      throw new Error(`${p1?.name || j.part1} is already driven by a Motor6D`);
+    }
+    pushUndo();
+    delete j.kind;
+  } else {
+    pushUndo();
+    j.kind = 'weld';
+    if (state.project.tracks[itemId]) delete state.project.tracks[itemId][jointName];
+  }
+  emit('items');
+  emit('tracks', {});
+  markDirty();
+  return j;
+}
+
 // ---------------------------------------------------------------- mirror / reflect (Ctrl+R)
 function mirrorPartnerName(name) {
   if (/left/i.test(name)) return name.replace(/Left/g, 'Right').replace(/left/g, 'right');
