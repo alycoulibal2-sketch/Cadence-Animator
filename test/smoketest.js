@@ -105,6 +105,22 @@
     return { drift };
   });
 
+  // ---------------------------------------------------------------- scale tool: customMesh parts
+  await step('scale tool: FBX/GLB-imported (customMesh) parts actually resize, not just size/cf', async () => {
+    const { importExternalMesh } = await import('../renderer/js/meshImport.js');
+    const objText = await window.cadence.readFile(resolveProjectPath('test/fixtures/knife.obj'));
+    const buf = new TextEncoder().encode(objText).buffer;
+    const rig = await importExternalMesh(buf, 'knife.obj');
+    const item = D.addRigItem(rig, rig.name);
+    const before = item.rig.parts.find((p) => p.name === 'Blade').customMesh.positions.slice();
+    S.resizeItem(item.id, 0.5);
+    const after = item.rig.parts.find((p) => p.name === 'Blade').customMesh.positions;
+    for (let i = 0; i < before.length; i++) {
+      assert(Math.abs(after[i] - before[i] * 0.5) < 1e-6, `customMesh vertex ${i} did not scale: ${before[i]} -> ${after[i]}`);
+    }
+    return { ok: true };
+  });
+
   // ---------------------------------------------------------------- IK
   await step('IK: converges on a reachable target', () => {
     const item = S.state.project.items.find((i) => i.kind === 'rig' && i.rig.rigType === 'R6');
@@ -249,6 +265,40 @@
     assert(part.customMesh.positions.length / 3 === geo.attributes.position.count, 'vertex count mismatch after round trip');
     assert(!!part.customTexture, 'embedded GLB texture did not survive import (check the CSP/ImageBitmapLoader fix in vendored GLTFLoader.js)');
     return { vertCount: part.customMesh.positions.length / 3, hasTexture: !!part.customTexture };
+  });
+
+  // ---------------------------------------------------------------- Studio import: accessory attach
+  await step('Studio import: unworn accessory attaches to the body by matching Attachment names', () => {
+    // Mirrors a real never-equipped Roblox Accessory: Handle carries a Weld with no Part0/Part1
+    // (Humanoid:AddAccessory never ran) plus an Attachment named "BodyFrontAttachment" — the body
+    // part carries the matching Attachment, exactly like a real R15 rig. Without this fix the
+    // Handle would import at its raw stored CFrame (here, deliberately far from the body) instead
+    // of resolving to UpperTorso the way Roblox's own AddAccessory algorithm would.
+    const modelNode = {
+      className: 'Model', name: 'TestRig', props: {}, children: [
+        {
+          className: 'Part', name: 'UpperTorso', props: { Size: { x: 2, y: 2, z: 1 }, CFrame: { cf: [0, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1] } }, children: [
+            { className: 'Attachment', name: 'BodyFrontAttachment', props: { CFrame: { cf: [0, 0, 0.5, 1, 0, 0, 0, 1, 0, 0, 0, 1] } }, children: [] },
+          ],
+        },
+        {
+          className: 'Accessory', name: 'Accessory (Military Vest)', props: {}, children: [
+            {
+              className: 'MeshPart', name: 'Handle', props: { Size: { x: 2.2, y: 2.2, z: 1.2 }, CFrame: { cf: [50, 50, 50, 1, 0, 0, 0, 1, 0, 0, 0, 1] } }, children: [
+                { className: 'Attachment', name: 'BodyFrontAttachment', props: { CFrame: { cf: [0, 0, -0.6, 1, 0, 0, 0, 1, 0, 0, 0, 1] } }, children: [] },
+                { className: 'Weld', name: 'AccessoryWeld', props: {}, children: [] },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const rig = IO.rigFromModelTree(modelNode);
+    const j = rig.joints.find((jj) => jj.part1 === 'Handle');
+    assert(!!j, 'no joint synthesized for the unworn accessory — it would import floating, disconnected from the body');
+    assert(j.part0 === 'UpperTorso', `accessory welded to the wrong part: ${j.part0}`);
+    assert(j.kind === 'weld', 'accessory should attach via a weld, not a motor');
+    return { joint: j };
   });
 
   // ---------------------------------------------------------------- mesh-error surfacing

@@ -253,6 +253,38 @@ local function serializeRig(model, displayName)
 		end
 	end
 
+	-- Accessories/clothing that were never actually worn (no Play-mode Humanoid:AddAccessory ever
+	-- ran) carry a Handle whose AccessoryWeld exists but has Part0/Part1 = nil — there is zero
+	-- positional data linking it to the body, so it would otherwise import sitting at whatever raw
+	-- CFrame the Handle happened to be stored at (often nowhere near the rig). Roblox's own
+	-- AddAccessory resolves the attach point purely by matching Attachment NAMES between the
+	-- Handle and a body part (both carry e.g. "BodyFrontAttachment") — replicate that exact
+	-- algorithm instead of leaving the accessory floating and unrigged.
+	do
+		local weldedPart1 = {}
+		for _, j in ipairs(joints) do weldedPart1[j.part1] = true end
+		for _, p in ipairs(partList) do
+			if p.Name == "Handle" and p.Parent and p.Parent:IsA("Accessory") and not weldedPart1[idByPart[p]] then
+				local handleAttach = p:FindFirstChildWhichIsA("Attachment")
+				if handleAttach then
+					for _, bodyPart in ipairs(partList) do
+						if bodyPart ~= p then
+							local bodyAttach = bodyPart:FindFirstChild(handleAttach.Name)
+							if bodyAttach and bodyAttach:IsA("Attachment") then
+								table.insert(joints, {
+									name = p.Parent.Name .. "Weld", kind = "weld",
+									part0 = idByPart[bodyPart], part1 = idByPart[p],
+									c0 = cfComponents(bodyAttach.CFrame), c1 = cfComponents(handleAttach.CFrame),
+								})
+								break
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
 	-- Bug-specific sanity check: a HumanoidRootPart that lost its joint plays back frozen in place.
 	if rootPart.Name == "HumanoidRootPart" then
 		local hasRootJoint = false

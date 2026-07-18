@@ -665,6 +665,12 @@ export function resizeItem(itemId, factor) {
       p.specialMesh.scale = (p.specialMesh.scale || [1, 1, 1]).map((s) => s * factor);
       p.specialMesh.offset = (p.specialMesh.offset || [0, 0, 0]).map((o) => o * factor);
     }
+    // FBX/GLB/OBJ imports render straight from these raw local-space vertices (rigbuild.js's
+    // customMeshGeometry), completely independent of `size` above — skipping this left imported
+    // meshes visually snapping back to their original size the instant the gizmo was released.
+    if (p.customMesh) {
+      p.customMesh.positions = p.customMesh.positions.map((v) => v * factor);
+    }
   }
   for (const j of item.rig.joints || []) {
     j.c0 = j.c0.map((v, i) => (i < 3 ? v * factor : v));

@@ -281,6 +281,39 @@ export function rigFromModelTree(modelNode) {
     parts.push(def);
   }
 
+  // Accessories/clothing never actually worn (no Play-mode Humanoid:AddAccessory ever ran) carry
+  // a Handle whose Weld exists but has no resolved Part0/Part1 — there's zero positional data
+  // linking it to the body, so without this it would import sitting at whatever raw CFrame the
+  // Handle happened to be stored at (often nowhere near the rig). Roblox's own AddAccessory
+  // resolves the attach point purely by matching Attachment NAMES between the Handle and a body
+  // part (both carry e.g. "BodyFrontAttachment") — replicate that exact algorithm here too, so
+  // .rbxm/.rbxmx file imports get the same fix as the live Studio bridge (CadenceBridge.lua).
+  const parentOf = new Map();
+  (function linkParents(node) {
+    for (const c of node.children) { parentOf.set(c, node); linkParents(c); }
+  })(modelNode);
+  const weldedPart1 = new Set(joints.map((j) => j.part1));
+  for (const pn of partNodes) {
+    if (pn.name !== 'Handle' || weldedPart1.has(idByNode.get(pn))) continue;
+    const parent = parentOf.get(pn);
+    if (!parent || parent.className !== 'Accessory') continue;
+    const handleAttach = pn.children.find((c) => c.className === 'Attachment');
+    if (!handleAttach) continue;
+    for (const bp of partNodes) {
+      if (bp === pn) continue;
+      const bodyAttach = bp.children.find((c) => c.className === 'Attachment' && c.name === handleAttach.name);
+      if (bodyAttach) {
+        joints.push({
+          name: `${parent.name}Weld`, kind: 'weld',
+          part0: idByNode.get(bp), part1: idByNode.get(pn),
+          c0: prop(bodyAttach, 'CFrame')?.cf || CF.IDENTITY.slice(),
+          c1: prop(handleAttach, 'CFrame')?.cf || CF.IDENTITY.slice(),
+        });
+        break;
+      }
+    }
+  }
+
   return {
     name: modelNode.name,
     rigType: 'Custom',
