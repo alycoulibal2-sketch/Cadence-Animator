@@ -202,7 +202,12 @@ const handleGeoSmall = new THREE.SphereGeometry(0.12, 12, 10);
 // the things that reads as "flat/plastic-toy-like" in a bare PBR material without it. Shared
 // across every part (a child of that part's own mesh, so it inherits the exact same per-frame
 // world matrix automatically via the normal scene graph — no extra per-frame update code needed).
-const EDGE_MATERIAL = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthTest: true });
+// depthTest stays true: these lines sit exactly on the surface they outline, so testing them
+// normally against the part's own coincident faces is what keeps a hidden BACK edge from showing
+// through the front (an x-ray-wireframe look real Roblox never has) — buildEdgeOverlay below
+// pushes the line geometry a hair outward instead, which fixes the OTHER problem (below) without
+// that trade-off.
+const EDGE_MATERIAL = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4, depthTest: true });
 // These placeholder primitives approximate a curve with a fixed ring of flat segments (the lathe
 // head: 24 segments/360° = 15° apart; a capsule limb's radial segments similarly) — EVERY one of
 // those segment seams has SOME non-zero angle to its neighbor, so ANY edge-detection threshold
@@ -216,7 +221,19 @@ function buildEdgeOverlay(geometry) {
   if (ROUND_PRIMITIVE_TYPES.has(geometry.type)) return null;
   // 30°, not 1° — generous enough to ignore a real (customMesh or fetched-CDN) mesh's own
   // moderate per-triangle noise while still catching genuine hard corners/creases.
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 30), EDGE_MATERIAL);
+  const edgeGeo = new THREE.EdgesGeometry(geometry, 30);
+  // Nudge the outline a hair outward from the shape's own bounding-box center (not just object-
+  // local origin — a fetched/customMesh part isn't always centered there) so it sits marginally
+  // outside the surface it traces. Without this the line is exactly coincident with that surface,
+  // which is a textbook z-fight: GPU rounding picks a winner per-pixel per-frame, so the outline
+  // flickered in and out depending on camera angle (confirmed: a straight-on full-body shot showed
+  // nothing, while an oblique close-up on the exact same part showed it clearly).
+  if (!geometry.boundingBox) geometry.computeBoundingBox();
+  const c = geometry.boundingBox.getCenter(new THREE.Vector3());
+  edgeGeo.translate(-c.x, -c.y, -c.z);
+  edgeGeo.scale(1.004, 1.004, 1.004);
+  edgeGeo.translate(c.x, c.y, c.z);
+  const edges = new THREE.LineSegments(edgeGeo, EDGE_MATERIAL);
   edges.raycast = () => { }; // cosmetic only — never steals a click from the part underneath
   edges.userData.isEdgeOverlay = true; // so a later real-geometry swap can find and replace it
   return edges;

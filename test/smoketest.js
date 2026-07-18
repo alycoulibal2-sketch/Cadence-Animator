@@ -56,7 +56,7 @@
   D.setHandlesVisible(false);
 
   // ---------------------------------------------------------------- builtin rigs: colors + edges
-  await step('builtin rigs: torso color, no facet-lines on round geometry, no NaN', async () => {
+  await step('builtin rigs: torso/root color, box edge overlays present + depth-correct, no facet-lines on round geometry, no NaN', async () => {
     const results = {};
     for (const key of ['r6', 'r15', 'rthro', 'rthroSlender']) {
       const item = await D.addBuiltinRig(key);
@@ -67,19 +67,29 @@
       const torsoDef = item.rig.parts.find((p) => p.name === torsoName);
       const armDef = item.rig.parts.find((p) => /Arm$/.test(p.name));
       const headDef = item.rig.parts.find((p) => p.name === 'Head');
+      const rootDef = item.rig.parts.find((p) => p.id === item.rig.rootPart);
       const torsoPart = inst.parts.get(torsoDef.id);
       const armPart = inst.parts.get(armDef.id);
       const headPart = inst.parts.get(headDef.id);
+      const rootPart = inst.parts.get(rootDef.id);
       const torsoColor = torsoPart.mesh.material.color.getHexString();
       const armColor = armPart.mesh.material.color.getHexString();
+      const rootColor = rootPart.mesh.material.color.getHexString();
       assert(torsoColor === '635f62', `${key} torso should be Dark stone grey, got #${torsoColor}`);
+      assert(rootColor === '635f62', `${key} root part should be Dark stone grey, got #${rootColor}`);
       assert(armColor === 'a3a2a5', `${key} arm should be Medium stone grey, got #${armColor}`);
       assert(!headPart.mesh.children.some((c) => c.userData.isEdgeOverlay), `${key} head must not have a facet-line edge overlay`);
+      // Roblox draws a visible dark border on every box-shaped body part — must actually be
+      // present, and depth-tested (not depthTest:false, which x-rays hidden edges through the
+      // front of the part — see rigbuild.js's buildEdgeOverlay for the full story).
+      const torsoEdge = torsoPart.mesh.children.find((c) => c.userData.isEdgeOverlay);
+      assert(!!torsoEdge, `${key} torso (a box) must have a visible edge overlay`);
+      assert(torsoEdge.material.depthTest === true, `${key} torso edge overlay must depth-test normally, not x-ray through the part`);
       const worlds = inst.solvePoseWorlds(S.evalPose(item, 0), item.origin);
       let nan = 0;
       for (const [, cf] of worlds) if (cf.some((v) => !isFinite(v))) nan++;
       assert(nan === 0, `${key} has ${nan} NaN part world(s)`);
-      results[key] = { torsoColor, armColor, parts: worlds.size };
+      results[key] = { torsoColor, rootColor, armColor, parts: worlds.size };
     }
     return results;
   });
