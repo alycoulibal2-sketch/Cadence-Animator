@@ -10,7 +10,9 @@
   "scripts": {
     "start": "electron .",
     "screenshot": "electron . --screenshot",
+    "smoketest": "node -e \"require('fs').mkdirSync('test-output',{recursive:true})\" && electron . --user-data-dir=test-output/userdata --screenshot=test-output/smoketest.png --demo-js-file=test/smoketest.js",
     "dist": "electron-builder --win",
+    "prerelease-check": "npm run smoketest && npm run dist",
     "release": "electron-builder --win --publish always",
     "postinstall": "node ./bin/register-mcp.js"
   },

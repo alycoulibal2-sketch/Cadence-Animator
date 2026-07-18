@@ -1,0 +1,24 @@
+# Simple two-part knife: handle (box-ish) + blade (triangle), separate objects/groups.
+# Used by test/smoketest.js to verify OBJ import produces exact, undecimated geometry.
+o Handle
+v -0.15 -0.75 -0.05
+v 0.15 -0.75 -0.05
+v 0.15 0.75 -0.05
+v -0.15 0.75 -0.05
+v -0.15 -0.75 0.05
+v 0.15 -0.75 0.05
+v 0.15 0.75 0.05
+v -0.15 0.75 0.05
+vn 0 0 -1
+vt 0 0
+f 1/1/1 2/1/1 3/1/1
+f 1/1/1 3/1/1 4/1/1
+o Blade
+v 0 0.75 0
+v 0.05 1.0 0
+v -0.05 1.0 0
+v 0 3.5 0.02
+vn 0 0 1
+vt 0.5 0.5
+f 9/2/2 10/2/2 12/2/2
+f 9/2/2 12/2/2 11/2/2
