@@ -115,6 +115,35 @@
     return { drift };
   });
 
+  // ---------------------------------------------------------------- rotate tool: joint pivot anchor
+  await step('rotate tool: anchors at the joint pivot (not the part center); move still anchors at the part', () => {
+    // Motor6D.Transform is defined relative to Part0World*C0 (the pivot), not the part's own
+    // CFrame center. Anchoring the rotate gizmo at the part's center instead of the pivot forces
+    // transformForWorld to bake a spurious position into the solved Transform to compensate for
+    // rotating around the wrong point — reported live as "rotating something still moves it",
+    // confirmed from a screen recording showing Transform.Position drifting from (0,0,0) to
+    // (0,-0.41,-0.419) after an ~89° pure-rotate drag on R15's RightShoulder.
+    const item = S.state.project.items.find((i) => i.kind === 'rig' && i.rig.rigType === 'R15');
+    const inst = D.getInstance(item.id);
+    S.setSelection(item.id, 'RightUpperArm');
+    D.setGizmoMode('rotate');
+    D.updateScene();
+    const pivot = inst.jointPivotWorld('RightUpperArm');
+    const partCenter = inst.partWorld('RightUpperArm');
+    const dummyPos = [D.viewport.dummy.position.x, D.viewport.dummy.position.y, D.viewport.dummy.position.z];
+    const distToPivot = Math.hypot(...dummyPos.map((v, i) => v - pivot[i]));
+    const distToCenter = Math.hypot(...dummyPos.map((v, i) => v - partCenter[i]));
+    assert(distToPivot < 1e-6, `rotate gizmo should anchor at the joint pivot, was ${distToPivot} studs away`);
+    assert(distToCenter > 0.1, 'sanity check: pivot and part center should actually differ for this joint');
+
+    D.setGizmoMode('translate');
+    D.updateScene();
+    const dummyPosMove = [D.viewport.dummy.position.x, D.viewport.dummy.position.y, D.viewport.dummy.position.z];
+    const moveDistToCenter = Math.hypot(...dummyPosMove.map((v, i) => v - partCenter[i]));
+    assert(moveDistToCenter < 1e-6, `move gizmo must still anchor at the part's own center, was ${moveDistToCenter} studs away`);
+    return { distToPivot, moveDistToCenter };
+  });
+
   // ---------------------------------------------------------------- rotate tool: welded parts
   await step('rotate tool: a weld-driven part offset from root only rotates, never translates', () => {
     // "A" (root) at origin, "B" welded to A but offset 2 studs on X — a coincident-offset weld

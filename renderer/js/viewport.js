@@ -502,8 +502,24 @@ function updateGizmoAnchor(force = false) {
   if (viewport.editingDrag && !force) return;
   const world = selectedWorld();
   if (!world) return;
+  let anchor = world;
+  // Rotate (ring gizmo or trackball) on a motor-driven part: anchor the gizmo's POSITION at the
+  // joint's own pivot instead of the part's CFrame center, while keeping the part's CURRENT
+  // rotation (not the pivot's rest rotation) so an already-posed joint doesn't snap back to rest
+  // the instant you start dragging. Position never changes during a pure-rotate drag, and with
+  // the anchor AT the pivot, transformForWorld's solved Transform comes out with exactly zero
+  // position — see rigbuild.js's jointPivotWorld for the full derivation. Deliberately NOT applied
+  // to move: a move drag must reproduce the part's exact current Transform at zero delta, which
+  // requires anchoring at the part's own position, not the pivot.
+  const { itemId, partId } = S.state.selection;
+  const isRotateTool = viewport.trackballMode || viewport.gizmo.getMode() === 'rotate';
+  if (isRotateTool && itemId && partId) {
+    const inst = viewport.instances.get(itemId);
+    const pivot = inst?.jointPivotWorld?.(partId);
+    if (pivot) anchor = [pivot[0], pivot[1], pivot[2], ...world.slice(3)];
+  }
   const m = new THREE.Matrix4();
-  CF.toThreeMatrix(world, m);
+  CF.toThreeMatrix(anchor, m);
   m.decompose(viewport.dummy.position, viewport.dummy.quaternion, viewport.dummy.scale);
   viewport.dummy.updateMatrixWorld(true);
 }
