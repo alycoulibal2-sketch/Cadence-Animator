@@ -236,7 +236,7 @@ function registerAllCommands() {
   C({ title: 'Hide UI (focus mode)', shortcut: 'Ctrl+H', section: 'Project', run: toggleHideUI });
 
   C({ title: 'Themes & customization…', section: 'General', hint: 'switch the app theme, accent color, and trackpad mode', run: openThemeFlow });
-  C({ title: 'Toggle trackpad mode', section: 'General', hint: 'Blender-style emulate 3-button mouse — Alt+drag to orbit/pan/zoom without a middle button', run: () => toggleTrackpadMode() });
+  C({ title: 'Toggle trackpad mode', section: 'General', hint: 'two-finger drag to orbit (Shift to pan), or Alt+drag if your trackpad only reports clicks', run: () => toggleTrackpadMode() });
   C({ title: 'Install / repair Studio plugin', section: 'Studio', hint: 'copies Cadence Bridge into your Plugins folder', run: installPluginFlow });
   C({ title: 'Enable Claude Control (MCP)', section: 'Studio', hint: 'let Claude drive this app directly — add rigs, key exact poses, verify frames', run: enableClaudeControlFlow });
   C({ title: 'Check for updates', section: 'General', run: checkForUpdatesFlow });
@@ -429,7 +429,7 @@ function toggleTrackpadMode(force) {
   S.state.trackpadMode = force ?? !S.state.trackpadMode;
   persistPrefs();
   toast(S.state.trackpadMode
-    ? 'Trackpad mode on — hold Alt while dragging to orbit, Alt+Shift to pan, Alt+Ctrl to zoom'
+    ? 'Trackpad mode on — two-finger drag to orbit, Shift+two-finger to pan (pinch still zooms); or Alt+drag'
     : 'Trackpad mode off');
 }
 

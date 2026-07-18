@@ -301,6 +301,43 @@
     return { ok: true };
   });
 
+  // ---------------------------------------------------------------- trackpad mode: two-finger wheel gesture
+  await step('trackpad mode: two-finger wheel gesture orbits/pans; pinch and mode-off still just zoom', () => {
+    const canvas = D.viewport.renderer.domElement;
+    const fireWheel = (opts) => canvas.dispatchEvent(new WheelEvent('wheel', { deltaX: 0, deltaY: 0, bubbles: true, cancelable: true, ...opts }));
+    const resetCamera = () => { D.viewport.camera.position.set(9, 7, 12); D.viewport.controls.target.set(0, 2.5, 0); D.viewport.controls.update(); };
+
+    S.state.trackpadMode = false;
+    resetCamera();
+    const distBeforeOff = D.viewport.camera.position.distanceTo(D.viewport.controls.target);
+    fireWheel({ deltaY: -50 });
+    const distAfterOff = D.viewport.camera.position.distanceTo(D.viewport.controls.target);
+    assert(Math.abs(distAfterOff - distBeforeOff) > 1e-4, 'trackpad mode off: a wheel event should still zoom (dolly) as normal');
+
+    S.state.trackpadMode = true;
+    resetCamera();
+    const targetBeforeOrbit = D.viewport.controls.target.clone();
+    const distBeforeOrbit = D.viewport.camera.position.distanceTo(targetBeforeOrbit);
+    fireWheel({ deltaX: 40, deltaY: 20 });
+    const distAfterOrbit = D.viewport.camera.position.distanceTo(D.viewport.controls.target);
+    assert(D.viewport.controls.target.equals(targetBeforeOrbit), 'two-finger drag (no Shift) must orbit, not pan — target moved');
+    assert(Math.abs(distAfterOrbit - distBeforeOrbit) < 1e-4, `two-finger drag must orbit at a fixed radius, radius changed by ${Math.abs(distAfterOrbit - distBeforeOrbit)}`);
+
+    resetCamera();
+    const targetBeforePan = D.viewport.controls.target.clone();
+    fireWheel({ deltaX: 40, deltaY: 20, shiftKey: true });
+    assert(!D.viewport.controls.target.equals(targetBeforePan), 'Shift+two-finger drag must pan — target never moved');
+
+    resetCamera();
+    const targetBeforePinch = D.viewport.controls.target.clone();
+    fireWheel({ deltaY: -50, ctrlKey: true });
+    assert(D.viewport.controls.target.equals(targetBeforePinch), 'a pinch gesture (wheel+ctrlKey) must be left alone to zoom, not orbit/pan');
+
+    S.state.trackpadMode = false;
+    resetCamera();
+    return { ok: true };
+  });
+
   // ---------------------------------------------------------------- FBX/GLB/OBJ import
   await step('OBJ import: exact geometry, no decimation', async () => {
     const { importExternalMesh } = await import('../renderer/js/meshImport.js');

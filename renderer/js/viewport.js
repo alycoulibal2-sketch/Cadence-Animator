@@ -182,6 +182,44 @@ export function initViewport(container) {
     }
   }, { capture: true });
 
+  // Trackpad mode, continued: a genuine two-finger drag on the trackpad — touching and moving,
+  // no physical click needed — arrives in Chromium as a `wheel` event, not a pointer/touch event
+  // (trackpads don't expose individual finger contacts to a web page the way a touchscreen does).
+  // A real pinch-to-zoom gesture is ALSO reported as `wheel`, but synthetically with ctrlKey:true
+  // — that's how Chromium/Electron always distinguishes the two — so pinch is left completely
+  // alone here and still zooms via OrbitControls' own default wheel handling below. Capture phase +
+  // stopPropagation so OrbitControls' own (bubble-phase) wheel listener never sees a gesture this
+  // code already handled, the same trick used for the button remaps above. A two-finger TAP
+  // (no drag) needs no code at all: Windows/macOS trackpad drivers already deliver that as a
+  // genuine right mouse button event before it reaches the browser, identical to a physical
+  // right-click, which the RIGHT-button remap above already handles.
+  renderer.domElement.addEventListener('wheel', (e) => {
+    if (!S.state.trackpadMode || e.ctrlKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const offset = camera.position.clone().sub(controls.target);
+    if (e.shiftKey) {
+      // Pan: nudge camera and target together along the camera's own screen-space right/up axes
+      // — same convention OrbitControls' own right-drag pan uses — scaled by distance to target
+      // so the pan speed stays visually consistent whether zoomed in close or far out.
+      const panSpeed = (offset.length() * Math.tan((camera.fov / 2) * Math.PI / 180) * 2) / renderer.domElement.clientHeight;
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0).multiplyScalar(-e.deltaX * panSpeed);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1).multiplyScalar(e.deltaY * panSpeed);
+      camera.position.add(right).add(up);
+      controls.target.add(right).add(up);
+    } else {
+      // Orbit: adjust azimuth/polar angle around the current target — same math OrbitControls
+      // itself uses internally for a rotate drag.
+      const ROTATE_SPEED = 0.0035;
+      const spherical = new THREE.Spherical().setFromVector3(offset);
+      spherical.theta -= e.deltaX * ROTATE_SPEED;
+      spherical.phi = Math.max(0.001, Math.min(Math.PI - 0.001, spherical.phi - e.deltaY * ROTATE_SPEED));
+      camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(spherical));
+      camera.lookAt(controls.target);
+    }
+    controls.update();
+  }, { capture: true, passive: false });
+
   // lights
   const hemi = new THREE.HemisphereLight('#cdd3e6', '#3a3d4d', 1.05);
   scene.add(hemi);
