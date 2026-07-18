@@ -201,10 +201,11 @@ export function initViewport(container) {
     if (e.shiftKey) {
       // Pan: nudge camera and target together along the camera's own screen-space right/up axes
       // — same convention OrbitControls' own right-drag pan uses — scaled by distance to target
-      // so the pan speed stays visually consistent whether zoomed in close or far out.
+      // so the pan speed stays visually consistent whether zoomed in close or far out. Signs
+      // flipped to match the orbit reversal above, per the same direct feedback.
       const panSpeed = (offset.length() * Math.tan((camera.fov / 2) * Math.PI / 180) * 2) / renderer.domElement.clientHeight;
-      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0).multiplyScalar(-e.deltaX * panSpeed);
-      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1).multiplyScalar(e.deltaY * panSpeed);
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0).multiplyScalar(e.deltaX * panSpeed);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1).multiplyScalar(-e.deltaY * panSpeed);
       camera.position.add(right).add(up);
       controls.target.add(right).add(up);
     } else {
