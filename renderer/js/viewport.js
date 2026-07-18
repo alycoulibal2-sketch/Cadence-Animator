@@ -209,11 +209,12 @@ export function initViewport(container) {
       controls.target.add(right).add(up);
     } else {
       // Orbit: adjust azimuth/polar angle around the current target — same math OrbitControls
-      // itself uses internally for a rotate drag.
+      // itself uses internally for a rotate drag. Signs flipped from the first pass per direct
+      // feedback that the initial direction felt backwards.
       const ROTATE_SPEED = 0.0035;
       const spherical = new THREE.Spherical().setFromVector3(offset);
-      spherical.theta -= e.deltaX * ROTATE_SPEED;
-      spherical.phi = Math.max(0.001, Math.min(Math.PI - 0.001, spherical.phi - e.deltaY * ROTATE_SPEED));
+      spherical.theta += e.deltaX * ROTATE_SPEED;
+      spherical.phi = Math.max(0.001, Math.min(Math.PI - 0.001, spherical.phi + e.deltaY * ROTATE_SPEED));
       camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(spherical));
       camera.lookAt(controls.target);
     }
