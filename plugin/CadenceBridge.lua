@@ -889,10 +889,11 @@ setStatus(false)
 
 -- No editor state lives in this plugin, so there is nothing to flush here — closing Studio,
 -- with or without this plugin loaded, can never wipe animation data the way Moon Animator could.
+-- plugin.Unloading alone covers every case that matters (plugin disabled, place closed, Studio
+-- quit) — a game:BindToClose(...) call used to sit here too, but BindToClose is server-runtime
+-- only ("BindToClose can only be called on the server") and threw that exact error on every
+-- single plugin load, confirmed live via Studio's own Output log. It was pure copy-pasted
+-- boilerplate from a server-script pattern that never applied to a plugin in the first place.
 plugin.Unloading:Connect(function()
-	running = false
-end)
-
-game:BindToClose(function()
 	running = false
 end)
