@@ -1,6 +1,6 @@
 {
   "name": "cadence-animator",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "A standalone Roblox animation suite — the Moon Animator 2 successor. Animate Roblox rigs in a smooth desktop app, sync with Roblox Studio, and let Claude drive it directly via MCP.",
   "main": "src/main.js",
   "bin": {
