@@ -1,5 +1,8 @@
 // Builds three.js objects from rig definitions and solves joint transforms.
 import * as THREE from '../../node_modules/three/build/three.module.js';
+import { LineSegments2 } from '../vendor/three/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from '../vendor/three/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from '../vendor/three/lines/LineMaterial.js';
 import * as CF from './cf.js';
 
 let classicFacePromise = null;
@@ -204,7 +207,21 @@ const handleGeoSmall = new THREE.SphereGeometry(0.12, 12, 10);
 // through the front (an x-ray-wireframe look real Roblox never has) — buildEdgeOverlay below
 // pushes the line geometry a hair outward instead, which fixes the OTHER problem (below) without
 // that trade-off.
-const EDGE_MATERIAL = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4, depthTest: true });
+//
+// LineMaterial/LineSegments2 (not the plain LineBasicMaterial/LineSegments this replaced) — plain
+// WebGL GL_LINES are always exactly 1 physical pixel wide on most GPUs/drivers regardless of the
+// `linewidth` property (a longstanding, well-documented three.js/WebGL limitation) and MSAA barely
+// softens a 1px line, so every edge read as a hard, slightly jagged stair-step, especially on a
+// diagonal. LineMaterial instead draws each segment as a camera-facing screen-space quad, which
+// is genuinely anti-aliased and can have a real sub-pixel-blended width — same visual family as
+// Roblox's own smooth corner shading. `resolution` MUST track the actual canvas size in physical
+// pixels or the line width reads wrong after a resize — see updateEdgeResolution(), called from
+// viewport.js's resize().
+const EDGE_MATERIAL = new LineMaterial({ color: 0x000000, transparent: true, opacity: 0.4, depthTest: true, linewidth: 1.4, worldUnits: false });
+EDGE_MATERIAL.resolution.set(window.innerWidth, window.innerHeight);
+export function updateEdgeResolution(w, h) {
+  EDGE_MATERIAL.resolution.set(w, h);
+}
 // These placeholder primitives approximate a curve with a fixed ring of flat segments (the lathe
 // head: 24 segments/360° = 15° apart; a capsule limb's radial segments similarly) — EVERY one of
 // those segment seams has SOME non-zero angle to its neighbor, so ANY edge-detection threshold
@@ -230,7 +247,9 @@ function buildEdgeOverlay(geometry) {
   edgeGeo.translate(-c.x, -c.y, -c.z);
   edgeGeo.scale(1.004, 1.004, 1.004);
   edgeGeo.translate(c.x, c.y, c.z);
-  const edges = new THREE.LineSegments(edgeGeo, EDGE_MATERIAL);
+  const lineGeo = new LineSegmentsGeometry().setPositions(edgeGeo.attributes.position.array);
+  edgeGeo.dispose(); // only its position data was needed, already copied into lineGeo above
+  const edges = new LineSegments2(lineGeo, EDGE_MATERIAL);
   edges.raycast = () => { }; // cosmetic only — never steals a click from the part underneath
   edges.userData.isEdgeOverlay = true; // so a later real-geometry swap can find and replace it
   return edges;

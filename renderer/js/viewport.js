@@ -6,7 +6,7 @@ import { OrbitControls } from '../vendor/three/OrbitControls.js';
 import { TransformControls } from '../vendor/three/TransformControls.js';
 import * as CF from './cf.js';
 import * as S from './state.js';
-import { RigInstance, CameraInstance, VfxInstance, PART_GAP_SCALE } from './rigbuild.js';
+import { RigInstance, CameraInstance, VfxInstance, PART_GAP_SCALE, updateEdgeResolution } from './rigbuild.js';
 import { viewportPalette } from './themes.js';
 import { buildChain, solveIK } from './ik.js';
 import { sampleParticles } from './vfx.js';
@@ -339,6 +339,10 @@ function resize() {
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  // Edge-overlay LineMaterial sizes its line width in physical pixels relative to this — stale
+  // after a resize would make every part's outline read too thick or too thin.
+  const ratio = renderer.getPixelRatio();
+  updateEdgeResolution(w * ratio, h * ratio);
 }
 
 // ---------------------------------------------------------------- items
