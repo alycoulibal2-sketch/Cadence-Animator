@@ -45,10 +45,13 @@ function loadRobloxTexture(texId) {
 // Classic "head" special mesh: a rounded-cylinder lathe profile (flat disc top/bottom, bevelled
 // corners, straight sides in between) approximating Roblox's bevelled-cylinder head. Unit size
 // (1 wide, 1 tall) — callers scale it to the actual head dimensions.
+// Kept in sync with headGeometry() below by construction (same three numbers) — used separately
+// to build a face-decal patch that's curved to exactly match this profile's constant-radius
+// mid-section, instead of a flat plane that can only ever touch a curved surface at one point.
+const HEAD_R = 0.42, HEAD_r = 0.16, HEAD_H = 0.5;
+
 function headGeometry() {
-  const R = 0.42;  // side radius
-  const H = 0.5;   // half height
-  const r = 0.16;  // corner bevel radius
+  const R = HEAD_R, H = HEAD_H, r = HEAD_r;
   const N = 10;    // segments per corner arc
   const pts = [];
   pts.push(new THREE.Vector2(0, -H));
@@ -65,6 +68,15 @@ function headGeometry() {
   const geo = new THREE.LatheGeometry(pts, 24);
   geo.computeVertexNormals();
   return geo;
+}
+
+// Is `def` rendered with the built-in lathe headGeometry() shape (as opposed to a real fetched
+// CDN mesh, or an arbitrary custom-imported part that just happens to be named "Head")? Both the
+// R6-style (Part + specialMesh.meshType='Head') and R15/Rthro-style (MeshPart named Head, no
+// customMesh) builtin conventions land here — see partGeometry() above for the exact match.
+function isLatheHeadPart(def) {
+  if (def.specialMesh && def.specialMesh.meshType === 'Head') return true;
+  return def.className === 'MeshPart' && def.name === 'Head' && !def.customMesh;
 }
 
 // Roblox Material -> a reasonable PBR approximation. Roblox's own renderer uses a proprietary
@@ -398,26 +410,57 @@ export class RigInstance {
   #buildFacePlane(def, partMesh, dataUri, opacity, face, layerIndex, preloadedTex) {
     const place = (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
-      const isHeadMesh = def.specialMesh && def.specialMesh.meshType === 'Head';
-      const w = isHeadMesh ? (def.specialMesh.scale?.[0] ?? 1.25) : def.size[0];
-      const h = isHeadMesh ? (def.specialMesh.scale?.[1] ?? 1.25) : def.size[1];
-      const depth = isHeadMesh ? (def.specialMesh.scale?.[2] ?? 1.25) : def.size[2];
-      const shrink = isHeadMesh ? 0.82 : 1;
-      const orient = FACE_ORIENT[face] || FACE_ORIENT.Front;
-      const dims = orient.axis === 'z' ? [w, h] : orient.axis === 'x' ? [depth, h] : [w, depth];
-      const half = { x: w / 2, y: h / 2, z: depth / 2 }[orient.axis] * shrink;
-      const plane = new THREE.Mesh(
-        new THREE.PlaneGeometry(dims[0] * 0.9, dims[1] * 0.9),
-        new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity, depthWrite: false }),
-      );
-      plane.rotation.y = orient.rotY;
-      plane.rotation.x = orient.rotX;
-      const offset = (half + 0.012 + layerIndex * 0.004) * orient.sign;
-      plane.position[orient.axis] = offset;
-      plane.renderOrder = 10 + layerIndex;
-      plane.userData.isFaceLayer = true;
-      plane.raycast = () => { }; // click through to the part
-      partMesh.add(plane);
+      let patch;
+      if (face === 'Front' && isLatheHeadPart(def)) {
+        // The head is a LatheGeometry revolved around Y (see headGeometry()) — a flat plane can
+        // only ever touch that curved surface at one point, gapping everywhere else (worst at
+        // the corners, which is exactly the "little gap" this replaces). A cylindrical patch at
+        // the lathe's own constant-radius mid-band sits geometrically flush against the real
+        // surface instead of approximating it. Tracing headGeometry()'s own profile points in
+        // order: the bottom bevel arc ends at (R, -H+r) and the top bevel arc starts at
+        // (R, H-r) — CONSECUTIVE points in a lathe profile, i.e. a straight vertical polyline
+        // edge at the FULL radius R (not R-r, which is only the radius at the top/bottom rim
+        // caps) spanning height ±(H-r). Confirmed by the patch being invisible (occluded by the
+        // head's own nearer, actually-R-radius surface) when this used R-r on the first attempt.
+        const isHeadMesh = def.specialMesh && def.specialMesh.meshType === 'Head';
+        const scale = isHeadMesh ? (def.specialMesh.scale || [1.25, 1.25, 1.25]) : def.size;
+        const [sx, sy, sz] = scale;
+        const radius = HEAD_R * ((sx + sz) / 2); // avg of X/Z scale — heads are ~circular in cross-section
+        const flatHalfHeight = (HEAD_H - HEAD_r) * sy;
+        const thetaHalf = 0.62; // ~35.5° each side of dead-center-front — a believable face width
+        const patchHeight = flatHalfHeight * 2 * 0.86; // stays inboard of the top/bottom bevel curve
+        // CylinderGeometry's own convention (vertex.x = r·sinθ, vertex.z = r·cosθ — confirmed
+        // directly from three.js's source, not assumed) puts θ=π at -Z, which is "Front" here.
+        const geo = new THREE.CylinderGeometry(
+          radius, radius, patchHeight, 24, 1, true,
+          Math.PI - thetaHalf, thetaHalf * 2,
+        );
+        patch = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity, depthWrite: false }));
+        // Layers nudge outward by scaling about the shared Y axis (the cylinder's own axis) —
+        // equivalent to the flat-plane path's per-layer offset, without disturbing the curve.
+        patch.scale.setScalar(1 + 0.006 + layerIndex * 0.006);
+      } else {
+        const isHeadMesh = def.specialMesh && def.specialMesh.meshType === 'Head';
+        const w = isHeadMesh ? (def.specialMesh.scale?.[0] ?? 1.25) : def.size[0];
+        const h = isHeadMesh ? (def.specialMesh.scale?.[1] ?? 1.25) : def.size[1];
+        const depth = isHeadMesh ? (def.specialMesh.scale?.[2] ?? 1.25) : def.size[2];
+        const shrink = isHeadMesh ? 0.82 : 1;
+        const orient = FACE_ORIENT[face] || FACE_ORIENT.Front;
+        const dims = orient.axis === 'z' ? [w, h] : orient.axis === 'x' ? [depth, h] : [w, depth];
+        const half = { x: w / 2, y: h / 2, z: depth / 2 }[orient.axis] * shrink;
+        patch = new THREE.Mesh(
+          new THREE.PlaneGeometry(dims[0] * 0.9, dims[1] * 0.9),
+          new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity, depthWrite: false }),
+        );
+        patch.rotation.y = orient.rotY;
+        patch.rotation.x = orient.rotX;
+        const offset = (half + 0.012 + layerIndex * 0.004) * orient.sign;
+        patch.position[orient.axis] = offset;
+      }
+      patch.renderOrder = 10 + layerIndex;
+      patch.userData.isFaceLayer = true;
+      patch.raycast = () => { }; // click through to the part
+      partMesh.add(patch);
     };
     if (preloadedTex) place(preloadedTex);
     else texLoader.load(dataUri, place);
