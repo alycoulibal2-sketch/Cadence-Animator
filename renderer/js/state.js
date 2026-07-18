@@ -35,6 +35,7 @@ export const state = {
   posGridSnap: false,
   posGridDistance: 1,
   ikChainLength: 3, // how many joints up the chain the IK tool adjusts
+  trackpadMode: false, // Blender-style "emulate 3 button mouse": Alt+LMB orbits/pans/dollies
   showSeconds: false,
   uiHidden: false, // Ctrl+H focus mode
   cameraTracksVisible: true,

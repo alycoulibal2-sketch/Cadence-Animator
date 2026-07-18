@@ -160,10 +160,25 @@ export function initViewport(container) {
   };
   controls.zoomSpeed = 0.9;
   viewport.controls = controls;
-  // Shift+right = pan
+  // Shift+right = pan. Capture-phase so this runs and rewrites mouseButtons BEFORE
+  // OrbitControls' own (bubble-phase) pointerdown handler reads it on the same event.
   renderer.domElement.addEventListener('pointerdown', (e) => {
     if (e.button === 2) {
       controls.mouseButtons.RIGHT = e.shiftKey ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+    }
+  }, { capture: true });
+
+  // Trackpad mode (Blender's "Emulate 3 Button Mouse"): Alt+LMB-drag orbits, Alt+Shift+LMB-drag
+  // pans, Alt+Ctrl+LMB-drag dollies — for trackpads/laptops with no middle button. Same
+  // capture-phase-mutate-before-OrbitControls-reads-it trick as the RIGHT-button remap above.
+  // Plain LMB (no Alt) always leaves mouseButtons.LEFT untouched (stays null) so
+  // selection/gizmo-dragging is completely unaffected whether this mode is on or off.
+  renderer.domElement.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    if (S.state.trackpadMode && e.altKey) {
+      controls.mouseButtons.LEFT = e.shiftKey ? THREE.MOUSE.PAN : e.ctrlKey ? THREE.MOUSE.DOLLY : THREE.MOUSE.ROTATE;
+    } else {
+      controls.mouseButtons.LEFT = null;
     }
   }, { capture: true });
 

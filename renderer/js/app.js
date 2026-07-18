@@ -35,6 +35,7 @@ async function boot() {
     S.state.rotGridDegrees = settings.rotGridDegrees ?? 15;
     S.state.posGridDistance = settings.posGridDistance ?? 1;
     S.state.ikChainLength = settings.ikChainLength ?? 3;
+    S.state.trackpadMode = settings.trackpadMode ?? false;
 
     initPanels(settings, (sizes) => { Object.assign(settings, sizes); window.cadence.setSettings(settings); });
 
@@ -254,7 +255,8 @@ function registerAllCommands() {
   C({ title: 'Restore an autosave…', section: 'Project', hint: 'every change is autosaved — nothing is ever lost', run: () => offerRecovery(true) });
   C({ title: 'Hide UI (focus mode)', shortcut: 'Ctrl+H', section: 'Project', run: toggleHideUI });
 
-  C({ title: 'Themes & customization…', section: 'General', hint: 'switch the app theme and accent color', run: openThemeFlow });
+  C({ title: 'Themes & customization…', section: 'General', hint: 'switch the app theme, accent color, and trackpad mode', run: openThemeFlow });
+  C({ title: 'Toggle trackpad mode', section: 'General', hint: 'Blender-style emulate 3-button mouse — Alt+drag to orbit/pan/zoom without a middle button', run: () => toggleTrackpadMode() });
   C({ title: 'Install / repair Studio plugin', section: 'Studio', hint: 'copies Cadence Bridge into your Plugins folder', run: installPluginFlow });
   C({ title: 'Enable Claude Control (MCP)', section: 'Studio', hint: 'let Claude drive this app directly — add rigs, key exact poses, verify frames', run: enableClaudeControlFlow });
   C({ title: 'Check for updates', section: 'General', run: checkForUpdatesFlow });
@@ -439,7 +441,16 @@ function persistPrefs() {
   settings.rotGridDegrees = S.state.rotGridDegrees;
   settings.posGridDistance = S.state.posGridDistance;
   settings.ikChainLength = S.state.ikChainLength;
+  settings.trackpadMode = S.state.trackpadMode;
   window.cadence.setSettings(settings);
+}
+
+function toggleTrackpadMode(force) {
+  S.state.trackpadMode = force ?? !S.state.trackpadMode;
+  persistPrefs();
+  toast(S.state.trackpadMode
+    ? 'Trackpad mode on — hold Alt while dragging to orbit, Alt+Shift to pan, Alt+Ctrl to zoom'
+    : 'Trackpad mode off');
 }
 
 // ================================================================ Moon-parity keybind flows
@@ -1123,7 +1134,16 @@ function openThemeFlow() {
     accentRow.appendChild(sw);
   }
 
-  wrap.append(themeTitle, grid, accentTitle, accentRow);
+  const inputTitle = document.createElement('div');
+  inputTitle.className = 'insp-title';
+  inputTitle.textContent = 'Input';
+  const trackpadRow = checkField(
+    'Trackpad mode (Blender-style emulate 3-button mouse)',
+    S.state.trackpadMode,
+    (v) => toggleTrackpadMode(v),
+  );
+
+  wrap.append(themeTitle, grid, accentTitle, accentRow, inputTitle, trackpadRow);
   refreshSelection();
   modal({
     title: 'Themes & customization',
