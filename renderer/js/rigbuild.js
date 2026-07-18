@@ -84,10 +84,7 @@ function isLatheHeadPart(def) {
 // roughness/metalness family, Neon actually glows) rather than a pixel-identical reproduction —
 // that's a real limit of rendering Roblox content in a from-scratch three.js scene, not a bug.
 const MATERIAL_PROPS = {
-  // Roblox's Plastic has a visible, soft specular sheen — 0.82 read almost fully matte under
-  // this viewport's PBR lighting, flatter than the real material. 0.55 keeps it clearly non-glossy
-  // (SmoothPlastic at 0.25 is still the distinctly shinier one) while giving back a visible highlight.
-  Plastic: { roughness: 0.55, metalness: 0.02 },
+  Plastic: { roughness: 0.82, metalness: 0.02 },
   SmoothPlastic: { roughness: 0.25, metalness: 0.02 },
   Neon: { roughness: 0.35, metalness: 0, emissive: 0.85 },
   Metal: { roughness: 0.35, metalness: 0.9 },

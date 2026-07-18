@@ -182,17 +182,10 @@ export function initViewport(container) {
     }
   }, { capture: true });
 
-  // lights — neutral daylight, not the app's own blue-violet UI accent. The previous hemi sky
-  // (#cdd3e6) and fill (#aab4ff) were both distinctly blue-tinted, matching --accent instead of
-  // Roblox Studio's neutral-to-warm default outdoor lighting — a plain grey Plastic part (the
-  // exact right hex, #A3A2A5, confirmed against Roblox's own "Medium stone grey") still visibly
-  // read cool/blue under it. Colors below are neutral-to-slightly-warm instead, so a rig's actual
-  // material colors come through undistorted by the viewport's own lighting tint. This can't be a
-  // pixel-exact match to Roblox's proprietary renderer — different rendering pipelines entirely —
-  // but the tint mismatch itself was a real, fixable bug.
-  const hemi = new THREE.HemisphereLight('#eef1f8', '#5a5b62', 1.15);
+  // lights
+  const hemi = new THREE.HemisphereLight('#cdd3e6', '#3a3d4d', 1.05);
   scene.add(hemi);
-  const key = new THREE.DirectionalLight('#fff6ea', 1.8);
+  const key = new THREE.DirectionalLight('#ffffff', 1.7);
   key.position.set(14, 26, 12);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
@@ -200,7 +193,7 @@ export function initViewport(container) {
   key.shadow.camera.top = 30; key.shadow.camera.bottom = -30;
   key.shadow.bias = -0.0004;
   scene.add(key);
-  const fill = new THREE.DirectionalLight('#eef2f5', 0.4);
+  const fill = new THREE.DirectionalLight('#aab4ff', 0.35);
   fill.position.set(-12, 8, -14);
   scene.add(fill);
 
