@@ -186,6 +186,27 @@ function partGeometry(def) {
 const handleGeoNormal = new THREE.SphereGeometry(0.22, 12, 10);
 const handleGeoSmall = new THREE.SphereGeometry(0.12, 12, 10);
 
+// Roblox's own renderer always draws a subtle dark edge along every part's hard corners — one of
+// the things that reads as "flat/plastic-toy-like" in a bare PBR material without it. Shared
+// across every part (a child of that part's own mesh, so it inherits the exact same per-frame
+// world matrix automatically via the normal scene graph — no extra per-frame update code needed).
+const EDGE_MATERIAL = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthTest: true });
+function buildEdgeOverlay(geometry) {
+  // 1° default threshold: only genuine hard creases (box corners, capsule cap seams) get a line —
+  // a smooth curved surface (the bulk of a capsule/sphere/cylinder's side) never does.
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 1), EDGE_MATERIAL);
+  edges.raycast = () => { }; // cosmetic only — never steals a click from the part underneath
+  edges.userData.isEdgeOverlay = true; // so a later real-geometry swap can find and replace it
+  return edges;
+}
+// Swap in a fresh overlay matching new geometry — used once a part's real (async-loaded) mesh
+// replaces its placeholder, since the old overlay's edges no longer match the new shape at all.
+function refreshEdgeOverlay(mesh, geometry) {
+  const old = mesh.children.find((c) => c.userData.isEdgeOverlay);
+  if (old) { mesh.remove(old); old.geometry.dispose(); }
+  mesh.add(buildEdgeOverlay(geometry));
+}
+
 export class RigInstance {
   // opts.onMeshError(def, kind, reason): kind is 'mesh' | 'texture' — called whenever a part's
   // real CDN geometry/texture fails to load and it's about to silently stay on its placeholder
@@ -258,6 +279,7 @@ export class RigInstance {
     mesh.userData = { itemId: this.item.id, partId: def.id, partName: def.name };
     if (def.transparency >= 1) mesh.visible = this.showRoot || def.id !== (this.item.rig.rootPart);
     if (def.transparency >= 0.99) mesh.visible = false;
+    mesh.add(buildEdgeOverlay(geometry));
     this.group.add(mesh);
     // baseEmissive: Neon's own glow color/intensity, restored by setHighlight() below instead of
     // going to black like every other material — a Neon part must keep glowing even while some
@@ -345,6 +367,7 @@ export class RigInstance {
         }
         mesh.geometry.dispose();
         mesh.geometry = g;
+        refreshEdgeOverlay(mesh, g);
         // only now — the placeholder's UVs don't match the real mesh's layout, so a texture
         // applied before this would smear/misalign (this is what caused the R15 head to render
         // with a dark band when its mesh CDN fetch 401s but the texture fetch still succeeds)
@@ -537,9 +560,10 @@ export class RigInstance {
   dispose() {
     this.scene.remove(this.group);
     this.group.traverse((o) => {
-      // handle geometries are shared module-level constants — never dispose those
+      // handle geometries and the edge-overlay material are shared module-level constants —
+      // never dispose those, or every OTHER still-live instance loses them too.
       if (o.geometry && o.geometry !== handleGeoNormal && o.geometry !== handleGeoSmall) o.geometry.dispose();
-      if (o.material) {
+      if (o.material && o.material !== EDGE_MATERIAL) {
         if (o.material.map) o.material.map.dispose();
         o.material.dispose();
       }

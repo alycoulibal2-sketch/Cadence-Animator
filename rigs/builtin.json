@@ -6,7 +6,7 @@
     "parts": [
       { "id": "HumanoidRootPart", "name": "HumanoidRootPart", "className": "Part", "size": [2, 2, 1], "cf": [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 1, "shape": "Block" },
       { "id": "Head", "name": "Head", "className": "Part", "size": [2, 1, 1], "cf": [0, 1.5, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "shape": "Block", "specialMesh": { "meshType": "Head", "meshId": "", "textureId": "", "scale": [1.25, 1.25, 1.25], "offset": [0, 0, 0] }, "faceDecal": "rbxasset://textures/face.png" },
-      { "id": "Torso", "name": "Torso", "className": "Part", "size": [2, 2, 1], "cf": [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "shape": "Block" },
+      { "id": "Torso", "name": "Torso", "className": "Part", "size": [2, 2, 1], "cf": [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#635F62", "transparency": 0, "shape": "Block" },
       { "id": "Left Arm", "name": "Left Arm", "className": "Part", "size": [1, 2, 1], "cf": [-1.5, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "shape": "Block" },
       { "id": "Right Arm", "name": "Right Arm", "className": "Part", "size": [1, 2, 1], "cf": [1.5, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "shape": "Block" },
       { "id": "Left Leg", "name": "Left Leg", "className": "Part", "size": [1, 2, 1], "cf": [-0.5, -2, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "shape": "Block" },
@@ -28,7 +28,7 @@
     "parts": [
       { "id": "HumanoidRootPart", "name": "HumanoidRootPart", "className": "Part", "size": [2, 2, 1], "cf": [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 1, "shape": "Block" },
       { "id": "Head", "name": "Head", "className": "MeshPart", "size": [1.15898, 1.18201, 1.16064], "cf": [0, 1.58601, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "123480233606534", "textureId": "111092388570647" },
-      { "id": "UpperTorso", "name": "UpperTorso", "className": "MeshPart", "size": [1.94321, 1.69803, 1.004], "cf": [0, 0.19998, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "7430071038" },
+      { "id": "UpperTorso", "name": "UpperTorso", "className": "MeshPart", "size": [1.94321, 1.69803, 1.004], "cf": [0, 0.19998, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#635F62", "transparency": 0, "meshId": "7430071038" },
       { "id": "LowerTorso", "name": "LowerTorso", "className": "MeshPart", "size": [1.99141, 0.40065, 1.004], "cf": [0, -0.80003, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "7430071109" },
       { "id": "LeftUpperArm", "name": "LeftUpperArm", "className": "MeshPart", "size": [1.00107, 1.2416, 1.00187], "cf": [-1.5, 0.36868, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "7430071044" },
       { "id": "LeftLowerArm", "name": "LeftLowerArm", "className": "MeshPart", "size": [1.00107, 1.11751, 1.00187], "cf": [-1.5, -0.22407, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "7430071005" },
@@ -68,7 +68,7 @@
     "parts": [
       { "id": "HumanoidRootPart", "name": "HumanoidRootPart", "className": "Part", "size": [2, 2, 1], "cf": [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 1, "shape": "Block" },
       { "id": "Head", "name": "Head", "className": "MeshPart", "size": [1.12682, 1.13317, 1.12843], "cf": [0, 1.58601, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "123480233606534", "textureId": "111092388570647" },
-      { "id": "UpperTorso", "name": "UpperTorso", "className": "MeshPart", "size": [2.066, 2.0944, 1.14], "cf": [0, 0.19998, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "7430071038" },
+      { "id": "UpperTorso", "name": "UpperTorso", "className": "MeshPart", "size": [2.066, 2.0944, 1.14], "cf": [0, 0.19998, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#635F62", "transparency": 0, "meshId": "7430071038" },
       { "id": "LowerTorso", "name": "LowerTorso", "className": "MeshPart", "size": [2.066, 0.52373, 1.14], "cf": [0, -0.80003, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "7430071109" },
       { "id": "LeftUpperArm", "name": "LeftUpperArm", "className": "MeshPart", "size": [1.129, 1.56839, 1.132], "cf": [-1.5, 0.36868, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "7430071044" },
       { "id": "LeftLowerArm", "name": "LeftLowerArm", "className": "MeshPart", "size": [1.129, 1.41165, 1.132], "cf": [-1.5, -0.22407, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "7430071005" },
@@ -108,7 +108,7 @@
     "parts": [
       { "id": "HumanoidRootPart", "name": "HumanoidRootPart", "className": "Part", "size": [2, 2, 1], "cf": [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 1, "shape": "Block" },
       { "id": "Head", "name": "Head", "className": "MeshPart", "size": [1.07214, 1.13317, 1.07367], "cf": [0, 1.58601, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "123480233606534", "textureId": "111092388570647" },
-      { "id": "UpperTorso", "name": "UpperTorso", "className": "MeshPart", "size": [1.81069, 1.92677, 1.01333], "cf": [0, 0.19998, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "7430071038" },
+      { "id": "UpperTorso", "name": "UpperTorso", "className": "MeshPart", "size": [1.81069, 1.92677, 1.01333], "cf": [0, 0.19998, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#635F62", "transparency": 0, "meshId": "7430071038" },
       { "id": "LowerTorso", "name": "LowerTorso", "className": "MeshPart", "size": [1.97137, 0.40194, 1.01333], "cf": [0, -0.80003, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "7430071109" },
       { "id": "LeftUpperArm", "name": "LeftUpperArm", "className": "MeshPart", "size": [1.00356, 1.4117, 1.00622], "cf": [-1.5, 0.36868, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "7430071044" },
       { "id": "LeftLowerArm", "name": "LeftLowerArm", "className": "MeshPart", "size": [1.00356, 1.27061, 1.00622], "cf": [-1.5, -0.22407, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], "color": "#A3A2A5", "transparency": 0, "meshId": "7430071005" },
