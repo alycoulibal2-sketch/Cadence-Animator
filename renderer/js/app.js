@@ -204,8 +204,6 @@ function registerAllCommands() {
 
   C({ title: 'Add rig: R6', section: 'Add', run: () => addBuiltinRig('r6') });
   C({ title: 'Add rig: R15', section: 'Add', run: () => addBuiltinRig('r15') });
-  C({ title: 'Add rig: Rthro', section: 'Add', run: () => addBuiltinRig('rthro') });
-  C({ title: 'Add rig: Rthro Slender', section: 'Add', run: () => addBuiltinRig('rthroSlender') });
   C({ title: 'Add rig: your Roblox avatar…', section: 'Add', hint: 'by username, needs Studio bridge', run: addAvatarFlow });
   C({ title: 'Add rig from Studio selection', section: 'Add', hint: 'select a rig in Studio Explorer first', run: addFromStudioSelection });
   C({ title: 'Add from Roblox asset ID…', section: 'Add', run: addByAssetIdFlow });
@@ -1893,8 +1891,6 @@ async function addMenuFlow() {
     options: [
       { id: 'r6', label: 'R6 rig', desc: 'classic blocky', icon: '🧍' },
       { id: 'r15', label: 'R15 rig', desc: 'standard 15-part', icon: '🧍' },
-      { id: 'rthro', label: 'Rthro rig', desc: 'realistic proportions', icon: '🧍' },
-      { id: 'rthroSlender', label: 'Rthro Slender', desc: 'slim proportions', icon: '🧍' },
       { id: 'avatar', label: 'Your Roblox avatar…', desc: 'type any username', icon: '👤' },
       { id: 'studio', label: 'From Studio selection', desc: 'select a rig in Studio first', icon: '🔗' },
       { id: 'asset', label: 'From asset ID…', desc: 'any model on Roblox', icon: '🌐' },
