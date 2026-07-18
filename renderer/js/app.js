@@ -65,37 +65,19 @@ async function boot() {
 
     builtinRigs = await window.cadence.builtinRigs().catch(() => null);
 
-    // Auto-resume whatever project was active last time instead of always starting blank and
-    // relying on a dismissible/gated recovery prompt to get back to it — a missed or accidentally
-    // dismissed prompt (or one suppressed by its own >7-day-old / looks-empty filters) previously
-    // read as "my project got deleted," even though the autosave file was sitting untouched on
-    // disk the whole time (autosaves are never pruned — see main.js's autosave:write).
-    let resumed = false;
-    if (settings.lastProjectId) {
-      try {
-        const text = await window.cadence.autosaveRead(settings.lastProjectId);
-        S.loadProject(text);
-        await restoreAudio();
-        resumed = true;
-      } catch (_) { /* that autosave is gone/unreadable — fall through to the usual flow below */ }
-    }
-    if (!resumed) {
-      S.newProject();
-      // Still offered as a one-time fallback for anyone upgrading from a version that never
-      // recorded settings.lastProjectId at all, so their existing (never-deleted) autosaves
-      // remain reachable on the very first launch after updating.
-      await offerRecovery();
-    }
-    // Record whichever project ended up active right away (covers the fresh-blank-project and
-    // offerRecovery-picked cases, whose id wouldn't otherwise be written until something *else*
-    // changes) — then keep it current for every future switch, since both newProject() and
-    // loadProject() emit 'project'.
-    settings.lastProjectId = S.state.project.id;
-    window.cadence.setSettings(settings);
-    S.on('project', () => {
-      settings.lastProjectId = S.state.project.id;
-      window.cadence.setSettings(settings);
-    });
+    // Always let the user choose which project to continue — never silently auto-resume, and
+    // never create (and thus never autosave) a throwaway blank project speculatively before
+    // showing that choice. The latter was a real bug from an earlier fix here: calling
+    // S.newProject() before offerRecovery() unconditionally scheduled a real autosave write for
+    // that blank project (scheduleAutosave's 600ms debounce reliably outlasts how long it takes
+    // a human to even read the picker, let alone choose an option), so EVERY relaunch pushed one
+    // more junk "empty project" entry to the top of the mtime-sorted autosave list — after ~6
+    // relaunches a real saved project would fall out of the picker's slice(0, N) display window
+    // even though its file sat untouched on disk the whole time (autosaves are never pruned —
+    // see main.js's autosave:write). Nothing gets written now until the user actually ends up
+    // with SOME project, restored or genuinely started fresh.
+    const restored = await offerRecovery('boot');
+    if (!restored) S.newProject();
     if (!settings.onboarded) showOnboarding();
 
     requestAnimationFrame(loop);
@@ -252,7 +234,7 @@ function registerAllCommands() {
   C({ title: 'Save project as…', shortcut: 'Ctrl+Shift+S', section: 'Project', run: () => saveProjectFlow(true) });
   C({ title: 'Save and close', shortcut: 'Numpad /', section: 'Project', run: quickSaveAndClose });
   C({ title: 'Close file', shortcut: 'Backslash', section: 'Project', run: closeFileFlow });
-  C({ title: 'Restore an autosave…', section: 'Project', hint: 'every change is autosaved — nothing is ever lost', run: () => offerRecovery(true) });
+  C({ title: 'Restore an autosave…', section: 'Project', hint: 'every change is autosaved — nothing is ever lost', run: () => offerRecovery('command') });
   C({ title: 'Hide UI (focus mode)', shortcut: 'Ctrl+H', section: 'Project', run: toggleHideUI });
 
   C({ title: 'Themes & customization…', section: 'General', hint: 'switch the app theme, accent color, and trackpad mode', run: openThemeFlow });
@@ -1647,26 +1629,30 @@ async function saveProjectFlow(saveAs) {
   toast('Project saved');
 }
 
-async function offerRecovery(always = false) {
+// mode: 'boot' — shown on every launch, hides genuinely-empty autosaves (never-touched sessions)
+// since choosing between a pile of indistinguishable blanks isn't a real choice. 'command' — the
+// explicit "Restore an autosave…" menu item, lists everything including empty ones since the
+// user asked to see the full list on purpose. Returns true if a project was restored (caller
+// should NOT also create a fresh one), false otherwise (dismissed, "Start fresh", or nothing to offer).
+async function offerRecovery(mode = 'boot') {
+  const always = mode === 'command';
   const saves = await window.cadence.autosaveList().catch(() => []);
-  if (!saves.length) { if (always) toast('No autosaves yet'); return; }
-  if (!always && Date.now() - saves[0].mtime > 1000 * 60 * 60 * 24 * 7) return;
-  if (!always && saves[0].id === S.state.project.id) return;
+  if (!saves.length) { if (always) toast('No autosaves yet'); return false; }
   const opts = [];
-  for (const sv of saves.slice(0, 6)) {
+  // Slice generously, not just the last few — the whole point of this fix is that a real
+  // project should never fall out of view just because other entries piled up above it.
+  for (const sv of saves.slice(0, 20)) {
     try {
       const text = await window.cadence.autosaveRead(sv.id);
       const proj = JSON.parse(text);
-      // Every launch autosaves the fresh empty project — don't nag "restore?" for sessions
-      // that never actually had anything in them (they're still reachable via the explicit command).
       if (!always && (!proj.items || proj.items.length === 0) && !proj.audio) continue;
       const when = new Date(sv.mtime);
       opts.push({ id: sv.id, label: proj.name || 'Untitled', desc: `${when.toLocaleString()} · ${proj.items?.length || 0} items`, icon: '🕘', __text: text });
     } catch (_) { }
   }
-  if (!opts.length) return;
+  if (!opts.length) { if (always) toast('No autosaves yet'); return false; }
   const pick = await chooseModal({
-    title: always ? 'Restore an autosave' : 'Welcome back — restore where you left off?',
+    title: always ? 'Restore an autosave' : 'Welcome back — choose a project to continue',
     options: [...opts, { id: 'fresh', label: 'Start fresh', desc: 'keep autosaves for later', icon: '✨', noDelete: true }],
     onDelete: (o) => new Promise((resolve) => {
       modal({
@@ -1691,7 +1677,9 @@ async function offerRecovery(always = false) {
     S.loadProject(chosen.__text);
     await restoreAudio();
     toast(`Restored "${S.state.project.name}"`);
+    return true;
   }
+  return false; // 'fresh', or dismissed/cancelled without picking — caller starts a new project
 }
 
 // ================================================================ top bar / transport / explorer / inspector
