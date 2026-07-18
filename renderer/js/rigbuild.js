@@ -203,10 +203,20 @@ const handleGeoSmall = new THREE.SphereGeometry(0.12, 12, 10);
 // across every part (a child of that part's own mesh, so it inherits the exact same per-frame
 // world matrix automatically via the normal scene graph — no extra per-frame update code needed).
 const EDGE_MATERIAL = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthTest: true });
+// These placeholder primitives approximate a curve with a fixed ring of flat segments (the lathe
+// head: 24 segments/360° = 15° apart; a capsule limb's radial segments similarly) — EVERY one of
+// those segment seams has SOME non-zero angle to its neighbor, so ANY edge-detection threshold
+// low enough to catch a box's genuine ~90° corners also lights up all 24 of those seams as fake
+// "hard" lines, reading as a busy faceted look on what should be smooth (confirmed from a real
+// screenshot: vertical stripes running the length of the head). Roblox's real, smooth-shaded
+// meshes never show this, so the correct fix is skipping the overlay on these shapes entirely,
+// not chasing a "big enough" threshold that still risks catching real coarse curves elsewhere.
+const ROUND_PRIMITIVE_TYPES = new Set(['LatheGeometry', 'CapsuleGeometry', 'SphereGeometry', 'CylinderGeometry']);
 function buildEdgeOverlay(geometry) {
-  // 1° default threshold: only genuine hard creases (box corners, capsule cap seams) get a line —
-  // a smooth curved surface (the bulk of a capsule/sphere/cylinder's side) never does.
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 1), EDGE_MATERIAL);
+  if (ROUND_PRIMITIVE_TYPES.has(geometry.type)) return null;
+  // 30°, not 1° — generous enough to ignore a real (customMesh or fetched-CDN) mesh's own
+  // moderate per-triangle noise while still catching genuine hard corners/creases.
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 30), EDGE_MATERIAL);
   edges.raycast = () => { }; // cosmetic only — never steals a click from the part underneath
   edges.userData.isEdgeOverlay = true; // so a later real-geometry swap can find and replace it
   return edges;
@@ -216,7 +226,8 @@ function buildEdgeOverlay(geometry) {
 function refreshEdgeOverlay(mesh, geometry) {
   const old = mesh.children.find((c) => c.userData.isEdgeOverlay);
   if (old) { mesh.remove(old); old.geometry.dispose(); }
-  mesh.add(buildEdgeOverlay(geometry));
+  const fresh = buildEdgeOverlay(geometry);
+  if (fresh) mesh.add(fresh);
 }
 
 export class RigInstance {
@@ -291,7 +302,8 @@ export class RigInstance {
     mesh.userData = { itemId: this.item.id, partId: def.id, partName: def.name };
     if (def.transparency >= 1) mesh.visible = this.showRoot || def.id !== (this.item.rig.rootPart);
     if (def.transparency >= 0.99) mesh.visible = false;
-    mesh.add(buildEdgeOverlay(geometry));
+    const initialEdges = buildEdgeOverlay(geometry);
+    if (initialEdges) mesh.add(initialEdges);
     this.group.add(mesh);
     // baseEmissive: Neon's own glow color/intensity, restored by setHighlight() below instead of
     // going to black like every other material — a Neon part must keep glowing even while some
