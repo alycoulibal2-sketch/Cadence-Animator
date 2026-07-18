@@ -615,21 +615,6 @@ export class RigInstance {
     return this.parts.get(partId)?.world || CF.IDENTITY;
   }
 
-  // World CFrame of the MOTOR joint's own pivot (Part0World * C0) driving this part — null if
-  // partId isn't directly motor-driven. This is what a rotate gizmo should anchor its POSITION to
-  // (see viewport.js's updateGizmoAnchor): Motor6D.Transform is defined relative to this pivot,
-  // not the part's own CFrame center, so anchoring at the part's center instead — the previous
-  // behavior — forces transformForWorld to bake a compensating position into Transform to account
-  // for rotating around the wrong point. Confirmed live: rotating RightUpperArm's shoulder joint
-  // left Transform.Position at (0, -0.41, -0.419) instead of staying at (0,0,0) for a pure rotate.
-  jointPivotWorld(partId) {
-    const j = this.jointByPart1.get(partId);
-    if (!j) return null;
-    const p0 = this.parts.get(j.part0);
-    if (!p0) return null;
-    return CF.mul(p0.world, j.c0);
-  }
-
   // For a part with no direct motor Transform to solve (welded, or reached only through welds/
   // static offsets — transformForWorld returns null for these): the ORIGIN is the only animatable
   // thing upstream of it, so find the origin value that lands this part exactly on `desiredWorld`,
