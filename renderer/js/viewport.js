@@ -546,8 +546,23 @@ function onGizmoChange() {
   if (!viewport.trackballMode && viewport.gizmo.getMode() === 'scale') {
     // Resize is not part of the animatable pose pipeline — preview it by scaling the whole rig's
     // render group directly, bake into the rest definition on release (see onGizmoRelease).
+    //
+    // Every part's mesh carries its own ABSOLUTE WORLD matrix (baked in by computeWorld(), not
+    // relative to inst.group at all) — so naively setting inst.group.scale alone scales every
+    // part's position AROUND WORLD ORIGIN (0,0,0), not around the model's own pivot. Any item not
+    // sitting exactly at world origin (i.e. nearly every item — addRigItem's groundOriginFor
+    // spaces new items out from x=-4) visibly drifts toward/away from origin while shrinking or
+    // growing, sliding out from under the gizmo instead of resizing in place around it. Fix:
+    // scale around `pivot` (the gizmo's own anchor, viewport.dummy.position — unmoved throughout
+    // a pure-scale drag) by also offsetting the group's position: newPos = pivot*(1-factor) +
+    // factor*oldPos, i.e. group.position = pivot*(1-factor), group.scale = factor. Reset both in
+    // onGizmoRelease so a released/no-op drag never leaves this offset behind.
     liveScaleFactor = dominantScaleFactor(viewport.dummy.scale);
-    if (inst.group) inst.group.scale.setScalar(liveScaleFactor);
+    if (inst.group) {
+      const pivot = viewport.dummy.position;
+      inst.group.position.set(pivot.x * (1 - liveScaleFactor), pivot.y * (1 - liveScaleFactor), pivot.z * (1 - liveScaleFactor));
+      inst.group.scale.setScalar(liveScaleFactor);
+    }
     viewport.dragHud = { text: `Scale: ${(liveScaleFactor * 100).toFixed(0)}%` };
     return;
   }
@@ -611,7 +626,10 @@ function onGizmoRelease() {
     // thing and then bake a different (often no-op) result on release.
     const factor = liveScaleFactor;
     viewport.dummy.scale.set(1, 1, 1);
-    if (inst?.group) inst.group.scale.set(1, 1, 1);
+    // Reset BOTH the scale and the pivot-compensation position — if refreshInstance() below
+    // doesn't run (a released/no-op drag, factor≈1), this same `inst` keeps rendering afterward,
+    // so any leftover position offset here would otherwise permanently shift the model.
+    if (inst?.group) { inst.group.scale.set(1, 1, 1); inst.group.position.set(0, 0, 0); }
     liveScaleFactor = 1;
     if (Math.abs(factor - 1) > 0.001) {
       S.resizeItem(itemId, factor);
