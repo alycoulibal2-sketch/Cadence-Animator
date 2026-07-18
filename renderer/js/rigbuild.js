@@ -299,6 +299,18 @@ export class RigInstance {
     const baseEmissive = mp.emissive ? { color: new THREE.Color(def.color || '#A3A2A5'), intensity: mp.emissive } : null;
     this.parts.set(def.id, { def, mesh, world: CF.IDENTITY.slice(), extras: [], baseEmissive });
 
+    // customTexture: an already-decoded data URI captured at FBX/GLB import time (see
+    // meshImport.js) — no CDN, no async race with the real-mesh-fetch path below (customMesh
+    // parts never have a meshId, so that path is always skipped for these), just load it.
+    if (def.customTexture) {
+      texLoader.load(def.customTexture, (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        material.map = tex;
+        material.color.set('#ffffff');
+        material.needsUpdate = true;
+      });
+    }
+
     // Face: a user's custom layer stack (Face Presets) takes priority over every rig's default
     // face. Below that, R15/Rthro/RthroSlender heads carry their default face baked into the CDN
     // mesh/texture (111092388570647) the same way real Roblox Studio does — but that asset is

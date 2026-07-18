@@ -40,6 +40,34 @@ function extractGeometryData(THREE, mesh, bakeMatrix) {
     triCount: idx.length / 3,
   };
 }
+// GLB embeds its textures directly in the binary blob, so GLTFLoader hands back a fully-decoded
+// THREE.Texture with a real .image — extract it as a data URI so rigbuild.js can apply it
+// synchronously (no CDN dependency, matches customMesh's own "already fully in memory"
+// philosophy). FBX textures are usually EXTERNAL files referenced by relative path — since
+// parse() is called with no real filesystem path (there's nothing to resolve them against),
+// those never populate .image and this correctly returns null, falling back to a flat color.
+// FBX files with "Embed Media" turned on at export DO carry their textures inside the binary
+// and work exactly like the GLB case.
+function textureToDataUri(texture) {
+  const img = texture?.image;
+  const w = img?.width || img?.videoWidth;
+  const h = img?.height || img?.videoHeight;
+  if (!w || !h) return null;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL('image/png');
+  } catch (_) {
+    return null; // e.g. a tainted/cross-origin source — not expected for a local file import, but never fatal
+  }
+}
+function extractTextureForMesh(mesh) {
+  const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+  if (!mat) return null;
+  return textureToDataUri(mat.map) || textureToDataUri(mat.emissiveMap) || null;
+}
+
 function defaultIndices(n) {
   const a = new Array(n);
   for (let i = 0; i < n; i++) a[i] = i;
@@ -76,12 +104,17 @@ function buildStaticRig(THREE, filename, meshes) {
   baked.forEach((d, i) => { if (d.triCount > rootTris) { rootTris = d.triCount; rootIdx = i; } });
 
   const partIds = meshes.map((m, i) => safeId(m.name, i));
-  const parts = meshes.map((m, i) => ({
-    id: partIds[i], name: m.name || `Mesh${i}`,
-    className: 'MeshPart', size: baked[i].size, cf: CF.IDENTITY.slice(),
-    color: '#A3A2A5',
-    customMesh: { positions: baked[i].positions, normals: baked[i].normals, uvs: baked[i].uvs, indices: baked[i].indices },
-  }));
+  const parts = meshes.map((m, i) => {
+    const part = {
+      id: partIds[i], name: m.name || `Mesh${i}`,
+      className: 'MeshPart', size: baked[i].size, cf: CF.IDENTITY.slice(),
+      color: '#A3A2A5',
+      customMesh: { positions: baked[i].positions, normals: baked[i].normals, uvs: baked[i].uvs, indices: baked[i].indices },
+    };
+    const tex = extractTextureForMesh(m);
+    if (tex) part.customTexture = tex;
+    return part;
+  });
   const joints = parts
     .map((p, i) => (i === rootIdx ? null : { name: `${p.id}Weld`, kind: 'weld', part0: partIds[rootIdx], part1: p.id, c0: CF.IDENTITY.slice(), c1: CF.IDENTITY.slice() }))
     .filter(Boolean);
@@ -150,11 +183,18 @@ function buildSkeletalRig(THREE, filename, meshes, skeleton) {
       // Multiple meshes on one bone: merge into a single part by concatenating triangle data —
       // still exact, just combined (this app's rig model is one geometry per part).
       const merged = mergeGeometryData(baked);
-      parts.push({
+      const part = {
         id, name: bone.name || id, className: 'MeshPart', size: merged.size, cf: CF.IDENTITY.slice(),
         color: '#A3A2A5',
         customMesh: { positions: merged.positions, normals: merged.normals, uvs: merged.uvs, indices: merged.indices },
-      });
+      };
+      // Same one-geometry-per-part simplification as the merge above: if several differently-
+      // textured meshes land on one bone, only the first's texture is used for the whole part —
+      // consistent with the existing documented tradeoff, and strictly better than the flat grey
+      // this would otherwise fall back to.
+      const tex = extractTextureForMesh(assigned[0]);
+      if (tex) part.customTexture = tex;
+      parts.push(part);
     } else {
       parts.push({ id, name: bone.name || id, className: 'Part', size: [0.2, 0.2, 0.2], cf: CF.IDENTITY.slice(), color: '#A3A2A5', transparency: 1 });
     }

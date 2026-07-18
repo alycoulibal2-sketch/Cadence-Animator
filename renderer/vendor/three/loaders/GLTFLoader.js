@@ -2567,36 +2567,18 @@ class GLTFParser {
 		// Track node names, to ensure no duplicates
 		this.nodeNamesUsed = {};
 
-		// Use an ImageBitmapLoader if imageBitmaps are supported. Moves much of the
-		// expensive work of uploading a texture to the GPU off the main thread.
-
-		let isSafari = false;
-		let safariVersion = - 1;
-		let isFirefox = false;
-		let firefoxVersion = - 1;
-
-		if ( typeof navigator !== 'undefined' ) {
-
-			const userAgent = navigator.userAgent;
-
-			isSafari = /^((?!chrome|android).)*safari/i.test( userAgent ) === true;
-			const safariMatch = userAgent.match( /Version\/(\d+)/ );
-			safariVersion = isSafari && safariMatch ? parseInt( safariMatch[ 1 ], 10 ) : - 1;
-
-			isFirefox = userAgent.indexOf( 'Firefox' ) > - 1;
-			firefoxVersion = isFirefox ? userAgent.match( /Firefox\/([0-9]+)\./ )[ 1 ] : - 1;
-
-		}
-
-		if ( typeof createImageBitmap === 'undefined' || ( isSafari && safariVersion < 17 ) || ( isFirefox && firefoxVersion < 98 ) ) {
-
-			this.textureLoader = new TextureLoader( this.options.manager );
-
-		} else {
-
-			this.textureLoader = new ImageBitmapLoader( this.options.manager );
-
-		}
+		// Upstream three.js prefers ImageBitmapLoader here when available (moves texture upload
+		// work off the main thread) — deliberately forced to the plain TextureLoader instead in
+		// this vendored copy. ImageBitmapLoader decodes an embedded GLB image's blob: URL via
+		// fetch(), which this app's CSP (connect-src 'self', deliberately not relaxed — see the
+		// project's established pattern of routing around CSP rather than loosening it)
+		// refuses outright ("Refused to connect to 'blob:file://...'"). Plain TextureLoader loads
+		// the exact same blob: URL through an <img> tag instead, which falls under img-src
+		// (already 'self' data: blob: in this app) and works. Confirmed via a real GLTFExporter
+		// round-trip test — ImageBitmapLoader silently failed the texture with zero thrown error
+		// in the promise chain, only a console warning, so this is not something a try/catch
+		// around the import would have caught either.
+		this.textureLoader = new TextureLoader( this.options.manager );
 
 		this.textureLoader.setCrossOrigin( this.options.crossOrigin );
 		this.textureLoader.setRequestHeader( this.options.requestHeader );
