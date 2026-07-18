@@ -115,6 +115,40 @@
     return { drift };
   });
 
+  // ---------------------------------------------------------------- rotate tool: welded parts
+  await step('rotate tool: a weld-driven part offset from root only rotates, never translates', () => {
+    // "A" (root) at origin, "B" welded to A but offset 2 studs on X — a coincident-offset weld
+    // (as in knife.obj's Handle+Blade fixture) can't catch this bug: transformForWorld returns
+    // null for any weld-driven part (only motor joints are in jointByPart1), so onGizmoChange used
+    // to fall back to treating the rotate as an origin move using B's own raw desired CFrame —
+    // correct only when B sits exactly at the root's position. With a real offset it dragged the
+    // whole rig sideways by that offset the instant you rotated B (confirmed live).
+    const rig = {
+      name: 'SmokeTestWeldOffset', rigType: 'Custom', rootPart: 'A',
+      parts: [
+        { id: 'A', name: 'A', className: 'Part', size: [1, 1, 1], cf: CF.IDENTITY.slice(), color: '#A3A2A5' },
+        { id: 'B', name: 'B', className: 'Part', size: [1, 1, 1], cf: [2, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], color: '#A3A2A5' },
+      ],
+      joints: [{ name: 'BWeld', kind: 'weld', part0: 'A', part1: 'B', c0: [2, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], c1: CF.IDENTITY.slice() }],
+    };
+    const item = D.addRigItem(rig, rig.name);
+    S.setSelection(item.id, 'B');
+    D.setGizmoMode('rotate');
+    D.updateScene();
+    const inst = D.getInstance(item.id);
+    const bBefore = inst.partWorld('B').slice();
+    D.debugSimulateDrag((dummy) => {
+      const q = new (Object.getPrototypeOf(dummy.quaternion).constructor)();
+      q.setFromAxisAngle({ x: 0, y: 1, z: 0 }, Math.PI / 6);
+      dummy.quaternion.multiply(q);
+    });
+    D.updateScene();
+    const bAfter = inst.partWorld('B').slice();
+    const posDelta = Math.hypot(bAfter[0] - bBefore[0], bAfter[1] - bBefore[1], bAfter[2] - bBefore[2]);
+    assert(posDelta < 1e-6, `rotating a welded part translated it by ${posDelta} studs — should only rotate`);
+    return { posDelta };
+  });
+
   // ---------------------------------------------------------------- scale tool: customMesh parts
   await step('scale tool: FBX/GLB-imported (customMesh) parts actually resize, not just size/cf', async () => {
     const { importExternalMesh } = await import('../renderer/js/meshImport.js');

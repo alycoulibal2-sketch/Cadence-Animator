@@ -601,7 +601,19 @@ function onGizmoChange() {
     viewport.overlayOrigin.set(itemId, desired);
   } else {
     const r = inst.transformForWorld?.(partId, desired, S.unparentedSet(itemId));
-    if (!r) { viewport.overlayOrigin.set(itemId, desired); return; }
+    if (!r) {
+      // Not directly motor-driven (welded, or reached only through welds/static offsets from
+      // root) — there's no per-joint Transform to solve for, so move the ORIGIN by exactly the
+      // amount needed to land this part at `desired`, holding every other joint's current pose
+      // fixed. Naively doing `overlayOrigin.set(itemId, desired)` here (as if this part WERE the
+      // root) ignores this part's own offset from root, dragging the entire rig sideways by that
+      // offset — confirmed live: rotating a part welded 2 studs from root dragged the whole rig
+      // 2 studs off to the side instead of just rotating in place.
+      const newOrigin = inst.originForWorld?.(partId, desired);
+      viewport.overlayOrigin.set(itemId, newOrigin || desired);
+      S.emit('overlay');
+      return;
+    }
     if (!viewport.overlayPose.has(itemId)) viewport.overlayPose.set(itemId, {});
     viewport.overlayPose.get(itemId)[r.joint] = r.transform;
   }

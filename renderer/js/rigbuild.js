@@ -599,6 +599,21 @@ export class RigInstance {
     return this.parts.get(partId)?.world || CF.IDENTITY;
   }
 
+  // For a part with no direct motor Transform to solve (welded, or reached only through welds/
+  // static offsets — transformForWorld returns null for these): the ORIGIN is the only animatable
+  // thing upstream of it, so find the origin value that lands this part exactly on `desiredWorld`,
+  // holding every other joint's current pose fixed. `partWorld = origin * (origin^-1 * partWorld)`
+  // — that parenthesized term is this part's pose relative to origin under the CURRENT (unperturbed)
+  // pose, cached from the last computeWorld() — so solving `desired = newOrigin * thatTerm` gives
+  // newOrigin = desired * partWorld^-1 * origin. (For the root part itself, that term is identity,
+  // so this reduces to newOrigin = desired — the existing, already-correct root/@origin behavior.)
+  originForWorld(partId, desiredWorld) {
+    const part = this.parts.get(partId);
+    const root = this.parts.get(this.item.rig.rootPart);
+    if (!part || !root) return null;
+    return CF.orthonormalize(CF.mul(CF.mul(desiredWorld, CF.inverse(part.world)), root.world));
+  }
+
   // Given a desired world CFrame for a part, return the joint value that produces it — a
   // parent-relative Transform normally, or (for an "unparented" joint — see #solve) an
   // origin-relative world CFrame instead, since that IS what its track stores.
