@@ -1458,18 +1458,18 @@ function addVfxItem() {
 // vfx item's emitter (patched field-by-field), the document is edited as a whole in the separate
 // studio window and arrives complete — see initVfxStudioBridge. effectStart defaults to the
 // current playhead so "build it, send it, it lands where you were looking" just works.
-function addEffectItem(doc) {
+function addEffectItem(doc, { effectStart, effectLoop } = {}) {
   const item = {
     id: crypto.randomUUID(),
     kind: 'effect',
     name: doc.name || `Effect ${S.state.project.items.filter((i) => i.kind === 'effect').length + 1}`,
     origin: [0, 2, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
     effect: doc,
-    effectStart: Math.round(S.state.playhead),
-    effectLoop: !!doc.loop,
+    effectStart: Number.isFinite(effectStart) ? Math.max(0, Math.round(effectStart)) : Math.round(S.state.playhead),
+    effectLoop: typeof effectLoop === 'boolean' ? effectLoop : !!doc.loop,
     visible: true,
   };
-  S.addItem(item);
+  S.addItem(item); // one undo step — placement is set on the item object itself, not a follow-up patch
   S.setSelection(item.id, '@effect');
   return item;
 }
@@ -2674,9 +2674,8 @@ const MCP_HANDLERS = {
   add_effect_item: ({ effect, name, effectStart, effectLoop }) => {
     const parsed = parseEffect(effect);
     if (!parsed.ok) throw new Error(`Effect document rejected: ${parsed.error}`);
-    const item = addEffectItem(parsed.doc);
+    const item = addEffectItem(parsed.doc, { effectStart, effectLoop });
     if (name) S.renameItem(item.id, name);
-    if (effectStart != null || effectLoop != null) S.setEffectDoc(item.id, item.effect, { effectStart, effectLoop });
     const it = S.getItem(item.id);
     return { itemId: it.id, name: it.name, effect: effectSummary(it.effect), effectStart: it.effectStart, effectLoop: it.effectLoop };
   },
@@ -2695,6 +2694,11 @@ const MCP_HANDLERS = {
       doc = parsed.doc;
     }
     S.setEffectDoc(itemId, doc, { effectStart, effectLoop });
+    // EffectInstance builds its particle/shape/light pools ONCE at add-time, keyed by the
+    // document's layer ids — replacing the document without rebuilding leaves the live instance
+    // structurally stale (wrong pool sizes, orphaned layer ids), same as changing a vfx item's
+    // shape/blendMode/maxParticles requires refreshInstance below.
+    refreshInstance(itemId);
     const it = S.getItem(itemId);
     return { effect: effectSummary(it.effect), effectStart: it.effectStart, effectLoop: it.effectLoop };
   },

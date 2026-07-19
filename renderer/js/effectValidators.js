@@ -239,6 +239,7 @@ export function estimateInGameParticles(effect) {
   let total = 0;
   for (const layer of effect.layers) {
     if (!layer.enabled || layer.type !== 'emitter') continue;
+    if (layer.clip.start >= effect.duration) continue; // can never play (flagged separately as VFX-E002)
     total += propMax(layer, 'rate') * propMax(layer, 'lifetime') + (layer.props.burst || 0);
   }
   return Math.round(total);

@@ -9,12 +9,19 @@
 // Scalar layers (shape/light/screen) are baked by literally sampling the engine per frame —
 // modifiers therefore export exactly as previewed, because the numbers come from the same
 // sampleEffect the preview draws. Emitter layers bake parameter channels (rate/speed/lifetime/
-// spread) via the same resolveProp the engine uses, plus explicit folds: fadeInOut → a rate
-// envelope, glowBoost → size/transparency multipliers, wind → Acceleration.
+// spread) via the same resolveProp the engine uses, plus explicit folds: glowBoost → size/
+// transparency multipliers, wind → Acceleration. fadeInOut on an EMITTER is the one deliberate
+// exception to "exports exactly as previewed": the preview fades PER-PARTICLE OPACITY (constant
+// density, particles fade transparent), but Roblox's ParticleEmitter has no way to rewrite a
+// live particle's transparency after it spawns — only Rate can be scheduled — so the export
+// approximates the same visual arc (sparse -> dense -> sparse) via a rate envelope instead
+// (fewer, fully-opaque particles during the fade rather than many half-transparent ones). This
+// is the more faithful of the two viable approximations given Roblox's constraints, not a bug;
+// bakeEmitterChannels below flags it with an explicit fidelity note.
 
 import { sampleEffect } from './effectEngine.js';
 import { resolveProp } from './effectModel.js';
-import { shapePolyline, isClosedShape } from './effectShapes.js';
+import { shapePolyline } from './effectShapes.js';
 
 const ROBLOX = { rate: 500, lifetime: 20, size: 10, lightRange: 60, pathAttachments: 12, beamPoints: 16 };
 
@@ -72,8 +79,8 @@ function motionMapping(layer) {
   const p = layer.props;
   switch (p.motion || 'cone') {
     case 'burst': return { spread: 'Vector2.new(180, 180)', dir: 'Enum.NormalId.Top', accel: p.gravity, drag: 0, note: null };
-    case 'rise': return { spread: `Vector2.new(${n(Math.min(30, p.spreadDegrees))}, ${n(Math.min(30, p.spreadDegrees))})`, dir: 'Enum.NormalId.Top', accel: p.gravity, drag: 0, note: 'per-particle sway dropped' };
-    case 'fall': return { spread: `Vector2.new(${n(Math.min(30, p.spreadDegrees))}, ${n(Math.min(30, p.spreadDegrees))})`, dir: 'Enum.NormalId.Bottom', accel: p.gravity, drag: 0, note: 'per-particle sway dropped' };
+    case 'rise': return { spread: `Vector2.new(${n(Math.min(30, p.spreadDegrees))}, ${n(Math.min(30, p.spreadDegrees))})`, dir: 'Enum.NormalId.Top', accel: p.gravity, drag: 0, note: 'per-particle sway dropped; "up" follows this effect\'s own placement rotation, not necessarily true world-up, if it\'s attached to a rotated part' };
+    case 'fall': return { spread: `Vector2.new(${n(Math.min(30, p.spreadDegrees))}, ${n(Math.min(30, p.spreadDegrees))})`, dir: 'Enum.NormalId.Bottom', accel: p.gravity, drag: 0, note: 'per-particle sway dropped; "down" follows this effect\'s own placement rotation, not necessarily true world-down, if it\'s attached to a rotated part' };
     case 'orbit': return { spread: 'Vector2.new(180, 180)', dir: 'Enum.NormalId.Top', accel: p.gravity, drag: 2, speedOverride: Math.max(0.3, Math.abs(p.speed) * 0.25), note: 'orbit approximated as slow drift' };
     case 'ambient': return { spread: 'Vector2.new(180, 180)', dir: 'Enum.NormalId.Top', accel: p.gravity, drag: 2, speedOverride: Math.max(0.1, Math.abs(p.speed) * 0.3), note: 'ambient jitter approximated as slow drift' };
     default: return { spread: `Vector2.new(${n(p.spreadDegrees)}, ${n(p.spreadDegrees)})`, dir: 'Enum.NormalId.Top', accel: p.gravity, drag: 0, note: null };
@@ -226,6 +233,9 @@ function emitLuaEmitter(L, notes, layer, id, doc, fps) {
   const off = p.offset || [0, 0, 0];
 
   const channels = bakeEmitterChannels(layer, fps);
+  if (layer.modifiers.some((m) => m.enabled && m.type === 'fadeInOut')) {
+    notes.push(`${layer.name}: "Fade in/out" approximates via a rate envelope (fewer, fully-opaque particles during the fade) rather than a per-particle opacity fade — Roblox cannot rewrite a live particle's transparency after it spawns`);
+  }
   const emitterCount = emission.kind === 'multi' ? emission.offsets.length : 1;
   if (emission.kind === 'multi') notes.push(`${layer.name}: emission shape "${p.emissionShape.kind}" fans out into ${emitterCount} point emitters`);
 
@@ -345,8 +355,10 @@ function emitLuaShape(L, notes, layer, id, doc, fps) {
 
   // path shapes → beam chain along the tessellated polyline
   notes.push(`${layer.name}: "${def.kind}" exports as a chain of Beams along its path`);
+  // shapePolyline already samples u=1 (== u=0 for any closed shape, by construction — see
+  // effectShapes.js), so the point list is self-closing; appending pts[0] again would pair a
+  // final zero-length degenerate Beam between two identical positions.
   const pts = shapePolyline(def, ROBLOX.beamPoints - 1).map((pt) => rotY(pt, rot0).map((v, i) => v * scale0 + off[i]));
-  if (isClosedShape(def)) pts.push(pts[0]);
   L.push(`local ${id}_beams = {}`);
   L.push('do');
   L.push(`  local pts = { ${pts.map((pt) => `Vector3.new(${vecArgs(pt)})`).join(', ')} }`);

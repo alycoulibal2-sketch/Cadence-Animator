@@ -105,16 +105,27 @@ function rebuild() {
   head.appendChild(badge);
   body.appendChild(head);
 
-  // clip
+  // clip — these fields aren't part of signature() (deliberately, to avoid rebuild storms during
+  // a timeline drag), so they need their own live updaters or a concurrent drag/MCP edit would
+  // leave them frozen at stale values.
   const clip = section('Clip');
-  clip.appendChild(row('Start (frame)', numInput(layer.clip.start, (v) => ST.mutate((doc) => setClip(getLayer(doc, layer.id), { start: v }, doc.duration)), { step: 1, min: 0 })));
-  clip.appendChild(row('Length (frames)', numInput(layer.clip.len, (v) => ST.mutate((doc) => setClip(getLayer(doc, layer.id), { len: v }, doc.duration)), { step: 1, min: 1 })));
+  const startInput = numInput(layer.clip.start, (v) => ST.mutate((doc) => setClip(getLayer(doc, layer.id), { start: v }, doc.duration)), { step: 1, min: 0 });
+  const lenInput = numInput(layer.clip.len, (v) => ST.mutate((doc) => setClip(getLayer(doc, layer.id), { len: v }, doc.duration)), { step: 1, min: 1 });
+  clip.appendChild(row('Start (frame)', startInput));
+  clip.appendChild(row('Length (frames)', lenInput));
   const loopChk = el('input');
   loopChk.type = 'checkbox';
   loopChk.checked = layer.clip.loop;
   loopChk.addEventListener('change', () => ST.mutate((doc) => { getLayer(doc, layer.id).clip.loop = loopChk.checked; }));
   clip.appendChild(row('Loop to effect end', loopChk));
   body.appendChild(clip);
+  updaters.push(() => {
+    const l = getLayer(ST.state.doc, layer.id);
+    if (!l) return;
+    if (document.activeElement !== startInput) startInput.value = l.clip.start;
+    if (document.activeElement !== lenInput) lenInput.value = l.clip.len;
+    loopChk.checked = l.clip.loop;
+  });
 
   // typed props
   const props = section('Properties');
@@ -248,28 +259,36 @@ function propRow(layerId, pm) {
       input.min = pm.min ?? 0; input.max = pm.max ?? 1; input.step = pm.step ?? 0.01;
       input.value = layer.props[pm.key];
       input.addEventListener('change', () => commit({ [pm.key]: parseFloat(input.value) }));
-      return row(pm.label, input);
+      return withUpdater(row(pm.label, input), () => {
+        if (document.activeElement !== input) input.value = layerNow()?.props[pm.key] ?? 0;
+      });
     }
     case 'color': {
       const input = el('input', 'fld');
       input.type = 'color';
       input.value = layer.props[pm.key] || '#ffffff';
       input.addEventListener('change', () => commit({ [pm.key]: input.value }));
-      return row(pm.label, input);
+      return withUpdater(row(pm.label, input), () => {
+        if (document.activeElement !== input) input.value = layerNow()?.props[pm.key] || '#ffffff';
+      });
     }
     case 'select': {
       const sel = el('select', 'fld');
       for (const o of pm.options) sel.add(new Option(o, o));
       sel.value = layer.props[pm.key];
       sel.addEventListener('change', () => commit({ [pm.key]: sel.value }));
-      return row(pm.label, sel);
+      return withUpdater(row(pm.label, sel), () => {
+        if (document.activeElement !== sel) sel.value = layerNow()?.props[pm.key] ?? sel.value;
+      });
     }
     case 'check': {
       const input = el('input');
       input.type = 'checkbox';
       input.checked = !!layer.props[pm.key];
       input.addEventListener('change', () => commit({ [pm.key]: input.checked }));
-      return row(pm.label, input);
+      return withUpdater(row(pm.label, input), () => {
+        input.checked = !!layerNow()?.props[pm.key];
+      });
     }
     case 'text': {
       const input = el('input', 'fld');
@@ -277,12 +296,15 @@ function propRow(layerId, pm) {
       if (pm.placeholder) input.placeholder = pm.placeholder;
       input.value = layer.props[pm.key] || '';
       input.addEventListener('change', () => commit({ [pm.key]: input.value }));
-      return row(pm.label, input);
+      return withUpdater(row(pm.label, input), () => {
+        if (document.activeElement !== input) input.value = layerNow()?.props[pm.key] || '';
+      });
     }
     case 'vec3': {
       const holder = el('div', 'insp-row');
       holder.appendChild(el('span', 'l', pm.label));
       const triple = el('div', 'vfx-vec3');
+      const inputs = [];
       ['x', 'y', 'z'].forEach((axis, i) => {
         const input = numInput(layer.props[pm.key]?.[i] ?? 0, (v) => {
           const cur = [...(layerNow()?.props[pm.key] || [0, 0, 0])];
@@ -291,9 +313,13 @@ function propRow(layerId, pm) {
         }, { step: 0.1 });
         input.title = axis;
         triple.appendChild(input);
+        inputs.push(input);
       });
       holder.appendChild(triple);
-      return holder;
+      return withUpdater(holder, () => {
+        const v = layerNow()?.props[pm.key] || [0, 0, 0];
+        inputs.forEach((input, i) => { if (document.activeElement !== input) input.value = round3(v[i] ?? 0); });
+      });
     }
     case 'shape':
       return shapeEditor(layerId, pm);
@@ -388,6 +414,7 @@ function modifierBlock(layerId, modId) {
       }));
     } else if (param.kind === 'vec3') {
       const triple = el('div', 'vfx-vec3');
+      const inputs = [];
       ['x', 'y', 'z'].forEach((axis, i) => {
         const input = numInput(mod.props[param.key]?.[i] ?? 0, (v) => ST.mutate((doc) => {
           const m = getModifier(getLayer(doc, layerId), modId);
@@ -399,15 +426,26 @@ function modifierBlock(layerId, modId) {
         }), { step: 0.1 });
         input.title = axis;
         triple.appendChild(input);
+        inputs.push(input);
       });
       const r = el('div', 'insp-row');
       r.append(el('span', 'l', param.label), triple);
       block.appendChild(r);
+      updaters.push(() => {
+        const m = getModifier(getLayer(ST.state.doc, layerId), modId);
+        const v = m?.props[param.key] || [0, 0, 0];
+        inputs.forEach((input, i) => { if (document.activeElement !== input) input.value = round3(v[i] ?? 0); });
+      });
     } else {
-      block.appendChild(row(param.label, numInput(mod.props[param.key], (v) => ST.mutate((doc) => {
+      const input = numInput(mod.props[param.key], (v) => ST.mutate((doc) => {
         const m = getModifier(getLayer(doc, layerId), modId);
         if (m) m.props[param.key] = Math.max(param.min ?? -Infinity, Math.min(param.max ?? Infinity, v));
-      }), param)));
+      }), param);
+      block.appendChild(row(param.label, input));
+      updaters.push(() => {
+        const m = getModifier(getLayer(ST.state.doc, layerId), modId);
+        if (m && document.activeElement !== input) input.value = round3(m.props[param.key] ?? 0);
+      });
     }
   }
   return block;
