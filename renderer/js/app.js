@@ -1811,6 +1811,8 @@ async function offerRecovery(mode = 'boot') {
 function wireTopBar() {
   const nameEl = document.getElementById('projectName');
   nameEl.addEventListener('blur', () => {
+    if (!S.state.project) return; // can fire before boot() finishes loading a project (e.g. a
+    // devtools-triggered focus steal racing ahead of the async settings/project load)
     const v = nameEl.textContent.trim() || 'Untitled';
     if (v !== S.state.project.name) { S.state.project.name = v; S.markDirty(); }
   });
