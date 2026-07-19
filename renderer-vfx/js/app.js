@@ -33,6 +33,24 @@ function initTransport() {
   updateFrame();
 }
 
+// ---------------------------------------------------------------- new / start over
+// The ONLY other way to reach a blank canvas was the preset browser's one-time "Start from
+// scratch" option on first boot — once past that (any autosave restored, any preset applied),
+// there was no button anywhere to get back to a truly blank effect. newBlankDoc() itself already
+// pushes undo before replacing (so Ctrl+Z always recovers), but a confirm step matches the
+// weight of the action and the animator's own closeFileFlow pattern.
+function newEffectFlow() {
+  if (!ST.state.dirty) { ST.newBlankDoc(); toast('New effect'); return; }
+  modal({
+    title: 'Start a new effect?',
+    body: '<p>This replaces the open effect with a blank one. It\'s one undo step (Ctrl+Z brings it back), and autosave already has a copy either way.</p>',
+    actions: [
+      { label: 'Cancel', run: () => { } },
+      { label: 'Start new effect', primary: true, run: () => { ST.newBlankDoc(); toast('New effect'); } },
+    ],
+  });
+}
+
 // ---------------------------------------------------------------- gate: errors block send/export
 function gateOnErrors(actionLabel) {
   const report = ST.validateNow('effect');
@@ -56,6 +74,7 @@ function initTitlebar() {
     ST.mutate((doc) => { doc.name = nameInput.value.trim() || 'Untitled Effect'; });
   });
 
+  document.getElementById('newBtn').addEventListener('click', () => newEffectFlow());
   document.getElementById('presetsBtn').addEventListener('click', () => openPresetBrowser());
 
   document.getElementById('openBtn').addEventListener('click', async () => {
@@ -169,6 +188,9 @@ function initKeyboard() {
     } else if (ctrl && e.key.toLowerCase() === 's') {
       e.preventDefault();
       saveToFile();
+    } else if (ctrl && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      newEffectFlow();
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       const layer = ST.selectedLayer();
       if (layer) {
