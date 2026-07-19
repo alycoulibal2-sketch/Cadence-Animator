@@ -776,6 +776,13 @@ body {
 }
 .choose-card-delete:hover { opacity: 1; background: rgba(255,90,90,0.15); }
 
+/* vfx preset picker */
+.vfx-preset-controls { display: flex; gap: 8px; margin-bottom: 10px; }
+.vfx-preset-controls input.fld { flex: 1 1 auto; }
+.vfx-preset-controls select.fld { flex: 0 0 auto; width: 130px; }
+.vfx-preset-grid { max-height: 46vh; }
+.vfx-preset-empty { grid-column: 1 / -1; padding: 18px 0; text-align: center; color: var(--text-3); font-size: 12px; }
+
 /* themes & customization */
 .theme-grid {
   display: grid; grid-template-columns: 1fr 1fr;

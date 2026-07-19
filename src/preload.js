@@ -66,6 +66,10 @@ contextBridge.exposeInMainWorld('cadence', {
   mobileBroadcastState: (payload) => ipcRenderer.send('mobile:broadcastState', payload),
   onMobileClientConnected: (cb) => ipcRenderer.on('mobile:clientConnected', () => cb()),
 
+  // VFX Studio (standalone particle-effect creation window)
+  openVfxStudio: () => ipcRenderer.invoke('vfx:openStudio'),
+  onReceiveVfxFromStudio: (cb) => ipcRenderer.on('vfx:receiveFromStudio', (_e, config) => cb(config)),
+
   // auto-update
   checkForUpdate: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),

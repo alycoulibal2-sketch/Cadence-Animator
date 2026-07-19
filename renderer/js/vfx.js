@@ -6,7 +6,11 @@
 // the exact same result, which is what the timeline/onion-skin/MCP render_frame tooling all
 // assume of every other animatable thing in this app.
 import * as CF from './cf.js';
-import * as S from './state.js';
+// Deliberately no import of state.js here: this file is reused as-is by the standalone VFX Studio
+// window (a separate renderer with no project/undo/autosave state at all), so every call site
+// takes an explicit `evalNum(itemId, track, frame, fallback)` track-evaluator instead of reaching
+// out to a shared S.evalTrackNum — the main app passes the real one (see viewport.js), the studio
+// passes a trivial "just return the fallback" stand-in since it has no keyframed tracks at all.
 
 export const VFX_DEFAULTS = {
   colorStart: '#ffffff', colorEnd: '#ffffff',
@@ -15,6 +19,11 @@ export const VFX_DEFAULTS = {
   spreadDegrees: 20,
   gravity: -9.8,
   maxParticles: 150,
+  // shape/motion/blendMode default to the exact old look (a soft glow sprite, spray-cone motion,
+  // normal blending) so any project saved before these fields existed renders identically.
+  shape: 'glow',
+  motion: 'cone',
+  blendMode: 'normal',
 };
 
 function hexToRgb01(hex) {
@@ -42,20 +51,96 @@ function localUpInWorld(cf) {
 
 // itemId's '@rate'/'@lifetime'/'@speed' tracks override item.emitter's base rate/lifetime/speed
 // (same "default + optional keyframed override" convention as a camera's fov/'@fov').
-function paramsAt(item, frame) {
+function paramsAt(item, frame, evalNum) {
   const em = item.emitter || VFX_DEFAULTS;
   return {
-    rate: S.evalTrackNum(item.id, '@rate', frame, em.rate ?? 8),
-    lifetime: S.evalTrackNum(item.id, '@lifetime', frame, em.lifetime ?? 1.5),
-    speed: S.evalTrackNum(item.id, '@speed', frame, em.speed ?? 4),
+    rate: evalNum(item.id, '@rate', frame, em.rate ?? 8),
+    lifetime: evalNum(item.id, '@lifetime', frame, em.lifetime ?? 1.5),
+    speed: evalNum(item.id, '@speed', frame, em.speed ?? 4),
   };
 }
 
+// Six particle "motions" — the position formula for a single particle, still a pure function of
+// its own spawn frame and index (no persistent sim state, same determinism guarantee as the rest
+// of this file). `speed` and `spreadDegrees` are deliberately repurposed per motion (documented
+// inline below) rather than adding a new emitter field for every motion's own knob — keeps the
+// Inspector/Studio UI to the same handful of fields regardless of which motion is selected.
+function motionPosition(motion, ctx) {
+  const { spawnPos, up, perp1, perp2, rnd1, rnd2, spreadRad, speed, ageSec, spawnIndex, gravity, spreadDegrees } = ctx;
+  const gravityTerm = 0.5 * gravity * ageSec * ageSec;
+  if (motion === 'burst') {
+    // Fully omnidirectional (ignores spread/up entirely) — an explosion/impact, not a spray.
+    const theta = (rnd1 * 0.5 + 0.5) * Math.PI; // 0..PI polar angle
+    const phi = (hash01(spawnIndex, 4) * 2 - 1) * Math.PI; // -PI..PI azimuth
+    const st = Math.sin(theta);
+    const dir = [st * Math.cos(phi), Math.cos(theta), st * Math.sin(phi)];
+    return [
+      spawnPos[0] + dir[0] * speed * ageSec,
+      spawnPos[1] + dir[1] * speed * ageSec + gravityTerm,
+      spawnPos[2] + dir[2] * speed * ageSec,
+    ];
+  }
+  if (motion === 'rise' || motion === 'fall') {
+    // Mostly straight up/down (world axis, not the emitter's own orientation — embers rise and
+    // rain falls regardless of which way the emitter is rotated) plus a gentle per-particle sway.
+    // spreadDegrees (0..90) is repurposed here as a 0..0.6 stud sway-amount knob.
+    const sign = motion === 'rise' ? 1 : -1;
+    const phase = hash01(spawnIndex, 5) * Math.PI * 2;
+    const freq = 1.2 + hash01(spawnIndex, 6) * 1.3;
+    const swayAmp = (spreadDegrees / 90) * 0.6;
+    return [
+      spawnPos[0] + Math.sin(ageSec * freq + phase) * swayAmp,
+      spawnPos[1] + sign * speed * ageSec + gravityTerm,
+      spawnPos[2] + Math.cos(ageSec * freq * 0.8 + phase) * swayAmp,
+    ];
+  }
+  if (motion === 'orbit') {
+    // Spirals around the emitter's up axis in the perp1/perp2 plane. spreadDegrees is repurposed
+    // as an orbit-radius knob (studs) and `speed` as angular velocity (rad/sec).
+    const radius = Math.max(0.05, spreadDegrees / 15);
+    const phase = hash01(spawnIndex, 7) * Math.PI * 2;
+    const ang = phase + ageSec * speed;
+    const rise = 0.3 * ageSec;
+    const c = Math.cos(ang) * radius, s = Math.sin(ang) * radius;
+    return [
+      spawnPos[0] + perp1[0] * c + perp2[0] * s,
+      spawnPos[1] + rise + gravityTerm,
+      spawnPos[2] + perp1[2] * c + perp2[2] * s,
+    ];
+  }
+  if (motion === 'ambient') {
+    // Barely leaves its spawn point — gentle 3-axis jitter for fireflies/dust/floaty sparkle.
+    // `speed` is repurposed as the jitter amplitude scale.
+    const phase = hash01(spawnIndex, 5) * Math.PI * 2;
+    const amp = Math.max(0.03, speed * 0.3);
+    return [
+      spawnPos[0] + Math.sin(ageSec * 1.3 + phase) * amp,
+      spawnPos[1] + Math.sin(ageSec * 0.9 + phase * 1.7) * amp * 0.6 + gravityTerm,
+      spawnPos[2] + Math.cos(ageSec * 1.1 + phase * 0.6) * amp,
+    ];
+  }
+  // 'cone' (default): directional spray around `up`, spread by spreadDegrees — the original,
+  // unchanged formula so any existing project with no `motion` field renders bit-for-bit the same.
+  const dir = [
+    up[0] + (perp1[0] * rnd1 + perp2[0] * rnd2) * Math.sin(spreadRad),
+    up[1] + (perp1[1] * rnd1 + perp2[1] * rnd2) * Math.sin(spreadRad),
+    up[2] + (perp1[2] * rnd1 + perp2[2] * rnd2) * Math.sin(spreadRad),
+  ];
+  const dl = Math.hypot(dir[0], dir[1], dir[2]) || 1;
+  return [
+    spawnPos[0] + (dir[0] / dl) * speed * ageSec,
+    spawnPos[1] + (dir[1] / dl) * speed * ageSec + gravityTerm,
+    spawnPos[2] + (dir[2] / dl) * speed * ageSec,
+  ];
+}
+
 // Every particle still alive at `frame`, as { pos:[x,y,z], size, color:[r,g,b], opacity }.
-// Pure — takes no live instance, just the item + project fps, and an origin-per-frame resolver
-// (so an animated/attached emitter's moving position is honored at each particle's own spawn
-// frame, not just the current one).
-export function sampleParticles(item, frame, fps, resolveOrigin) {
+// Pure — takes no live instance, just the item + project fps, an origin-per-frame resolver, and a
+// track evaluator (so an animated/attached emitter's moving position is honored at each particle's
+// own spawn frame, not just the current one). `evalNum` defaults to "just return the fallback"
+// (no keyframed-track support) so callers with no track system at all — the VFX Studio preview —
+// can omit it entirely; the main app always passes S.evalTrackNum explicitly (see viewport.js).
+export function sampleParticles(item, frame, fps, resolveOrigin, evalNum = (_id, _track, _f, fallback) => fallback) {
   const em = { ...VFX_DEFAULTS, ...(item.emitter || {}) };
   const cap = Math.max(1, Math.min(2000, em.maxParticles || VFX_DEFAULTS.maxParticles));
 
@@ -69,18 +154,18 @@ export function sampleParticles(item, frame, fps, resolveOrigin) {
   const alive = [];
   let acc = 0, spawnIndex = 0;
   for (let f = 0; f <= frame; f++) {
-    const rateAtF = S.evalTrackNum(item.id, '@rate', f, em.rate ?? 8);
+    const rateAtF = evalNum(item.id, '@rate', f, em.rate ?? 8);
     acc += Math.max(0, rateAtF) / fps;
     while (acc >= 1) {
       acc -= 1;
-      const lifetimeSec = Math.max(0.05, S.evalTrackNum(item.id, '@lifetime', f, em.lifetime ?? 1.5));
+      const lifetimeSec = Math.max(0.05, evalNum(item.id, '@lifetime', f, em.lifetime ?? 1.5));
       const ageFrames = frame - f;
       const ageSec = ageFrames / fps;
       if (ageSec <= lifetimeSec) {
-        const speed = S.evalTrackNum(item.id, '@speed', f, em.speed ?? 4);
+        const speed = evalNum(item.id, '@speed', f, em.speed ?? 4);
         const origin = resolveOrigin(f);
         const up = localUpInWorld(origin);
-        // Deterministic cone spread around `up`, using two arbitrary perpendicular axes — not a
+        // Shared basis for every motion below: `up` plus two arbitrary perpendicular axes — not a
         // perfectly uniform sphere-cap distribution, but visually convincing and, crucially,
         // stable and cheap: no per-frame trig setup beyond what's already needed.
         const ax = Math.abs(up[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
@@ -91,20 +176,12 @@ export function sampleParticles(item, frame, fps, resolveOrigin) {
         const rnd1 = (hash01(spawnIndex, 1) * 2 - 1);
         const rnd2 = (hash01(spawnIndex, 2) * 2 - 1);
         const spreadRad = (em.spreadDegrees * Math.PI) / 180;
-        const dir = [
-          up[0] + (perp1[0] * rnd1 + perp2[0] * rnd2) * Math.sin(spreadRad),
-          up[1] + (perp1[1] * rnd1 + perp2[1] * rnd2) * Math.sin(spreadRad),
-          up[2] + (perp1[2] * rnd1 + perp2[2] * rnd2) * Math.sin(spreadRad),
-        ];
-        const dl = Math.hypot(dir[0], dir[1], dir[2]) || 1;
         const spawnPos = applyToPoint(origin, [0, 0, 0]);
+        const motion = em.motion || 'cone';
+        const pos = motionPosition(motion, { spawnPos, up, perp1, perp2, rnd1, rnd2, spreadRad, speed, ageSec, spawnIndex, gravity: em.gravity, spreadDegrees: em.spreadDegrees });
         const lf = ageSec / lifetimeSec; // particle-local life fraction, 0..1
         alive.push({
-          pos: [
-            spawnPos[0] + (dir[0] / dl) * speed * ageSec,
-            spawnPos[1] + (dir[1] / dl) * speed * ageSec + 0.5 * em.gravity * ageSec * ageSec,
-            spawnPos[2] + (dir[2] / dl) * speed * ageSec,
-          ],
+          pos,
           size: Math.max(0.005, em.sizeStart + (em.sizeEnd - em.sizeStart) * lf),
           color: lerp3(colorStart, colorEnd, lf),
           opacity: Math.max(0, 1 - (em.transparencyStart + (em.transparencyEnd - em.transparencyStart) * lf)),

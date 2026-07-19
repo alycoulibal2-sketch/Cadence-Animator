@@ -14,6 +14,7 @@ import { initPanels } from './panels.js';
 import { THEMES, ACCENTS, DEFAULT_THEME, DEFAULT_ACCENT, applyTheme, currentTheme } from './themes.js';
 import { buildChain, solveIK } from './ik.js';
 import { VFX_DEFAULTS } from './vfx.js';
+import { SHAPES, MOTIONS, CATEGORIES as VFX_CATEGORIES, searchPresets, findPreset } from './particleLibrary.js';
 
 let builtinRigs = null;
 let settings = {};
@@ -62,6 +63,7 @@ async function boot() {
     wireMeshErrors();
     initMcp();
     initMobileBroadcast();
+    initVfxStudioBridge();
 
     builtinRigs = await window.cadence.builtinRigs().catch(() => null);
 
@@ -88,7 +90,7 @@ async function boot() {
       addBuiltinRig, addCamera, keyCurrentPose, setGizmoMode,
       getInstance, updateScene, render, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, setHandlesVisible, viewport, refreshInstance,
       applyTheme, currentTheme, openThemeFlow, riggingToolsFlow, buildChain, solveIK, setUnparented, addVfxItem,
-      addRigItem, importExternalMeshFlow,
+      addRigItem, importExternalMeshFlow, applyVfxPreset,
     };
   } catch (e) {
     console.error('[boot] failed:', e && e.stack || e);
@@ -1448,6 +1450,64 @@ function addVfxItem() {
   return item;
 }
 
+// Applying a preset is just merging its whole emitter object in one go — rate/lifetime/speed live
+// as plain (non-keyframed) fallback values on item.emitter same as everything else here, they only
+// become real keyframed tracks if the user later keys them, so no separate S.setKey call is needed.
+export function applyVfxPreset(itemId, preset) {
+  S.setVfxEmitter(itemId, preset.emitter);
+  refreshInstance(itemId); // shape/blendMode/maxParticles are baked into the pool at construction
+}
+
+function openVfxPresetPicker(itemId) {
+  const wrap = document.createElement('div');
+  wrap.className = 'vfx-preset-picker';
+  const controls = document.createElement('div');
+  controls.className = 'vfx-preset-controls';
+  const search = document.createElement('input');
+  search.type = 'text';
+  search.className = 'fld';
+  search.placeholder = 'Search presets… (e.g. "fire", "magic", "rain")';
+  const catSel = document.createElement('select');
+  catSel.className = 'fld';
+  for (const c of VFX_CATEGORIES) catSel.add(new Option(c, c));
+  controls.append(search, catSel);
+
+  const grid = document.createElement('div');
+  grid.className = 'choose-grid vfx-preset-grid';
+
+  const render = () => {
+    grid.innerHTML = '';
+    const results = searchPresets(search.value, catSel.value).slice(0, 150);
+    for (const p of results) {
+      const card = document.createElement('button');
+      card.className = 'choose-card';
+      card.innerHTML = `<span class="ic"></span><span class="t"></span><span class="d"></span>`;
+      card.querySelector('.ic').textContent = '✨';
+      card.querySelector('.t').textContent = p.name;
+      card.querySelector('.d').textContent = p.category;
+      card.addEventListener('click', () => {
+        applyVfxPreset(itemId, p);
+        toast(`Applied preset "${p.name}"`);
+        m.close();
+      });
+      grid.appendChild(card);
+    }
+    if (!results.length) {
+      const empty = document.createElement('div');
+      empty.className = 'vfx-preset-empty';
+      empty.textContent = 'No presets match.';
+      grid.appendChild(empty);
+    }
+  };
+  search.addEventListener('input', render);
+  catSel.addEventListener('change', render);
+  wrap.append(controls, grid);
+  render();
+
+  const m = modal({ title: '✨ Particle preset library', body: wrap, actions: [{ label: 'Close', run: () => { } }] });
+  setTimeout(() => search.focus(), 60);
+}
+
 async function addAudioFlow() {
   const paths = await window.cadence.openDialog({
     title: 'Add audio',
@@ -1700,6 +1760,7 @@ function wireTopBar() {
   document.getElementById('camChip').addEventListener('click', toggleCameraView);
   document.getElementById('mcpBtn').addEventListener('click', enableClaudeControlFlow);
   document.getElementById('mobileBtn').addEventListener('click', openMobilePanelFlow);
+  document.getElementById('vfxStudioBtn').addEventListener('click', () => window.cadence.openVfxStudio());
   document.getElementById('shortcutsBtn').addEventListener('click', showShortcuts);
 
   wireUpdateChip();
@@ -1824,6 +1885,19 @@ function initMobileBroadcast() {
   // A phone just connected while nothing else was changing — send it a snapshot right away
   // instead of leaving it blank until the next real edit happens to trigger a broadcast.
   window.cadence.onMobileClientConnected(() => sendNow());
+}
+
+// Receives a finished effect from the separate VFX Studio window (main.js just relays the IPC
+// message through, see 'vfx:sendToAnimator'/'vfx:receiveFromStudio' there). Goes through the same
+// addVfxItem()/applyVfxPreset() path a user clicking a preset in the Inspector would use, so it's
+// undoable exactly like any other add — nothing studio-specific in the undo stack.
+function initVfxStudioBridge() {
+  window.cadence.onReceiveVfxFromStudio((config) => {
+    const item = addVfxItem();
+    if (config.name) S.renameItem(item.id, config.name);
+    if (config.emitter) applyVfxPreset(item.id, config);
+    toast(`VFX "${item.name}" added from VFX Studio`);
+  });
 }
 
 async function openMobilePanelFlow() {
@@ -2106,6 +2180,7 @@ function wireInspector() {
         sec.appendChild(button(S.state.cameraView === item.id ? 'Exit camera view' : 'Look through camera', toggleCameraView));
       } else if (item.kind === 'vfx') {
         const em = item.emitter || VFX_DEFAULTS;
+        sec.appendChild(button('✨ Browse preset library…', () => openVfxPresetPicker(item.id)));
         const rate = S.evalTrackNum(item.id, '@rate', S.state.playhead, em.rate ?? 8);
         const lifetime = S.evalTrackNum(item.id, '@lifetime', S.state.playhead, em.lifetime ?? 1.5);
         const speed = S.evalTrackNum(item.id, '@speed', S.state.playhead, em.speed ?? 4);
@@ -2115,6 +2190,15 @@ function wireInspector() {
         el.appendChild(sec);
 
         const appearance = section('Particle appearance');
+        appearance.appendChild(selectField('Shape', SHAPES, em.shape || 'glow', (v) => {
+          S.setVfxEmitter(item.id, { shape: v });
+          refreshInstance(item.id);
+        }));
+        appearance.appendChild(selectField('Motion', MOTIONS, em.motion || 'cone', (v) => S.setVfxEmitter(item.id, { motion: v })));
+        appearance.appendChild(selectField('Blend mode', ['normal', 'additive'], em.blendMode || 'normal', (v) => {
+          S.setVfxEmitter(item.id, { blendMode: v });
+          refreshInstance(item.id);
+        }));
         const colorRow = (label, key) => {
           const d = document.createElement('div');
           d.className = 'insp-row';

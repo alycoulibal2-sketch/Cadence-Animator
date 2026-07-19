@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none';" />
+  <title>VFX Studio — Cadence Animator</title>
+  <link rel="stylesheet" href="../renderer/styles.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="titlebar">
+    <div class="logo">✨ VFX Studio</div>
+    <input id="vfxNameInput" class="vfx-name-input" spellcheck="false" value="Untitled Effect" />
+    <div class="spacer"></div>
+    <button id="restartBtn" class="tb-btn" title="Restart the preview loop from the beginning">↺ Restart</button>
+    <button id="saveUserPresetBtn" class="tb-btn" title="Save this as one of your own reusable presets">💾 Save preset</button>
+    <button id="sendBtn" class="tb-btn primary" title="Add this effect to the animation you have open">➜ Send to Animator</button>
+  </header>
+
+  <main id="vfxMain">
+    <aside id="vfxLibrary">
+      <div class="panel-head"><span>Presets</span></div>
+      <div class="vfx-preset-controls">
+        <input id="vfxSearch" type="text" class="fld" placeholder="Search…" />
+        <select id="vfxCategory" class="fld"></select>
+      </div>
+      <div id="vfxUserPresetsHead" class="vfx-lib-subhead hidden">Your presets</div>
+      <div id="vfxUserPresetGrid" class="choose-grid vfx-preset-grid vfx-user-grid"></div>
+      <div class="vfx-lib-subhead">Library</div>
+      <div id="vfxPresetGrid" class="choose-grid vfx-preset-grid"></div>
+    </aside>
+
+    <div id="vfxViewportWrap">
+      <canvas id="vfxCanvas"></canvas>
+    </div>
+
+    <aside id="vfxControls">
+      <div class="panel-head"><span>Controls</span></div>
+      <div id="vfxControlsBody"></div>
+    </aside>
+  </main>
+
+  <div id="toasts"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

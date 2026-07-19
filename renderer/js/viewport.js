@@ -472,7 +472,7 @@ function applyOrigin(item, inst, origin, t) {
       }
       return S.evalTrackCF(item.id, '@origin', f, item.origin || CF.IDENTITY);
     };
-    const particles = sampleParticles(item, Math.round(t), p.fps, resolveOriginAt);
+    const particles = sampleParticles(item, Math.round(t), p.fps, resolveOriginAt, S.evalTrackNum);
     inst.computeWorld(origin, particles);
   } else {
     const pose = S.evalPose(item, t);

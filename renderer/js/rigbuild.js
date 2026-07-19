@@ -737,22 +737,104 @@ export class CameraInstance {
   }
 }
 
-// Shared across every VFX item — a small soft-radial-gradient sprite texture, generated once via
-// canvas (no network fetch, so it's unaffected by the app's CSP) instead of every particle being
-// a hard-edged flat square.
-let particleTexture = null;
-function getParticleTexture() {
-  if (particleTexture) return particleTexture;
-  const c = document.createElement('canvas');
-  c.width = c.height = 32;
-  const ctx = c.getContext('2d');
+// One small sprite texture per particle "shape" (see particleLibrary.js's SHAPES), each generated
+// once via canvas (no network fetch, so unaffected by the app's CSP) and cached — a fixed set of
+// textures shared across every VFX item that uses a given shape, not one per item/preset.
+const particleTextures = new Map(); // shape -> THREE.CanvasTexture
+function drawGlow(ctx) {
   const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
   g.addColorStop(0, 'rgba(255,255,255,1)');
   g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 32, 32);
-  particleTexture = new THREE.CanvasTexture(c);
-  return particleTexture;
+}
+function drawSpark(ctx) {
+  ctx.save();
+  ctx.translate(16, 16);
+  ctx.scale(0.4, 1);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 16);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0.6)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(-16, -16, 32, 32);
+  ctx.restore();
+}
+function drawRing(ctx) {
+  const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(0.55, 'rgba(255,255,255,0)');
+  g.addColorStop(0.75, 'rgba(255,255,255,1)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 32, 32);
+}
+function drawStar(ctx) {
+  ctx.save();
+  ctx.translate(16, 16);
+  ctx.filter = 'blur(1.5px)';
+  ctx.fillStyle = 'white';
+  ctx.beginPath();
+  const spikes = 4, outerR = 15, innerR = 4;
+  for (let i = 0; i < spikes * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const a = (i / (spikes * 2)) * Math.PI * 2 - Math.PI / 2;
+    const x = Math.cos(a) * r, y = Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+function drawSmoke(ctx) {
+  // A few overlapping soft blobs at fixed (deterministic, not random-per-call) offsets read as a
+  // puffy cloud silhouette instead of one uniform circle.
+  const blobs = [[16, 16, 15], [10, 20, 10], [22, 19, 10], [16, 9, 9]];
+  for (const [cx, cy, r] of blobs) {
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, 'rgba(255,255,255,0.9)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 32, 32);
+  }
+}
+function drawSquare(ctx) {
+  ctx.save();
+  ctx.filter = 'blur(2px)';
+  ctx.fillStyle = 'white';
+  const r = 6;
+  ctx.beginPath();
+  ctx.moveTo(8 + r, 8);
+  ctx.arcTo(24, 8, 24, 24, r);
+  ctx.arcTo(24, 24, 8, 24, r);
+  ctx.arcTo(8, 24, 8, 8, r);
+  ctx.arcTo(8, 8, 24, 8, r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+function drawLeaf(ctx) {
+  ctx.save();
+  ctx.translate(16, 16);
+  ctx.rotate(Math.PI / 4);
+  ctx.filter = 'blur(1px)';
+  ctx.fillStyle = 'white';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 8, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+const SHAPE_DRAWERS = { glow: drawGlow, spark: drawSpark, ring: drawRing, star: drawStar, smoke: drawSmoke, square: drawSquare, leaf: drawLeaf };
+export function getParticleTexture(shape) {
+  const key = SHAPE_DRAWERS[shape] ? shape : 'glow';
+  if (particleTextures.has(key)) return particleTextures.get(key);
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const ctx = c.getContext('2d');
+  SHAPE_DRAWERS[key](ctx);
+  const tex = new THREE.CanvasTexture(c);
+  particleTextures.set(key, tex);
+  return tex;
 }
 
 // VFX items get a small selectable emitter icon plus a pool of reusable Sprites (billboards,
@@ -774,9 +856,10 @@ export class VfxInstance {
 
     const cap = Math.max(1, Math.min(2000, item.emitter?.maxParticles || 150));
     this.pool = [];
-    const tex = getParticleTexture();
+    const tex = getParticleTexture(item.emitter?.shape);
+    const blending = item.emitter?.blendMode === 'additive' ? THREE.AdditiveBlending : THREE.NormalBlending;
     for (let i = 0; i < cap; i++) {
-      const mat = new THREE.SpriteMaterial({ map: tex, color: 0xffffff, transparent: true, depthWrite: false });
+      const mat = new THREE.SpriteMaterial({ map: tex, color: 0xffffff, transparent: true, depthWrite: false, blending });
       const spr = new THREE.Sprite(mat);
       spr.visible = false;
       spr.userData.nonSelectable = true;

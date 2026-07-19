@@ -45,6 +45,30 @@ function safeSend(channel, payload) {
   }
 }
 
+// Packaged Windows builds have no attached console, so stdout from console.log is invisible when
+// launched normally — mirror everything to a file so it's debuggable either way. Hoisted to module
+// scope (not just inside createWindow) so the VFX Studio window's console/crash output goes to the
+// same log, tagged separately, instead of being silently unobservable.
+const LEVELS = ['VERBOSE', 'INFO', 'WARNING', 'ERROR'];
+const logPath = () => path.join(app.getPath('userData'), 'debug.log');
+function logLine(line) {
+  try { fs.appendFileSync(logPath(), line + '\n'); } catch (_) { }
+}
+function wireConsoleMirror(webContents, tag) {
+  webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    const lvl = LEVELS[level] || 'LOG';
+    const src = sourceId ? sourceId.split(/[\\/]/).pop() : '?';
+    const out = `[${tag}:${lvl}] ${message} (${src}:${line})`;
+    console.log(out);
+    logLine(out);
+  });
+  webContents.on('preload-error', (_e, preloadPath, error) => {
+    const out = `[${tag}:preload error] ${preloadPath} ${error}`;
+    console.error(out);
+    logLine(out);
+  });
+}
+
 // ---------------------------------------------------------------- paths
 const userData = () => app.getPath('userData');
 const autosaveDir = () => {
@@ -115,20 +139,7 @@ function createWindow() {
     }
   });
 
-  const LEVELS = ['VERBOSE', 'INFO', 'WARNING', 'ERROR'];
-  // Packaged Windows builds have no attached console, so stdout from console.log below is
-  // invisible when launched normally — mirror everything to a file so it's debuggable either way.
-  const logPath = path.join(app.getPath('userData'), 'debug.log');
-  const logLine = (line) => {
-    try { fs.appendFileSync(logPath, line + '\n'); } catch (_) { }
-  };
-  win.webContents.on('console-message', (_e, level, message, line, sourceId) => {
-    const tag = LEVELS[level] || 'LOG';
-    const src = sourceId ? sourceId.split(/[\\/]/).pop() : '?';
-    const out = `[renderer:${tag}] ${message} (${src}:${line})`;
-    console.log(out);
-    logLine(out);
-  });
+  wireConsoleMirror(win.webContents, 'renderer');
   win.webContents.on('render-process-gone', (_e, details) => {
     const out = `[renderer] process gone: ${details.reason}`;
     console.error(out);
@@ -142,11 +153,6 @@ function createWindow() {
     }
     mcpPending.clear();
     if (win && !win.isDestroyed()) win.reload();
-  });
-  win.webContents.on('preload-error', (_e, preloadPath, error) => {
-    const out = `[preload error] ${preloadPath} ${error}`;
-    console.error(out);
-    logLine(out);
   });
 
   win.webContents.on('before-input-event', (e, input) => {
@@ -185,6 +191,72 @@ function createWindow() {
     });
   }
 }
+
+// ---------------------------------------------------------------- VFX Studio
+// A fully separate window/renderer for building particle effects from scratch — deliberately its
+// own BrowserWindow (own preload, own renderer folder) rather than a mode inside the main window,
+// so opening/closing it never touches the main animator window at all: no reload, no shared
+// renderer state, nothing to reset. The main window's open project, undo/redo stack, selection —
+// everything — is exactly as it was the instant this window closes, because nothing here ever
+// reaches into it except the one explicit "send this finished effect over" message below.
+let vfxWin = null;
+function openVfxStudioWindow() {
+  if (vfxWin && !vfxWin.isDestroyed()) {
+    if (vfxWin.isMinimized()) vfxWin.restore();
+    vfxWin.focus();
+    return;
+  }
+  vfxWin = new BrowserWindow({
+    width: 1180,
+    height: 780,
+    minWidth: 820,
+    minHeight: 560,
+    backgroundColor: '#0d0d12',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#0d0d12', symbolColor: '#8a8a96', height: 40 },
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-vfx.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      spellcheck: false,
+    },
+    show: false,
+  });
+  vfxWin.setMenuBarVisibility(false);
+  wireConsoleMirror(vfxWin.webContents, 'vfxStudio');
+  vfxWin.webContents.on('render-process-gone', (_e, details) => {
+    logLine(`[vfxStudio] process gone: ${details.reason}`);
+  });
+  vfxWin.loadFile(path.join(__dirname, '..', 'renderer-vfx', 'index.html'));
+  vfxWin.once('ready-to-show', () => vfxWin.show());
+  vfxWin.on('closed', () => { vfxWin = null; });
+}
+ipcMain.handle('vfx:openStudio', () => { openVfxStudioWindow(); });
+
+// Studio -> main animator window, relayed through the exact same safeSend the main window already
+// uses for everything else. The receiving side (app.js) runs this through the ordinary
+// pushUndo-backed S.addItem/S.setVfxEmitter calls, so Ctrl+Z undoes a studio-sent effect exactly
+// like any other add — nothing studio-specific in the undo stack.
+ipcMain.on('vfx:sendToAnimator', (_e, config) => {
+  safeSend('vfx:receiveFromStudio', config);
+});
+
+// Custom presets saved from the studio persist in settings.json (same file/pattern as theme/accent
+// prefs already use) so they survive restarts and reappear next time the studio window opens.
+ipcMain.handle('vfx:userPresets:list', () => readSettings().vfxUserPresets || []);
+ipcMain.handle('vfx:userPresets:save', (_e, preset) => {
+  const s = readSettings();
+  s.vfxUserPresets = (s.vfxUserPresets || []).filter((p) => p.id !== preset.id);
+  s.vfxUserPresets.push(preset);
+  writeSettings(s);
+  return s.vfxUserPresets;
+});
+ipcMain.handle('vfx:userPresets:delete', (_e, id) => {
+  const s = readSettings();
+  s.vfxUserPresets = (s.vfxUserPresets || []).filter((p) => p.id !== id);
+  writeSettings(s);
+  return s.vfxUserPresets;
+});
 
 app.on('second-instance', () => {
   if (win && !win.isDestroyed()) {

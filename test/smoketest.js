@@ -235,8 +235,8 @@
     S.setVfxEmitter(item.id, { gravity: -20, maxParticles: 2000, spreadDegrees: 0 });
     const resolveOrigin = (f) => S.evalTrackCF(item.id, '@origin', f, item.origin);
     const fps = S.state.project.fps;
-    const a = sampleParticles(item, 20, fps, resolveOrigin);
-    const b = sampleParticles(item, 20, fps, resolveOrigin);
+    const a = sampleParticles(item, 20, fps, resolveOrigin, S.evalTrackNum);
+    const b = sampleParticles(item, 20, fps, resolveOrigin, S.evalTrackNum);
     assert(a.length === b.length && a.length > 0, 'no particles sampled, or nondeterministic count');
     for (let i = 0; i < a.length; i++) assert(Math.abs(a[i].pos[1] - b[i].pos[1]) < 1e-9, 'nondeterministic particle position');
     const t = 20 / fps;
@@ -244,6 +244,110 @@
     const actualY = a[0].pos[1];
     assert(Math.abs(actualY - expectedY) < 0.01, `ballistic formula mismatch: expected ${expectedY}, got ${actualY}`);
     return { particleCount: a.length, expectedY, actualY };
+  });
+
+  // ---------------------------------------------------------------- VFX preset library
+  await step('VFX: every motion type samples deterministic, finite (no NaN) particles', async () => {
+    const { sampleParticles } = await import('../renderer/js/vfx.js');
+    const { MOTIONS, PARTICLE_PRESETS } = await import('../renderer/js/particleLibrary.js');
+    const ORIGIN = [0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1];
+    const counts = {};
+    for (const motion of MOTIONS) {
+      const preset = PARTICLE_PRESETS.find((p) => p.emitter.motion === motion);
+      assert(preset, `no preset uses motion "${motion}"`);
+      const item = { id: 'smoketest-' + motion, emitter: { ...preset.emitter, maxParticles: 500 } };
+      let sampled = 0;
+      for (const frame of [0, 5, 15, 30, 60]) {
+        const particles = sampleParticles(item, frame, 30, () => ORIGIN);
+        sampled += particles.length;
+        for (const p of particles) {
+          assert(isFinite(p.pos[0]) && isFinite(p.pos[1]) && isFinite(p.pos[2]), `${motion}: non-finite position`);
+          assert(isFinite(p.size) && p.size > 0, `${motion}: non-finite/zero size`);
+          assert(isFinite(p.opacity), `${motion}: non-finite opacity`);
+        }
+      }
+      const a = sampleParticles(item, 20, 30, () => ORIGIN);
+      const b = sampleParticles(item, 20, 30, () => ORIGIN);
+      assert(a.length === b.length && a.every((p, i) => Math.abs(p.pos[0] - b[i].pos[0]) < 1e-9), `${motion}: nondeterministic`);
+      counts[motion] = sampled;
+    }
+    assert(PARTICLE_PRESETS.length >= 300, `expected a few hundred generated presets, got ${PARTICLE_PRESETS.length}`);
+    return { totalPresets: PARTICLE_PRESETS.length, sampledPerMotion: counts };
+  });
+
+  // ---------------------------------------------------------------- VFX preset apply + rebuild
+  await step('VFX: applying a preset rebuilds the instance pool (shape/blend) and stays undoable', async () => {
+    const { findPreset } = await import('../renderer/js/particleLibrary.js');
+    const preset = findPreset('portal-swirl-arcane-large');
+    assert(preset, 'expected preset "portal-swirl-arcane-large" to exist');
+    const itemsBefore = S.state.project.items.length;
+
+    const itemId = D.addVfxItem().id;
+    D.applyVfxPreset(itemId, preset);
+    const inst = D.getInstance(itemId);
+    assert(inst.pool.length === preset.emitter.maxParticles, `pool size ${inst.pool.length} != preset maxParticles ${preset.emitter.maxParticles}`);
+    assert(inst.pool[0].material.blending === 2, 'additive-blend preset should use THREE.AdditiveBlending (2)'); // THREE.AdditiveBlending === 2
+    // Undo/redo replace state.project.items wholesale (structuredClone snapshot), so any
+    // previously-held item object reference goes stale after S.undo()/S.redo() — always
+    // re-fetch via S.getItem(id) after each call, never hold a reference across one.
+    assert(S.getItem(itemId).emitter.shape === 'ring' && S.getItem(itemId).emitter.motion === 'orbit', 'preset fields did not apply to item.emitter');
+
+    S.undo(); // reverts the setVfxEmitter (preset apply)
+    assert(S.getItem(itemId).emitter.shape === 'glow', 'undo should revert the preset apply back to the default shape');
+    S.undo(); // reverts the addItem
+    assert(S.state.project.items.length === itemsBefore, 'undo should remove the added VFX item entirely');
+
+    S.redo(); // re-adds the item
+    S.redo(); // re-applies the preset
+    assert(S.getItem(itemId).emitter.shape === 'ring', 'redo should reapply the preset');
+    return { ok: true, itemsBefore, maxParticles: preset.emitter.maxParticles };
+  });
+
+  // ---------------------------------------------------------------- VFX + scale interleaved undo
+  await step('VFX + scale: undo/redo stays correct when the two kinds of change are interleaved', () => {
+    const rigId = S.state.project.items.find((i) => i.kind === 'rig').id;
+    const partsBefore = JSON.stringify(S.getItem(rigId).rig.parts.map((p) => p.size));
+
+    const vfxId = D.addVfxItem().id;
+    S.resizeItem(rigId, 1.4);
+    D.applyVfxPreset(vfxId, { emitter: { gravity: -3, rate: 12 } });
+
+    // Undo/redo clone-replace state.project.items wholesale — always re-fetch S.getItem(id)
+    // after each call rather than holding an item reference across the undo/redo boundary.
+    S.undo(); // vfx emitter patch
+    S.undo(); // resize
+    assert(JSON.stringify(S.getItem(rigId).rig.parts.map((p) => p.size)) === partsBefore, 'rig scale did not fully revert after interleaved undo');
+    S.undo(); // remove vfx item
+    assert(!S.getItem(vfxId), 'vfx item should be gone after its add is undone');
+
+    S.redo(); S.redo(); S.redo();
+    assert(JSON.stringify(S.getItem(rigId).rig.parts.map((p) => p.size)) !== partsBefore, 'rig scale should be reapplied after redo');
+    return { ok: true };
+  });
+
+  // ---------------------------------------------------------------- VFX Studio (separate window)
+  await step('VFX Studio: opens as a separate window without disturbing the main project/undo state', async () => {
+    const projectIdBefore = S.state.project.id;
+    const itemCountBefore = S.state.project.items.length;
+    const playheadBefore = S.state.playhead;
+    const selectionBefore = JSON.stringify(S.state.selection);
+
+    await window.cadence.openVfxStudio();
+    await new Promise((r) => setTimeout(r, 1500)); // let the studio window's own boot script run
+
+    assert(S.state.project.id === projectIdBefore, 'main project identity changed after opening VFX Studio');
+    assert(S.state.project.items.length === itemCountBefore, 'main project item count changed after opening VFX Studio');
+    assert(S.state.playhead === playheadBefore, 'main playhead changed after opening VFX Studio');
+    assert(JSON.stringify(S.state.selection) === selectionBefore, 'main selection changed after opening VFX Studio');
+
+    // main.js mirrors the studio window's console/crash output into the same debug.log, tagged
+    // "vfxStudio" — this is how we detect the second window actually booted (rather than the IPC
+    // call merely resolving) without needing to capture its own screen.
+    let log = '';
+    try { log = await window.cadence.readFile(resolveProjectPath('test-output/userdata/debug.log')); } catch (_) { /* path is this script's own npm-run-smoketest convention */ }
+    const crashLine = log.split('\n').find((l) => l.includes('[vfxStudio') && (l.includes(':ERROR]') || l.includes('process gone') || l.includes('preload error')));
+    assert(!crashLine, `VFX Studio window logged an error: ${crashLine}`);
+    return { ok: true, sawVfxStudioLog: log.includes('[vfxStudio') };
   });
 
   // ---------------------------------------------------------------- themes

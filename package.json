@@ -39,6 +39,7 @@
       "src/**/*",
       "renderer/**/*",
       "renderer-mobile/**/*",
+      "renderer-vfx/**/*",
       "rigs/**/*",
       "plugin/**/*",
       "mcp-server/**/*",
