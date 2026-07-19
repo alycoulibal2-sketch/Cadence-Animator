@@ -3,6 +3,15 @@
    adds the studio's own grid (preview + inspector over a timeline strip) and its widgets.
    No inline style="" attributes anywhere in this window — the CSP silently drops them. */
 
+/* renderer/styles.css's #titlebar reserves room on the LEFT (78px) for the main window's own
+   layout — this window has no left-side overlay to avoid, but its titleBarOverlay (Windows
+   caption buttons: minimize/maximize/close) sits at the TOP-RIGHT, and this toolbar has enough
+   buttons to reach that edge (the main window's doesn't, which is why this was never noticed
+   there). Override with right-side padding sized for the caption-button cluster instead. */
+#titlebar {
+  padding: 0 148px 0 12px;
+}
+
 .vfx-name-input {
   -webkit-app-region: no-drag;
   background: transparent;
@@ -201,22 +210,50 @@
 .vfx-curve-canvas-wrap { flex: 1 1 auto; min-height: 0; }
 #vfxCurveCanvas { display: block; }
 
-/* preset browser modal */
-.vfx-preset-browser { display: flex; flex-direction: column; gap: 8px; min-width: 560px; max-width: 720px; }
+/* preset browser modal — the generic .modal (ui.js's modal()) is a 420px confirmation-dialog
+   box; a card grid with hundreds of entries needs its own much larger, genuinely scrollable
+   layout, not that box's default content-sized sizing. :has() targets only the modal instance
+   hosting this browser, so ui.js's modal() stays untouched for every other use. */
+.modal:has(.vfx-preset-browser) {
+  width: 920px;
+  max-width: 92vw;
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+}
+.modal:has(.vfx-preset-browser) .modal-title,
+.modal:has(.vfx-preset-browser) .modal-foot {
+  flex: 0 0 auto;
+}
+.modal:has(.vfx-preset-browser) .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.vfx-preset-browser { display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; min-width: 0; min-height: 0; }
 .vfx-preset-tabs { display: flex; gap: 6px; }
 .vfx-preset-tab.active { background: var(--accent); color: #fff; }
 .vfx-preset-controls { display: flex; gap: 6px; }
 .vfx-preset-controls .fld { flex: 1 1 auto; min-width: 0; }
 .vfx-browser-grid {
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  max-height: 46vh;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  align-content: start;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
+  /* thicker, brighter thumb than the app-wide default — a card grid this size needs its
+     scrollability to read as obvious at a glance, not just be technically present. */
+  scrollbar-color: var(--accent) transparent;
+  scrollbar-width: auto;
 }
+.vfx-browser-grid::-webkit-scrollbar { width: 12px; }
+.vfx-browser-grid::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 6px; border: 3px solid transparent; background-clip: padding-box; }
 .vfx-browser-card { position: relative; }
 .vfx-card-actions { display: flex; gap: 4px; margin-top: 6px; }
 .vfx-card-actions .tb-btn { font-size: 10.5px; padding: 2px 8px; }
 .vfx-preset-empty { color: var(--text-3); padding: 20px; text-align: center; grid-column: 1 / -1; }
-.vfx-browser-hint { padding: 0 2px; }
+.vfx-browser-hint { padding: 0 2px; flex: 0 0 auto; }
 
 /* diagnostics modal */
 .vfx-diag-list { display: flex; flex-direction: column; gap: 8px; max-height: 52vh; overflow-y: auto; min-width: 480px; }
