@@ -361,5 +361,56 @@ check('validators: performance report shape', () => {
   assert.ok(['A', 'B', 'C', 'D'].includes(rep.platforms.mobile.grade));
 });
 
+// ---------------------------------------------------------------- effect preset library
+const LIB = await import('../renderer/js/effectLibrary.js');
+
+check('library: every archetype x theme x scale validates with zero errors', () => {
+  let combos = 0;
+  for (const arch of LIB.EFFECT_ARCHETYPES) {
+    for (const theme of LIB.EFFECT_THEMES) {
+      for (const scale of LIB.EFFECT_SCALES) {
+        const doc = LIB.buildArchetypeDoc(arch.key, { theme: theme.key, scale: scale.factor });
+        assert.ok(doc, `${arch.key} failed to build`);
+        const report = D.runValidation('effect', { effect: doc });
+        assert.equal(report.counts.error, 0,
+          `${arch.key}/${theme.key}/${scale.key}: ${JSON.stringify(report.diagnostics.filter((d) => d.severity === 'error'), null, 1)}`);
+        combos++;
+      }
+    }
+  }
+  assert.ok(combos >= LIB.EFFECT_ARCHETYPES.length * 18, `only ${combos} combos checked`);
+});
+check('library: every archetype actually renders particles or shapes at its peak', () => {
+  for (const arch of LIB.EFFECT_ARCHETYPES) {
+    const doc = LIB.buildArchetypeDoc(arch.key);
+    let anyVisible = false;
+    for (let f = 0; f < doc.duration && !anyVisible; f += 2) {
+      const s = E.sampleEffect(doc, f);
+      if (s.particles.length || s.shapes.some((sh) => sh.opacity > 0.05) || s.lights.some((l) => l.intensity > 0.05)) anyVisible = true;
+    }
+    assert.ok(anyVisible, `${arch.key} never shows anything`);
+  }
+});
+check('library: theme remap changes colors, classic does not', () => {
+  const classic = LIB.buildArchetypeDoc('fireball');
+  const ice = LIB.buildArchetypeDoc('fireball', { theme: 'ice' });
+  const c1 = classic.layers.find((l) => l.type === 'emitter').props.colorStart;
+  const c2 = ice.layers.find((l) => l.type === 'emitter').props.colorStart;
+  assert.notEqual(c1, c2, 'ice theme should recolor');
+  assert.ok(ice.name.startsWith('Ice '));
+});
+check('library: scale transform scales sizes AND curve values', () => {
+  const big = LIB.buildArchetypeDoc('sword-slash', { scale: 1.6 });
+  const std = LIB.buildArchetypeDoc('sword-slash');
+  const bigShape = big.layers.find((l) => l.type === 'shape');
+  const stdShape = std.layers.find((l) => l.type === 'shape');
+  assert.ok(Math.abs(bigShape.curves.scale[1].v - stdShape.curves.scale[1].v * 1.6) < 1e-6);
+});
+const PL = await import('../renderer/js/particleLibrary.js');
+check('library: total preset count (particles + archetypes) exceeds 400', () => {
+  const total = PL.PARTICLE_PRESETS.length + LIB.EFFECT_ARCHETYPES.length;
+  assert.ok(total >= 400, `only ${total}`);
+});
+
 console.log(failed ? `\n${failed} FAILED, ${passed} passed` : `\nAll ${passed} core checks passed`);
 process.exit(failed ? 1 : 0);
