@@ -4,6 +4,8 @@ import { LineSegments2 } from '../vendor/three/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from '../vendor/three/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from '../vendor/three/lines/LineMaterial.js';
 import * as CF from './cf.js';
+import { isClosedShape } from './effectShapes.js';
+import { buildShapeGeometry } from './effectMeshBuilder.js';
 
 let classicFacePromise = null;
 function getClassicFace() {
@@ -898,6 +900,139 @@ export class VfxInstance {
     this.scene.remove(this.group);
     this.group.traverse((o) => {
       if (o.material) { o.material.dispose(); }
+      if (o.geometry) o.geometry.dispose();
+    });
+  }
+}
+
+// A VFX Studio multi-layer effect document, placed on the main animator's own timeline. Once an
+// item is added, its document is fixed for the item's lifetime (there is no live studio<->item
+// link yet — editing always happens in the standalone window and comes back as a new item, see
+// docs/vfx-studio.md), so every per-layer visual (particle pools, shape meshes, point lights) is
+// built ONCE in the constructor from the doc as it existed at add-time — no per-frame structural
+// rebuilding, only the ordinary per-frame value updates computeWorld() applies. Screen/shake/
+// sound layers render nothing here (studio-preview + export only, per the design doc); their
+// sampleEffect() output is simply not consumed.
+export class EffectInstance {
+  constructor(item, scene) {
+    this.item = item;
+    this.scene = scene;
+    this.group = new THREE.Group();
+    this.group.name = item.name;
+
+    const iconMat = new THREE.MeshBasicMaterial({ color: 0xff9955, transparent: true, opacity: 0.85 });
+    this.icon = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 0), iconMat);
+    this.icon.userData = { itemId: item.id, partId: '@effect', partName: 'Effect' };
+    this.icon.matrixAutoUpdate = false;
+    this.group.add(this.icon);
+
+    this.emitterVisuals = new Map(); // layerId -> { sprites: THREE.Sprite[] }
+    this.shapeVisuals = new Map();   // layerId -> { mesh, geomThickness }
+    this.lightVisuals = new Map();   // layerId -> THREE.PointLight
+
+    const doc = item.effect;
+    for (const layer of doc?.layers || []) {
+      if (layer.type === 'emitter') {
+        const cap = Math.max(1, Math.min(2000, layer.props.maxParticles || 150));
+        const tex = getParticleTexture(layer.props.shape);
+        const blending = layer.props.blendMode === 'additive' ? THREE.AdditiveBlending : THREE.NormalBlending;
+        const sprites = [];
+        for (let i = 0; i < cap; i++) {
+          const mat = new THREE.SpriteMaterial({ map: tex, color: 0xffffff, transparent: true, depthWrite: false, blending });
+          const spr = new THREE.Sprite(mat);
+          spr.visible = false;
+          spr.userData.nonSelectable = true;
+          this.group.add(spr);
+          sprites.push(spr);
+        }
+        this.emitterVisuals.set(layer.id, { sprites });
+      } else if (layer.type === 'shape') {
+        const mat = new THREE.MeshBasicMaterial({
+          color: 0xffffff, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+          blending: layer.props.emissive ? THREE.AdditiveBlending : THREE.NormalBlending,
+        });
+        const geomThickness = layer.props.thickness;
+        const mesh = new THREE.Mesh(buildShapeGeometry(layer.props.shape, geomThickness, isClosedShape(layer.props.shape)), mat);
+        mesh.userData.nonSelectable = true;
+        this.group.add(mesh);
+        this.shapeVisuals.set(layer.id, { mesh, geomThickness });
+      } else if (layer.type === 'light') {
+        const light = new THREE.PointLight(0xffffff, 0, 12, 1.6);
+        this.group.add(light);
+        this.lightVisuals.set(layer.id, light);
+      }
+    }
+
+    scene.add(this.group);
+    this.world = CF.IDENTITY.slice();
+  }
+
+  // sample: sampleEffect()'s output, or null (effect hasn't started yet / no document) — every
+  // visual just hides itself in that case, exactly like an emitter with zero live particles.
+  computeWorld(originCF, sample) {
+    this.world = originCF;
+    CF.toThreeMatrix(originCF, this.icon.matrix);
+    this.icon.matrixWorldNeedsUpdate = true;
+
+    const particlesByLayer = new Map();
+    for (const p of sample?.particles || []) {
+      let arr = particlesByLayer.get(p.layerId);
+      if (!arr) particlesByLayer.set(p.layerId, arr = []);
+      arr.push(p);
+    }
+    for (const [layerId, v] of this.emitterVisuals) {
+      const particles = particlesByLayer.get(layerId) || [];
+      for (let i = 0; i < v.sprites.length; i++) {
+        const spr = v.sprites[i];
+        const p = particles[i];
+        if (!p) { spr.visible = false; continue; }
+        spr.visible = true;
+        spr.position.set(p.pos[0], p.pos[1], p.pos[2]);
+        spr.scale.setScalar(p.size);
+        spr.material.color.setRGB(p.color[0], p.color[1], p.color[2]);
+        spr.material.opacity = p.opacity;
+      }
+    }
+
+    const shapeByLayer = new Map((sample?.shapes || []).map((s) => [s.layerId, s]));
+    for (const [layerId, v] of this.shapeVisuals) {
+      const s = shapeByLayer.get(layerId);
+      if (!s) { v.mesh.visible = false; continue; }
+      v.mesh.visible = s.opacity > 0.002;
+      if (Math.abs(s.thickness - v.geomThickness) / Math.max(0.004, v.geomThickness) > 0.06) {
+        v.mesh.geometry.dispose();
+        v.mesh.geometry = buildShapeGeometry(s.shapeDef, s.thickness, isClosedShape(s.shapeDef));
+        v.geomThickness = s.thickness;
+      }
+      v.mesh.position.set(s.offset[0], s.offset[1], s.offset[2]);
+      v.mesh.rotation.set(0, (s.rotation * Math.PI) / 180, 0);
+      v.mesh.scale.setScalar(s.scale);
+      v.mesh.material.color.setRGB(s.color[0], s.color[1], s.color[2]);
+      v.mesh.material.opacity = s.opacity;
+    }
+
+    const lightByLayer = new Map((sample?.lights || []).map((l) => [l.layerId, l]));
+    for (const [layerId, light] of this.lightVisuals) {
+      const l = lightByLayer.get(layerId);
+      if (!l) { light.intensity = 0; continue; }
+      light.position.set(l.offset[0], l.offset[1], l.offset[2]);
+      light.color.setRGB(l.color[0], l.color[1], l.color[2]);
+      light.intensity = l.intensity;
+      light.distance = l.range;
+    }
+  }
+
+  partWorld() { return this.world; }
+  setHighlight(partId, level) {
+    this.icon.material.color.set(level === 2 ? 0x7c8cff : level === 1 ? 0xffe08a : 0xff9955);
+  }
+  setFrustumVisible() { }
+  setBodyVisible(v) { this.icon.visible = v; }
+
+  dispose() {
+    this.scene.remove(this.group);
+    this.group.traverse((o) => {
+      if (o.material) o.material.dispose();
       if (o.geometry) o.geometry.dispose();
     });
   }

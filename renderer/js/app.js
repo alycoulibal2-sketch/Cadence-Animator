@@ -15,14 +15,18 @@ import { THEMES, ACCENTS, DEFAULT_THEME, DEFAULT_ACCENT, applyTheme, currentThem
 import { buildChain, solveIK } from './ik.js';
 import { VFX_DEFAULTS } from './vfx.js';
 import { SHAPES, MOTIONS, CATEGORIES as VFX_CATEGORIES, searchPresets, findPreset } from './particleLibrary.js';
+import { parseEffect, effectSummary } from './effectModel.js';
+import { runValidation } from './diagnostics.js';
+import './effectValidators.js'; // side effect: registers the shared validator pack
+import { buildEffectLua } from './effectExport.js';
 
 let builtinRigs = null;
 let settings = {};
 
-function itemIcon(kind) { return kind === 'camera' ? '🎥' : kind === 'vfx' ? '✨' : '🧍'; }
+function itemIcon(kind) { return kind === 'camera' ? '🎥' : kind === 'vfx' ? '✨' : kind === 'effect' ? '🎇' : '🧍'; }
 // The one "always-selectable, no-part-picking" partId an item's kind defaults to when it has no
 // joints — mirrors what clicking the item's icon in the viewport already gives you.
-function defaultPartId(kind) { return kind === 'camera' ? '@camera' : kind === 'vfx' ? '@vfx' : null; }
+function defaultPartId(kind) { return kind === 'camera' ? '@camera' : kind === 'vfx' ? '@vfx' : kind === 'effect' ? '@effect' : null; }
 
 // ================================================================ boot
 async function boot() {
@@ -1450,6 +1454,69 @@ function addVfxItem() {
   return item;
 }
 
+// A VFX Studio multi-layer effect document placed on the animator's own timeline. Unlike a plain
+// vfx item's emitter (patched field-by-field), the document is edited as a whole in the separate
+// studio window and arrives complete — see initVfxStudioBridge. effectStart defaults to the
+// current playhead so "build it, send it, it lands where you were looking" just works.
+function addEffectItem(doc) {
+  const item = {
+    id: crypto.randomUUID(),
+    kind: 'effect',
+    name: doc.name || `Effect ${S.state.project.items.filter((i) => i.kind === 'effect').length + 1}`,
+    origin: [0, 2, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1],
+    effect: doc,
+    effectStart: Math.round(S.state.playhead),
+    effectLoop: !!doc.loop,
+    visible: true,
+  };
+  S.addItem(item);
+  S.setSelection(item.id, '@effect');
+  return item;
+}
+
+// Opens (or focuses) VFX Studio and loads this item's document there for editing. Deliberately a
+// one-way COPY, not a live link: the studio has no way to write back into this exact item, so
+// finishing the edit and clicking "Send to Animator" creates a new item, same as any other
+// studio-authored effect (docs/vfx-studio.md's stated edit-in-studio scope).
+async function editEffectInStudio(itemId) {
+  const item = S.getItem(itemId);
+  if (!item?.effect) return;
+  await window.cadence.sendEffectToStudio(JSON.parse(JSON.stringify(item.effect)));
+  toast('Opened a copy in VFX Studio — "Send to Animator" there adds it as a new item');
+}
+
+// Bakes an effect item's document into a self-contained Roblox LocalScript, same export path
+// and gating (errors block export) as the studio's own "Export" button — this is just a second
+// entry point for effects that already live on the animator's timeline.
+async function exportEffectItemFlow(itemId) {
+  const item = S.getItem(itemId);
+  if (!item?.effect) return;
+  const report = runValidation('effect', { effect: item.effect });
+  if (report.blockedForExport) {
+    toast(`${report.counts.error} error(s) block export: ${report.diagnostics.find((d) => d.severity === 'error')?.message || ''}`, 'error');
+    return;
+  }
+  const { lua, notes } = buildEffectLua(item.effect);
+  const dest = await chooseModal({
+    title: 'Export effect script as…',
+    options: [
+      { id: 'lua', label: 'Luau source (.lua)', desc: 'drop into any LocalScript', icon: '📄' },
+      { id: 'clipboard', label: 'Copy to clipboard', desc: 'the Luau source, ready to paste', icon: '📋' },
+    ],
+  });
+  if (!dest) return;
+  if (dest === 'clipboard') {
+    await navigator.clipboard.writeText(lua);
+    toast('Luau script copied to clipboard');
+    return;
+  }
+  const p = await window.cadence.saveDialog({ defaultPath: `${item.name.replace(/[^\w\- ]+/g, '').trim() || 'effect'}.lua`, filters: [{ name: 'Luau script', extensions: ['lua'] }] });
+  if (!p) return;
+  await window.cadence.writeFile(p, lua);
+  toast(notes.length ? `Saved Luau source — ${notes.length} export fidelity note(s) in the file's header comments` : 'Saved Luau source');
+  window.cadence.showItemInFolder(p);
+}
+
 // Applying a preset is just merging its whole emitter object in one go — rate/lifetime/speed live
 // as plain (non-keyframed) fallback values on item.emitter same as everything else here, they only
 // become real keyframed tracks if the user later keys them, so no separate S.setKey call is needed.
@@ -1888,11 +1955,20 @@ function initMobileBroadcast() {
 }
 
 // Receives a finished effect from the separate VFX Studio window (main.js just relays the IPC
-// message through, see 'vfx:sendToAnimator'/'vfx:receiveFromStudio' there). Goes through the same
-// addVfxItem()/applyVfxPreset() path a user clicking a preset in the Inspector would use, so it's
-// undoable exactly like any other add — nothing studio-specific in the undo stack.
+// message through, see 'vfx:sendToAnimator'/'vfx:receiveFromStudio' there). The v2 studio always
+// sends a full multi-layer { effect: <document> } payload, which becomes a new 'effect' item;
+// the v1 single-emitter { emitter } shape is kept as a dead-but-harmless fallback for anything
+// still using it. Both paths are undoable exactly like any other add — nothing studio-specific
+// in the undo stack.
 function initVfxStudioBridge() {
   window.cadence.onReceiveVfxFromStudio((config) => {
+    if (config.effect) {
+      const parsed = parseEffect(config.effect);
+      if (!parsed.ok) { toast(`Could not add effect from VFX Studio: ${parsed.error}`, 'error'); return; }
+      const item = addEffectItem(parsed.doc);
+      toast(`Effect "${item.name}" added from VFX Studio`);
+      return;
+    }
     const item = addVfxItem();
     if (config.name) S.renameItem(item.id, config.name);
     if (config.emitter) applyVfxPreset(item.id, config);
@@ -2170,7 +2246,7 @@ function wireInspector() {
 
     if (item) {
       let sectionsAlreadyAppended = false;
-      const sec = section(item.kind === 'camera' ? 'Camera' : item.kind === 'vfx' ? 'VFX Emitter' : 'Rig');
+      const sec = section(item.kind === 'camera' ? 'Camera' : item.kind === 'vfx' ? 'VFX Emitter' : item.kind === 'effect' ? 'VFX Studio Effect' : 'Rig');
       sec.appendChild(fieldRow('Name', item.name));
       if (item.kind === 'camera') {
         const fov = S.evalTrackNum(item.id, '@fov', S.state.playhead, item.fov || 70);
@@ -2225,6 +2301,22 @@ function wireInspector() {
         }));
         el.appendChild(appearance);
         sectionsAlreadyAppended = true; // sec + appearance both already appended above
+      } else if (item.kind === 'effect') {
+        const doc = item.effect;
+        sec.appendChild(fieldRow('Document', doc ? `${doc.layers.length} layer(s), ${doc.duration}f @ ${doc.fps}fps` : 'missing'));
+        sec.appendChild(numField('Starts at frame', item.effectStart || 0, (v) => {
+          S.setEffectDoc(item.id, item.effect, { effectStart: Math.max(0, Math.round(v)) });
+        }));
+        sec.appendChild(checkField('Loop', !!item.effectLoop, (v) => S.setEffectDoc(item.id, item.effect, { effectLoop: v })));
+        if (doc) {
+          const report = runValidation('effect', { effect: doc });
+          const status = document.createElement('div');
+          status.className = 'insp-row';
+          status.innerHTML = `<span class="l">Status</span><span>${report.counts.error ? `⛔ ${report.summary}` : report.counts.warning ? `⚠ ${report.summary}` : '✓ valid'}</span>`;
+          sec.appendChild(status);
+        }
+        sec.appendChild(button('✏️ Edit a copy in VFX Studio…', () => editEffectInStudio(item.id)));
+        sec.appendChild(button('📜 Export to Roblox (Luau)…', () => exportEffectItemFlow(item.id)));
       } else {
         sec.appendChild(fieldRow('Joints', String((item.rig.joints || []).filter((j) => j.kind !== 'weld').length)));
         sec.appendChild(fieldRow('Parts', String(item.rig.parts.length)));
@@ -2530,6 +2622,7 @@ const MCP_HANDLERS = {
     id: i.id, name: i.name, kind: i.kind,
     joints: i.rig ? (i.rig.joints || []).filter((j) => j.kind !== 'weld').map((j) => j.name) : undefined,
     emitter: i.kind === 'vfx' ? i.emitter : undefined,
+    effect: i.kind === 'effect' && i.effect ? { ...effectSummary(i.effect), effectStart: i.effectStart || 0, effectLoop: !!i.effectLoop } : undefined,
     tracks: Object.keys(S.getTracks(i.id)),
     studioId: i.studioId || null,
   })),
@@ -2572,6 +2665,80 @@ const MCP_HANDLERS = {
     S.setVfxEmitter(itemId, patch);
     return { emitter: S.getItem(itemId).emitter };
   },
+
+  // ---------------------------------------------------------------- effect items (VFX Studio
+  // documents placed on the animator's own timeline — build/edit the document itself via the
+  // vfx_* tools against VFX Studio, then hand it here to place it in the animation).
+  add_effect_item: ({ effect, name, effectStart, effectLoop }) => {
+    const parsed = parseEffect(effect);
+    if (!parsed.ok) throw new Error(`Effect document rejected: ${parsed.error}`);
+    const item = addEffectItem(parsed.doc);
+    if (name) S.renameItem(item.id, name);
+    if (effectStart != null || effectLoop != null) S.setEffectDoc(item.id, item.effect, { effectStart, effectLoop });
+    const it = S.getItem(item.id);
+    return { itemId: it.id, name: it.name, effect: effectSummary(it.effect), effectStart: it.effectStart, effectLoop: it.effectLoop };
+  },
+  get_effect_item: ({ itemId }) => {
+    const item = S.getItem(itemId);
+    if (!item || item.kind !== 'effect') throw new Error(`No effect item with id ${itemId}`);
+    return { effect: JSON.parse(JSON.stringify(item.effect)), effectStart: item.effectStart || 0, effectLoop: !!item.effectLoop };
+  },
+  set_effect_item: ({ itemId, effect, effectStart, effectLoop }) => {
+    const item = S.getItem(itemId);
+    if (!item || item.kind !== 'effect') throw new Error(`No effect item with id ${itemId}`);
+    let doc = item.effect;
+    if (effect) {
+      const parsed = parseEffect(effect);
+      if (!parsed.ok) throw new Error(`Effect document rejected: ${parsed.error}`);
+      doc = parsed.doc;
+    }
+    S.setEffectDoc(itemId, doc, { effectStart, effectLoop });
+    const it = S.getItem(itemId);
+    return { effect: effectSummary(it.effect), effectStart: it.effectStart, effectLoop: it.effectLoop };
+  },
+  validate_effect_item: ({ itemId }) => {
+    const item = S.getItem(itemId);
+    if (!item || item.kind !== 'effect') throw new Error(`No effect item with id ${itemId}`);
+    return runValidation('effect', { effect: item.effect });
+  },
+
+  // Whole-project sweep: every rig's animation heuristics (validate.js, wrapped into the same
+  // structured Diagnostic shape as everything else) plus every effect item's own validation —
+  // one uniform report instead of Claude having to call validate_animation/validate_effect_item
+  // once per item and merge the results by hand.
+  validate_project: () => {
+    const diagnostics = [];
+    for (const item of S.state.project.items) {
+      if (item.rig) {
+        const { findings } = validateAnimation(item.id);
+        for (const f of findings) {
+          diagnostics.push({
+            id: `ANIM-${(f.type || 'issue').toUpperCase()}`,
+            severity: f.severity === 'error' ? 'error' : f.severity === 'warn' ? 'warning' : 'info',
+            category: 'animation',
+            target: { itemId: item.id, itemName: item.name, track: f.track },
+            frame: f.frame ?? null,
+            message: f.message,
+            causes: [], fix: null, confidence: 0.85,
+          });
+        }
+      } else if (item.kind === 'effect' && item.effect) {
+        const report = runValidation('effect', { effect: item.effect });
+        for (const d of report.diagnostics) {
+          diagnostics.push({ ...d, target: { ...d.target, itemId: item.id, itemName: item.name } });
+        }
+      }
+    }
+    const counts = { error: 0, warning: 0, suggestion: 0, info: 0 };
+    for (const d of diagnostics) if (counts[d.severity] !== undefined) counts[d.severity]++;
+    return {
+      diagnostics, counts,
+      summary: diagnostics.length
+        ? `${counts.error} error(s), ${counts.warning} warning(s), ${counts.suggestion} suggestion(s), ${counts.info} note(s) across ${S.state.project.items.length} item(s)`
+        : 'No issues found across the project',
+    };
+  },
+
   remove_item: ({ itemId }) => { S.removeItem(itemId); return { ok: true }; },
 
   select: ({ itemId, partId }) => { S.setSelection(itemId ?? null, partId ?? null); return { ok: true }; },

@@ -80,13 +80,16 @@ function rebuildRows() {
     if (item.kind === 'camera' && !S.state.cameraTracksVisible) continue;
     tl.rows.push({ kind: 'item', itemId: item.id, label: item.name });
     if (tl.collapsed.has(item.id)) continue;
-    tl.rows.push({ kind: 'track', itemId: item.id, track: '@origin', label: item.kind === 'camera' ? 'Camera Position' : item.kind === 'vfx' ? 'Emitter Position' : 'Rig Origin', depth: 1 });
+    tl.rows.push({ kind: 'track', itemId: item.id, track: '@origin', label: item.kind === 'camera' ? 'Camera Position' : item.kind === 'vfx' ? 'Emitter Position' : item.kind === 'effect' ? 'Effect Position' : 'Rig Origin', depth: 1 });
     if (item.kind === 'camera') {
       tl.rows.push({ kind: 'track', itemId: item.id, track: '@fov', label: 'Field of View', depth: 1 });
     } else if (item.kind === 'vfx') {
       tl.rows.push({ kind: 'track', itemId: item.id, track: '@rate', label: 'Emission Rate', depth: 1 });
       tl.rows.push({ kind: 'track', itemId: item.id, track: '@lifetime', label: 'Particle Lifetime', depth: 1 });
       tl.rows.push({ kind: 'track', itemId: item.id, track: '@speed', label: 'Particle Speed', depth: 1 });
+    } else if (item.kind === 'effect') {
+      // No per-track numeric keyframes — an effect document's own curves live inside item.effect,
+      // not as animator timeline tracks (docs/vfx-studio.md). Only its placement is keyable here.
     } else if (item.rig) {
       for (const j of item.rig.joints || []) {
         if (j.kind === 'weld') continue;
@@ -118,7 +121,7 @@ function renderList() {
       div.appendChild(name);
       const icon = document.createElement('span');
       icon.className = 'kind-icon';
-      icon.textContent = item?.kind === 'camera' ? '🎥' : item?.kind === 'vfx' ? '✨' : '🧍';
+      icon.textContent = item?.kind === 'camera' ? '🎥' : item?.kind === 'vfx' ? '✨' : item?.kind === 'effect' ? '🎇' : '🧍';
       div.prepend(icon);
       div.addEventListener('click', () => {
         S.setSelection(row.itemId, null);

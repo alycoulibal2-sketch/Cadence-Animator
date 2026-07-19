@@ -78,6 +78,39 @@ server.tool(
   async ({ itemId }) => { try { return textResult(await call('remove_item', { itemId })); } catch (e) { return errorResult(e); } },
 );
 
+// ---------------------------------------------------------------- effect items (VFX Studio
+// documents placed on the animator's OWN timeline, distinct from the standalone vfx_* tools
+// which build/edit the document itself). Typical flow: build/edit with the vfx_* tools against
+// VFX Studio, then vfx_export via add_effect_item to place the finished doc in the animation.
+server.tool(
+  'add_effect_item',
+  'Place a VFX Studio effect document as a new item on the animator\'s timeline. Pass the full document (e.g. from vfx_get_effect, or vfx_apply_preset\'s effect field via a follow-up vfx_get_effect). effectStart (project frame where the document\'s own frame 0 lands) defaults to the current playhead if omitted.',
+  { effect: z.record(z.string(), z.any()).describe('a full effect document'), name: z.string().optional(), effectStart: z.number().optional(), effectLoop: z.boolean().optional() },
+  async (args) => { try { return textResult(await call('add_effect_item', args)); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'get_effect_item', 'Get an effect item\'s complete document plus its placement (effectStart/effectLoop) on the animator timeline.',
+  { itemId: z.string() },
+  async ({ itemId }) => { try { return textResult(await call('get_effect_item', { itemId })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'set_effect_item',
+  'Replace an effect item\'s document and/or its timeline placement. Omit `effect` to only change effectStart/effectLoop.',
+  { itemId: z.string(), effect: z.record(z.string(), z.any()).optional(), effectStart: z.number().optional(), effectLoop: z.boolean().optional() },
+  async (args) => { try { return textResult(await call('set_effect_item', args)); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'validate_effect_item', 'Run the diagnostics pipeline on one effect item already placed in the animation (same structured output as vfx_validate).',
+  { itemId: z.string() },
+  async ({ itemId }) => { try { return textResult(await call('validate_effect_item', { itemId })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'validate_project',
+  'Whole-project sweep: every rig\'s animation quality heuristics (the same checks validate_animation runs, one per rig) PLUS every effect item\'s validation, merged into one uniform structured report — the fastest way to check "is anything wrong anywhere" before calling a task done.',
+  {},
+  async () => { try { return textResult(await call('validate_project')); } catch (e) { return errorResult(e); } },
+);
+
 server.tool(
   'select', 'Select an item and optionally a specific joint/part in the app UI (also affects what the gizmo/inspector show in a render_frame screenshot).',
   { itemId: z.string().nullable(), partId: z.string().nullable().optional() },

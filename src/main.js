@@ -241,6 +241,14 @@ ipcMain.on('vfx:sendToAnimator', (_e, config) => {
   safeSend('vfx:receiveFromStudio', config);
 });
 
+// Animator -> studio: "Edit a copy in VFX Studio…" opens/focuses the studio and loads the given
+// document as its current effect. One-way copy, not a live link back to the originating item.
+ipcMain.handle('vfx:loadEffectIntoStudio', async (_e, effectDoc) => {
+  await ensureVfxStudioReady();
+  vfxWin.webContents.send('vfx:loadEffect', effectDoc);
+  return true;
+});
+
 // Custom presets saved from the studio persist in settings.json (same file/pattern as theme/accent
 // prefs already use) so they survive restarts and reappear next time the studio window opens.
 ipcMain.handle('vfx:userPresets:list', () => readSettings().vfxUserPresets || []);
@@ -976,9 +984,10 @@ function startMcpServer() {
 
 ipcMain.handle('mcp:bindStatus', () => ({ error: mcpBindError }));
 
-// Test/debug only: lets the smoketest exercise the real vfx_* MCP pipeline without a second Node
-// process. Same handler function real MCP calls go through — not a parallel/weaker path.
-ipcMain.handle('debug:callVfxMcp', async (_e, type, payload) => {
+// Test/debug only: lets the smoketest exercise the real MCP command dispatcher without a second
+// Node process. Same handler function every real MCP call (animator AND vfx_* studio tools) goes
+// through — not a parallel/weaker path.
+ipcMain.handle('debug:callMcp', async (_e, type, payload) => {
   try {
     return { ok: true, data: await handleMcpCommand(type, payload || {}) };
   } catch (e) {

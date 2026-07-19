@@ -4,6 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('vfxStudio', {
   // studio -> animator (full effect documents; the receiving side parses + adds undoably)
   sendToAnimator: (config) => ipcRenderer.send('vfx:sendToAnimator', config),
+  // animator -> studio: "edit a copy" pushes an existing item's document in to be loaded
+  onLoadEffect: (cb) => ipcRenderer.on('vfx:loadEffect', (_e, doc) => cb(doc)),
 
   // personal preset library (persisted in settings.json)
   listUserPresets: () => ipcRenderer.invoke('vfx:userPresets:list'),

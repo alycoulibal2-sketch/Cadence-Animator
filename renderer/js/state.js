@@ -227,6 +227,34 @@ export function setVfxEmitter(itemId, patch) {
   markDirty();
 }
 
+// A VFX Studio effect document replaces wholesale (edited as a unit in the studio window, not
+// patched field-by-field the way a plain vfx item's emitter is) — item.effect, item.effectStart
+// (the project frame where the doc's own frame 0 lands), item.effectLoop (loop the doc past its
+// own duration, independent of any per-layer clip.loop inside it).
+export function setEffectDoc(itemId, doc, { effectStart, effectLoop } = {}) {
+  const item = getItem(itemId);
+  if (!item || item.kind !== 'effect') return;
+  pushUndo();
+  item.effect = doc;
+  if (typeof effectStart === 'number') item.effectStart = Math.max(0, Math.round(effectStart));
+  if (typeof effectLoop === 'boolean') item.effectLoop = effectLoop;
+  emit('items');
+  markDirty();
+}
+
+// Doc-frame <-> project-frame mapping (docs/vfx-studio.md "Frame-space contract"): everything
+// inside an effect document samples in its own frame/fps space; item.effectStart is where the
+// document's frame 0 sits on the ANIMATOR's timeline, and effectLoop repeats the whole document
+// (not just an individual layer's clip.loop) once its own duration elapses.
+export function effectDocFrame(item, projectFrame) {
+  const doc = item.effect;
+  const rel = projectFrame - (item.effectStart || 0);
+  if (rel < 0) return -1; // hasn't started yet — caller treats negative as "nothing to show"
+  let f = Math.floor((rel * (doc.fps || 30)) / (state.project.fps || 30));
+  if (item.effectLoop && doc.duration > 0) f = f % doc.duration;
+  return f;
+}
+
 // A rig's current face is a stack of decal layers { dataUri, opacity } rendered on its Head part
 // — separate from the item's animated pose/keyframes, so swapping faces never touches animation.
 // The saved-preset LIBRARY itself is app-wide (in settings, not project state) since face presets

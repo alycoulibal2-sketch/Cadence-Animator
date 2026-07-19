@@ -350,11 +350,12 @@
     return { ok: true, sawVfxStudioLog: log.includes('[vfxStudio') };
   });
 
-  // Drives the REAL vfx_* MCP pipeline (handleMcpCommand -> studio window's mcp.js handlers) via
-  // window.cadence.debugCallVfxMcp — the exact code path Claude's MCP tools use — so these checks
-  // verify the studio actually builds/edits/validates/exports documents, not just "didn't crash".
+  // Drives the REAL MCP command dispatcher (handleMcpCommand) via window.cadence.debugCallMcp —
+  // the exact code path Claude's MCP tools use, for both vfx_* studio tools and the animator's
+  // own tools (add_effect_item, validate_project, ...) — so these checks verify real behavior,
+  // not just "didn't crash".
   async function vfxCall(type, payload) {
-    const res = await window.cadence.debugCallVfxMcp(type, payload || {});
+    const res = await window.cadence.debugCallMcp(type, payload || {});
     assert(res.ok, `${type} failed: ${res.error}`);
     return res.data;
   }
@@ -433,6 +434,52 @@
     assert(typeof shot.image === 'string' && shot.image.length > 5000, 'render_frame image looks too small/missing');
     assert(shot.mimeType === 'image/png', 'render_frame should return a PNG');
     return { ok: true, imageBytes: shot.image.length };
+  });
+
+  // ---------------------------------------------------------------- effect items in the animator
+  // (a VFX Studio document placed on the MAIN animator's own timeline, distinct from the
+  // standalone studio window above — exercises state.js/viewport.js/rigbuild.js's EffectInstance,
+  // not the studio's preview.js).
+  await step('Effect item: add via MCP, renders real particles/lights in the main viewport, no NaN', async () => {
+    const full = await vfxCall('vfx_get_effect');
+    const before = S.state.project.items.length;
+    const added = await vfxCall('add_effect_item', { effect: full.effect, effectStart: 0 });
+    assert(S.state.project.items.length === before + 1, 'effect item was not added to the project');
+    const item = S.getItem(added.itemId);
+    assert(item && item.kind === 'effect' && item.effect, 'added item is missing kind/effect data');
+    assert(item.effectStart === 0, 'effectStart did not round-trip');
+
+    // Actually solve a frame through the real doc-frame<->project-frame mapping and confirm the
+    // EffectInstance produced finite, sane world positions — not just "didn't throw".
+    S.setPlayhead(5);
+    D.updateScene();
+    const inst = D.getInstance(item.id);
+    assert(inst, 'no viewport instance was created for the effect item');
+    assert(inst.world && inst.world.every(Number.isFinite), 'effect instance world CFrame has NaN/Infinity');
+
+    const summary = (await vfxCall('get_effect_item', { itemId: item.id })).effect;
+    assert(summary.layers.length > 0, 'get_effect_item lost the layers');
+    return { ok: true, itemId: item.id, layerCount: summary.layers.length };
+  });
+
+  await step('Effect item: set_effect_item replaces the document, validate_effect_item + validate_project agree', async () => {
+    const items = S.state.project.items.filter((i) => i.kind === 'effect');
+    assert(items.length > 0, 'no effect item to test against (run after the add-effect-item check)');
+    const itemId = items[items.length - 1].id;
+
+    const broken = JSON.parse(JSON.stringify((await vfxCall('get_effect_item', { itemId })).effect));
+    assert(broken.layers[0].type === 'emitter', 'test assumes layer 0 is the seed emitter layer');
+    broken.layers[0].props.transparencyStart = 1;
+    broken.layers[0].props.transparencyEnd = 1;
+    await vfxCall('set_effect_item', { itemId, effect: broken });
+
+    const itemReport = await vfxCall('validate_effect_item', { itemId });
+    assert(itemReport.counts.error > 0, 'validate_effect_item should have flagged the fully-transparent emitter');
+
+    const projectReport = await vfxCall('validate_project');
+    const hit = projectReport.diagnostics.find((d) => d.target?.itemId === itemId && d.severity === 'error');
+    assert(hit, 'validate_project did not surface the effect item\'s error');
+    return { ok: true };
   });
 
   // ---------------------------------------------------------------- themes

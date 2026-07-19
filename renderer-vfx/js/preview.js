@@ -7,7 +7,8 @@ import * as THREE from '../../node_modules/three/build/three.module.js';
 import { OrbitControls } from '../../renderer/vendor/three/OrbitControls.js';
 import { getParticleTexture } from '../../renderer/js/rigbuild.js';
 import { sampleEffect } from '../../renderer/js/effectEngine.js';
-import { shapePoint, isSurfaceShape, isClosedShape } from '../../renderer/js/effectShapes.js';
+import { isClosedShape } from '../../renderer/js/effectShapes.js';
+import { buildShapeGeometry } from '../../renderer/js/effectMeshBuilder.js';
 import * as ST from './studioState.js';
 
 const ORIGIN = [0, 0.5, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]; // half a stud above the grid
@@ -83,33 +84,12 @@ function buildEmitterVisual(layer) {
 // natural three.js geometry. Geometry is cached against the shape def + a thickness bucket
 // (thickness is animatable — rebuilding on >6% change keeps drags smooth without per-frame
 // geometry churn).
-class ShapeCurve extends THREE.Curve {
-  constructor(def) { super(); this.def = def; }
-  getPoint(u, target = new THREE.Vector3()) {
-    const p = shapePoint(this.def, u);
-    return target.set(p[0], p[1], p[2]);
-  }
-}
-function buildShapeGeometry(def, thickness) {
-  if (isSurfaceShape(def)) {
-    switch (def.kind) {
-      case 'sphere': return new THREE.SphereGeometry(def.radius ?? 1.5, 24, 16);
-      case 'cylinder': return new THREE.CylinderGeometry(def.radius ?? 1.5, def.radius ?? 1.5, def.height ?? 3, 24, 1, true).translate(0, (def.height ?? 3) / 2, 0);
-      case 'cone': return new THREE.ConeGeometry(def.radius ?? 1.5, def.height ?? 2.5, 24, 1, true).rotateX(Math.PI).translate(0, (def.height ?? 2.5) / 2, 0);
-      case 'rect': return new THREE.PlaneGeometry(def.width ?? 4, def.depth ?? 4).rotateX(-Math.PI / 2);
-      case 'ring': return new THREE.RingGeometry(Math.max(0.01, (def.radius ?? 2) - (def.width ?? 0.5) / 2), (def.radius ?? 2) + (def.width ?? 0.5) / 2, 48).rotateX(-Math.PI / 2);
-      case 'slash': break; // slash reads best as a tube along its arc — fall through
-      default: break;
-    }
-  }
-  return new THREE.TubeGeometry(new ShapeCurve(def), 64, Math.max(0.004, thickness), 8, isClosedShape(def));
-}
 function buildShapeVisual(layer) {
   const mat = new THREE.MeshBasicMaterial({
     color: 0xffffff, transparent: true, depthWrite: false, side: THREE.DoubleSide,
     blending: layer.props.emissive ? THREE.AdditiveBlending : THREE.NormalBlending,
   });
-  const mesh = new THREE.Mesh(buildShapeGeometry(layer.props.shape, layer.props.thickness), mat);
+  const mesh = new THREE.Mesh(buildShapeGeometry(layer.props.shape, layer.props.thickness, isClosedShape(layer.props.shape)), mat);
   scene.add(mesh);
   return { kind: 'shape', mesh, geomThickness: layer.props.thickness };
 }
@@ -189,7 +169,7 @@ function applySample(sample) {
       v.mesh.visible = s.opacity > 0.002;
       if (Math.abs(s.thickness - v.geomThickness) / Math.max(0.004, v.geomThickness) > 0.06) {
         v.mesh.geometry.dispose();
-        v.mesh.geometry = buildShapeGeometry(s.shapeDef, s.thickness);
+        v.mesh.geometry = buildShapeGeometry(s.shapeDef, s.thickness, isClosedShape(s.shapeDef));
         v.geomThickness = s.thickness;
       }
       v.mesh.position.set(ORIGIN[0] + s.offset[0], ORIGIN[1] + s.offset[1], ORIGIN[2] + s.offset[2]);

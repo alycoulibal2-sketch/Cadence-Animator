@@ -6,10 +6,11 @@ import { OrbitControls } from '../vendor/three/OrbitControls.js';
 import { TransformControls } from '../vendor/three/TransformControls.js';
 import * as CF from './cf.js';
 import * as S from './state.js';
-import { RigInstance, CameraInstance, VfxInstance, PART_GAP_SCALE, updateEdgeResolution } from './rigbuild.js';
+import { RigInstance, CameraInstance, VfxInstance, EffectInstance, PART_GAP_SCALE, updateEdgeResolution } from './rigbuild.js';
 import { viewportPalette } from './themes.js';
 import { buildChain, solveIK } from './ik.js';
 import { sampleParticles } from './vfx.js';
+import { sampleEffect } from './effectEngine.js';
 
 const ghostGapVector = new THREE.Vector3(PART_GAP_SCALE, PART_GAP_SCALE, PART_GAP_SCALE);
 
@@ -370,6 +371,7 @@ export function syncItems() {
 function makeInstance(item) {
   if (item.kind === 'camera') return new CameraInstance(item, viewport.scene);
   if (item.kind === 'vfx') return new VfxInstance(item, viewport.scene);
+  if (item.kind === 'effect') return new EffectInstance(item, viewport.scene);
   return new RigInstance(item, viewport.scene, {
     onMeshError: (def, kind, reason) => S.emit('mesh-error', { itemId: item.id, itemName: item.name, partName: def.name, kind, reason }),
   });
@@ -474,6 +476,26 @@ function applyOrigin(item, inst, origin, t) {
     };
     const particles = sampleParticles(item, Math.round(t), p.fps, resolveOriginAt, S.evalTrackNum);
     inst.computeWorld(origin, particles);
+  } else if (item.kind === 'effect') {
+    // Doc-frame <-> project-frame mapping (docs/vfx-studio.md "Frame-space contract"): the
+    // engine's resolveOrigin callback receives DOC frames; convert back to project frames to
+    // reuse the exact same attach-chain/@origin resolution logic above (inherently project-
+    // frame), then hand the result straight through untouched.
+    const doc = item.effect;
+    if (!doc) { inst.computeWorld(origin, null); return; }
+    const fps = doc.fps || 30;
+    const resolveOriginAt = (docF) => {
+      const projF = (item.effectStart || 0) + (docF * p.fps) / fps;
+      if (item.attachedTo) {
+        const parentInst = viewport.instances.get(item.attachedTo.itemId);
+        const parentWorld = parentInst?.partWorld?.(item.attachedTo.partId);
+        return parentWorld ? CF.mul(parentWorld, item.attachedTo.offset) : (item.origin || CF.IDENTITY);
+      }
+      return S.evalTrackCF(item.id, '@origin', projF, item.origin || CF.IDENTITY);
+    };
+    const docFrame = S.effectDocFrame(item, Math.round(t));
+    const sample = docFrame < 0 ? null : sampleEffect(doc, docFrame, { origin, resolveOrigin: resolveOriginAt });
+    inst.computeWorld(origin, sample);
   } else {
     const pose = S.evalPose(item, t);
     const overlay = viewport.overlayPose.get(item.id);

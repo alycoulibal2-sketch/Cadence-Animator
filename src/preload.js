@@ -69,11 +69,16 @@ contextBridge.exposeInMainWorld('cadence', {
   // VFX Studio (standalone particle-effect creation window)
   openVfxStudio: () => ipcRenderer.invoke('vfx:openStudio'),
   onReceiveVfxFromStudio: (cb) => ipcRenderer.on('vfx:receiveFromStudio', (_e, config) => cb(config)),
-  // Test/debug only: drives the real vfx_* MCP pipeline (handleMcpCommand -> studio window) from
-  // the main renderer, so the smoketest can assert on the studio's actual behavior instead of
-  // just "it didn't crash". Not a new privilege boundary — the same command set is already
-  // reachable unauthenticated over the localhost MCP HTTP port.
-  debugCallVfxMcp: (type, payload) => ipcRenderer.invoke('debug:callVfxMcp', type, payload),
+  // "Edit a copy in VFX Studio…": opens/focuses the studio and loads this document as its
+  // current effect (replacing whatever was open there) — a one-way copy, not a live link;
+  // sending it back from the studio creates a new item, same as any other studio-authored effect.
+  sendEffectToStudio: (effectDoc) => ipcRenderer.invoke('vfx:loadEffectIntoStudio', effectDoc),
+  // Test/debug only: drives the real MCP command dispatcher (handleMcpCommand — the exact same
+  // function both the animator's own tools AND the vfx_* studio tools go through) from the main
+  // renderer, so the smoketest can assert on actual behavior instead of just "it didn't crash".
+  // Not a new privilege boundary — the same command set is already reachable unauthenticated
+  // over the localhost MCP HTTP port.
+  debugCallMcp: (type, payload) => ipcRenderer.invoke('debug:callMcp', type, payload),
 
   // auto-update
   checkForUpdate: () => ipcRenderer.invoke('update:check'),

@@ -202,6 +202,16 @@ async function boot() {
   initKeyboard();
   initStudioMcp();
 
+  // Animator -> studio: "Edit a copy in VFX Studio…" loads an existing item's document here,
+  // replacing whatever was open (one undo step) — see docs/vfx-studio.md's edit-in-studio scope.
+  window.vfxStudio.onLoadEffect((doc) => {
+    const parsed = parseEffect(doc);
+    if (!parsed.ok) { toast(`Could not load effect: ${parsed.error}`, 'error'); return; }
+    ST.pushUndo();
+    ST.setDoc(parsed.doc);
+    toast(`Loaded "${parsed.doc.name}" for editing — Ctrl+Z restores what was open`);
+  });
+
   const restored = await ST.restoreAutosave();
   if (!restored) {
     // Blank-state flow: the first thing a beginner sees is the preset browser, never an empty
