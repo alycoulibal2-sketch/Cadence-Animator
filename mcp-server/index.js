@@ -294,6 +294,225 @@ server.tool(
   async ({ itemId, partA, partB, frame }) => { try { return textResult(await call('check_collision', { itemId, partA, partB, frame })); } catch (e) { return errorResult(e); } },
 );
 
+// ==================================================================================
+// VFX Studio — a completely separate, richer effect editor (particles, shapes, lights,
+// screen effects, camera shake, sound), each with clips on its own timeline and bezier curves
+// on every animatable property. Every vfx_* call auto-opens the studio window if it isn't
+// already running (no separate "launch" step needed), and every mutating tool returns the
+// document's fresh summary + diagnostics — never assume a write landed, read the response.
+//
+// Workflow: read first (vfx_get_state/vfx_get_effect), make ONE change, re-read/validate,
+// repeat — never chain several blind edits and hope. Before considering an effect finished:
+// vfx_validate (or the export gate does this for you), and if anything's flagged,
+// vfx_auto_fix handles the mechanical repairs. vfx_render_frame lets you actually SEE a frame
+// instead of inferring it from numbers.
+const curveKeySchema = z.object({
+  t: z.number().describe('frame, RELATIVE TO THE LAYER\'S CLIP START (clip-local, not doc-absolute)'),
+  v: z.union([z.number(), z.string()]).describe('value at this key (a hex color string only for color props, which are rare)'),
+  es: z.string().optional().describe('easing style: Linear, Constant, Sine, Quad, Cubic, Quart, Quint, Exponential, Circular, Back, Elastic, Bounce'),
+  ed: z.enum(['In', 'Out', 'InOut']).optional(),
+  bez: z.array(z.number()).length(4).optional().describe('cubic-bezier [x1,y1,x2,y2], overrides es/ed if present'),
+});
+const layerTypeSchema = z.enum(['emitter', 'shape', 'light', 'screen', 'shake', 'sound']);
+const clipSchema = z.object({
+  start: z.number().optional().describe('doc frame this layer\'s clip begins at'),
+  len: z.number().optional().describe('clip length in frames'),
+  loop: z.boolean().optional().describe('loop this layer to the effect\'s end instead of playing once'),
+});
+
+async function vfxCall(type, payload) {
+  return call(type, payload);
+}
+
+server.tool(
+  'vfx_open_studio',
+  'Open the VFX Studio window (or focus it if already open). Every other vfx_ tool auto-opens it too, so this is rarely needed on its own — mainly useful to make sure the user can see what you\'re doing.',
+  {},
+  async () => { try { return textResult(await vfxCall('vfx_open_studio')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_get_state',
+  'Get the VFX Studio\'s overall state: a compact effect summary (layers, clips, curve/expression key counts — NOT full curve data), playhead, selection, undo depth, diagnostic counts, and the full layer/modifier type catalogs with their applicable-to rules and Roblox export modes. Read this before assuming anything about what\'s open.',
+  {},
+  async () => { try { return textResult(await vfxCall('vfx_get_state')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_get_effect',
+  'Get the COMPLETE current effect document — every layer, every curve key, every expression, every modifier. This is the ground truth; read it before editing a layer/curve/modifier you didn\'t just create yourself.',
+  {},
+  async () => { try { return textResult(await vfxCall('vfx_get_effect')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_new_effect',
+  'Start a brand-new, blank effect (one empty emitter layer) in the studio, replacing whatever was open. Prefer vfx_apply_preset for anything resembling a known archetype (sword slash, explosion, fireball, ...) — it\'s a much faster starting point than building every layer by hand.',
+  { name: z.string().optional(), duration: z.number().optional().describe('frames, default 60'), fps: z.number().optional().describe('default 30') },
+  async (args) => { try { return textResult(await vfxCall('vfx_new_effect', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_set_effect_props',
+  'Change effect-level settings: name, duration (frames — every layer\'s clip is re-clamped to fit), fps, or preview loop.',
+  { name: z.string().optional(), duration: z.number().optional(), fps: z.number().optional(), loop: z.boolean().optional() },
+  async (args) => { try { return textResult(await vfxCall('vfx_set_effect_props', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_add_layer',
+  'Add a new layer to the effect. Layer types: emitter (particles), shape (a rendered mesh built from a base shape — slash/ring/lightning/etc, the "core" of a slash or shockwave), light (PointLight-like glow), screen (flash/vignette/speedlines/overlay, screen-space only), shake (camera shake), sound. Returns createdLayerId — use it for follow-up curve/modifier calls.',
+  {
+    type: layerTypeSchema,
+    name: z.string().optional(),
+    clip: clipSchema.optional(),
+    props: z.record(z.string(), z.any()).optional().describe('initial property values, e.g. {rate:40, colorStart:"#ffaa33"} for an emitter — see vfx_get_state\'s layerTypes/modifierTypes or vfx_get_effect for an existing layer of the same type to learn valid keys'),
+  },
+  async (args) => { try { return textResult(await vfxCall('vfx_add_layer', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_update_layer',
+  'Rename, enable/disable, or change property values on an existing layer. Only pass the fields you want changed.',
+  { layerId: z.string(), name: z.string().optional(), enabled: z.boolean().optional(), props: z.record(z.string(), z.any()).optional() },
+  async (args) => { try { return textResult(await vfxCall('vfx_update_layer', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_remove_layer', 'Delete a layer and everything on it (curves, expressions, modifiers).',
+  { layerId: z.string() },
+  async ({ layerId }) => { try { return textResult(await vfxCall('vfx_remove_layer', { layerId })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'vfx_duplicate_layer', 'Duplicate a layer (including its curves/modifiers, with fresh ids so they don\'t collide with the original).',
+  { layerId: z.string() },
+  async ({ layerId }) => { try { return textResult(await vfxCall('vfx_duplicate_layer', { layerId })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'vfx_reorder_layer', 'Move a layer to a new position in the stack (0 = first/bottom).',
+  { layerId: z.string(), index: z.number() },
+  async ({ layerId, index }) => { try { return textResult(await vfxCall('vfx_reorder_layer', { layerId, index })); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_set_clip',
+  'Change a layer\'s clip window on the timeline: when it starts, how long it plays, and whether it loops to the effect\'s end. Stagger clip starts to build anticipation -> impact -> dissipation.',
+  { layerId: z.string(), start: z.number().optional(), len: z.number().optional(), loop: z.boolean().optional() },
+  async (args) => { try { return textResult(await vfxCall('vfx_set_clip', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_get_curve', 'Read one property\'s curve keys, its expression (if any), and its static base value.',
+  { layerId: z.string(), prop: z.string().describe('e.g. "rate", "opacity", "scale", or "mod:<modifierId>:<param>" for a modifier parameter') },
+  async ({ layerId, prop }) => { try { return textResult(await vfxCall('vfx_get_curve', { layerId, prop })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'vfx_set_curve',
+  'Replace a property\'s ENTIRE curve with the given keys (pass all keys you want, not just new ones — this is a full replace, not an append). Only props marked animatable in the layer type\'s metadata can meaningfully carry a curve (check vfx_get_state\'s layerTypes, or read an existing similar layer). Key times are CLIP-LOCAL (relative to the layer\'s clip.start), so a key at t=0 fires exactly when the clip starts.',
+  { layerId: z.string(), prop: z.string(), keys: z.array(curveKeySchema) },
+  async ({ layerId, prop, keys }) => { try { return textResult(await vfxCall('vfx_set_curve', { layerId, prop, keys })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'vfx_delete_curve', 'Remove a property\'s curve entirely, reverting it to its static base value.',
+  { layerId: z.string(), prop: z.string() },
+  async ({ layerId, prop }) => { try { return textResult(await vfxCall('vfx_delete_curve', { layerId, prop })); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_set_expression',
+  'Advanced mode: drive a property with a math expression instead of (or composed with) its curve — e.g. "value * (1 + 0.3*sin(t*6))" where `value` is what the curve/base already resolved to, `t` is seconds into the clip, `f` is the clip-local frame, `dur` is the clip length in seconds. Functions: sin cos tan asin acos atan abs floor ceil round sqrt exp log sign pow min max clamp lerp noise rand saw tri square, plus the constant pi. A broken expression is rejected outright (nothing is changed) — fix the syntax and retry. Pass an empty/omitted expression to clear it.',
+  { layerId: z.string(), prop: z.string(), expression: z.string().optional() },
+  async ({ layerId, prop, expression }) => { try { return textResult(await vfxCall('vfx_set_expression', { layerId, prop, expression })); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_add_modifier',
+  'Add a modifier to a layer\'s stack: noise (positional turbulence, emitter only, preview-only on export), wind (directional drift, emitter only, approximated as Acceleration on export), pulse (size/opacity oscillation, emitter/shape/light), flicker (opacity jitter, emitter/light/screen, preview-only on export), orbit (swirl around the origin axis, emitter only, preview-only on export), fadeInOut (fade envelope by clip-fraction, most layer types, bakes into the export), gradientShift (hue rotate over clip time, emitter/shape/light, exports as scheduled writes), glowBoost (size+opacity multiplier, emitter/shape, bakes into the export). Check vfx_get_state\'s modifierTypes.appliesTo before adding one to an incompatible layer type (it will error).',
+  { layerId: z.string(), type: z.enum(['noise', 'wind', 'pulse', 'flicker', 'orbit', 'fadeInOut', 'gradientShift', 'glowBoost']), props: z.record(z.string(), z.any()).optional() },
+  async (args) => { try { return textResult(await vfxCall('vfx_add_modifier', args)); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'vfx_update_modifier', 'Change a modifier\'s enabled state or its parameter values.',
+  { layerId: z.string(), modifierId: z.string(), enabled: z.boolean().optional(), props: z.record(z.string(), z.any()).optional() },
+  async (args) => { try { return textResult(await vfxCall('vfx_update_modifier', args)); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'vfx_remove_modifier', 'Remove a modifier from a layer (its curve/expression tracks are deleted with it).',
+  { layerId: z.string(), modifierId: z.string() },
+  async ({ layerId, modifierId }) => { try { return textResult(await vfxCall('vfx_remove_modifier', { layerId, modifierId })); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_list_presets',
+  'List available presets. kind:"effects" (default) lists the hand-tuned multi-layer archetypes (sword-slash, explosion, fireball, portal, ...) plus the theme/scale keys vfx_apply_preset accepts; kind:"particles" lists the 396 single-emitter particle presets instead.',
+  { query: z.string().optional(), category: z.string().optional(), kind: z.enum(['effects', 'particles']).optional() },
+  async (args) => { try { return textResult(await vfxCall('vfx_list_presets', args)); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'vfx_apply_preset',
+  'Apply a preset archetype by its key (from vfx_list_presets). theme recolors it (classic/ice/ember/toxic/arcane/holy); scale is a size/rate multiplier (try 0.6, 1, or 1.6, or any number). mode:"replace" (default) swaps the whole open effect as one undo step; mode:"add" merges its layers into what\'s currently open instead (the way to combine archetypes, e.g. a slash + a separate glow preset).',
+  { key: z.string(), theme: z.string().optional(), scale: z.number().optional(), mode: z.enum(['replace', 'add']).optional() },
+  async (args) => { try { return textResult(await vfxCall('vfx_apply_preset', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_scrub', 'Move the VFX Studio playhead to a frame (lighter weight than vfx_render_frame when you don\'t need a screenshot back).',
+  { frame: z.number() },
+  async ({ frame }) => { try { return textResult(await vfxCall('vfx_scrub', { frame })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'vfx_render_frame',
+  'Screenshot the VFX Studio\'s actual 3D preview at a specific frame so you can visually verify the effect — silhouette, color, timing, whether particles are even visible. Use this to actually look rather than assuming a numeric edit produced the right visual result.',
+  { frame: z.number() },
+  async ({ frame }) => {
+    try {
+      const data = await vfxCall('vfx_render_frame', { frame });
+      return { content: [{ type: 'text', text: `Frame ${data.frame}` }, { type: 'image', data: data.image, mimeType: data.mimeType || 'image/png' }] };
+    } catch (e) { return errorResult(e); }
+  },
+);
+
+server.tool(
+  'vfx_validate',
+  'Run the diagnostics pipeline on the current effect. scope:"effect" (default) is the everyday check; scope:"export" adds Roblox-export-fidelity notes (dropped modifiers, clamped rates, approximated shapes/motions) — run this before vfx_export_luau if you want to see fidelity notes without triggering an actual export. Returns structured diagnostics: id, severity (error/warning/suggestion/info), category, target (layerId/prop/modifierId), frame, message, causes, and a fix handle when auto-fixable. Errors block export/send; nothing else does. Run this after edits instead of assuming they look right.',
+  { scope: z.enum(['effect', 'export']).optional() },
+  async ({ scope }) => { try { return textResult(await vfxCall('vfx_validate', { scope })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'vfx_auto_fix',
+  'Automatically repair diagnostics that have a safe fix (clamping bad values, resizing an undersized particle pool, pulling an out-of-range clip back in, deduping/dropping corrupted curve keys, etc). Pass specific diagnostic ids to fix only those, or omit to fix everything safely fixable. includeUnsafe additionally applies fixes that need judgment (e.g. deleting keys beyond a shortened clip) — use sparingly, and prefer just doing the edit yourself when the right fix is a creative decision rather than a mechanical one. Returns before/after diagnostic counts so you can confirm it worked instead of assuming.',
+  { ids: z.array(z.string()).optional(), includeUnsafe: z.boolean().optional() },
+  async (args) => { try { return textResult(await vfxCall('vfx_auto_fix', args)); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'vfx_performance_report',
+  'Estimate real in-game particle density (rate x lifetime + bursts — NOT the preview\'s pool cap, which Roblox has no equivalent of) and grade it against PC/console/mobile budgets. Also reports peak lights, peak screen layers, and how many emitter instances a path-shaped emission will fan out into on export. Run this on anything with several emitter layers before calling it done.',
+  {},
+  async () => { try { return textResult(await vfxCall('vfx_performance_report')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_export_luau',
+  'Bake the effect into a self-contained Roblox LocalScript (ParticleEmitters with baked NumberSequences and scheduled per-frame properties, Beams for path shapes, Neon parts for solid shapes, PointLights, ScreenGui for screen effects, camera shake via a post-camera RenderStep delta, Sound). Blocked if the effect has validation errors — fix them (vfx_auto_fix handles most) and retry. Returns the Luau source, a human-readable list of every approximation/degrade the export made, and the full export-scope diagnostics. The in-game result is a STATISTICAL match of the studio preview, not a pixel-identical one — Roblox rolls its own per-particle randomness.',
+  {},
+  async () => { try { return textResult(await vfxCall('vfx_export_luau')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_send_to_animator',
+  'Send the current effect to the main Cadence Animator window as a new timeline item (undoable there like any other edit) — the bridge from "built in VFX Studio" to "attached to an animation". Blocked if the effect has validation errors, same as export.',
+  {},
+  async () => { try { return textResult(await vfxCall('vfx_send_to_animator')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'vfx_select_layer', 'Select a layer in the VFX Studio UI (affects what the inspector/timeline show in a vfx_render_frame screenshot).',
+  { layerId: z.string() },
+  async ({ layerId }) => { try { return textResult(await vfxCall('vfx_select_layer', { layerId })); } catch (e) { return errorResult(e); } },
+);
+server.tool('vfx_undo', 'Undo the last VFX Studio change.', {}, async () => { try { return textResult(await vfxCall('vfx_undo')); } catch (e) { return errorResult(e); } });
+server.tool('vfx_redo', 'Redo the last undone VFX Studio change.', {}, async () => { try { return textResult(await vfxCall('vfx_redo')); } catch (e) { return errorResult(e); } });
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
