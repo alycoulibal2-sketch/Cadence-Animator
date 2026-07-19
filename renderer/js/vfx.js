@@ -6,11 +6,25 @@
 // the exact same result, which is what the timeline/onion-skin/MCP render_frame tooling all
 // assume of every other animatable thing in this app.
 import * as CF from './cf.js';
+import { shapePoint } from './effectShapes.js';
 // Deliberately no import of state.js here: this file is reused as-is by the standalone VFX Studio
 // window (a separate renderer with no project/undo/autosave state at all), so every call site
 // takes an explicit `evalNum(itemId, track, frame, fallback)` track-evaluator instead of reaching
 // out to a shared S.evalTrackNum — the main app passes the real one (see viewport.js), the studio
 // passes a trivial "just return the fallback" stand-in since it has no keyframed tracks at all.
+//
+// The evalNum contract is also how the effect engine expresses clip semantics without this file
+// knowing clips exist (docs/vfx-studio.md, "Frame-space contract"): the engine's adapter returns
+// rate 0 outside a layer's clip window (so emission is gated but particles live out their
+// lifetime past clip end, like a Roblox emitter with Enabled=false), wraps curve lookups for
+// looping clips, and spikes the rate by burst*fps at iteration-start frames to deposit exactly
+// `burst` whole spawns into the accumulator. Beyond '@rate'/'@lifetime'/'@speed', the sampler
+// below queries '@spread'/'@gravity'/'@sizeStart'/'@sizeEnd'/'@transparencyStart'/
+// '@transparencyEnd' AT EACH PARTICLE'S SPAWN FRAME (falling back to the static em.* values, so
+// existing projects render bit-identically). Per-spawn resolution is deliberate: gravity stays a
+// per-particle constant (the closed-form 0.5·g·t² trajectory never bends retroactively), keyed
+// spread re-aims only newly spawned particles, keyed sizes affect new spawns — matching how a
+// real Roblox emitter reads Speed/Lifetime/SpreadAngle at emission time.
 
 export const VFX_DEFAULTS = {
   colorStart: '#ffffff', colorEnd: '#ffffff',
@@ -163,6 +177,14 @@ export function sampleParticles(item, frame, fps, resolveOrigin, evalNum = (_id,
       const ageSec = ageFrames / fps;
       if (ageSec <= lifetimeSec) {
         const speed = evalNum(item.id, '@speed', f, em.speed ?? 4);
+        // Per-spawn parameter resolution (see header comment): each of these is read at the
+        // particle's own spawn frame f and stays constant for that particle's whole life.
+        const spreadDegrees = evalNum(item.id, '@spread', f, em.spreadDegrees);
+        const gravity = evalNum(item.id, '@gravity', f, em.gravity);
+        const sizeStart = evalNum(item.id, '@sizeStart', f, em.sizeStart);
+        const sizeEnd = evalNum(item.id, '@sizeEnd', f, em.sizeEnd);
+        const trStart = evalNum(item.id, '@transparencyStart', f, em.transparencyStart);
+        const trEnd = evalNum(item.id, '@transparencyEnd', f, em.transparencyEnd);
         const origin = resolveOrigin(f);
         const up = localUpInWorld(origin);
         // Shared basis for every motion below: `up` plus two arbitrary perpendicular axes — not a
@@ -175,16 +197,27 @@ export function sampleParticles(item, frame, fps, resolveOrigin, evalNum = (_id,
         const perp2 = [up[1] * perp1[2] - up[2] * perp1[1], up[2] * perp1[0] - up[0] * perp1[2], up[0] * perp1[1] - up[1] * perp1[0]];
         const rnd1 = (hash01(spawnIndex, 1) * 2 - 1);
         const rnd2 = (hash01(spawnIndex, 2) * 2 - 1);
-        const spreadRad = (em.spreadDegrees * Math.PI) / 180;
-        const spawnPos = applyToPoint(origin, [0, 0, 0]);
+        const spreadRad = (spreadDegrees * Math.PI) / 180;
+        // Emission-shape support: spawn across a shapes-system def instead of the origin point,
+        // sampled by two per-particle hashes (u along the shape, v across its second dimension).
+        // No emissionShape → the exact old behavior (spawn at the origin point).
+        const localSpawn = em.emissionShape
+          ? shapePoint(em.emissionShape, hash01(spawnIndex, 8), hash01(spawnIndex, 9))
+          : [0, 0, 0];
+        const spawnPos = applyToPoint(origin, localSpawn);
         const motion = em.motion || 'cone';
-        const pos = motionPosition(motion, { spawnPos, up, perp1, perp2, rnd1, rnd2, spreadRad, speed, ageSec, spawnIndex, gravity: em.gravity, spreadDegrees: em.spreadDegrees });
+        const pos = motionPosition(motion, { spawnPos, up, perp1, perp2, rnd1, rnd2, spreadRad, speed, ageSec, spawnIndex, gravity, spreadDegrees });
         const lf = ageSec / lifetimeSec; // particle-local life fraction, 0..1
         alive.push({
           pos,
-          size: Math.max(0.005, em.sizeStart + (em.sizeEnd - em.sizeStart) * lf),
+          size: Math.max(0.005, sizeStart + (sizeEnd - sizeStart) * lf),
           color: lerp3(colorStart, colorEnd, lf),
-          opacity: Math.max(0, 1 - (em.transparencyStart + (em.transparencyEnd - em.transparencyStart) * lf)),
+          opacity: Math.max(0, 1 - (trStart + (trEnd - trStart) * lf)),
+          // Stable identity + life data for the modifier stack: `seed` never changes for a given
+          // particle no matter what dies around it (array position does — never key on it).
+          seed: spawnIndex,
+          spawnFrame: f,
+          lf,
         });
       }
       spawnIndex++;
