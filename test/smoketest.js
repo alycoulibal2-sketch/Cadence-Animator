@@ -350,6 +350,91 @@
     return { ok: true, sawVfxStudioLog: log.includes('[vfxStudio') };
   });
 
+  // Drives the REAL vfx_* MCP pipeline (handleMcpCommand -> studio window's mcp.js handlers) via
+  // window.cadence.debugCallVfxMcp — the exact code path Claude's MCP tools use — so these checks
+  // verify the studio actually builds/edits/validates/exports documents, not just "didn't crash".
+  async function vfxCall(type, payload) {
+    const res = await window.cadence.debugCallVfxMcp(type, payload || {});
+    assert(res.ok, `${type} failed: ${res.error}`);
+    return res.data;
+  }
+
+  await step('VFX Studio MCP: new effect, add layers, curve, modifier round-trip via get_effect', async () => {
+    await vfxCall('vfx_new_effect', { name: 'Smoketest Effect', duration: 60, fps: 30 });
+    const state1 = await vfxCall('vfx_get_state');
+    assert(state1.effect.layerCount === 1, `expected 1 seed layer, got ${state1.effect.layerCount}`);
+
+    const added = await vfxCall('vfx_add_layer', { type: 'shape', name: 'Test Shape' });
+    assert(added.effect.layerCount === 2, 'layer count should be 2 after add_layer');
+    const shapeLayerId = added.createdLayerId;
+
+    await vfxCall('vfx_set_curve', { layerId: shapeLayerId, prop: 'opacity', keys: [{ t: 0, v: 0 }, { t: 10, v: 1, es: 'Quad', ed: 'Out' }] });
+    await vfxCall('vfx_add_modifier', { layerId: shapeLayerId, type: 'pulse' });
+
+    const full = await vfxCall('vfx_get_effect');
+    const layer = full.effect.layers.find((l) => l.id === shapeLayerId);
+    assert(layer, 'added layer missing from vfx_get_effect result');
+    assert(layer.curves.opacity && layer.curves.opacity.length === 2, 'opacity curve did not round-trip');
+    assert(layer.modifiers.length === 1 && layer.modifiers[0].type === 'pulse', 'modifier did not round-trip');
+    return { ok: true };
+  });
+
+  await step('VFX Studio MCP: validation catches a seeded defect and auto-fix clears it', async () => {
+    const em = await vfxCall('vfx_add_layer', { type: 'emitter', name: 'Broken Emitter', props: { transparencyStart: 1, transparencyEnd: 1 } });
+    const before = await vfxCall('vfx_validate');
+    assert(before.counts.error > 0, 'expected the fully-transparent emitter to be flagged as an error');
+    const fixed = await vfxCall('vfx_auto_fix', {});
+    assert(fixed.after.error === 0, `errors remained after auto-fix: ${JSON.stringify(fixed.after)}`);
+    void em;
+    return { ok: true };
+  });
+
+  await step('VFX Studio MCP: preset library applies and performance report is sane', async () => {
+    const presets = await vfxCall('vfx_list_presets', {});
+    assert(presets.archetypes.length >= 20, `expected >=20 archetypes, got ${presets.archetypes.length}`);
+    const applied = await vfxCall('vfx_apply_preset', { key: 'explosion' });
+    assert(applied.applied === 'explosion', 'explosion preset did not apply');
+    const perf = await vfxCall('vfx_performance_report');
+    assert(perf.estimatedInGameParticles > 0, 'explosion preset should estimate >0 in-game particles');
+    assert(perf.platforms && perf.platforms.mobile && perf.platforms.pc, 'performance report missing platform scores');
+    return { ok: true, estimatedInGameParticles: perf.estimatedInGameParticles };
+  });
+
+  await step('VFX Studio MCP: undo/redo round-trip', async () => {
+    const before = await vfxCall('vfx_get_state');
+    const countBefore = before.effect.layerCount;
+    await vfxCall('vfx_add_layer', { type: 'light' });
+    const afterAdd = await vfxCall('vfx_get_state');
+    assert(afterAdd.effect.layerCount === countBefore + 1, 'layer count should increase after add');
+    await vfxCall('vfx_undo');
+    const afterUndo = await vfxCall('vfx_get_state');
+    assert(afterUndo.effect.layerCount === countBefore, 'layer count should revert after undo');
+    await vfxCall('vfx_redo');
+    const afterRedo = await vfxCall('vfx_get_state');
+    assert(afterRedo.effect.layerCount === countBefore + 1, 'layer count should restore after redo');
+    return { ok: true };
+  });
+
+  await step('VFX Studio MCP: Luau export is blocked by errors, then succeeds once clean', async () => {
+    await vfxCall('vfx_new_effect', { name: 'Export Test' });
+    await vfxCall('vfx_update_layer', { layerId: (await vfxCall('vfx_get_effect')).effect.layers[0].id, props: { transparencyStart: 1, transparencyEnd: 1 } });
+    let blocked = false;
+    try { await vfxCall('vfx_export_luau'); } catch (_) { blocked = true; }
+    assert(blocked, 'export should have been blocked by the transparency error');
+    await vfxCall('vfx_auto_fix', {});
+    const exported = await vfxCall('vfx_export_luau');
+    assert(typeof exported.lua === 'string' && exported.lua.includes('ParticleEmitter'), 'exported Luau missing expected ParticleEmitter code');
+    assert(exported.lua.includes('RunService.Heartbeat:Connect'), 'exported Luau missing the wall-clock Heartbeat driver');
+    return { ok: true, luaLength: exported.lua.length };
+  });
+
+  await step('VFX Studio MCP: render_frame returns an actual screenshot', async () => {
+    const shot = await vfxCall('vfx_render_frame', { frame: 5 });
+    assert(typeof shot.image === 'string' && shot.image.length > 5000, 'render_frame image looks too small/missing');
+    assert(shot.mimeType === 'image/png', 'render_frame should return a PNG');
+    return { ok: true, imageBytes: shot.image.length };
+  });
+
   // ---------------------------------------------------------------- themes
   await step('themes: every theme + an accent applies without throwing', () => {
     const themes = Object.keys(D.THEMES || {});

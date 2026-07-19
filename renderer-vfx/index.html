@@ -12,32 +12,50 @@
     <div class="logo">✨ VFX Studio</div>
     <input id="vfxNameInput" class="vfx-name-input" spellcheck="false" value="Untitled Effect" />
     <div class="spacer"></div>
-    <button id="restartBtn" class="tb-btn" title="Restart the preview loop from the beginning">↺ Restart</button>
-    <button id="saveUserPresetBtn" class="tb-btn" title="Save this as one of your own reusable presets">💾 Save preset</button>
+    <button id="presetsBtn" class="tb-btn" title="Browse effect and particle presets">🎬 Presets</button>
+    <button id="openBtn" class="tb-btn" title="Open a saved .cfx effect file">📁 Open</button>
+    <button id="saveBtn" class="tb-btn" title="Save this effect to a .cfx file (Ctrl+S)">💾 Save</button>
+    <button id="savePresetBtn" class="tb-btn" title="Keep this effect in your personal preset library">⭐ Save preset</button>
+    <button id="advancedBtn" class="tb-btn" title="Advanced mode: per-property math expressions">ƒ Advanced</button>
+    <button id="exportLuaBtn" class="tb-btn" title="Export as a self-contained Roblox LocalScript">📜 Export</button>
     <button id="sendBtn" class="tb-btn primary" title="Add this effect to the animation you have open">➜ Send to Animator</button>
   </header>
 
   <main id="vfxMain">
-    <aside id="vfxLibrary">
-      <div class="panel-head"><span>Presets</span></div>
-      <div class="vfx-preset-controls">
-        <input id="vfxSearch" type="text" class="fld" placeholder="Search…" />
-        <select id="vfxCategory" class="fld"></select>
-      </div>
-      <div id="vfxUserPresetsHead" class="vfx-lib-subhead hidden">Your presets</div>
-      <div id="vfxUserPresetGrid" class="choose-grid vfx-preset-grid vfx-user-grid"></div>
-      <div class="vfx-lib-subhead">Library</div>
-      <div id="vfxPresetGrid" class="choose-grid vfx-preset-grid"></div>
-    </aside>
-
     <div id="vfxViewportWrap">
       <canvas id="vfxCanvas"></canvas>
+      <canvas id="vfxScreenFx"></canvas>
     </div>
 
-    <aside id="vfxControls">
-      <div class="panel-head"><span>Controls</span></div>
-      <div id="vfxControlsBody"></div>
+    <aside id="vfxInspector">
+      <div class="panel-head"><span>Inspector</span></div>
+      <div id="vfxInspectorBody"></div>
     </aside>
+
+    <div id="vfxBottom">
+      <div class="vfx-transport">
+        <button id="vfxPlayBtn" class="tb-btn" title="Play / pause (Space)">▶</button>
+        <button id="vfxStopBtn" class="tb-btn" title="Stop and rewind (Home)">⏮</button>
+        <span id="vfxFrameLabel" class="vfx-frame-label">frame 0 / 60</span>
+        <div class="spacer"></div>
+        <button id="vfxDiagChip" class="vfx-diag-chip" title="Diagnostics — click for details and fixes">…</button>
+      </div>
+      <div id="vfxTimelineScroll">
+        <div id="vfxTrackList"></div>
+        <canvas id="vfxTimelineCanvas"></canvas>
+      </div>
+      <div id="vfxCurveDrawer">
+        <div class="vfx-curve-head">
+          <span id="vfxCurveTitle" class="vfx-curve-title">curve</span>
+          <select id="vfxCurveStyle" class="fld" title="Easing style of the selected key's outgoing segment"></select>
+          <select id="vfxCurveDir" class="fld" title="Easing direction"></select>
+          <div id="vfxCurvePresets" class="vfx-curve-presets"></div>
+          <div class="spacer"></div>
+          <button id="vfxCurveClose" class="tb-btn" title="Close the curve editor">✕</button>
+        </div>
+        <div class="vfx-curve-canvas-wrap"><canvas id="vfxCurveCanvas"></canvas></div>
+      </div>
+    </div>
   </main>
 
   <div id="toasts"></div>

@@ -207,10 +207,10 @@ function openVfxStudioWindow() {
     return;
   }
   vfxWin = new BrowserWindow({
-    width: 1180,
-    height: 780,
-    minWidth: 820,
-    minHeight: 560,
+    width: 1520,
+    height: 920,
+    minWidth: 980,
+    minHeight: 640,
     backgroundColor: '#0d0d12',
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#0d0d12', symbolColor: '#8a8a96', height: 40 },
@@ -257,6 +257,104 @@ ipcMain.handle('vfx:userPresets:delete', (_e, id) => {
   writeSettings(s);
   return s.vfxUserPresets;
 });
+
+// Studio-local autosave: its own file in userData (effect documents can be tens of KB — they
+// don't belong inside settings.json), atomic rename-on-write like the animator's autosaves.
+const vfxAutosavePath = () => path.join(userData(), 'vfx-studio-autosave.cfx');
+ipcMain.handle('vfx:autosave:save', (_e, json) => {
+  try {
+    const tmp = vfxAutosavePath() + '.tmp';
+    fs.writeFileSync(tmp, json);
+    fs.renameSync(tmp, vfxAutosavePath());
+    return true;
+  } catch (e) {
+    console.error('vfx autosave failed:', e.message);
+    return false;
+  }
+});
+ipcMain.handle('vfx:autosave:load', () => {
+  try {
+    return fs.existsSync(vfxAutosavePath()) ? fs.readFileSync(vfxAutosavePath(), 'utf8') : null;
+  } catch (_) {
+    return null;
+  }
+});
+
+// .cfx / .lua save+open dialogs for the studio window (parented to it, not the main window).
+ipcMain.handle('vfx:file:saveEffect', async (_e, json, suggestedName) => {
+  const r = await dialog.showSaveDialog(vfxWin, {
+    defaultPath: suggestedName || 'effect.cfx',
+    filters: [{ name: 'Cadence Effect', extensions: ['cfx'] }, { name: 'JSON', extensions: ['json'] }],
+  });
+  if (r.canceled || !r.filePath) return null;
+  fs.writeFileSync(r.filePath, json);
+  return r.filePath;
+});
+ipcMain.handle('vfx:file:openEffect', async () => {
+  const r = await dialog.showOpenDialog(vfxWin, {
+    filters: [{ name: 'Cadence Effect', extensions: ['cfx', 'json'] }],
+    properties: ['openFile'],
+  });
+  if (r.canceled || !r.filePaths[0]) return null;
+  return { path: r.filePaths[0], json: fs.readFileSync(r.filePaths[0], 'utf8') };
+});
+ipcMain.handle('vfx:file:saveText', async (_e, text, suggestedName) => {
+  const r = await dialog.showSaveDialog(vfxWin, {
+    defaultPath: suggestedName || 'effect.lua',
+    filters: [{ name: 'Luau script', extensions: ['lua'] }, { name: 'All files', extensions: ['*'] }],
+  });
+  if (r.canceled || !r.filePath) return null;
+  fs.writeFileSync(r.filePath, text);
+  return r.filePath;
+});
+
+// ---------------------------------------------------------------- VFX Studio MCP pipe
+// Twin of the main window's mcp:command/mcp:response pipe, targeting the studio window. Claude's
+// vfx_* tools route here (see handleMcpCommand); the studio auto-opens if it isn't running so a
+// tool call never fails just because the window was closed.
+const vfxMcpPending = new Map();
+let vfxMcpNextId = 1;
+
+function sendToVfxRenderer(type, payload, timeoutMs = 30000) {
+  return new Promise((resolve, reject) => {
+    if (!vfxWin || vfxWin.isDestroyed() || !vfxWin.webContents || vfxWin.webContents.isDestroyed()) {
+      reject(new Error('VFX Studio window is not ready'));
+      return;
+    }
+    const id = vfxMcpNextId++;
+    const timer = setTimeout(() => {
+      vfxMcpPending.delete(id);
+      reject(new Error(`VFX Studio did not answer "${type}" in time`));
+    }, timeoutMs);
+    vfxMcpPending.set(id, { resolve, reject, timer });
+    vfxWin.webContents.send('vfxmcp:command', { id, type, payload });
+  });
+}
+ipcMain.on('vfxmcp:response', (_e, { id, ok, data, error }) => {
+  const p = vfxMcpPending.get(id);
+  if (!p) return;
+  vfxMcpPending.delete(id);
+  clearTimeout(p.timer);
+  if (ok) p.resolve(data);
+  else p.reject(new Error(error || 'Unknown VFX Studio error'));
+});
+
+// Open (or focus) the studio and resolve once its renderer has finished loading — a vfx_* tool
+// call arriving with the window closed must wait for boot, not race it.
+async function ensureVfxStudioReady() {
+  const wasOpen = vfxWin && !vfxWin.isDestroyed();
+  openVfxStudioWindow();
+  if (!wasOpen) {
+    await new Promise((resolve, reject) => {
+      const to = setTimeout(() => reject(new Error('VFX Studio took too long to open')), 15000);
+      vfxWin.webContents.once('did-finish-load', () => {
+        clearTimeout(to);
+        // give the module graph + boot() a beat to wire the MCP listener
+        setTimeout(resolve, 600);
+      });
+    });
+  }
+}
 
 app.on('second-instance', () => {
   if (win && !win.isDestroyed()) {
@@ -815,6 +913,23 @@ async function handleMcpCommand(type, payload) {
     const img = await win.webContents.capturePage();
     return { frame: payload.frame, image: img.toPNG().toString('base64'), mimeType: 'image/png' };
   }
+  // VFX Studio tools: auto-open the studio window and relay over its own pipe. Screenshots go
+  // through the studio-side double-rAF settle first (same paint-race rule as render_frame).
+  if (type === 'vfx_open_studio') {
+    await ensureVfxStudioReady();
+    return { ok: true, open: true };
+  }
+  if (type === 'vfx_render_frame') {
+    await ensureVfxStudioReady();
+    const settled = await sendToVfxRenderer('vfx_scrub_settle', { frame: payload.frame ?? 0 });
+    await new Promise((r) => setTimeout(r, 60));
+    const img = await vfxWin.webContents.capturePage();
+    return { frame: settled.frame, image: img.toPNG().toString('base64'), mimeType: 'image/png' };
+  }
+  if (type.startsWith('vfx_')) {
+    await ensureVfxStudioReady();
+    return sendToVfxRenderer(type, payload);
+  }
   return sendToRenderer(type, payload);
 }
 
@@ -860,6 +975,16 @@ function startMcpServer() {
 }
 
 ipcMain.handle('mcp:bindStatus', () => ({ error: mcpBindError }));
+
+// Test/debug only: lets the smoketest exercise the real vfx_* MCP pipeline without a second Node
+// process. Same handler function real MCP calls go through — not a parallel/weaker path.
+ipcMain.handle('debug:callVfxMcp', async (_e, type, payload) => {
+  try {
+    return { ok: true, data: await handleMcpCommand(type, payload || {}) };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
 
 // ---------------------------------------------------------------- mobile companion (phone viewer/remote)
 // Opt-in only — nothing here starts until the user clicks "Enable" in the Mobile panel. Reuses

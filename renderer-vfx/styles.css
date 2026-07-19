@@ -1,6 +1,7 @@
-/* VFX Studio layout — reuses renderer/styles.css's theme variables, buttons, .fld inputs,
-   .choose-grid/.choose-card, .insp-row/.insp-title etc. unmodified; this file only adds the
-   3-pane layout and the few things unique to this window. */
+/* VFX Studio v2 layout — reuses renderer/styles.css's theme variables, buttons, .fld inputs,
+   .choose-grid/.choose-card, .insp-row/.insp-title, chips, modals, toasts unmodified; this file
+   adds the studio's own grid (preview + inspector over a timeline strip) and its widgets.
+   No inline style="" attributes anywhere in this window — the CSP silently drops them. */
 
 .vfx-name-input {
   -webkit-app-region: no-drag;
@@ -14,47 +15,223 @@
   min-width: 160px;
 }
 .vfx-name-input:hover, .vfx-name-input:focus { background: var(--bg-3); outline: none; }
+.tb-btn.active { background: var(--accent); color: #fff; }
 
 #vfxMain {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 260px 1fr 300px;
+  grid-template-columns: 1fr 310px;
+  grid-template-rows: 1fr auto;
   min-height: 0;
 }
 
-#vfxLibrary, #vfxControls {
+#vfxViewportWrap {
+  position: relative;
+  min-width: 0;
+  min-height: 260px;
+  background: radial-gradient(ellipse at center, var(--bg-2) 0%, var(--bg-0) 100%);
+}
+#vfxCanvas { width: 100%; height: 100%; display: block; }
+#vfxScreenFx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+#vfxInspector {
   background: var(--bg-1);
-  border-right: 1px solid var(--border);
+  border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
   padding: 10px;
 }
-#vfxControls { border-right: none; border-left: 1px solid var(--border); }
-
-.vfx-lib-subhead {
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-3);
-  margin: 10px 2px 6px;
+#vfxInspectorBody .insp-section { margin-bottom: 6px; }
+.vfx-insp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px 10px;
+  font-weight: 600;
 }
-.vfx-preset-grid {
-  grid-template-columns: 1fr;
-  max-height: none;
-  overflow: visible;
-}
-.vfx-user-grid:empty { display: none; }
-.choose-card.selected { border-color: var(--accent); background: var(--bg-4); }
+.vfx-insp-headname { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vfx-insp-hint { margin-top: 12px; line-height: 1.5; }
+.vfx-dim { color: var(--text-3); font-size: 11.5px; }
 
-#vfxViewportWrap {
+/* ---- bottom strip: transport + timeline + curve drawer ---- */
+#vfxBottom {
+  grid-column: 1 / -1;
   position: relative;
-  min-width: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-1);
+  display: flex;
+  flex-direction: column;
   min-height: 0;
-  background: radial-gradient(ellipse at center, var(--bg-2) 0%, var(--bg-0) 100%);
 }
-#vfxCanvas { width: 100%; height: 100%; display: block; }
+.vfx-transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.vfx-frame-label { font-size: 11.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.vfx-diag-chip {
+  border: 1px solid var(--border);
+  background: var(--bg-3);
+  color: var(--text-1);
+  border-radius: 999px;
+  font-size: 11.5px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.vfx-diag-chip.ok { color: #7ed491; border-color: #2c5236; }
+.vfx-diag-chip.warn { color: #ffd479; border-color: #6b5320; }
+.vfx-diag-chip.err { color: #ff8a8a; border-color: #6b2020; }
 
-#vfxControlsBody .insp-section { margin-bottom: 4px; }
+#vfxTimelineScroll {
+  display: flex;
+  overflow: auto;
+  height: 218px;
+  min-height: 120px;
+}
+#vfxTrackList {
+  flex: 0 0 230px;
+  border-right: 1px solid var(--border);
+  background: var(--bg-1);
+  box-sizing: border-box;
+}
+#vfxTimelineCanvas { flex: 1 1 auto; display: block; }
+
+.vfx-track-header { display: flex; padding: 2px 6px; height: 22px; box-sizing: border-box; align-items: center; }
+.vfx-add-layer { font-size: 11px; padding: 2px 8px; }
+.vfx-layer-row, .vfx-prop-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  font-size: 12px;
+  cursor: default;
+  border-bottom: 1px solid transparent;
+}
+.vfx-layer-row:hover { background: var(--bg-2); }
+.vfx-layer-row.selected { background: var(--bg-3); }
+.vfx-caret { width: 12px; color: var(--text-3); cursor: pointer; text-align: center; }
+.vfx-layer-icon { width: 16px; text-align: center; }
+.vfx-layer-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vfx-prop-row { padding-left: 34px; color: var(--text-3); }
+.vfx-prop-label { font-size: 11px; cursor: pointer; }
+.vfx-prop-label:hover { color: var(--text-1); }
+.vfx-row-btn {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 4px;
+  line-height: 1.3;
+}
+.vfx-row-btn:hover { background: var(--bg-4); color: var(--text-1); }
+.vfx-row-btn.active { color: var(--accent); }
+.vfx-export-only {
+  font-size: 9px;
+  color: var(--text-3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 4px;
+}
+
+/* export-fidelity badges */
+.vfx-fid { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.vfx-fid-faithful { background: #4ea564; }
+.vfx-fid-approximated { background: #d8a63a; }
+.vfx-fid-preview-only { background: #c85a5a; }
+.vfx-insp-head .vfx-fid, .vfx-mod-head .vfx-fid {
+  width: auto; height: auto; border-radius: 999px;
+  font-size: 9.5px; padding: 2px 7px; color: #0d0d12; font-weight: 600;
+}
+
+/* inspector animatable rows */
+.vfx-anim-row .fld { width: 74px; }
+.vfx-anim-badge {
+  width: 16px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-3);
+}
+.vfx-anim-badge.curved { color: var(--accent); }
+.vfx-anim-badge.expr { color: #d8a63a; }
+.vfx-expr-row .l { width: 14px; color: #d8a63a; }
+.vfx-expr-input { font-family: ui-monospace, monospace; font-size: 11px; }
+.vfx-vec3 { display: flex; gap: 4px; }
+.vfx-vec3 .fld { width: 52px; }
+.vfx-shape-editor { border-left: 2px solid var(--border); padding-left: 6px; margin: 4px 0; }
+.vfx-mod-block { border: 1px solid var(--border); border-radius: var(--radius-s); padding: 6px; margin-bottom: 6px; }
+.vfx-mod-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.vfx-mod-name { flex: 1 1 auto; font-size: 12px; font-weight: 600; }
+.vfx-add-mod { width: 100%; margin-top: 2px; }
+
+/* curve drawer */
+#vfxCurveDrawer {
+  position: absolute;
+  inset: 0;
+  top: 34px;
+  background: var(--bg-1);
+  display: none;
+  flex-direction: column;
+  z-index: 5;
+}
+#vfxCurveDrawer.open { display: flex; }
+.vfx-curve-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.vfx-curve-title { font-size: 12px; font-weight: 600; }
+.vfx-curve-head .fld { width: auto; }
+.vfx-curve-presets { display: flex; gap: 4px; flex-wrap: wrap; }
+.vfx-curve-canvas-wrap { flex: 1 1 auto; min-height: 0; }
+#vfxCurveCanvas { display: block; }
+
+/* preset browser modal */
+.vfx-preset-browser { display: flex; flex-direction: column; gap: 8px; min-width: 560px; max-width: 720px; }
+.vfx-preset-tabs { display: flex; gap: 6px; }
+.vfx-preset-tab.active { background: var(--accent); color: #fff; }
+.vfx-preset-controls { display: flex; gap: 6px; }
+.vfx-preset-controls .fld { flex: 1 1 auto; min-width: 0; }
+.vfx-browser-grid {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.vfx-browser-card { position: relative; }
+.vfx-card-actions { display: flex; gap: 4px; margin-top: 6px; }
+.vfx-card-actions .tb-btn { font-size: 10.5px; padding: 2px 8px; }
+.vfx-preset-empty { color: var(--text-3); padding: 20px; text-align: center; grid-column: 1 / -1; }
+.vfx-browser-hint { padding: 0 2px; }
+
+/* diagnostics modal */
+.vfx-diag-list { display: flex; flex-direction: column; gap: 8px; max-height: 52vh; overflow-y: auto; min-width: 480px; }
+.vfx-diag { border: 1px solid var(--border); border-radius: var(--radius-s); padding: 7px 9px; }
+.vfx-diag-error { border-left: 3px solid #c85a5a; }
+.vfx-diag-warning { border-left: 3px solid #d8a63a; }
+.vfx-diag-suggestion { border-left: 3px solid #5a9ac8; }
+.vfx-diag-info { border-left: 3px solid var(--border); }
+.vfx-diag-head { display: flex; gap: 6px; align-items: baseline; }
+.vfx-diag-msg { font-size: 12px; }
+.vfx-diag-causes { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+.vfx-diag-actions { display: flex; gap: 6px; margin-top: 6px; }
+.vfx-perf-report { min-width: 380px; }
+.vfx-perf-suggestion { font-size: 11.5px; color: var(--text-2); margin-top: 4px; }
+.vfx-export-summary { max-width: 560px; font-size: 12.5px; line-height: 1.5; }
+.vfx-export-notes-head { margin-top: 10px; font-weight: 600; font-size: 12px; }
+
 .hidden { display: none; }

@@ -69,6 +69,11 @@ contextBridge.exposeInMainWorld('cadence', {
   // VFX Studio (standalone particle-effect creation window)
   openVfxStudio: () => ipcRenderer.invoke('vfx:openStudio'),
   onReceiveVfxFromStudio: (cb) => ipcRenderer.on('vfx:receiveFromStudio', (_e, config) => cb(config)),
+  // Test/debug only: drives the real vfx_* MCP pipeline (handleMcpCommand -> studio window) from
+  // the main renderer, so the smoketest can assert on the studio's actual behavior instead of
+  // just "it didn't crash". Not a new privilege boundary — the same command set is already
+  // reachable unauthenticated over the localhost MCP HTTP port.
+  debugCallVfxMcp: (type, payload) => ipcRenderer.invoke('debug:callVfxMcp', type, payload),
 
   // auto-update
   checkForUpdate: () => ipcRenderer.invoke('update:check'),
