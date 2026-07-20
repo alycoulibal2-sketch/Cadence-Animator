@@ -168,14 +168,14 @@ const ENERGY_LEVELS = ['calm', 'normal', 'strong', 'extreme'];
 // hands results a fresh closure over openSketchWorkspace as its onEditSketch callback — that
 // keeps the dependency one-directional (workspace -> results), never circular. Also carries the
 // energy choice back in the same way, so re-editing a sketch doesn't silently reset it to Normal.
-export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel = 'normal', initialColorDabs = null } = {}) {
+export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel = 'normal', initialColorDabs = null, initialDensityDabs = null } = {}) {
   if (overlay) return;
 
   let strokes = cloneStrokes(initialStrokes);
   let currentStroke = null;
   let energyLevel = ENERGY_LEVELS.includes(initialEnergyLevel) ? initialEnergyLevel : 'normal';
   let panX = 0, panY = 0, zoom = 1;
-  let brushSize = 10; // world units — doubles as color-dab radius on the Color layer
+  let brushSize = 10; // world units — doubles as color/density-dab radius on those layers
   let eraserMode = false;
   let panDrag = null;
   let erasing = false;
@@ -184,10 +184,13 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   let dragStart = null; // world-space anchor for line/circle/ellipse/rect/spiral/arrow/lightning
   let bezierPts = []; // in-progress click-to-add-point path
   let lastBezierClick = 0;
-  let currentLayer = 'shape'; // 'shape' | 'color' — which canvas-painting mode is active
+  let currentLayer = 'shape'; // 'shape' | 'color' | 'density' — which canvas-painting mode is active
   let colorDabs = (initialColorDabs || []).map((d) => ({ ...d })); // { x, y, radius, hex }
   let currentColor = '#7c8cff';
   let paintingColor = false;
+  let densityDabs = (initialDensityDabs || []).map((d) => ({ ...d })); // { x, y, radius, intensity }
+  let currentIntensity = 0.7;
+  let paintingDensity = false;
   const undoStack = [];
   const redoStack = [];
 
@@ -196,13 +199,14 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
 
   // SKETCH IT 2.0: which layer the canvas is currently painting into. Shape is the only layer
   // with its own tool palette (the freehand/line/circle/... shapes analyzeSketchStrokes() reads);
-  // Color paints dabs into their own buffer entirely — the two never share canvas state, only the
-  // same physical canvas element and the same Brush-size control.
+  // Color/Density paint dabs into their own buffers entirely — none of the three share canvas
+  // state, only the same physical canvas element and the same Brush-size control.
   const layerTabs = document.createElement('div');
   layerTabs.className = 'sketch-layer-tabs';
   const LAYER_TABS = [
     { id: 'shape', label: '✏ Shape' },
     { id: 'color', label: '🎨 Color' },
+    { id: 'density', label: '⚫ Density' },
   ];
   const layerTabBtns = new Map();
   for (const lt of LAYER_TABS) {
@@ -236,6 +240,22 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   colorSwatch.title = 'Paint color';
   colorSwatch.addEventListener('input', () => { currentColor = colorSwatch.value; });
   colorControls.appendChild(colorSwatch);
+
+  // Density: "dark brush = high density, light brush = low density" (spec's own wording) — a
+  // slider is more precise than trying to infer intensity from repeated overlapping strokes.
+  const densityControls = document.createElement('div');
+  densityControls.className = 'sketch-density-controls';
+  const densityLabel = document.createElement('span');
+  densityLabel.className = 'sketch-size-label';
+  densityLabel.textContent = 'Intensity';
+  const densitySlider = document.createElement('input');
+  densitySlider.type = 'range';
+  densitySlider.className = 'fld sketch-density-slider';
+  densitySlider.min = '0.05'; densitySlider.max = '1'; densitySlider.step = '0.05';
+  densitySlider.value = String(currentIntensity);
+  densitySlider.title = 'Density brush intensity — dark/heavy = dense, light = sparse';
+  densitySlider.addEventListener('input', () => { currentIntensity = Number(densitySlider.value); });
+  densityControls.append(densityLabel, densitySlider);
 
   const undoBtn = toolButton('↶', 'Undo (Ctrl+Z)');
   const redoBtn = toolButton('↷', 'Redo (Ctrl+Y)');
@@ -289,7 +309,7 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   generateBtn.textContent = '✨ Generate';
   generateBtn.title = 'Analyze the sketch and imagine ~30 VFX interpretations';
 
-  toolbar.append(layerTabs, toolPalette, colorControls, undoBtn, redoBtn, eraserBtn, sizeWrap, energyWrap, clearBtn, hint, spacer, generateBtn);
+  toolbar.append(layerTabs, toolPalette, colorControls, densityControls, undoBtn, redoBtn, eraserBtn, sizeWrap, energyWrap, clearBtn, hint, spacer, generateBtn);
 
   const canvasWrap = document.createElement('div');
   canvasWrap.className = 'sketch-canvas-wrap';
@@ -334,6 +354,7 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
     }
 
     drawColorDabs(); // under the ink strokes — reads as a color wash beneath the clean shape guides
+    drawDensityDabs();
 
     ctx.strokeStyle = P.ink;
     ctx.fillStyle = P.ink;
@@ -346,6 +367,17 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
       const s = worldToScreen(d.x, d.y);
       ctx.globalAlpha = 0.55;
       ctx.fillStyle = d.hex;
+      ctx.beginPath(); ctx.arc(s.x, s.y, d.radius * zoom, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawDensityDabs() {
+    // Dark/opaque = high painted intensity, light/faint = low — matches the spec's own wording.
+    for (const d of densityDabs) {
+      const s = worldToScreen(d.x, d.y);
+      ctx.globalAlpha = 0.15 + d.intensity * 0.55;
+      ctx.fillStyle = '#000000';
       ctx.beginPath(); ctx.arc(s.x, s.y, d.radius * zoom, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -396,6 +428,7 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
     undoStack.push({
       strokes: strokes.map((s) => ({ points: s.points.slice(), tool: s.tool, params: s.params ? { ...s.params } : null })),
       colorDabs: colorDabs.map((d) => ({ ...d })),
+      densityDabs: densityDabs.map((d) => ({ ...d })),
     });
     if (undoStack.length > 60) undoStack.shift();
     redoStack.length = 0;
@@ -410,19 +443,21 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
       return true;
     }
     if (!undoStack.length) return false;
-    redoStack.push({ strokes, colorDabs });
+    redoStack.push({ strokes, colorDabs, densityDabs });
     const snap = undoStack.pop();
     strokes = snap.strokes;
     colorDabs = snap.colorDabs;
+    densityDabs = snap.densityDabs;
     draw();
     return true;
   }
   function localRedo() {
     if (!redoStack.length) return false;
-    undoStack.push({ strokes, colorDabs });
+    undoStack.push({ strokes, colorDabs, densityDabs });
     const snap = redoStack.pop();
     strokes = snap.strokes;
     colorDabs = snap.colorDabs;
+    densityDabs = snap.densityDabs;
     draw();
     return true;
   }
@@ -450,7 +485,7 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   }
 
   function updateCursor() {
-    if (currentLayer === 'color') { canvas.style.cursor = 'crosshair'; return; }
+    if (currentLayer === 'color' || currentLayer === 'density') { canvas.style.cursor = 'crosshair'; return; }
     canvas.style.cursor = eraserMode ? 'cell' : (currentTool === 'freehand' ? 'crosshair' : 'copy');
   }
   function setEraser(on) {
@@ -480,7 +515,8 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
     for (const [lid, b] of layerTabBtns) b.classList.toggle('active', lid === id);
     toolPalette.classList.toggle('hidden', id !== 'shape');
     colorControls.classList.toggle('hidden', id !== 'color');
-    eraserBtn.disabled = id !== 'shape'; // erasing color dabs isn't supported yet — Undo/Clear cover it
+    densityControls.classList.toggle('hidden', id !== 'density');
+    eraserBtn.disabled = id !== 'shape'; // erasing paint dabs isn't supported yet — Undo/Clear cover it
     updateCursor();
     draw();
   }
@@ -501,6 +537,12 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
     colorDabs.push({ x: world.x, y: world.y, radius: brushSize, hex: currentColor });
     draw();
   }
+  function paintDensityDab(e) {
+    const rect = canvas.getBoundingClientRect();
+    const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    densityDabs.push({ x: world.x, y: world.y, radius: brushSize, intensity: currentIntensity });
+    draw();
+  }
 
   function onPointerDown(e) {
     canvas.setPointerCapture(e.pointerId);
@@ -514,6 +556,12 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
       pushLocalUndo();
       paintingColor = true;
       paintColorDab(e);
+      return;
+    }
+    if (currentLayer === 'density') {
+      pushLocalUndo();
+      paintingDensity = true;
+      paintDensityDab(e);
       return;
     }
     if (eraserMode) {
@@ -562,6 +610,10 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
       paintColorDab(e);
       return;
     }
+    if (paintingDensity) {
+      paintDensityDab(e);
+      return;
+    }
     if (erasing) {
       const rect = canvas.getBoundingClientRect();
       eraseAt(screenToWorld(e.clientX - rect.left, e.clientY - rect.top), brushSize * 1.8);
@@ -583,6 +635,7 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   function onPointerUp() {
     if (panDrag) { panDrag = null; updateCursor(); return; }
     if (paintingColor) { paintingColor = false; return; }
+    if (paintingDensity) { paintingDensity = false; return; }
     if (erasing) { erasing = false; return; }
     if (currentTool === 'bezier') return; // commits via finishBezier(), not on pointerup
     if (dragStart && DRAG_TOOLS[currentTool]) {
@@ -655,12 +708,13 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   }
 
   function doClear() {
-    if (!strokes.length && !currentStroke && !bezierPts.length && !colorDabs.length) return;
+    if (!strokes.length && !currentStroke && !bezierPts.length && !colorDabs.length && !densityDabs.length) return;
     pushLocalUndo();
     strokes = [];
     currentStroke = null;
     bezierPts = [];
     colorDabs = [];
+    densityDabs = [];
     draw();
     toast('Canvas cleared — Ctrl+Z restores it');
   }
@@ -671,12 +725,16 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
     if (!real.length) { toast('Draw something first — even a quick doodle works!'); return; }
     const snapshot = cloneStrokes(real);
     const colorSnapshot = colorDabs.map((d) => ({ ...d }));
+    const densitySnapshot = densityDabs.map((d) => ({ ...d }));
     close();
     import('./sketchResults.js').then(({ openSketchResults }) => {
       openSketchResults(snapshot, {
         energyLevel,
         colorDabs: colorSnapshot,
-        onEditSketch: () => openSketchWorkspace(snapshot, { initialEnergyLevel: energyLevel, initialColorDabs: colorSnapshot }),
+        densityDabs: densitySnapshot,
+        onEditSketch: () => openSketchWorkspace(snapshot, {
+          initialEnergyLevel: energyLevel, initialColorDabs: colorSnapshot, initialDensityDabs: densitySnapshot,
+        }),
       });
     });
   }
@@ -698,6 +756,7 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   energyBtns.get(energyLevel).classList.add('active');
   layerTabBtns.get('shape').classList.add('active');
   colorControls.classList.add('hidden');
+  densityControls.classList.add('hidden');
   updateCursor();
 
   const resizeObserver = new ResizeObserver(draw);

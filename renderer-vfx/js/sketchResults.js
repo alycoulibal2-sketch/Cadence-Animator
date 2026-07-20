@@ -62,11 +62,11 @@ function commitDoc(doc) {
   return doc.id;
 }
 
-export function openSketchResults(strokes, { onEditSketch, precomputed, energyLevel, colorDabs } = {}) {
+export function openSketchResults(strokes, { onEditSketch, precomputed, energyLevel, colorDabs, densityDabs } = {}) {
   if (activeResults) return;
   removeBackChip();
   const features = analyzeSketchStrokes(strokes);
-  const intent = captureSketchIntent({ shapeStrokes: strokes, energyLevel, colorDabs });
+  const intent = captureSketchIntent({ shapeStrokes: strokes, energyLevel, colorDabs, densityDabs });
   const controller = new AbortController();
   const cardsById = new Map(); // candidate.id -> { el, handle }
   let allCandidates = [];

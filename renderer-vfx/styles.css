@@ -362,6 +362,8 @@
 .sketch-layer-tab { font-size: 12px; padding: 5px 10px; }
 .sketch-color-controls { display: flex; align-items: center; gap: 6px; padding-right: 8px; border-right: 1px solid var(--border); }
 .sketch-color-swatch { width: 30px; height: 28px; padding: 2px; }
+.sketch-density-controls { display: flex; align-items: center; gap: 6px; padding-right: 8px; border-right: 1px solid var(--border); }
+.sketch-density-slider { width: 80px; }
 .sketch-size-wrap { display: flex; align-items: center; gap: 6px; }
 .sketch-size-label { font-size: 11.5px; color: var(--text-2); }
 .sketch-size-slider { width: 90px; }

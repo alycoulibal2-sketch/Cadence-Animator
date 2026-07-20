@@ -130,49 +130,59 @@ function projectOntoPolyline(pt, points) {
   return bestFrac;
 }
 
-// Resamples arbitrary (u, rgb) samples down to `stopCount` evenly-spaced stops — a real bucket-
-// average where samples exist nearby, falling back to the nearest sample where a bucket is empty
-// (never interpolates a hallucinated color no dab actually produced).
-function bucketAverage(samples, stopCount) {
+// Resamples arbitrary (u, value) samples down to `stopCount` evenly-spaced stops via `avg` — a
+// real bucket-average where samples exist nearby, falling back to the nearest sample where a
+// bucket is empty (never interpolates a hallucinated value no dab actually produced). Shared by
+// the Color and Density interpreters — only the value type (rgb triple vs plain number) and its
+// averaging function differ.
+function bucketAverage(samples, stopCount, avg) {
   const stops = [];
   for (let i = 0; i < stopCount; i++) {
     const u = i / (stopCount - 1);
     const halfWidth = 0.5 / (stopCount - 1);
     const near = samples.filter((s) => Math.abs(s.u - u) <= halfWidth);
     if (near.length) {
-      stops.push({ u, rgb: averageRgb(near.map((s) => s.rgb)) });
+      stops.push({ u, value: avg(near.map((s) => s.value)) });
     } else {
       let nearest = samples[0];
       for (const s of samples) if (Math.abs(s.u - u) < Math.abs(nearest.u - u)) nearest = s;
-      stops.push({ u, rgb: nearest.rgb });
+      stops.push({ u, value: nearest.value });
     }
   }
   return stops;
 }
 
+// Picks a sampling axis from the primary shape guide's own geometry — radial distance-from-
+// centroid on a closed/circular guide, arc-length position along an open/elongated one — and
+// returns each dab's position along it as u:0..1. Returns null when neither condition is met (an
+// honest "no confident axis", not a guess): the caller must degrade gracefully, never invent one.
+// Shared by Color (ramps a hex value) and Density (ramps a plain intensity number).
+function axisPositionsOf(dabs, shapeGuides) {
+  const primary = primaryGuideOf(shapeGuides);
+  if (!primary || primary.points.length < 3) return null;
+  const shape = analyzePrimaryStroke(primary);
+  if (shape.closed && shape.circularity > 0.5) {
+    let cx = 0, cy = 0;
+    for (const p of primary.points) { cx += p.x; cy += p.y; }
+    cx /= primary.points.length; cy /= primary.points.length;
+    const dabDists = dabs.map((d) => Math.hypot(d.x - cx, d.y - cy));
+    const maxDist = Math.max(1e-6, ...dabDists);
+    return dabs.map((d, i) => Math.max(0, Math.min(1, dabDists[i] / maxDist)));
+  }
+  if (!shape.closed && shape.straightness > 0.5) {
+    return dabs.map((d) => projectOntoPolyline(d, primary.points));
+  }
+  return null;
+}
+
 // Paint dabs -> an editable color-over-life ramp, or (when no confident sampling axis exists) a
 // simple core/edge colorStart/colorEnd override with no ramp — an honest degrade, never a
-// hallucinated axis. Axis choice mirrors the design research: radial distance-from-centroid on a
-// closed/circular primary guide, arc-length position along an open/elongated one.
+// hallucinated axis.
 export function interpretColor(doc, colorField, shapeGuides) {
   if (!colorField || !Array.isArray(colorField.dabs) || !colorField.dabs.length) return;
   const dabs = colorField.dabs;
-  const primary = primaryGuideOf(shapeGuides);
-
-  let samples = null;
-  if (primary && primary.points.length >= 3) {
-    const shape = analyzePrimaryStroke(primary);
-    if (shape.closed && shape.circularity > 0.5) {
-      let cx = 0, cy = 0;
-      for (const p of primary.points) { cx += p.x; cy += p.y; }
-      cx /= primary.points.length; cy /= primary.points.length;
-      const dabDists = dabs.map((d) => Math.hypot(d.x - cx, d.y - cy));
-      const maxDist = Math.max(1e-6, ...dabDists);
-      samples = dabs.map((d, i) => ({ u: Math.max(0, Math.min(1, dabDists[i] / maxDist)), rgb: hexToRgb(d.hex) }));
-    } else if (!shape.closed && shape.straightness > 0.5) {
-      samples = dabs.map((d) => ({ u: projectOntoPolyline(d, primary.points), rgb: hexToRgb(d.hex) }));
-    }
-  }
+  const us = axisPositionsOf(dabs, shapeGuides);
+  const samples = us ? dabs.map((d, i) => ({ u: us[i], value: hexToRgb(d.hex) })) : null;
 
   if (!samples) {
     // No confident axis: split dabs by distance from their own centroid (near half = core, far
@@ -197,11 +207,87 @@ export function interpretColor(doc, colorField, shapeGuides) {
 
   samples.sort((a, b) => a.u - b.u);
   const stopCount = Math.max(3, Math.min(6, new Set(dabs.map((d) => d.hex)).size + 1));
-  const rampStops = sanitizeRamp(bucketAverage(samples, stopCount).map((s) => ({ u: s.u, v: rgbToHex(s.rgb) })), 'color');
+  const rampStops = sanitizeRamp(bucketAverage(samples, stopCount, averageRgb).map((s) => ({ u: s.u, v: rgbToHex(s.value) })), 'color');
   for (const layer of doc.layers) {
     if (layer.type !== 'emitter') continue;
     layer.props.colorRamp = rampStops.map((s) => ({ ...s }));
     layer.props.colorStart = rampStops[0].v;
     layer.props.colorEnd = rampStops[rampStops.length - 1].v;
   }
+}
+
+// ---------------------------------------------------------------- Density interpreter
+function averageNumber(nums) { return nums.reduce((s, n) => s + n, 0) / nums.length; }
+
+// Inverse-distance-weighted average of dab intensities at (px, py), both dab and query positions
+// already normalized into the same 0..1 space — a simple, well-understood spatial interpolation
+// that degrades gracefully (uniform painting -> uniform weight everywhere) without needing a real
+// spawn-mask engine primitive.
+function idwIntensityAt(px, py, normDabs) {
+  let wSum = 0, valSum = 0;
+  for (const d of normDabs) {
+    const dd = Math.hypot(px - d.nx, py - d.ny);
+    const w = 1 / (dd * dd + 0.01);
+    wSum += w;
+    valSum += w * d.intensity;
+  }
+  return wSum > 1e-9 ? valSum / wSum : 0.5;
+}
+
+// Sublinear growth, same idiom effectLibrary.js's applyScaleToDoc already uses for its own rate
+// multiplier: painting twice as dark/dense should not literally double particle count.
+function densityToRateMul(density01) { return 0.5 + density01; }
+
+function applyRateMul(layer, mul) {
+  if (typeof layer.props.rate === 'number') layer.props.rate = clampProp('emitter', 'rate', layer.props.rate * mul);
+  if (typeof layer.props.maxParticles === 'number') layer.props.maxParticles = clampProp('emitter', 'maxParticles', layer.props.maxParticles * mul);
+}
+
+// Painted density -> a real spawn-position weighting when the doc has multiple emitters (sample
+// the field AT EACH EMITTER'S OWN OFFSET, weight its rate/maxParticles relative to the others —
+// the "multiple emitters" degradation path), else a single global density scalar + an optional
+// life-fraction densityRamp on the lone emitter. Both paths are graceful degrades of the SAME
+// painted intent, chosen by what the doc's own structure can actually support spatially.
+export function interpretDensity(doc, densityField, shapeGuides) {
+  if (!densityField || !Array.isArray(densityField.dabs) || !densityField.dabs.length) return;
+  const dabs = densityField.dabs;
+  const emitters = doc.layers.filter((l) => l.type === 'emitter');
+  if (!emitters.length) return;
+
+  const overallDensity = Math.max(0, Math.min(1, averageNumber(dabs.map((d) => d.intensity ?? 0.5))));
+  const overallMul = densityToRateMul(overallDensity);
+
+  if (emitters.length > 1) {
+    // Project both the dabs (canvas space) and each emitter's offset (effect-local space, X/Z as
+    // the "flat" plane — same convention the shape-tool guides already use) into their own 0..1
+    // spans, so positions are comparable despite living in two unrelated coordinate systems.
+    const dabBbox = { minX: Math.min(...dabs.map((d) => d.x)), maxX: Math.max(...dabs.map((d) => d.x)), minY: Math.min(...dabs.map((d) => d.y)), maxY: Math.max(...dabs.map((d) => d.y)) };
+    const dabSpanX = Math.max(1e-6, dabBbox.maxX - dabBbox.minX), dabSpanY = Math.max(1e-6, dabBbox.maxY - dabBbox.minY);
+    const normDabs = dabs.map((d) => ({ nx: (d.x - dabBbox.minX) / dabSpanX, ny: (d.y - dabBbox.minY) / dabSpanY, intensity: d.intensity ?? 0.5 }));
+
+    const offsets = emitters.map((em) => em.props.offset || [0, 0, 0]);
+    const exs = offsets.map((o) => o[0]), ezs = offsets.map((o) => o[2]);
+    const spanX = Math.max(1e-6, Math.max(...exs) - Math.min(...exs));
+    const spanZ = Math.max(1e-6, Math.max(...ezs) - Math.min(...ezs));
+    const minEx = Math.min(...exs), minEz = Math.min(...ezs);
+
+    const weights = emitters.map((em, i) => idwIntensityAt((exs[i] - minEx) / spanX, (ezs[i] - minEz) / spanZ, normDabs));
+    const avgWeight = Math.max(1e-6, averageNumber(weights));
+    emitters.forEach((em, i) => {
+      const relative = weights[i] / avgWeight; // 1.0 = "average" for this doc, not an absolute scale
+      applyRateMul(em, overallMul * Math.max(0.4, Math.min(2.5, relative)));
+    });
+    return;
+  }
+
+  const lone = emitters[0];
+  applyRateMul(lone, overallMul);
+
+  const us = axisPositionsOf(dabs, shapeGuides);
+  if (!us) return; // no confident axis -> the global scalar above is the whole story, no ramp
+  const samples = dabs.map((d, i) => ({ u: us[i], value: d.intensity ?? 0.5 }));
+  samples.sort((a, b) => a.u - b.u);
+  const stopCount = Math.max(3, Math.min(6, dabs.length));
+  const rampStops = sanitizeRamp(bucketAverage(samples, stopCount, averageNumber).map((s) => ({ u: s.u, v: Math.max(0, Math.min(1, s.value)) })), 'number');
+  if (rampStops.length >= 2) lone.props.densityRamp = rampStops;
 }

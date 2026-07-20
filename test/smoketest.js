@@ -898,6 +898,40 @@
     return { radialStops: radialResult.bestMatch.colorRamp.length };
   });
 
+  await step('SKETCH IT 2.0 Phase 5: Density layer scales rate/maxParticles and preserves the painted field', async () => {
+    const N = 30;
+    const circlePts = Array.from({ length: N + 1 }, (_, i) => {
+      const a = (i / N) * Math.PI * 2;
+      return { x: Math.cos(a) * 50, y: Math.sin(a) * 50, p: 0.6, t: i * 20 };
+    });
+    const heavy = await vfxCall('vfx_sketch_test_pipeline', {
+      strokes: [{ points: circlePts }],
+      densityDabs: [{ x: 0, y: 0, radius: 10, intensity: 1 }, { x: 10, y: 0, radius: 10, intensity: 1 }],
+    });
+    const light = await vfxCall('vfx_sketch_test_pipeline', {
+      strokes: [{ points: circlePts }],
+      densityDabs: [{ x: 0, y: 0, radius: 10, intensity: 0.05 }],
+    });
+    const unpainted = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }] });
+
+    assert(heavy.invalidCount === 0 && light.invalidCount === 0, `density-painted candidates must still pass the real validator: heavy=${heavy.invalidCount} light=${light.invalidCount}`);
+    assert(heavy.bestMatch.archetypeKey === light.bestMatch.archetypeKey, 'density painting should never change WHICH archetype is picked, only its density');
+    assert(typeof heavy.bestMatch.rate === 'number' && typeof light.bestMatch.rate === 'number', 'rate should be exposed on the best match');
+    assert(heavy.bestMatch.rate > light.bestMatch.rate, `heavy density painting should produce a measurably higher rate than light, got heavy=${heavy.bestMatch.rate} light=${light.bestMatch.rate}`);
+    assert(heavy.bestMatch.maxParticles > light.bestMatch.maxParticles, `heavy density painting should produce a measurably higher maxParticles than light, got heavy=${heavy.bestMatch.maxParticles} light=${light.bestMatch.maxParticles}`);
+
+    assert(unpainted.bestMatch.archetypeKey === heavy.bestMatch.archetypeKey, 'a call with no densityDabs at all should pick the same best-match archetype');
+    assert(unpainted.bestMatch.rate < heavy.bestMatch.rate, 'the unpainted baseline rate should sit below the heavily-painted rate (regression sanity: absent intent must not itself inflate density)');
+
+    assert(heavy.bestMatch.sketchOrigin.densityField && heavy.bestMatch.sketchOrigin.densityField.dabs.length === 2, 'sketchOrigin.densityField should preserve the original painted dabs at full fidelity, not just the derived scalar');
+
+    // Multi-emitter spatial weighting is covered precisely (with full control over emitter offsets
+    // and paint position) by a standalone unit test against interpretDensity directly — the real
+    // pipeline's archetype/combo selection isn't deterministic enough here to target a specific
+    // multi-emitter doc and a specific paint side in the same assertion.
+    return { heavyRate: heavy.bestMatch.rate, lightRate: light.bestMatch.rate };
+  });
+
   // ---------------------------------------------------------------- VFX Studio: camera shake
   await step('VFX Studio: camera shake layer does not drift the camera while paused (regression)', async () => {
     await vfxCall('vfx_new_effect', { name: 'Shake Pause Test', duration: 60, fps: 30 });
