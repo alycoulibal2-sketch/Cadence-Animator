@@ -162,14 +162,18 @@ const TOOLS = [
   { id: 'bezier', label: '〜', title: 'Bezier Path — click to add points, double-click or Enter to finish' },
 ];
 
+const ENERGY_LEVELS = ['calm', 'normal', 'strong', 'extreme'];
+
 // If this workspace is reopened FROM the results screen ("← Edit sketch"), doGenerate() below
 // hands results a fresh closure over openSketchWorkspace as its onEditSketch callback — that
-// keeps the dependency one-directional (workspace -> results), never circular.
-export function openSketchWorkspace(initialStrokes = null) {
+// keeps the dependency one-directional (workspace -> results), never circular. Also carries the
+// energy choice back in the same way, so re-editing a sketch doesn't silently reset it to Normal.
+export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel = 'normal' } = {}) {
   if (overlay) return;
 
   let strokes = cloneStrokes(initialStrokes);
   let currentStroke = null;
+  let energyLevel = ENERGY_LEVELS.includes(initialEnergyLevel) ? initialEnergyLevel : 'normal';
   let panX = 0, panY = 0, zoom = 1;
   let brushSize = 10; // world units
   let eraserMode = false;
@@ -220,6 +224,26 @@ export function openSketchWorkspace(initialStrokes = null) {
   sizeSlider.title = 'Brush size ( [ and ] also work)';
   sizeWrap.append(sizeLabel, sizeSlider);
 
+  // Energy layer (SKETCH IT 2.0): a single global 4-way chip, not a paintable brush — modifies
+  // brightness/glow/emission/particle-size/shake internally (interpretEnergy in sketchIntent.js),
+  // never exposing raw Roblox properties to the user, per the spec's explicit instruction.
+  const energyWrap = document.createElement('div');
+  energyWrap.className = 'sketch-size-wrap';
+  const energyLabel = document.createElement('span');
+  energyLabel.className = 'sketch-size-label';
+  energyLabel.textContent = 'Energy';
+  const energyChips = document.createElement('div');
+  energyChips.className = 'sketch-energy-chips';
+  const energyBtns = new Map();
+  for (const lvl of ENERGY_LEVELS) {
+    const b = toolButton(lvl[0].toUpperCase(), `Energy: ${lvl} — how bright/intense the generated effect feels`);
+    b.className = 'tb-btn sketch-energy-btn';
+    b.addEventListener('click', () => setEnergy(lvl));
+    energyChips.appendChild(b);
+    energyBtns.set(lvl, b);
+  }
+  energyWrap.append(energyLabel, energyChips);
+
   const hint = document.createElement('div');
   hint.className = 'sketch-hint';
   hint.textContent = 'Draw the rough shape of an idea, or pick a tool — Cadence imagines the rest.';
@@ -232,7 +256,7 @@ export function openSketchWorkspace(initialStrokes = null) {
   generateBtn.textContent = '✨ Generate';
   generateBtn.title = 'Analyze the sketch and imagine ~30 VFX interpretations';
 
-  toolbar.append(toolPalette, undoBtn, redoBtn, eraserBtn, sizeWrap, clearBtn, hint, spacer, generateBtn);
+  toolbar.append(toolPalette, undoBtn, redoBtn, eraserBtn, sizeWrap, energyWrap, clearBtn, hint, spacer, generateBtn);
 
   const canvasWrap = document.createElement('div');
   canvasWrap.className = 'sketch-canvas-wrap';
@@ -392,6 +416,10 @@ export function openSketchWorkspace(initialStrokes = null) {
   function setBrushSize(v) {
     brushSize = Math.max(2, Math.min(40, v));
     sizeSlider.value = String(brushSize);
+  }
+  function setEnergy(lvl) {
+    energyLevel = lvl;
+    for (const [l, b] of energyBtns) b.classList.toggle('active', l === lvl);
   }
 
   function finishBezier() {
@@ -562,7 +590,10 @@ export function openSketchWorkspace(initialStrokes = null) {
     const snapshot = cloneStrokes(real);
     close();
     import('./sketchResults.js').then(({ openSketchResults }) => {
-      openSketchResults(snapshot, { onEditSketch: () => openSketchWorkspace(snapshot) });
+      openSketchResults(snapshot, {
+        energyLevel,
+        onEditSketch: () => openSketchWorkspace(snapshot, { initialEnergyLevel: energyLevel }),
+      });
     });
   }
 
@@ -580,6 +611,7 @@ export function openSketchWorkspace(initialStrokes = null) {
   canvas.addEventListener('keydown', onKeyDown);
   canvas.addEventListener('keyup', onKeyUp);
   toolButtons.get('freehand').classList.add('active');
+  energyBtns.get(energyLevel).classList.add('active');
   updateCursor();
 
   const resizeObserver = new ResizeObserver(draw);

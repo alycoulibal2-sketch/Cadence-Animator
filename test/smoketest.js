@@ -809,6 +809,29 @@
     return result;
   });
 
+  await step('SKETCH IT 2.0 Phase 2: Energy layer measurably scales the generated effect, absent intent stays byte-identical', async () => {
+    const N = 30;
+    const circlePts = Array.from({ length: N + 1 }, (_, i) => {
+      const a = (i / N) * Math.PI * 2;
+      return { x: Math.cos(a) * 3, y: Math.sin(a) * 3, p: 0.6, t: i * 20 };
+    });
+    const calm = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }], energyLevel: 'calm' });
+    const extreme = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }], energyLevel: 'extreme' });
+    const legacy = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }] }); // no energyLevel field at all
+
+    assert(calm.bestMatch.archetypeKey === extreme.bestMatch.archetypeKey, 'energy level should never change WHICH archetype is picked, only how it is dressed (best match is always the classic-theme variant, unaffected by the aggression bias)');
+    assert(typeof calm.bestMatch.sizeStart === 'number' && typeof extreme.bestMatch.sizeStart === 'number', 'sizeStart should be exposed on the best match');
+    assert(extreme.bestMatch.sizeStart > calm.bestMatch.sizeStart, `extreme energy should produce a measurably larger sizeStart than calm, got calm=${calm.bestMatch.sizeStart} extreme=${extreme.bestMatch.sizeStart}`);
+
+    assert(legacy.candidateCount === calm.candidateCount, 'a call with no energyLevel at all should still produce the same candidate count as an explicit level (regression: absent intent must not change plan size)');
+    assert(legacy.bestMatch.archetypeKey === calm.bestMatch.archetypeKey, 'a call with no energyLevel should pick the same best-match archetype as an explicit "calm"/"normal" choice');
+
+    assert(calm.bestMatch.sketchOrigin && calm.bestMatch.sketchOrigin.energyLevel === 'calm', 'sketchOrigin.energyLevel should record the actual choice — painted intent must survive onto the generated doc');
+    assert(Array.isArray(calm.bestMatch.sketchOrigin.shapeGuides) && calm.bestMatch.sketchOrigin.shapeGuides.length === 1, 'sketchOrigin.shapeGuides should carry the original strokes through, even when no other layer was painted');
+
+    return { calmSize: calm.bestMatch.sizeStart, extremeSize: extreme.bestMatch.sizeStart };
+  });
+
   // ---------------------------------------------------------------- VFX Studio: camera shake
   await step('VFX Studio: camera shake layer does not drift the camera while paused (regression)', async () => {
     await vfxCall('vfx_new_effect', { name: 'Shake Pause Test', duration: 60, fps: 30 });

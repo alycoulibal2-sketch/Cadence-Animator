@@ -19,6 +19,7 @@
 
 import { EFFECT_ARCHETYPES, EFFECT_SCALES, buildArchetypeDoc } from './effectLibrary.js';
 import { clampProp, setClip } from './effectModel.js';
+import { NEUTRAL_INTENT, interpretEnergy } from './sketchIntent.js';
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const bump = (x, center, width) => clamp01(1 - Math.abs(x - center) / width);
@@ -26,7 +27,17 @@ const bump = (x, center, width) => clamp01(1 - Math.abs(x - center) / width);
 // ---------------------------------------------------------------- feature -> archetype scoring
 // Small set of derived signals shared across every archetype's scorer, computed once per
 // analysis rather than recomputed 25 times.
-function deriveSignals(f) {
+//
+// `intent` biases `aggression` (which only feeds pickAggressiveTheme's bonus-variant theme choice,
+// NOT archetype selection — no SCORER reads sig.aggression) by the Energy layer. 'normal' — the
+// value NEUTRAL_INTENT always carries, whether the user explicitly picked it or never touched the
+// Energy control at all — contributes a bias of exactly 0, so this is byte-identical to the old
+// geometry-only formula whenever intent is absent/default. Explicit calm/strong/extreme shift the
+// read up or down from that same geometric baseline.
+const ENERGY_AGGRESSION_BIAS = { calm: -0.35, normal: 0, strong: 0.25, extreme: 0.5 };
+function deriveSignals(f, intent = NEUTRAL_INTENT) {
+  const geometricAggression = clamp01(0.5 * clamp01(f.maxSpeed / 1200) + 0.3 * f.zigzagScore + 0.2 * clamp01(f.crossingCount / 4));
+  const bias = ENERGY_AGGRESSION_BIAS[intent.energyLevel] ?? 0;
   return {
     fastness: clamp01(f.maxSpeed / 1200),
     shortness: clamp01(1 - f.totalLength / 500),
@@ -34,7 +45,7 @@ function deriveSignals(f) {
     elongation: clamp01(Math.abs(Math.log(Math.max(0.1, f.aspectRatio || 1))) / Math.log(4)),
     multiStroke: clamp01((f.strokeCount - 1) / 4),
     verticalish: clamp01(1 - Math.abs(f.dominantAngleDeg - 90) / 45),
-    aggression: clamp01(0.5 * clamp01(f.maxSpeed / 1200) + 0.3 * f.zigzagScore + 0.2 * clamp01(f.crossingCount / 4)),
+    aggression: clamp01(geometricAggression + bias),
   };
 }
 
@@ -96,8 +107,8 @@ function pickScaleKey(bigness) {
 // never suspiciously thin) plus a themed/scaled bonus variant for the top matches, sized so the
 // total lands at `count` for today's 25-archetype library. If the library grows past `count`,
 // this degrades to "just the top `count` archetypes, one each" instead of overflowing.
-export function buildGenerationPlan(features, count = 30) {
-  const sig = deriveSignals(features);
+export function buildGenerationPlan(features, intent = NEUTRAL_INTENT, count = 30) {
+  const sig = deriveSignals(features, intent);
   const scored = EFFECT_ARCHETYPES.map((a) => ({ key: a.key, score: scoreArchetype(features, a.key, sig) }))
     .sort((a, b) => b.score - a.score);
 
@@ -159,11 +170,21 @@ function applyGeometryNudges(doc, features) {
   rescaleTiming(doc, timeFactor);
 }
 
-function materializeCandidate(spec, features, index) {
+function materializeCandidate(spec, features, intent, index) {
   const scaleFactor = EFFECT_SCALES.find((s) => s.key === spec.scaleKey)?.factor ?? 1;
   const doc = buildArchetypeDoc(spec.archetypeKey, { theme: spec.theme, scale: scaleFactor });
   if (!doc) return null;
   applyGeometryNudges(doc, features);
+  interpretEnergy(doc, intent.energyLevel); // no-op for 'normal'/absent — see sketchIntent.js
+  doc.sketchOrigin = {
+    version: 1,
+    plannerId: DEFAULT_PLANNER_ID,
+    shapeGuides: intent.shapeGuides || [],
+    colorField: intent.colorField || null,
+    densityField: intent.densityField || null,
+    motionField: intent.motionField || null,
+    energyLevel: intent.energyLevel || 'normal',
+  };
   const arch = EFFECT_ARCHETYPES.find((a) => a.key === spec.archetypeKey);
   return {
     id: `sketch-${spec.archetypeKey}-${spec.theme}-${spec.scaleKey}-${index}`,
@@ -201,14 +222,15 @@ export const DEFAULT_PLANNER_ID = 'archetype-planner-v1';
 
 async function archetypePlannerGenerate(features, opts, emit) {
   const count = opts?.count ?? 30;
-  const plan = buildGenerationPlan(features, count);
+  const intent = opts?.intent ?? NEUTRAL_INTENT;
+  const plan = buildGenerationPlan(features, intent, count);
   const BATCH = 3; // small batches + a real event-loop yield = genuine progressive reveal, not a
   // fake delay — a slow networked planner drops into this exact same emit-as-you-go contract.
   for (let i = 0; i < plan.length; i += BATCH) {
     if (opts?.signal?.aborted) return;
     const batch = plan.slice(i, i + BATCH);
     batch.forEach((spec, j) => {
-      const candidate = materializeCandidate(spec, features, i + j);
+      const candidate = materializeCandidate(spec, features, intent, i + j);
       if (candidate) emit(candidate);
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -219,11 +241,11 @@ registerCompositionPlanner(DEFAULT_PLANNER_ID, archetypePlannerGenerate);
 // The one entry point sketchResults.js calls. Returns the full collected array (also delivered
 // incrementally via onCandidate) so a caller that doesn't care about progressiveness can just
 // await it.
-export async function planCompositions(features, { count = 30, onCandidate, signal, plannerId = DEFAULT_PLANNER_ID } = {}) {
+export async function planCompositions(features, { count = 30, onCandidate, signal, plannerId = DEFAULT_PLANNER_ID, intent = NEUTRAL_INTENT } = {}) {
   const planner = getCompositionPlanner(plannerId) || getCompositionPlanner(DEFAULT_PLANNER_ID);
   if (!planner) return [];
   const collected = [];
-  await planner.generate(features, { count, signal }, (candidate) => {
+  await planner.generate(features, { count, signal, intent }, (candidate) => {
     collected.push(candidate);
     if (onCandidate) onCandidate(candidate, collected.length);
   });

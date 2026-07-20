@@ -8,6 +8,7 @@
 
 import { analyzeSketchStrokes } from '../../renderer/js/sketchGeometry.js';
 import { planCompositions, rankCandidates } from '../../renderer/js/sketchCandidates.js';
+import { captureSketchIntent } from '../../renderer/js/sketchIntent.js';
 import { LAYER_TYPES } from '../../renderer/js/effectModel.js';
 import { registerPreview, unregisterPreview, pauseAll, resumeAll } from './sketchPreviewRenderer.js';
 import * as ST from './studioState.js';
@@ -61,10 +62,11 @@ function commitDoc(doc) {
   return doc.id;
 }
 
-export function openSketchResults(strokes, { onEditSketch, precomputed } = {}) {
+export function openSketchResults(strokes, { onEditSketch, precomputed, energyLevel } = {}) {
   if (activeResults) return;
   removeBackChip();
   const features = analyzeSketchStrokes(strokes);
+  const intent = captureSketchIntent({ shapeStrokes: strokes, energyLevel });
   const controller = new AbortController();
   const cardsById = new Map(); // candidate.id -> { el, handle }
   let allCandidates = [];
@@ -283,6 +285,7 @@ export function openSketchResults(strokes, { onEditSketch, precomputed } = {}) {
   status.textContent = 'Imagining possibilities…';
   planCompositions(features, {
     count: 30,
+    intent,
     signal: controller.signal,
     onCandidate: (candidate, n) => {
       status.textContent = `${n} preview${n === 1 ? '' : 's'}…`;

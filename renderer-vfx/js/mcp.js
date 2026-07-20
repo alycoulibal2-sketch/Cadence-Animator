@@ -19,6 +19,7 @@ import { checkExpr } from '../../renderer/js/expr.js';
 import { scrubAndSettle, debugCameraPose, debugWaitTicks } from './preview.js';
 import { analyzeSketchStrokes } from '../../renderer/js/sketchGeometry.js';
 import { planCompositions, rankCandidates } from '../../renderer/js/sketchCandidates.js';
+import { captureSketchIntent } from '../../renderer/js/sketchIntent.js';
 
 // The uniform write-result: what changed + whether the doc is still healthy. `diagnostics`
 // carries errors/warnings only (info noise stays out of tool results; vfx_validate returns all).
@@ -280,10 +281,11 @@ const HANDLERS = {
   // is exactly the kind of pure logic this codebase always gets scripted regression coverage
   // for. Runs the real Composition Planner against real strokes and checks every candidate it
   // produces against the SAME validator the studio itself gates export/send on.
-  async vfx_sketch_test_pipeline({ strokes } = {}) {
+  async vfx_sketch_test_pipeline({ strokes, energyLevel } = {}) {
     if (!Array.isArray(strokes) || !strokes.length) throw new Error('strokes must be a non-empty array of { points: [{x,y,p,t}] }');
     const features = analyzeSketchStrokes(strokes);
-    const candidates = await planCompositions(features, { count: 30 });
+    const intent = captureSketchIntent({ shapeStrokes: strokes, energyLevel });
+    const candidates = await planCompositions(features, { count: 30, intent });
     const invalid = [];
     for (const c of candidates) {
       const parsed = parseEffect(c.doc);
@@ -298,7 +300,11 @@ const HANDLERS = {
       candidateCount: candidates.length,
       invalidCount: invalid.length,
       invalid: invalid.slice(0, 5),
-      bestMatch: ranked.best ? { name: ranked.best.name, archetypeKey: ranked.best.archetypeKey, confidence: ranked.best.confidence } : null,
+      bestMatch: ranked.best ? {
+        name: ranked.best.name, archetypeKey: ranked.best.archetypeKey, confidence: ranked.best.confidence,
+        sizeStart: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.sizeStart ?? null,
+        sketchOrigin: ranked.best.doc.sketchOrigin ?? null,
+      } : null,
       goodCount: ranked.good.length,
       moreCount: ranked.more.length,
     };

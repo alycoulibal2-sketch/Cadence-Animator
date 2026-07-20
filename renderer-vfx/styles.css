@@ -356,6 +356,8 @@
 .sketch-toolbar { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; flex-wrap: wrap; }
 .sketch-tool-palette { display: flex; align-items: center; gap: 2px; padding-right: 8px; border-right: 1px solid var(--border); }
 .sketch-tool-btn { font-size: 14px; padding: 5px 8px; }
+.sketch-energy-chips { display: flex; gap: 2px; }
+.sketch-energy-btn { font-size: 11px; padding: 5px 9px; font-weight: 600; }
 .sketch-size-wrap { display: flex; align-items: center; gap: 6px; }
 .sketch-size-label { font-size: 11.5px; color: var(--text-2); }
 .sketch-size-slider { width: 90px; }
