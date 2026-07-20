@@ -433,26 +433,6 @@ export function serializeEffect(doc) {
   return JSON.stringify(doc, null, 2);
 }
 
-const ENERGY_LEVELS = ['calm', 'normal', 'strong', 'extreme'];
-
-// SKETCH IT 2.0: pure metadata the engine/exporter never reads — sampleEffect/vfx.js/
-// effectExport.js are untouched by its presence. It exists purely so a future, smarter
-// interpreter (or a human) can re-derive a better composition from the same original painted
-// intent without re-sketching. Best-effort/lenient: malformed input just drops the field, it
-// never fails the whole doc parse.
-function sanitizeSketchOrigin(raw) {
-  if (!raw || typeof raw !== 'object') return undefined;
-  return {
-    version: 1,
-    plannerId: typeof raw.plannerId === 'string' ? raw.plannerId : 'unknown',
-    shapeGuides: Array.isArray(raw.shapeGuides) ? raw.shapeGuides : [],
-    colorField: raw.colorField && typeof raw.colorField === 'object' ? raw.colorField : null,
-    densityField: raw.densityField && typeof raw.densityField === 'object' ? raw.densityField : null,
-    motionField: raw.motionField && typeof raw.motionField === 'object' ? raw.motionField : null,
-    energyLevel: ENERGY_LEVELS.includes(raw.energyLevel) ? raw.energyLevel : 'normal',
-  };
-}
-
 // Parse + normalize an effect doc from untrusted JSON (a .cfx file, an MCP tool call, a preset).
 // Returns { ok:true, doc } or { ok:false, error }. Unknown layer/modifier types are rejected
 // rather than silently dropped — a doc referencing a type this build doesn't know is a doc this
@@ -473,10 +453,6 @@ export function parseEffect(input) {
   doc.fps = Number.isFinite(raw.fps) ? Math.max(1, Math.min(120, Math.round(raw.fps))) : 30;
   doc.duration = Number.isFinite(raw.duration) ? Math.max(1, Math.min(100000, Math.round(raw.duration))) : 60;
   doc.loop = raw.loop !== false;
-  if (raw.sketchOrigin) {
-    const origin = sanitizeSketchOrigin(raw.sketchOrigin);
-    if (origin) doc.sketchOrigin = origin;
-  }
 
   for (const rl of raw.layers) {
     if (!rl || !LAYER_TYPES[rl.type]) return { ok: false, error: `unknown layer type "${rl?.type}"` };

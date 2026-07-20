@@ -1,5 +1,5 @@
 // Life-fraction-keyed twin of effectModel.js's evalCurve, for the colorRamp/densityRamp emitter
-// props (SKETCH IT 2.0). Kept as its own leaf module (deps: easing.js only) rather than living in
+// props. Kept as its own leaf module (deps: easing.js only) rather than living in
 // effectModel.js or vfx.js: effectModel.js already imports VFX_DEFAULTS from vfx.js, so either of
 // those two importing this module back would create a cycle. lerpHex is duplicated (not imported
 // from effectModel.js) for the same reason — it's ~8 lines, cheap to keep leaf-only.

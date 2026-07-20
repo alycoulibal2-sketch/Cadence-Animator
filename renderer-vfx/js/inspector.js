@@ -373,10 +373,10 @@ function shapeEditor(layerId, pm) {
   return holder;
 }
 
-// SKETCH IT 2.0: colorRamp/densityRamp — a multi-stop gradient over particle life-fraction, in
-// place of the plain Start/End pair. Kept editable for hand-authored effects too, not just sketch
-// output: fully replaces shapeEditor's "rebuild the whole block on every change" convention rather
-// than the incremental withUpdater pattern, since add/remove/reorder all change the row count.
+// colorRamp/densityRamp — a multi-stop gradient over particle life-fraction, in place of the
+// plain Start/End pair. Fully replaces shapeEditor's "rebuild the whole block on every change"
+// convention rather than the incremental withUpdater pattern, since add/remove/reorder all
+// change the row count.
 function rampEditor(layerId, pm) {
   const isColor = pm.rampKind === 'color';
   const layerNow = () => getLayer(ST.state.doc, layerId);

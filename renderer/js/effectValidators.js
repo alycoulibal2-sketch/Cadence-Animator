@@ -131,7 +131,7 @@ registerValidator({
   },
 });
 
-// ---------------------------------------------------------------- ramps (SKETCH IT 2.0)
+// ---------------------------------------------------------------- ramps
 // parseEffect() sanitizes colorRamp/densityRamp on the way in, but a generic prop write
 // (setLayerProps/an MCP set_property call) doesn't run that sanitizer — this is the safety net
 // for a ramp that reached a bad shape by some path other than the normal editor/parse flow.

@@ -17,9 +17,6 @@ import { buildArchetypeDoc, searchEffectArchetypes, EFFECT_THEMES, EFFECT_SCALES
 import { searchPresets } from '../../renderer/js/particleLibrary.js';
 import { checkExpr } from '../../renderer/js/expr.js';
 import { scrubAndSettle, debugCameraPose, debugWaitTicks } from './preview.js';
-import { analyzeSketchStrokes } from '../../renderer/js/sketchGeometry.js';
-import { planCompositions, rankCandidates } from '../../renderer/js/sketchCandidates.js';
-import { captureSketchIntent } from '../../renderer/js/sketchIntent.js';
 
 // The uniform write-result: what changed + whether the doc is still healthy. `diagnostics`
 // carries errors/warnings only (info noise stays out of tool results; vfx_validate returns all).
@@ -276,55 +273,10 @@ const HANDLERS = {
     return { ok: true };
   },
   // Test-only hook for the smoketest, deliberately NOT registered as a real tool in
-  // mcp-server/index.js's zod schemas — SKETCH IT is a human drawing workflow, not something an
-  // MCP client should invoke, but the pipeline underneath it (analyze -> generate -> validate)
-  // is exactly the kind of pure logic this codebase always gets scripted regression coverage
-  // for. Runs the real Composition Planner against real strokes and checks every candidate it
-  // produces against the SAME validator the studio itself gates export/send on.
-  async vfx_sketch_test_pipeline({ strokes, energyLevel, colorDabs, densityDabs, motionArrows } = {}) {
-    if (!Array.isArray(strokes) || !strokes.length) throw new Error('strokes must be a non-empty array of { points: [{x,y,p,t}] }');
-    const features = analyzeSketchStrokes(strokes);
-    const intent = captureSketchIntent({ shapeStrokes: strokes, energyLevel, colorDabs, densityDabs, motionArrows });
-    const candidates = await planCompositions(features, { count: 30, intent });
-    const invalid = [];
-    for (const c of candidates) {
-      const parsed = parseEffect(c.doc);
-      if (!parsed.ok) { invalid.push({ id: c.id, reason: parsed.error }); continue; }
-      const report = runValidation('effect', { effect: parsed.doc });
-      if (report.counts.error > 0) invalid.push({ id: c.id, reason: report.diagnostics.filter((d) => d.severity === 'error').map((d) => d.message).join('; ') });
-    }
-    const ranked = rankCandidates(candidates);
-    return {
-      ok: true,
-      features,
-      candidateCount: candidates.length,
-      invalidCount: invalid.length,
-      invalid: invalid.slice(0, 5),
-      bestMatch: ranked.best ? {
-        name: ranked.best.name, family: ranked.best.family, shapeChoice: ranked.best.shapeChoice,
-        motionStyle: ranked.best.motionStyle, complexity: ranked.best.complexity, confidence: ranked.best.confidence,
-        sizeStart: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.sizeStart ?? null,
-        rate: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.rate ?? null,
-        maxParticles: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.maxParticles ?? null,
-        densityRamp: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.densityRamp ?? null,
-        colorRamp: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.colorRamp ?? null,
-        colorStart: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.colorStart ?? null,
-        colorEnd: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.colorEnd ?? null,
-        emitterRates: ranked.best.doc.layers.filter((l) => l.type === 'emitter').map((l) => l.props.rate),
-        motion: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.motion ?? null,
-        modifierTypes: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.modifiers.map((m) => m.type) ?? [],
-        sketchOrigin: ranked.best.doc.sketchOrigin ?? null,
-      } : null,
-      goodCount: ranked.good.length,
-      moreCount: ranked.more.length,
-    };
-  },
-  // Test-only hook for the smoketest, deliberately NOT registered as a real tool in
-  // mcp-server/index.js's zod schemas (same convention as vfx_sketch_test_pipeline above).
-  // Reproduces "add a shake layer, pause, camera drifts anyway" end-to-end against the REAL
-  // preview render loop (tick() in preview.js free-runs off rAF regardless of play/pause state)
-  // rather than re-modeling the bug in a parallel check — asserts the camera's actual transform
-  // is bit-for-bit stable across N paused ticks.
+  // mcp-server/index.js's zod schemas. Reproduces "add a shake layer, pause, camera drifts
+  // anyway" end-to-end against the REAL preview render loop (tick() in preview.js free-runs off
+  // rAF regardless of play/pause state) rather than re-modeling the bug in a parallel check —
+  // asserts the camera's actual transform is bit-for-bit stable across N paused ticks.
   async vfx_test_shake_pause_stability({ frame, ticks } = {}) {
     await scrubAndSettle(typeof frame === 'number' ? frame : 5); // setPlaying(false) + settle
     const before = debugCameraPose();

@@ -165,8 +165,8 @@ export function sampleParticles(item, frame, fps, resolveOrigin, evalNum = (_id,
   // this is a few float ops each, well under a millisecond even at 60fps scrub/playback rates.
   const colorStart = hexToRgb01(em.colorStart), colorEnd = hexToRgb01(em.colorEnd);
   const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-  // SKETCH IT 2.0: >=2 stops activates a real multi-stop ramp in place of the plain start/end
-  // lerp — absent-safe, every doc authored before this existed has an empty array and renders
+  // >=2 stops activates a real multi-stop ramp in place of the plain start/end lerp —
+  // absent-safe, every doc authored before ramps existed has an empty array and renders
   // bit-identically. Checked once per call (not per particle) since neither is animatable/tracked.
   const colorRamp = Array.isArray(em.colorRamp) && em.colorRamp.length >= 2 ? em.colorRamp : null;
   const densityRamp = Array.isArray(em.densityRamp) && em.densityRamp.length >= 2 ? em.densityRamp : null;

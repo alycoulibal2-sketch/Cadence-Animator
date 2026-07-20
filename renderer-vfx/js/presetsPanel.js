@@ -12,7 +12,6 @@ import {
 import { PARTICLE_PRESETS, CATEGORIES as PARTICLE_CATEGORIES, searchPresets } from '../../renderer/js/particleLibrary.js';
 import { parseEffect, newLayer, addLayer, emitterToEffect, setClip } from '../../renderer/js/effectModel.js';
 import { modal, toast } from '../../renderer/js/ui.js';
-import { openSketchWorkspace } from './sketchWorkspace.js';
 
 let activeModal = null;
 
@@ -20,31 +19,6 @@ export function openPresetBrowser({ blankState = false } = {}) {
   if (activeModal) return;
   const wrap = document.createElement('div');
   wrap.className = 'vfx-preset-browser';
-
-  // SKETCH IT: an equally-large, equally-first-class alternative to picking/starting-from-scratch
-  // below — never a replacement for it. Closes this browser and opens the drawing workspace;
-  // the manual tabs/search/theme/scale controls beneath are completely untouched either way.
-  const sketchCta = document.createElement('button');
-  sketchCta.className = 'sketch-cta';
-  const ctaIcon = document.createElement('span');
-  ctaIcon.className = 'sketch-cta-icon';
-  ctaIcon.textContent = '✏';
-  const ctaText = document.createElement('span');
-  ctaText.className = 'sketch-cta-text';
-  const ctaTitle = document.createElement('strong');
-  ctaTitle.textContent = 'SKETCH IT';
-  const ctaSub = document.createElement('div');
-  ctaSub.className = 'sketch-cta-sub';
-  ctaSub.textContent = "Draw the rough shape of an idea — Cadence imagines the rest";
-  ctaText.append(ctaTitle, ctaSub);
-  sketchCta.append(ctaIcon, ctaText);
-  sketchCta.addEventListener('click', () => {
-    close();
-    openSketchWorkspace();
-  });
-  const orDivider = document.createElement('div');
-  orDivider.className = 'sketch-cta-divider';
-  orDivider.textContent = blankState ? 'or start manually' : 'or browse manually';
 
   // tabs
   const tabs = document.createElement('div');
@@ -95,7 +69,7 @@ export function openPresetBrowser({ blankState = false } = {}) {
   const hint = document.createElement('div');
   hint.className = 'vfx-dim vfx-browser-hint';
 
-  wrap.append(sketchCta, orDivider, tabs, controls, grid, hint);
+  wrap.append(tabs, controls, grid, hint);
 
   function currentTransforms() {
     return {

@@ -256,10 +256,10 @@ function emitLuaEmitter(L, notes, layer, id, doc, fps) {
   L.push('    end');
   L.push('    local e = Instance.new("ParticleEmitter")');
   L.push(`    e.Texture = ${luaStr(texture)}`);
-  // SKETCH IT 2.0: a >=2-stop ramp exports a real multi-keypoint sequence — Roblox's native
-  // ColorSequence/NumberSequence already support arbitrary stop counts, so this is strictly more
-  // faithful than the plain start/end pair below, never a regression. sanitizeRamp() guarantees
-  // the first/last stop sit at exactly u=0/u=1, which Roblox's Keypoint API requires.
+  // A >=2-stop ramp exports a real multi-keypoint sequence — Roblox's native ColorSequence/
+  // NumberSequence already support arbitrary stop counts, so this is strictly more faithful
+  // than the plain start/end pair below, never a regression. sanitizeRamp() guarantees the
+  // first/last stop sit at exactly u=0/u=1, which Roblox's Keypoint API requires.
   if (Array.isArray(p.colorRamp) && p.colorRamp.length >= 2) {
     const kps = p.colorRamp.map((s) => `ColorSequenceKeypoint.new(${n(s.u)}, ${c3(s.v)})`).join(', ');
     L.push(`    e.Color = ColorSequence.new({ ${kps} })`);
