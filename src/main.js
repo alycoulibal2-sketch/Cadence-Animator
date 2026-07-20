@@ -107,7 +107,28 @@ function createWindow() {
   });
   win.setMenuBarVisibility(false);
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
-  win.once('ready-to-show', () => win.show());
+  // Normally shown only once Chromium reports a real first paint (avoids a blank-white flash).
+  // But this sandbox sees intermittent GPU/compositor stalls where 'ready-to-show' never fires at
+  // all — with no fallback, that left a fully-alive process (window created, ports bound) with a
+  // permanently invisible window and no error surfaced anywhere, recoverable only by killing the
+  // process from Task Manager. Force a show after 8s regardless, so the failure mode is at worst
+  // "visible while still loading" instead of invisible forever.
+  let windowShown = false;
+  const showFallbackTimer = setTimeout(() => {
+    if (!windowShown && win && !win.isDestroyed()) {
+      logLine('[boot] ready-to-show did not fire within 8s - forcing win.show()');
+      windowShown = true;
+      win.show();
+    }
+  }, 8000);
+  win.once('ready-to-show', () => {
+    clearTimeout(showFallbackTimer);
+    windowShown = true;
+    win.show();
+  });
+  win.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    logLine(`[renderer] did-fail-load ${code} ${desc} (${url})`);
+  });
 
   // The renderer's old beforeunload-based "emergency flush" was fire-and-forget: it sent one more
   // autosave IPC call and returned immediately, with no guarantee the write ever completed before
@@ -128,6 +149,14 @@ function createWindow() {
       if (settled) return;
       settled = true;
       closeFlushDone = true;
+      // VFX Studio is a fully separate BrowserWindow (see openVfxStudioWindow below) with no
+      // lifecycle link of its own — 'window-all-closed' only fires once EVERY window is closed,
+      // so leaving vfxWin open here means closing "the app" from the main window leaves the whole
+      // process (both HTTP servers, both ports) alive and invisible until vfxWin is also closed
+      // by hand. Close it together with the main window so closing the one window a user actually
+      // sees always closes the app. vfxWin has no flush-before-close handshake of its own (see
+      // preload-vfx.js) so a plain close() here can't hang the way an unacknowledged flush could.
+      if (vfxWin && !vfxWin.isDestroyed()) vfxWin.close();
       win.close();
     };
     const timer = setTimeout(finish, 2000);
@@ -366,8 +395,17 @@ async function ensureVfxStudioReady() {
 
 app.on('second-instance', () => {
   if (win && !win.isDestroyed()) {
+    // .show() first: covers both the ordinary case (window already visible — a harmless no-op)
+    // and the case where 'ready-to-show' stalled (see createWindow above) and win exists but was
+    // never actually shown, which previously made a second launch attempt a silent no-op — the
+    // user would see nothing happen and have no way to reach the live window short of killing it.
+    win.show();
     if (win.isMinimized()) win.restore();
     win.focus();
+  } else if (gotSingleInstanceLock) {
+    // win itself is gone (e.g. destroyed by some other path) but this process still holds the
+    // lock — a relaunch should still produce a visible window, not nothing.
+    createWindow();
   }
 });
 
@@ -745,7 +783,9 @@ function bridgeNotifyRenderer() {
   });
 }
 
-setInterval(() => {
+// Handle kept so before-quit (below) can clear it explicitly instead of leaving it as an open
+// handle for the rest of the process's life every time quit is triggered.
+const bridgeDisconnectInterval = setInterval(() => {
   if (bridge.connected && Date.now() - bridge.lastSeen > DISCONNECT_TIMEOUT_MS) {
     bridge.connected = false;
     bridge.placeName = null;
@@ -765,6 +805,9 @@ function flushQueueToWaiter() {
   }
 }
 
+// Kept so before-quit (below) can close it explicitly rather than relying solely on app.quit()'s
+// forced process termination to reclaim the port.
+let bridgeServerInstance = null;
 function startBridgeServer() {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://127.0.0.1:${BRIDGE_PORT}`);
@@ -853,6 +896,7 @@ function startBridgeServer() {
     bridgeNotifyRenderer();
   });
   server.listen(BRIDGE_PORT, '127.0.0.1');
+  bridgeServerInstance = server;
 }
 
 ipcMain.handle('bridge:status', () => ({
@@ -941,6 +985,9 @@ async function handleMcpCommand(type, payload) {
   return sendToRenderer(type, payload);
 }
 
+// Kept so before-quit (below) can close it explicitly rather than relying solely on app.quit()'s
+// forced process termination to reclaim the port.
+let mcpServerInstance = null;
 function startMcpServer() {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, `http://127.0.0.1:${MCP_PORT}`);
@@ -980,6 +1027,7 @@ function startMcpServer() {
       : `Could not start the Claude control server: ${e.message}`;
   });
   server.listen(MCP_PORT, '127.0.0.1');
+  mcpServerInstance = server;
 }
 
 ipcMain.handle('mcp:bindStatus', () => ({ error: mcpBindError }));
@@ -1065,4 +1113,12 @@ app.on('before-quit', () => {
   // app itself has closed.
   try { mobileTunnelInst.stop(); } catch (_) { }
   try { mobileServerInst.stop(); } catch (_) { }
+  // The Studio bridge and MCP control servers/interval had no teardown at all before this —
+  // app.quit()'s forced process termination happened to reclaim their ports anyway once
+  // window-all-closed actually fired, but leaving open http.Server handles and a live interval
+  // dangling on every quit is exactly the kind of thing that stops being harmless the moment
+  // anything else here changes. Close them explicitly, same as the mobile server/tunnel above.
+  clearInterval(bridgeDisconnectInterval);
+  try { if (bridgeServerInstance) bridgeServerInstance.close(); } catch (_) { }
+  try { if (mcpServerInstance) mcpServerInstance.close(); } catch (_) { }
 });
