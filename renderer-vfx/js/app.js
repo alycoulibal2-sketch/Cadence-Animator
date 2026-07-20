@@ -15,6 +15,10 @@ import { initDiagnosticsPanel } from './diagnosticsPanel.js';
 import { serializeEffect, parseEffect } from '../../renderer/js/effectModel.js';
 import { buildEffectLua } from '../../renderer/js/effectExport.js';
 import { toast, modal } from '../../renderer/js/ui.js';
+import { openSketchWorkspace } from './sketchWorkspace.js';
+import { openSketchResults } from './sketchResults.js';
+import { analyzeSketchStrokes } from '../../renderer/js/sketchGeometry.js';
+import { generateCandidatesProgressive } from '../../renderer/js/sketchCandidates.js';
 
 // ---------------------------------------------------------------- transport
 function initTransport() {
@@ -215,6 +219,13 @@ async function boot() {
   initTitlebar();
   initKeyboard();
   initStudioMcp();
+
+  // Internal QA hook for SKETCH IT — mirrors the main window's window.__cadenceDebug convention
+  // (renderer/js/app.js) so scripted smoke tests can drive the drawing workspace and the
+  // procedural pipeline directly instead of only reaching it through real pointer input.
+  window.__sketchDebug = {
+    openSketchWorkspace, openSketchResults, analyzeSketchStrokes, generateCandidatesProgressive,
+  };
 
   // Animator -> studio: "Edit a copy in VFX Studio…" loads an existing item's document here,
   // replacing whatever was open (one undo step) — see docs/vfx-studio.md's edit-in-studio scope.

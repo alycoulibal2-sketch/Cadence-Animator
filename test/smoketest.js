@@ -663,6 +663,57 @@
     return { itemCount: after };
   });
 
+  // ---------------------------------------------------------------- SKETCH IT
+  // Pure-logic checks run directly in THIS window via dynamic import (sketchGeometry.js has zero
+  // window/DOM dependency, same as effectModel.js/effectShapes.js — loads and behaves identically
+  // anywhere). The pipeline check below needs the studio window's real archetype library/
+  // validator, so it goes through vfxCall like every other VFX Studio check above.
+  await step('SKETCH IT: geometry analysis recognizes basic shapes from synthetic strokes', async () => {
+    const { analyzeSketchStrokes } = await import('../renderer/js/sketchGeometry.js');
+
+    const line = { points: Array.from({ length: 20 }, (_, i) => ({ x: i * 10, y: i * 10, p: 0.5, t: i * 16 })) };
+    const lineFeatures = analyzeSketchStrokes([line]);
+    assert(lineFeatures.straightness > 0.9, `straight line should score high straightness, got ${lineFeatures.straightness}`);
+
+    const N = 40;
+    const circlePts = Array.from({ length: N + 1 }, (_, i) => {
+      const a = (i / N) * Math.PI * 2;
+      return { x: Math.cos(a) * 50, y: Math.sin(a) * 50, p: 0.5, t: i * 16 };
+    });
+    const circleFeatures = analyzeSketchStrokes([{ points: circlePts }]);
+    assert(circleFeatures.circularity > 0.75, `closed circular stroke should score high circularity, got ${circleFeatures.circularity}`);
+    assert(circleFeatures.closed, 'circle stroke should be detected as closed');
+
+    const zigzagPts = Array.from({ length: 24 }, (_, i) => ({ x: i * 8, y: i % 2 === 0 ? 0 : 40, p: 0.5, t: i * 16 }));
+    const zigzagFeatures = analyzeSketchStrokes([{ points: zigzagPts }]);
+    assert(zigzagFeatures.zigzagScore > 0.5, `zigzag stroke should score high zigzagScore, got ${zigzagFeatures.zigzagScore}`);
+
+    const empty = analyzeSketchStrokes([]);
+    assert(empty.empty === true && Number.isFinite(empty.complexity), 'empty input should degrade gracefully, not throw');
+
+    return { straightness: lineFeatures.straightness, circularity: circleFeatures.circularity, zigzagScore: zigzagFeatures.zigzagScore };
+  });
+
+  await step('SKETCH IT: full pipeline (analyze -> generate -> validate) produces ~30 valid, ranked candidates', async () => {
+    const N = 30;
+    const circlePts = Array.from({ length: N + 1 }, (_, i) => {
+      const a = (i / N) * Math.PI * 2;
+      return { x: Math.cos(a) * 3, y: Math.sin(a) * 3, p: 0.6, t: i * 20 };
+    });
+    const result = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }] });
+
+    assert(result.candidateCount >= 24 && result.candidateCount <= 30, `expected ~25-30 candidates, got ${result.candidateCount}`);
+    assert(result.invalidCount === 0, `every generated candidate should pass the real validator, but ${result.invalidCount} did not: ${JSON.stringify(result.invalid)}`);
+    assert(result.bestMatch && typeof result.bestMatch.confidence === 'number', 'best match missing/malformed');
+    assert(
+      ['portal', 'energy-shield', 'black-hole'].includes(result.bestMatch.archetypeKey),
+      `a closed circle sketch should best-match a circular archetype, got "${result.bestMatch.archetypeKey}"`
+    );
+    assert(result.goodCount === 6, `expected exactly 6 Good Matches, got ${result.goodCount}`);
+    assert(result.moreCount === result.candidateCount - 7, `More Ideas count should be candidateCount-7, got ${result.moreCount} vs ${result.candidateCount - 7}`);
+    return result;
+  });
+
   // ---------------------------------------------------------------- wrap up
   const failed = report.steps.filter((s) => !s.ok);
   report.ok = failed.length === 0 && report.consoleErrors.length === 0;
