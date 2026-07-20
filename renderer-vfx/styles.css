@@ -333,6 +333,7 @@
 .node-box {
   position: absolute; background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-m, 8px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); user-select: none;
+  will-change: transform; /* dragged via transform (nodeEditor.js) — hints the compositor to keep this on its own GPU layer instead of promoting it on the first drag frame */
 }
 .node-box.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 2px 8px rgba(0, 0, 0, 0.3); }
 .node-box-header {
@@ -359,6 +360,7 @@
 .node-comment {
   position: absolute; border: 1px dashed var(--border); border-radius: 6px; opacity: 0.9;
   min-width: 80px; min-height: 60px; padding: 6px;
+  will-change: transform; /* dragged via transform (nodeEditor.js) — same compositor hint as .node-box */
 }
 .node-comment.selected { border-color: var(--accent); }
 .node-comment-text { width: 100%; height: 100%; font-size: 12px; color: #1a1a1a; outline: none; overflow: auto; }

@@ -47,8 +47,13 @@ function el(tag, className, text) {
 }
 
 // ---------------------------------------------------------------- coordinate math
+// Cached for the duration of a single gesture (set at pointerdown, cleared at pointerup) — calling
+// getBoundingClientRect() fresh on every rAF-batched move tick would force a synchronous layout
+// flush if anything else queued a style change that frame (classic layout-thrashing), and the
+// viewport's own box never changes mid-gesture anyway.
+let cachedViewportRect = null;
 function screenToWorld(clientX, clientY) {
-  const r = viewportEl.getBoundingClientRect();
+  const r = cachedViewportRect || viewportEl.getBoundingClientRect();
   return { x: (clientX - r.left - panX) / zoom, y: (clientY - r.top - panY) / zoom };
 }
 function applyTransform() {
@@ -56,6 +61,33 @@ function applyTransform() {
 }
 function socketPos(node, io) { // io: 'in' | 'out'
   return { x: node.x + (io === 'in' ? 0 : NODE_W), y: node.y + HEADER_H / 2 };
+}
+
+// ---------------------------------------------------------------- frame-batched pointer motion
+// Every drag/pan below writes to the DOM only from inside this single rAF callback, using the
+// LATEST pointermove event seen — not from the raw pointermove handler directly. Raw pointer
+// event rate can exceed the display's paint rate (especially on high-poll-rate mice/trackpads);
+// without this, every extra event beyond what can actually be painted is pure wasted layout/paint
+// work, which is what "not smooth" concretely means here. Panning/zoom already only touch a CSS
+// transform (compositor-only, cheap) but are batched too for consistency — one motion pipeline,
+// not a special case per gesture.
+let pendingMoveEvent = null, moveFrameScheduled = false;
+function requestMoveFrame(e) {
+  pendingMoveEvent = e;
+  if (moveFrameScheduled) return;
+  moveFrameScheduled = true;
+  requestAnimationFrame(() => {
+    moveFrameScheduled = false;
+    const ev = pendingMoveEvent;
+    pendingMoveEvent = null;
+    if (!ev) return;
+    if (panDrag) onPanMove(ev);
+    else if (rubberDrag) onRubberMove(ev);
+    else if (nodeDrag) onNodeDragMove(ev);
+    else if (socketDrag) onSocketDragMove(ev);
+    else if (commentDrag) onCommentDragMove(ev);
+    else if (commentResize) onCommentResizeMove(ev);
+  });
 }
 
 // ---------------------------------------------------------------- open/close
@@ -172,10 +204,9 @@ function renderWires(graph) {
   for (const conn of graph.connections) {
     const from = getNode(graph, conn.fromNode), to = getNode(graph, conn.toNode);
     if (!from || !to) continue;
-    const a = socketPos(from, 'out'), b = socketPos(to, 'in');
     const path = document.createElementNS(wiresEl.namespaceURI, 'path');
-    const dx = Math.max(40, Math.abs(b.x - a.x) * 0.5);
-    path.setAttribute('d', `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`);
+    path.dataset.connId = conn.id;
+    path.setAttribute('d', wirePathD(from, to));
     path.setAttribute('class', 'node-wire' + (selectedConns.has(conn.id) ? ' selected' : ''));
     path.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
@@ -302,6 +333,7 @@ function wireViewportEvents() {
   viewportEl.addEventListener('pointerdown', (e) => {
     if (e.target !== viewportEl && e.target !== worldEl) return; // a node/socket/wire handled its own
     root.focus();
+    cachedViewportRect = viewportEl.getBoundingClientRect();
     if (e.shiftKey) {
       rubberDrag = { startX: e.clientX, startY: e.clientY };
       rubberEl.style.display = 'block';
@@ -312,26 +344,7 @@ function wireViewportEvents() {
   });
   window.addEventListener('pointermove', (e) => {
     if (!isOpen) return;
-    if (panDrag) {
-      panX = panDrag.panX0 + (e.clientX - panDrag.startX);
-      panY = panDrag.panY0 + (e.clientY - panDrag.startY);
-      applyTransform();
-    } else if (rubberDrag) {
-      const x = Math.min(rubberDrag.startX, e.clientX), y = Math.min(rubberDrag.startY, e.clientY);
-      const w = Math.abs(e.clientX - rubberDrag.startX), h = Math.abs(e.clientY - rubberDrag.startY);
-      const r = viewportEl.getBoundingClientRect();
-      rubberEl.style.left = (x - r.left) + 'px'; rubberEl.style.top = (y - r.top) + 'px';
-      rubberEl.style.width = w + 'px'; rubberEl.style.height = h + 'px';
-      rubberDrag.rect = { x, y, w, h };
-    } else if (nodeDrag) {
-      onNodeDragMove(e);
-    } else if (socketDrag) {
-      onSocketDragMove(e);
-    } else if (commentDrag) {
-      onCommentDragMove(e);
-    } else if (commentResize) {
-      onCommentResizeMove(e);
-    }
+    if (panDrag || rubberDrag || nodeDrag || socketDrag || commentDrag || commentResize) requestMoveFrame(e);
   });
   window.addEventListener('pointerup', (e) => {
     if (panDrag) panDrag = null;
@@ -340,6 +353,7 @@ function wireViewportEvents() {
     if (socketDrag) finishSocketDrag(e);
     if (commentDrag) finishCommentDrag();
     if (commentResize) finishCommentResize();
+    cachedViewportRect = null;
   });
   viewportEl.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -352,6 +366,19 @@ function wireViewportEvents() {
   }, { passive: false });
 }
 
+function onPanMove(e) {
+  panX = panDrag.panX0 + (e.clientX - panDrag.startX);
+  panY = panDrag.panY0 + (e.clientY - panDrag.startY);
+  applyTransform();
+}
+function onRubberMove(e) {
+  const x = Math.min(rubberDrag.startX, e.clientX), y = Math.min(rubberDrag.startY, e.clientY);
+  const w = Math.abs(e.clientX - rubberDrag.startX), h = Math.abs(e.clientY - rubberDrag.startY);
+  const r = cachedViewportRect || viewportEl.getBoundingClientRect();
+  rubberEl.style.left = (x - r.left) + 'px'; rubberEl.style.top = (y - r.top) + 'px';
+  rubberEl.style.width = w + 'px'; rubberEl.style.height = h + 'px';
+  rubberDrag.rect = { x, y, w, h };
+}
 function finishRubberBand(rect) {
   if (!rect || (rect.w < 3 && rect.h < 3)) return;
   const a = screenToWorld(rect.x, rect.y), b = screenToWorld(rect.x + rect.w, rect.y + rect.h);
@@ -362,10 +389,15 @@ function finishRubberBand(rect) {
 }
 
 // ---------------------------------------------------------------- node drag
-let nodeDrag = null;
+// Live drag visuals move nodes via CSS `transform` (GPU-composited, no layout/reflow) rather than
+// `left`/`top` (which forces a synchronous layout on every write) — the single biggest
+// smoothness win available here. The commit at drag-end writes the real `left`/`top` via the
+// data model, once; the very next render() rebuilds fresh divs with no leftover transform.
+let nodeDrag = null; // { startWorld, starts: Map<id,{x,y}>, dx, dy }
 function onNodeHeaderDown(e, node) {
   e.stopPropagation();
   root.focus();
+  cachedViewportRect = viewportEl.getBoundingClientRect();
   if (e.shiftKey) {
     if (selectedNodes.has(node.id)) selectedNodes.delete(node.id); else selectedNodes.add(node.id);
   } else if (!selectedNodes.has(node.id)) {
@@ -374,56 +406,66 @@ function onNodeHeaderDown(e, node) {
   selectedConns.clear(); selectedComments.clear();
   const starts = new Map();
   for (const id of selectedNodes) { const n = getNode(ST.state.graph, id); if (n) starts.set(id, { x: n.x, y: n.y }); }
-  nodeDrag = { startWorld: screenToWorld(e.clientX, e.clientY), starts };
+  nodeDrag = { startWorld: screenToWorld(e.clientX, e.clientY), starts, dx: 0, dy: 0 };
   render();
 }
 function nodeDivFor(id) { return nodesEl.querySelector(`[data-node-id="${id}"]`); }
 function onNodeDragMove(e) {
   const now = screenToWorld(e.clientX, e.clientY);
-  const dx = now.x - nodeDrag.startWorld.x, dy = now.y - nodeDrag.startWorld.y;
-  for (const [id, start] of nodeDrag.starts) {
+  nodeDrag.dx = now.x - nodeDrag.startWorld.x;
+  nodeDrag.dy = now.y - nodeDrag.startWorld.y;
+  for (const [id] of nodeDrag.starts) {
     const div = nodeDivFor(id);
-    if (div) { div.style.left = (start.x + dx) + 'px'; div.style.top = (start.y + dy) + 'px'; }
+    if (div) div.style.transform = `translate(${nodeDrag.dx}px, ${nodeDrag.dy}px)`;
   }
-  renderWiresLive(nodeDrag.starts, dx, dy);
-}
-// While dragging, wires are redrawn against LIVE (uncommitted) positions rather than re-deriving
-// from state.graph (which hasn't changed yet) — avoids a mutateGraph()/recompile on every pointer
-// move for a property (position) the compiler doesn't even read.
-function renderWiresLive(starts, dx, dy) {
-  const graph = ST.state.graph;
-  const liveOf = (id) => {
-    if (starts.has(id)) { const s = starts.get(id); return { x: s.x + dx, y: s.y + dy }; }
-    const n = getNode(graph, id); return n ? { x: n.x, y: n.y } : null;
-  };
-  wiresEl.innerHTML = '';
-  for (const conn of graph.connections) {
-    const from = liveOf(conn.fromNode), to = liveOf(conn.toNode);
-    if (!from || !to) continue;
-    const a = { x: from.x + NODE_W, y: from.y + HEADER_H / 2 }, b = { x: to.x, y: to.y + HEADER_H / 2 };
-    const path = document.createElementNS(wiresEl.namespaceURI, 'path');
-    const dxw = Math.max(40, Math.abs(b.x - a.x) * 0.5);
-    path.setAttribute('d', `M ${a.x} ${a.y} C ${a.x + dxw} ${a.y}, ${b.x - dxw} ${b.y}, ${b.x} ${b.y}`);
-    path.setAttribute('class', 'node-wire' + (selectedConns.has(conn.id) ? ' selected' : ''));
-    wiresEl.appendChild(path);
-  }
+  updateWireGeometry();
 }
 function finishNodeDrag() {
   const d = nodeDrag; nodeDrag = null;
   if (!d) return;
   ST.mutateGraph((g) => {
-    for (const [id] of d.starts) {
-      const div = nodeDivFor(id);
+    for (const [id, start] of d.starts) {
       const n = getNode(g, id);
-      if (n && div) { n.x = parseFloat(div.style.left); n.y = parseFloat(div.style.top); }
+      if (n) { n.x = Math.round(start.x + d.dx); n.y = Math.round(start.y + d.dy); }
     }
   });
+}
+
+// A node position or comment position/size never affects the compiled doc, so live-dragging
+// never goes through mutateGraph() (which would recompile the whole graph every frame for a
+// property the compiler doesn't even read) — wires update in place against these live positions
+// instead of state.graph's (not-yet-committed) ones.
+function liveNodePos(id) {
+  if (nodeDrag && nodeDrag.starts.has(id)) {
+    const s = nodeDrag.starts.get(id);
+    return { x: s.x + nodeDrag.dx, y: s.y + nodeDrag.dy };
+  }
+  const n = getNode(ST.state.graph, id);
+  return n ? { x: n.x, y: n.y } : null;
+}
+function wirePathD(fromPos, toPos) {
+  const a = { x: fromPos.x + NODE_W, y: fromPos.y + HEADER_H / 2 }, b = { x: toPos.x, y: toPos.y + HEADER_H / 2 };
+  const dx = Math.max(40, Math.abs(b.x - a.x) * 0.5);
+  return `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`;
+}
+// Updates EXISTING <path> elements' `d` attribute in place — never clears/rebuilds the SVG.
+// Recreating every wire element on every pointermove (the original implementation) meant DOM
+// churn on top of layout cost; an attribute update on an already-composited path is cheap.
+function updateWireGeometry() {
+  const graph = ST.state.graph;
+  for (const path of wiresEl.querySelectorAll('path.node-wire')) {
+    const conn = graph.connections.find((c) => c.id === path.dataset.connId);
+    if (!conn) continue;
+    const from = liveNodePos(conn.fromNode), to = liveNodePos(conn.toNode);
+    if (from && to) path.setAttribute('d', wirePathD(from, to));
+  }
 }
 
 // ---------------------------------------------------------------- connect (socket drag)
 let socketDrag = null;
 function onSocketDown(e, node, io) {
   root.focus();
+  cachedViewportRect = viewportEl.getBoundingClientRect();
   selectedNodes.clear(); selectedConns.clear(); selectedComments.clear();
   socketDrag = { fromNode: node.id, io, start: socketPos(node, io) };
   render();
@@ -431,7 +473,6 @@ function onSocketDown(e, node, io) {
 function onSocketDragMove(e) {
   const cursor = screenToWorld(e.clientX, e.clientY);
   const a = socketDrag.start;
-  const tempId = '__temp__';
   let path = wiresEl.querySelector('.node-wire-temp');
   if (!path) { path = document.createElementNS(wiresEl.namespaceURI, 'path'); path.setAttribute('class', 'node-wire node-wire-temp'); wiresEl.appendChild(path); }
   const dx = Math.max(40, Math.abs(cursor.x - a.x) * 0.5);
@@ -469,35 +510,38 @@ function finishSocketDrag(e) {
 // ---------------------------------------------------------------- comments
 // Same "visual-only during the drag, one committed mutateGraph at release" pattern as node
 // drag — position/size don't affect the compiled doc, so there's no reason to recompile on
-// every pointermove tick.
+// every pointermove tick. Dragging moves via `transform` (no layout) same as node drag; resizing
+// genuinely changes width/height (content reflow is inherent to a real resize, transform/scale
+// would just distort the text) so it keeps direct style writes, still frame-batched.
 function commentDivFor(id) { return commentsEl.querySelector(`[data-comment-id="${id}"]`); }
 let commentDrag = null, commentResize = null;
 function onCommentDown(e, comment) {
   e.stopPropagation();
   root.focus();
+  cachedViewportRect = viewportEl.getBoundingClientRect();
   if (!e.shiftKey) { selectedNodes.clear(); selectedConns.clear(); selectedComments.clear(); }
   selectedComments.add(comment.id);
-  commentDrag = { startWorld: screenToWorld(e.clientX, e.clientY), startX: comment.x, startY: comment.y, id: comment.id };
+  commentDrag = { startWorld: screenToWorld(e.clientX, e.clientY), startX: comment.x, startY: comment.y, id: comment.id, dx: 0, dy: 0 };
   render();
 }
 function onCommentDragMove(e) {
   const now = screenToWorld(e.clientX, e.clientY);
-  const dx = now.x - commentDrag.startWorld.x, dy = now.y - commentDrag.startWorld.y;
+  commentDrag.dx = now.x - commentDrag.startWorld.x;
+  commentDrag.dy = now.y - commentDrag.startWorld.y;
   const div = commentDivFor(commentDrag.id);
-  if (div) { div.style.left = Math.round(commentDrag.startX + dx) + 'px'; div.style.top = Math.round(commentDrag.startY + dy) + 'px'; }
+  if (div) div.style.transform = `translate(${commentDrag.dx}px, ${commentDrag.dy}px)`;
 }
 function finishCommentDrag() {
   const d = commentDrag; commentDrag = null;
   if (!d) return;
-  const div = commentDivFor(d.id);
-  if (!div) return;
   ST.mutateGraph((g) => {
     const c = g.comments.find((x) => x.id === d.id);
-    if (c) { c.x = parseFloat(div.style.left); c.y = parseFloat(div.style.top); }
+    if (c) { c.x = Math.round(d.startX + d.dx); c.y = Math.round(d.startY + d.dy); }
   });
 }
 function onCommentResizeDown(e, comment) {
   e.stopPropagation();
+  cachedViewportRect = viewportEl.getBoundingClientRect();
   commentResize = { id: comment.id, startWorld: screenToWorld(e.clientX, e.clientY), startW: comment.w, startH: comment.h };
 }
 function onCommentResizeMove(e) {
