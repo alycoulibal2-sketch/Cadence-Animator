@@ -249,13 +249,25 @@ function tick(now) {
   const shake = applySample(sample);
 
   controls.update();
-  // Shake as a post-controls delta in camera space — never stored, so it can't accumulate.
+  // Shake is applied only for this render, then undone immediately after. controls.update()
+  // re-derives its orbit baseline from the camera's CURRENT position/quaternion every call (it
+  // reads position back, not just writes it), so leaving the shake transform applied gets
+  // silently adopted as the new "home" pose and compounds every tick — this is what caused
+  // runaway camera drift even while paused: tick() free-runs off rAF regardless of play state,
+  // so a frozen-but-nonzero shake value still got re-applied and re-baked into the baseline
+  // every frame. Restoring the pre-shake pose right after the render keeps it purely visual.
   if (shake && (shake.dx || shake.dy || shake.roll)) {
+    const basePos = camera.position.clone();
+    const baseQuat = camera.quaternion.clone();
     camera.translateX(shake.dx * 0.25);
     camera.translateY(shake.dy * 0.25);
     camera.rotateZ((shake.roll * Math.PI) / 180);
+    renderer.render(scene, camera);
+    camera.position.copy(basePos);
+    camera.quaternion.copy(baseQuat);
+  } else {
+    renderer.render(scene, camera);
   }
-  renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
 
@@ -266,5 +278,27 @@ export function scrubAndSettle(frame) {
   ST.setPlayhead(frame);
   return new Promise((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve({ frame: Math.floor(ST.state.playhead) })));
+  });
+}
+
+// Test-only: snapshot the live camera transform for the smoketest's shake-while-paused
+// regression check (vfx_test_shake_pause_stability in mcp.js). Not part of the MCP-facing API.
+export function debugCameraPose() {
+  return {
+    position: [camera.position.x, camera.position.y, camera.position.z],
+    quaternion: [camera.quaternion.x, camera.quaternion.y, camera.quaternion.z, camera.quaternion.w],
+  };
+}
+
+// Test-only: let N real rAF ticks elapse (the same loop tick() free-runs on) and resolve once
+// they've all fired — used to simulate "sitting paused in the studio" for the check above.
+export function debugWaitTicks(n) {
+  return new Promise((resolve) => {
+    let remaining = Math.max(1, n | 0);
+    (function step() {
+      remaining--;
+      if (remaining <= 0) resolve();
+      else requestAnimationFrame(step);
+    })();
   });
 }

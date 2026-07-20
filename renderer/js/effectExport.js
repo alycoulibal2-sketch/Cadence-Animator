@@ -465,28 +465,42 @@ function emitLuaShake(L, notes, layer, id, doc, fps) {
   L.push(`local ${id}_bound = false`);
   L.push(`local ${id}_lf = 0 -- upvalue: the render-step closure reads the LIVE local frame`);
   L.push(`local ${id}_seed = ${n((idxHash(layer.id) % 1000) / 100)}`);
+  L.push(`local ${id}_last = CFrame.new() -- last-applied shake offset, undone before the next one so it never compounds`);
   L.push(`local function ${id}_update(active, lf, _)`);
   L.push(`  ${id}_lf = lf`);
   L.push('  local camera = workspace.CurrentCamera');
   L.push('  if active and not ' + id + '_bound then');
   L.push(`    ${id}_bound = true`);
-  // Delta AFTER the camera update (and after any exported camera script): never store/restore
-  // absolute CFrames, and sample noise from TIME so shake speed is framerate-independent.
+  // Delta AFTER the camera update (and after any exported camera script). Undo the previous
+  // frame's offset before applying this frame's (the standard non-accumulating camera-shake
+  // pattern) — multiplying a fresh delta straight onto camera.CFrame every RenderStep with no
+  // undo compounds forever on a Scriptable camera with nothing else re-anchoring it each frame.
+  // Noise is still sampled from TIME so shake speed stays framerate-independent.
   L.push(`    RunService:BindToRenderStep(${luaStr(id + '_shake')}, Enum.RenderPriority.Camera.Value + 2, function()`);
   L.push(`      local amp = ${id}_amp[math.clamp(math.floor(${id}_lf) + 1, 1, #${id}_amp)]`);
   L.push(`      local t = os.clock() * ${n(layer.props.frequency || 9)}`);
   L.push(`      local dx = amp * (math.sin(t * 6.283 + ${id}_seed) * 0.7 + math.sin(t * 10.87 + ${id}_seed * 2) * 0.3) * 0.25`);
   L.push(`      local dy = amp * (math.sin(t * 7.1 + ${id}_seed * 3) * 0.7 + math.sin(t * 11.9 + ${id}_seed * 4) * 0.3) * 0.25`);
   L.push(`      local roll = math.rad(${n(layer.props.roll ?? 0.8)}) * math.sin(t * 5.7 + ${id}_seed * 5)`);
-  L.push('      camera.CFrame = camera.CFrame * CFrame.new(dx, dy, 0) * CFrame.Angles(0, 0, roll)');
+  L.push(`      local newOffset = CFrame.new(dx, dy, 0) * CFrame.Angles(0, 0, roll)`);
+  L.push(`      camera.CFrame = camera.CFrame * ${id}_last:Inverse() * newOffset`);
+  L.push(`      ${id}_last = newOffset`);
   L.push('    end)');
   L.push(`  elseif not active and ${id}_bound then`);
   L.push(`    ${id}_bound = false`);
+  L.push(`    camera.CFrame = camera.CFrame * ${id}_last:Inverse()`);
+  L.push(`    ${id}_last = CFrame.new()`);
   L.push(`    RunService:UnbindFromRenderStep(${luaStr(id + '_shake')})`);
   L.push('  end');
   L.push('end');
   L.push(`local function ${id}_stop()`);
-  L.push(`  if ${id}_bound then ${id}_bound = false RunService:UnbindFromRenderStep(${luaStr(id + '_shake')}) end`);
+  L.push(`  if ${id}_bound then`);
+  L.push(`    ${id}_bound = false`);
+  L.push('    local camera = workspace.CurrentCamera');
+  L.push(`    camera.CFrame = camera.CFrame * ${id}_last:Inverse()`);
+  L.push(`    ${id}_last = CFrame.new()`);
+  L.push(`    RunService:UnbindFromRenderStep(${luaStr(id + '_shake')})`);
+  L.push('  end');
   L.push('end');
 }
 

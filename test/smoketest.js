@@ -429,6 +429,15 @@
     return { ok: true, luaLength: exported.lua.length };
   });
 
+  await step('VFX Studio MCP: exported shake Luau undoes its offset instead of compounding it (regression)', async () => {
+    await vfxCall('vfx_new_effect', { name: 'Shake Export Test' });
+    await vfxCall('vfx_add_layer', { type: 'shake', name: 'Shake' });
+    const exported = await vfxCall('vfx_export_luau');
+    assert(exported.lua.includes(':Inverse()'), 'exported shake script should undo its previous offset via :Inverse() before applying a new one');
+    assert(/_last = newOffset/.test(exported.lua), 'exported shake script should remember the last-applied offset');
+    return { ok: true, luaLength: exported.lua.length };
+  });
+
   await step('VFX Studio MCP: render_frame returns an actual screenshot', async () => {
     const shot = await vfxCall('vfx_render_frame', { frame: 5 });
     assert(typeof shot.image === 'string' && shot.image.length > 5000, 'render_frame image looks too small/missing');
@@ -711,6 +720,16 @@
     );
     assert(result.goodCount === 6, `expected exactly 6 Good Matches, got ${result.goodCount}`);
     assert(result.moreCount === result.candidateCount - 7, `More Ideas count should be candidateCount-7, got ${result.moreCount} vs ${result.candidateCount - 7}`);
+    return result;
+  });
+
+  // ---------------------------------------------------------------- VFX Studio: camera shake
+  await step('VFX Studio: camera shake layer does not drift the camera while paused (regression)', async () => {
+    await vfxCall('vfx_new_effect', { name: 'Shake Pause Test', duration: 60, fps: 30 });
+    await vfxCall('vfx_add_layer', { type: 'shake', name: 'Shake' }); // defaults: amplitude 0.3, roll 0.8, active [0,60)
+    const result = await vfxCall('vfx_test_shake_pause_stability', { frame: 5, ticks: 45 });
+    assert(result.drift < 1e-6, `camera position drifted by ${result.drift} studs across ${45} paused ticks — shake is leaking into the persisted camera pose`);
+    assert(result.quatDrift < 1e-6, `camera rotation drifted by ${result.quatDrift} across ${45} paused ticks — shake is leaking into the persisted camera pose`);
     return result;
   });
 

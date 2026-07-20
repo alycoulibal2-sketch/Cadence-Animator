@@ -16,7 +16,7 @@ import { buildEffectLua } from '../../renderer/js/effectExport.js';
 import { buildArchetypeDoc, searchEffectArchetypes, EFFECT_THEMES, EFFECT_SCALES } from '../../renderer/js/effectLibrary.js';
 import { searchPresets } from '../../renderer/js/particleLibrary.js';
 import { checkExpr } from '../../renderer/js/expr.js';
-import { scrubAndSettle } from './preview.js';
+import { scrubAndSettle, debugCameraPose, debugWaitTicks } from './preview.js';
 import { analyzeSketchStrokes } from '../../renderer/js/sketchGeometry.js';
 import { generateCandidatesProgressive, rankCandidates } from '../../renderer/js/sketchCandidates.js';
 
@@ -302,6 +302,21 @@ const HANDLERS = {
       goodCount: ranked.good.length,
       moreCount: ranked.more.length,
     };
+  },
+  // Test-only hook for the smoketest, deliberately NOT registered as a real tool in
+  // mcp-server/index.js's zod schemas (same convention as vfx_sketch_test_pipeline above).
+  // Reproduces "add a shake layer, pause, camera drifts anyway" end-to-end against the REAL
+  // preview render loop (tick() in preview.js free-runs off rAF regardless of play/pause state)
+  // rather than re-modeling the bug in a parallel check — asserts the camera's actual transform
+  // is bit-for-bit stable across N paused ticks.
+  async vfx_test_shake_pause_stability({ frame, ticks } = {}) {
+    await scrubAndSettle(typeof frame === 'number' ? frame : 5); // setPlaying(false) + settle
+    const before = debugCameraPose();
+    await debugWaitTicks(typeof ticks === 'number' ? ticks : 45);
+    const after = debugCameraPose();
+    const drift = Math.hypot(...before.position.map((v, i) => after.position[i] - v));
+    const quatDrift = Math.hypot(...before.quaternion.map((v, i) => after.quaternion[i] - v));
+    return { ok: true, before, after, drift, quatDrift };
   },
   vfx_undo() {
     if (!ST.undo()) throw new Error('Nothing to undo');
