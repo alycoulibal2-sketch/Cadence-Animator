@@ -18,7 +18,7 @@ import { searchPresets } from '../../renderer/js/particleLibrary.js';
 import { checkExpr } from '../../renderer/js/expr.js';
 import { scrubAndSettle, debugCameraPose, debugWaitTicks } from './preview.js';
 import { analyzeSketchStrokes } from '../../renderer/js/sketchGeometry.js';
-import { generateCandidatesProgressive, rankCandidates } from '../../renderer/js/sketchCandidates.js';
+import { planCompositions, rankCandidates } from '../../renderer/js/sketchCandidates.js';
 
 // The uniform write-result: what changed + whether the doc is still healthy. `diagnostics`
 // carries errors/warnings only (info noise stays out of tool results; vfx_validate returns all).
@@ -278,12 +278,12 @@ const HANDLERS = {
   // mcp-server/index.js's zod schemas — SKETCH IT is a human drawing workflow, not something an
   // MCP client should invoke, but the pipeline underneath it (analyze -> generate -> validate)
   // is exactly the kind of pure logic this codebase always gets scripted regression coverage
-  // for. Runs the real provider against real strokes and checks every candidate it produces
-  // against the SAME validator the studio itself gates export/send on.
+  // for. Runs the real Composition Planner against real strokes and checks every candidate it
+  // produces against the SAME validator the studio itself gates export/send on.
   async vfx_sketch_test_pipeline({ strokes } = {}) {
     if (!Array.isArray(strokes) || !strokes.length) throw new Error('strokes must be a non-empty array of { points: [{x,y,p,t}] }');
     const features = analyzeSketchStrokes(strokes);
-    const candidates = await generateCandidatesProgressive(features, { count: 30 });
+    const candidates = await planCompositions(features, { count: 30 });
     const invalid = [];
     for (const c of candidates) {
       const parsed = parseEffect(c.doc);

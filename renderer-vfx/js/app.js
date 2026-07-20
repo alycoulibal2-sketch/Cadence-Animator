@@ -18,7 +18,7 @@ import { toast, modal } from '../../renderer/js/ui.js';
 import { openSketchWorkspace } from './sketchWorkspace.js';
 import { openSketchResults } from './sketchResults.js';
 import { analyzeSketchStrokes } from '../../renderer/js/sketchGeometry.js';
-import { generateCandidatesProgressive } from '../../renderer/js/sketchCandidates.js';
+import { planCompositions } from '../../renderer/js/sketchCandidates.js';
 
 // ---------------------------------------------------------------- transport
 function initTransport() {
@@ -224,7 +224,7 @@ async function boot() {
   // (renderer/js/app.js) so scripted smoke tests can drive the drawing workspace and the
   // procedural pipeline directly instead of only reaching it through real pointer input.
   window.__sketchDebug = {
-    openSketchWorkspace, openSketchResults, analyzeSketchStrokes, generateCandidatesProgressive,
+    openSketchWorkspace, openSketchResults, analyzeSketchStrokes, planCompositions,
   };
 
   // Animator -> studio: "Edit a copy in VFX Studio…" loads an existing item's document here,

@@ -7,7 +7,7 @@
 // editor. Nothing here is a black box and nothing is baked.
 
 import { analyzeSketchStrokes } from '../../renderer/js/sketchGeometry.js';
-import { generateCandidatesProgressive, rankCandidates } from '../../renderer/js/sketchCandidates.js';
+import { planCompositions, rankCandidates } from '../../renderer/js/sketchCandidates.js';
 import { LAYER_TYPES } from '../../renderer/js/effectModel.js';
 import { registerPreview, unregisterPreview, pauseAll, resumeAll } from './sketchPreviewRenderer.js';
 import * as ST from './studioState.js';
@@ -281,7 +281,7 @@ export function openSketchResults(strokes, { onEditSketch, precomputed } = {}) {
   }
 
   status.textContent = 'Imagining possibilities…';
-  generateCandidatesProgressive(features, {
+  planCompositions(features, {
     count: 30,
     signal: controller.signal,
     onCandidate: (candidate, n) => {

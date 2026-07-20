@@ -18,8 +18,13 @@
 // app.js's window-level studio Ctrl+Z/Y handler.
 
 import { modal, toast } from '../../renderer/js/ui.js';
+import { shapePolyline } from '../../renderer/js/effectShapes.js';
+import { recognizeStroke } from '../../renderer/js/sketchClean.js';
+import { dist } from '../../renderer/js/sketchGeometry.js';
 
 let overlay = null; // non-null while a workspace session is open — openSketchWorkspace is a singleton
+
+const TAU = Math.PI * 2;
 
 function palette() {
   const s = getComputedStyle(document.documentElement);
@@ -31,8 +36,16 @@ function palette() {
   };
 }
 
+// A Guide keeps its points+params: { points:[{x,y,p,t}], tool, params }. `points` is always the
+// clean polyline analyzeSketchStrokes()/rendering actually consume; `params` is the tool-native,
+// re-editable handle data (kept even though nothing edits it live yet — this is what a future
+// drag-to-resize pass would read/write instead of re-deriving from points).
 function cloneStrokes(strokes) {
-  return (strokes || []).map((s) => ({ points: s.points.map((p) => ({ ...p })) }));
+  return (strokes || []).map((s) => ({
+    points: s.points.map((p) => ({ ...p })),
+    tool: s.tool,
+    params: s.params ? { ...s.params } : null,
+  }));
 }
 
 function toolButton(label, title) {
@@ -42,6 +55,112 @@ function toolButton(label, title) {
   b.title = title;
   return b;
 }
+
+// ---------------------------------------------------------------- shape-tool guide generators
+// Every tool synthesizes an already-clean Guide directly, no fitting/recognition needed (that's
+// only for Free Sketch, via sketchClean.js's recognizeStroke). Line/Circle/Lightning reuse
+// effectShapes.js's real primitives — "a dragged Circle tool literally is shapePolyline(...)"; a
+// canvas point (x,y) maps to a shape's local (x,z) plane (y=0), a top-down projection convention
+// consistent with how those primitives are authored (Y up, XZ the "flat" plane). Ellipse/Rect/
+// Spiral have no primitive analog (effectShapes.js's own "spiral" is a constant-radius 3D helix,
+// not a flat growing-radius spiral — projecting it to 2D would just retrace a circle) so those
+// three get their own small, dedicated 2D math.
+export function lineGuide(p0, p1) {
+  return { tool: 'line', points: [{ x: p0.x, y: p0.y, p: 0.6, t: 0 }, { x: p1.x, y: p1.y, p: 0.6, t: 1 }], params: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y } };
+}
+export function circleGuide(center, edge) {
+  const r = Math.max(0.5, Math.hypot(edge.x - center.x, edge.y - center.y));
+  const raw = shapePolyline({ kind: 'circle', radius: r }, 48);
+  return { tool: 'circle', points: raw.map((pt, i) => ({ x: center.x + pt[0], y: center.y + pt[2], p: 0.6, t: i })), params: { cx: center.x, cy: center.y, r } };
+}
+export function ellipseGuide(center, edge, n = 48) {
+  const rx = Math.max(0.5, Math.abs(edge.x - center.x));
+  const ry = Math.max(0.5, Math.abs(edge.y - center.y));
+  const points = [];
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * TAU;
+    points.push({ x: center.x + Math.cos(a) * rx, y: center.y + Math.sin(a) * ry, p: 0.6, t: i });
+  }
+  return { tool: 'ellipse', points, params: { cx: center.x, cy: center.y, rx, ry } };
+}
+export function rectGuide(p0, p1) {
+  const x0 = Math.min(p0.x, p1.x), x1 = Math.max(p0.x, p1.x);
+  const y0 = Math.min(p0.y, p1.y), y1 = Math.max(p0.y, p1.y);
+  const corners = [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
+  return { tool: 'rect', points: corners.map(([x, y], i) => ({ x, y, p: 0.6, t: i })), params: { x0, y0, x1, y1 } };
+}
+export function spiralGuide(center, edge, turns = 3, n = 72) {
+  const r = Math.max(0.5, Math.hypot(edge.x - center.x, edge.y - center.y));
+  const points = [];
+  for (let i = 0; i <= n; i++) {
+    const u = i / n;
+    const a = u * TAU * turns;
+    const rr = r * u;
+    points.push({ x: center.x + Math.cos(a) * rr, y: center.y + Math.sin(a) * rr, p: 0.6, t: i });
+  }
+  return { tool: 'spiral', points, params: { cx: center.x, cy: center.y, r, turns } };
+}
+export function arrowGuide(p0, p1) {
+  return { tool: 'arrow', points: [{ x: p0.x, y: p0.y, p: 0.6, t: 0 }, { x: p1.x, y: p1.y, p: 0.6, t: 1 }], params: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y } };
+}
+export function lightningGuide(p0, p1) {
+  const length = Math.max(0.5, Math.hypot(p1.x - p0.x, p1.y - p0.y));
+  const angle = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+  const seed = Math.abs(Math.round(p0.x * 7 + p0.y * 13)) % 1000;
+  const jag = Math.max(0.3, length * 0.07);
+  const raw = shapePolyline({ kind: 'lightning', length, jag, segments: 9, seed }, 24);
+  // lightning's point(): [lateralJitter, (1-u)*length, lateralJitter2] — Y runs length->0 as u:0->1,
+  // so `length - pt[1]` gives the along-axis distance from p0 (0..length) in increasing u order.
+  const points = raw.map((pt, i) => {
+    const along = length - pt[1];
+    const lateral = pt[0];
+    return {
+      x: p0.x + Math.cos(angle) * along - Math.sin(angle) * lateral,
+      y: p0.y + Math.sin(angle) * along + Math.cos(angle) * lateral,
+      p: 0.6, t: i,
+    };
+  });
+  return { tool: 'lightning', points, params: { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y, jag, seed } };
+}
+// Cubic bezier through clicked control points (same symmetric-handle-free convention as a quick
+// path sketch — real handle editing is a future refinement, this already satisfies "Bezier Path"
+// as a distinct tool from Free Sketch: a clean multi-segment curve from a few clicks, not a drag).
+export function bezierGuide(controlPts, n = 60) {
+  const pts = controlPts;
+  if (pts.length < 2) return { tool: 'bezier', points: pts.map((p, i) => ({ x: p.x, y: p.y, p: 0.6, t: i })), params: { points: pts.map((p) => [p.x, p.y]) } };
+  const segs = pts.length - 1;
+  const at = (i) => pts[Math.max(0, Math.min(pts.length - 1, i))];
+  const points = [];
+  for (let i = 0; i <= n; i++) {
+    const u = (i / n) * segs;
+    const seg = Math.min(segs - 1, Math.floor(u));
+    const t = u - seg;
+    const p0 = at(seg - 1), p1 = at(seg), p2 = at(seg + 1), p3 = at(seg + 2);
+    const c = (a, b, c2, d, tt) => {
+      const t2 = tt * tt, t3 = t2 * tt;
+      return 0.5 * ((2 * b) + (-a + c2) * tt + (2 * a - 5 * b + 4 * c2 - d) * t2 + (-a + 3 * b - 3 * c2 + d) * t3);
+    };
+    points.push({ x: c(p0.x, p1.x, p2.x, p3.x, t), y: c(p0.y, p1.y, p2.y, p3.y, t), p: 0.6, t: i });
+  }
+  return { tool: 'bezier', points, params: { points: pts.map((p) => [p.x, p.y]) } };
+}
+
+const DRAG_TOOLS = {
+  line: lineGuide, circle: circleGuide, ellipse: ellipseGuide, rect: rectGuide,
+  spiral: spiralGuide, arrow: arrowGuide, lightning: lightningGuide,
+};
+
+const TOOLS = [
+  { id: 'freehand', label: '✏', title: 'Free Sketch — draw messy, Cadence cleans it up' },
+  { id: 'line', label: '📏', title: 'Straight Line' },
+  { id: 'circle', label: '⭕', title: 'Circle' },
+  { id: 'ellipse', label: '🥚', title: 'Ellipse' },
+  { id: 'rect', label: '▭', title: 'Rectangle' },
+  { id: 'spiral', label: '🌀', title: 'Spiral' },
+  { id: 'arrow', label: '➡️', title: 'Arrow' },
+  { id: 'lightning', label: '⚡', title: 'Lightning' },
+  { id: 'bezier', label: '〜', title: 'Bezier Path — click to add points, double-click or Enter to finish' },
+];
 
 // If this workspace is reopened FROM the results screen ("← Edit sketch"), doGenerate() below
 // hands results a fresh closure over openSketchWorkspace as its onEditSketch callback — that
@@ -57,6 +176,10 @@ export function openSketchWorkspace(initialStrokes = null) {
   let panDrag = null;
   let erasing = false;
   let spaceHeld = false;
+  let currentTool = 'freehand';
+  let dragStart = null; // world-space anchor for line/circle/ellipse/rect/spiral/arrow/lightning
+  let bezierPts = []; // in-progress click-to-add-point path
+  let lastBezierClick = 0;
   const undoStack = [];
   const redoStack = [];
 
@@ -65,6 +188,17 @@ export function openSketchWorkspace(initialStrokes = null) {
 
   const toolbar = document.createElement('div');
   toolbar.className = 'sketch-toolbar';
+
+  const toolPalette = document.createElement('div');
+  toolPalette.className = 'sketch-tool-palette';
+  const toolButtons = new Map();
+  for (const t of TOOLS) {
+    const btn = toolButton(t.label, t.title);
+    btn.className = 'tb-btn sketch-tool-btn';
+    btn.addEventListener('click', () => setTool(t.id));
+    toolPalette.appendChild(btn);
+    toolButtons.set(t.id, btn);
+  }
 
   const undoBtn = toolButton('↶', 'Undo (Ctrl+Z)');
   const redoBtn = toolButton('↷', 'Redo (Ctrl+Y)');
@@ -88,7 +222,7 @@ export function openSketchWorkspace(initialStrokes = null) {
 
   const hint = document.createElement('div');
   hint.className = 'sketch-hint';
-  hint.textContent = 'Draw the rough shape of an idea — Cadence imagines the rest.';
+  hint.textContent = 'Draw the rough shape of an idea, or pick a tool — Cadence imagines the rest.';
 
   const spacer = document.createElement('div');
   spacer.className = 'spacer';
@@ -98,7 +232,7 @@ export function openSketchWorkspace(initialStrokes = null) {
   generateBtn.textContent = '✨ Generate';
   generateBtn.title = 'Analyze the sketch and imagine ~30 VFX interpretations';
 
-  toolbar.append(undoBtn, redoBtn, eraserBtn, sizeWrap, clearBtn, hint, spacer, generateBtn);
+  toolbar.append(toolPalette, undoBtn, redoBtn, eraserBtn, sizeWrap, clearBtn, hint, spacer, generateBtn);
 
   const canvasWrap = document.createElement('div');
   canvasWrap.className = 'sketch-canvas-wrap';
@@ -166,6 +300,20 @@ export function openSketchWorkspace(initialStrokes = null) {
       ctx.lineWidth = widthFor(pts[i]);
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
+    if (stroke.tool === 'arrow') drawArrowhead(pts[pts.length - 2], pts[pts.length - 1]);
+  }
+
+  function drawArrowhead(from, to) {
+    const a = worldToScreen(from.x, from.y), b = worldToScreen(to.x, to.y);
+    const angle = Math.atan2(b.y - a.y, b.x - a.x);
+    const headLen = Math.max(10, widthFor(to) * 3);
+    const spread = Math.PI / 7;
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(b.x - headLen * Math.cos(angle - spread), b.y - headLen * Math.sin(angle - spread));
+    ctx.lineTo(b.x - headLen * Math.cos(angle + spread), b.y - headLen * Math.sin(angle + spread));
+    ctx.closePath();
+    ctx.fill();
   }
 
   function capturePoint(e) {
@@ -176,11 +324,19 @@ export function openSketchWorkspace(initialStrokes = null) {
   }
 
   function pushLocalUndo() {
-    undoStack.push(strokes.map((s) => ({ points: s.points.slice() })));
+    undoStack.push(strokes.map((s) => ({ points: s.points.slice(), tool: s.tool, params: s.params ? { ...s.params } : null })));
     if (undoStack.length > 60) undoStack.shift();
     redoStack.length = 0;
   }
   function localUndo() {
+    // Bezier-in-progress: undo removes the last clicked point instead of touching the committed
+    // stroke history — the in-progress path never lands on the global undo stack until finished.
+    if (bezierPts.length) {
+      bezierPts.pop();
+      currentStroke = bezierPts.length ? bezierGuide(bezierPts) : null;
+      draw();
+      return true;
+    }
     if (!undoStack.length) return false;
     redoStack.push(strokes);
     strokes = undoStack.pop();
@@ -217,14 +373,35 @@ export function openSketchWorkspace(initialStrokes = null) {
     return changed;
   }
 
+  function updateCursor() {
+    canvas.style.cursor = eraserMode ? 'cell' : (currentTool === 'freehand' ? 'crosshair' : 'copy');
+  }
   function setEraser(on) {
     eraserMode = on;
+    if (on && currentTool !== 'freehand') setTool('freehand', { keepEraser: true });
     eraserBtn.classList.toggle('active', eraserMode);
-    canvas.style.cursor = eraserMode ? 'cell' : 'crosshair';
+    updateCursor();
+  }
+  function setTool(id, { keepEraser = false } = {}) {
+    if (bezierPts.length && id !== 'bezier') finishBezier();
+    currentTool = id;
+    if (!keepEraser && eraserMode) { eraserMode = false; eraserBtn.classList.remove('active'); }
+    for (const [tid, btn] of toolButtons) btn.classList.toggle('active', tid === id);
+    updateCursor();
   }
   function setBrushSize(v) {
     brushSize = Math.max(2, Math.min(40, v));
     sizeSlider.value = String(brushSize);
+  }
+
+  function finishBezier() {
+    if (bezierPts.length >= 2) {
+      pushLocalUndo();
+      strokes.push(bezierGuide(bezierPts));
+    }
+    bezierPts = [];
+    currentStroke = null;
+    draw();
   }
 
   function onPointerDown(e) {
@@ -235,15 +412,38 @@ export function openSketchWorkspace(initialStrokes = null) {
       return;
     }
     if (e.button !== 0) return;
-    pushLocalUndo();
     if (eraserMode) {
+      pushLocalUndo();
       erasing = true;
       const rect = canvas.getBoundingClientRect();
       eraseAt(screenToWorld(e.clientX - rect.left, e.clientY - rect.top), brushSize * 1.8);
       draw();
       return;
     }
-    currentStroke = { points: [capturePoint(e)] };
+    const rect = canvas.getBoundingClientRect();
+    const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    if (currentTool === 'bezier') {
+      const now = performance.now();
+      if (bezierPts.length && now - lastBezierClick < 350 && dist(world, bezierPts[bezierPts.length - 1]) < 12 / zoom) {
+        finishBezier();
+        lastBezierClick = 0;
+        return;
+      }
+      lastBezierClick = now;
+      bezierPts.push(world);
+      currentStroke = bezierGuide(bezierPts);
+      draw();
+      return;
+    }
+    if (DRAG_TOOLS[currentTool]) {
+      pushLocalUndo();
+      dragStart = world;
+      currentStroke = DRAG_TOOLS[currentTool](world, world);
+      draw();
+      return;
+    }
+    pushLocalUndo();
+    currentStroke = { points: [capturePoint(e)], tool: null, params: null };
     draw();
   }
   function onPointerMove(e) {
@@ -260,16 +460,31 @@ export function openSketchWorkspace(initialStrokes = null) {
       draw();
       return;
     }
-    if (currentStroke) {
+    if (dragStart && DRAG_TOOLS[currentTool]) {
+      const rect = canvas.getBoundingClientRect();
+      const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+      currentStroke = DRAG_TOOLS[currentTool](dragStart, world);
+      draw();
+      return;
+    }
+    if (currentStroke && currentTool === 'freehand') {
       currentStroke.points.push(capturePoint(e));
       draw();
     }
   }
   function onPointerUp() {
-    if (panDrag) { panDrag = null; canvas.style.cursor = eraserMode ? 'cell' : 'crosshair'; return; }
+    if (panDrag) { panDrag = null; updateCursor(); return; }
     if (erasing) { erasing = false; return; }
+    if (currentTool === 'bezier') return; // commits via finishBezier(), not on pointerup
+    if (dragStart && DRAG_TOOLS[currentTool]) {
+      dragStart = null;
+      if (currentStroke) { strokes.push(currentStroke); currentStroke = null; draw(); }
+      return;
+    }
     if (currentStroke) {
-      strokes.push(currentStroke);
+      // Free Sketch only: clean the raw capture into an editable guide (spec's "messy circle ->
+      // perfect editable circle" step) before it ever joins the committed stroke list.
+      strokes.push(recognizeStroke(currentStroke.points));
       currentStroke = null;
       draw();
     }
@@ -311,28 +526,37 @@ export function openSketchWorkspace(initialStrokes = null) {
     } else if (e.key.toLowerCase() === 'e') {
       e.stopPropagation();
       setEraser(!eraserMode);
+    } else if (e.key === 'Enter' && currentTool === 'bezier' && bezierPts.length >= 2) {
+      e.preventDefault(); e.stopPropagation();
+      finishBezier();
     } else if (e.key === 'Escape') {
       e.preventDefault(); e.stopPropagation();
-      close();
+      if (currentTool === 'bezier' && bezierPts.length) {
+        bezierPts = []; currentStroke = null; draw(); // cancel the in-progress path, don't close
+      } else {
+        close();
+      }
     }
   }
   function onKeyUp(e) {
     if (e.code === 'Space') {
       spaceHeld = false;
-      canvas.style.cursor = eraserMode ? 'cell' : 'crosshair';
+      updateCursor();
     }
   }
 
   function doClear() {
-    if (!strokes.length && !currentStroke) return;
+    if (!strokes.length && !currentStroke && !bezierPts.length) return;
     pushLocalUndo();
     strokes = [];
     currentStroke = null;
+    bezierPts = [];
     draw();
     toast('Canvas cleared — Ctrl+Z restores it');
   }
 
   function doGenerate() {
+    if (bezierPts.length) finishBezier(); // never silently drop an in-progress path
     const real = strokes.filter((s) => s.points.length);
     if (!real.length) { toast('Draw something first — even a quick doodle works!'); return; }
     const snapshot = cloneStrokes(real);
@@ -355,7 +579,8 @@ export function openSketchWorkspace(initialStrokes = null) {
   canvas.addEventListener('wheel', onWheel, { passive: false });
   canvas.addEventListener('keydown', onKeyDown);
   canvas.addEventListener('keyup', onKeyUp);
-  canvas.style.cursor = 'crosshair';
+  toolButtons.get('freehand').classList.add('active');
+  updateCursor();
 
   const resizeObserver = new ResizeObserver(draw);
   resizeObserver.observe(canvasWrap);

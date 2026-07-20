@@ -6,11 +6,12 @@
 // hand-authoring new layer documents: every candidate is a real archetype run through its own
 // theme/scale transforms plus small, clamped, geometry-driven nudges — so every candidate is
 // exactly as valid, exportable, and editable as anything a human picks from the Presets browser.
-// No AI dependency: this file IS the "local procedural" provider. It registers itself behind a
-// small provider seam (registerCandidateProvider/getCandidateProvider) so a future Claude/GPT/
-// Gemini-backed provider can be added later without the UI (sketchResults.js) ever changing —
-// the UI only ever calls generateCandidatesProgressive() and gets candidates back through a
-// callback, never caring which provider produced them.
+// No AI dependency: this file registers itself as the "archetype-planner-v1" Composition Planner
+// behind a small, swappable seam (registerCompositionPlanner/getCompositionPlanner) — SKETCH IT
+// 2.0's requirement that composition strategy stay replaceable (a future generative composer, or
+// a Claude/GPT/Gemini-backed planner) without the UI (sketchResults.js) ever changing. The UI only
+// ever calls planCompositions() and gets candidates back through a callback, never caring which
+// planner produced them.
 //
 // Fully deterministic on purpose (no Math.random anywhere) — same sketch always yields the same
 // 30 candidates in the same order, matching this codebase's existing preference for determinism
@@ -184,25 +185,25 @@ export function rankCandidates(candidates) {
   return { best: sorted[0] || null, good: sorted.slice(1, 7), more: sorted.slice(7) };
 }
 
-// ---------------------------------------------------------------- provider seam
-// The UI (sketchResults.js) only ever talks to THIS seam, never to localProceduralGenerate
-// directly — a future Claude/GPT/Gemini provider registers under a new id and the UI is
-// unchanged. generate(features, opts, emit): call `emit(candidate)` as each one becomes ready;
-// opts.signal is an AbortSignal the provider should check between candidates.
-const providers = new Map();
-export function registerCandidateProvider(id, generate) {
-  providers.set(id, { id, generate });
+// ---------------------------------------------------------------- Composition Planner seam
+// The UI (sketchResults.js) only ever talks to THIS seam, never to archetypePlannerGenerate
+// directly — a future planner registers under a new id and the UI is unchanged. generate(features,
+// opts, emit): call `emit(candidate)` as each one becomes ready; opts.signal is an AbortSignal the
+// planner should check between candidates.
+const planners = new Map();
+export function registerCompositionPlanner(id, generate) {
+  planners.set(id, { id, generate });
 }
-export function getCandidateProvider(id) {
-  return providers.get(id) || null;
+export function getCompositionPlanner(id) {
+  return planners.get(id) || null;
 }
-export const DEFAULT_PROVIDER_ID = 'local-procedural';
+export const DEFAULT_PLANNER_ID = 'archetype-planner-v1';
 
-async function localProceduralGenerate(features, opts, emit) {
+async function archetypePlannerGenerate(features, opts, emit) {
   const count = opts?.count ?? 30;
   const plan = buildGenerationPlan(features, count);
   const BATCH = 3; // small batches + a real event-loop yield = genuine progressive reveal, not a
-  // fake delay — a slow networked provider drops into this exact same emit-as-you-go contract.
+  // fake delay — a slow networked planner drops into this exact same emit-as-you-go contract.
   for (let i = 0; i < plan.length; i += BATCH) {
     if (opts?.signal?.aborted) return;
     const batch = plan.slice(i, i + BATCH);
@@ -213,16 +214,16 @@ async function localProceduralGenerate(features, opts, emit) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 }
-registerCandidateProvider(DEFAULT_PROVIDER_ID, localProceduralGenerate);
+registerCompositionPlanner(DEFAULT_PLANNER_ID, archetypePlannerGenerate);
 
 // The one entry point sketchResults.js calls. Returns the full collected array (also delivered
 // incrementally via onCandidate) so a caller that doesn't care about progressiveness can just
 // await it.
-export async function generateCandidatesProgressive(features, { count = 30, onCandidate, signal, providerId = DEFAULT_PROVIDER_ID } = {}) {
-  const provider = getCandidateProvider(providerId) || getCandidateProvider(DEFAULT_PROVIDER_ID);
-  if (!provider) return [];
+export async function planCompositions(features, { count = 30, onCandidate, signal, plannerId = DEFAULT_PLANNER_ID } = {}) {
+  const planner = getCompositionPlanner(plannerId) || getCompositionPlanner(DEFAULT_PLANNER_ID);
+  if (!planner) return [];
   const collected = [];
-  await provider.generate(features, { count, signal }, (candidate) => {
+  await planner.generate(features, { count, signal }, (candidate) => {
     collected.push(candidate);
     if (onCandidate) onCandidate(candidate, collected.length);
   });

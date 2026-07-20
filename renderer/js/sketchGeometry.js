@@ -23,16 +23,16 @@
 const TAU = Math.PI * 2;
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
-function dist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
+export function dist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
 
-function strokeLength(stroke) {
+export function strokeLength(stroke) {
   const pts = stroke.points;
   let len = 0;
   for (let i = 1; i < pts.length; i++) len += dist(pts[i - 1], pts[i]);
   return len;
 }
 
-function bboxOf(points) {
+export function bboxOf(points) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const p of points) {
     if (p.x < minX) minX = p.x;
@@ -47,7 +47,7 @@ function bboxOf(points) {
 
 // 2x2 PCA of a point cloud: the major-axis angle (as an undirected LINE angle, 0..180) plus a
 // straightness score (1 = every point sits on one line, 0 = spread equally in every direction).
-function pca(points) {
+export function pca(points) {
   const n = points.length;
   if (n < 2) return { angleDeg: 0, straightness: 0 };
   let mx = 0, my = 0;
@@ -79,7 +79,7 @@ function pca(points) {
 
 // Signed turning angle (radians) at each interior vertex — positive = left/CCW, negative =
 // right/CW. Scale-invariant by construction (it's an angle, not a distance).
-function turningAngles(points) {
+export function turningAngles(points) {
   const out = [];
   for (let i = 1; i < points.length - 1; i++) {
     const ax = points[i].x - points[i - 1].x, ay = points[i].y - points[i - 1].y;
@@ -93,7 +93,7 @@ function turningAngles(points) {
   return out;
 }
 
-function analyzePrimaryStroke(stroke) {
+export function analyzePrimaryStroke(stroke) {
   const pts = stroke.points;
   const len = strokeLength(stroke);
   const bbox = bboxOf(pts);

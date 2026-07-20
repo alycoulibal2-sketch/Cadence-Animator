@@ -703,6 +703,92 @@
     return { straightness: lineFeatures.straightness, circularity: circleFeatures.circularity, zigzagScore: zigzagFeatures.zigzagScore };
   });
 
+  await step('SKETCH IT 2.0 Phase 1: sketchClean.js recognizes messy strokes as clean shape tools', async () => {
+    const { recognizeStroke } = await import('../renderer/js/sketchClean.js');
+
+    const N = 40;
+    const messyCircle = Array.from({ length: N + 1 }, (_, i) => {
+      const a = (i / N) * Math.PI * 2;
+      const jitter = Math.sin(i * 7.3) * 0.03;
+      return { x: Math.cos(a) * (50 + jitter * 50), y: Math.sin(a) * (50 + jitter * 50), p: 0.5, t: i * 16 };
+    });
+    const circleGuide = recognizeStroke(messyCircle);
+    assert(circleGuide.tool === 'circle', `messy circle should recognize as a clean circle guide, got "${circleGuide.tool}"`);
+    assert(circleGuide.params && circleGuide.params.r > 30, `recognized circle radius should be roughly 50, got ${circleGuide.params?.r}`);
+
+    const messyLine = Array.from({ length: 20 }, (_, i) => ({ x: i * 10 + (i % 2 === 0 ? 0.5 : -0.5), y: i * 10, p: 0.5, t: i * 16 }));
+    const lineGuide = recognizeStroke(messyLine);
+    assert(lineGuide.tool === 'line', `messy straight gesture should recognize as a clean line guide, got "${lineGuide.tool}"`);
+
+    const messySpiral = Array.from({ length: 100 }, (_, i) => {
+      const u = i / 99;
+      const a = u * Math.PI * 2 * 3;
+      const r = 5 + u * 45;
+      return { x: Math.cos(a) * r, y: Math.sin(a) * r, p: 0.5, t: i * 16 };
+    });
+    const spiralGuideResult = recognizeStroke(messySpiral);
+    assert(spiralGuideResult.tool === 'spiral', `growing-radius gesture should recognize as a clean spiral guide, got "${spiralGuideResult.tool}"`);
+    assert(spiralGuideResult.params && spiralGuideResult.params.turns >= 2, `recognized spiral turns should be roughly 3, got ${spiralGuideResult.params?.turns}`);
+
+    // A genuine scribble must NOT be confidently misclassified — falls back to smoothed freehand.
+    const zigzagPts = Array.from({ length: 24 }, (_, i) => ({ x: i * 8, y: i % 2 === 0 ? 0 : 40, p: 0.5, t: i * 16 }));
+    const zigzagGuide = recognizeStroke(zigzagPts);
+    assert(zigzagGuide.tool === 'freehand', `zigzag scribble should fall back to freehand (never a wrong guess), got "${zigzagGuide.tool}"`);
+    assert(Array.isArray(zigzagGuide.points) && zigzagGuide.points.length > 0, 'freehand fallback should still carry smoothed points');
+
+    const empty = recognizeStroke([]);
+    assert(empty.tool === 'freehand' && empty.points.length === 0, 'empty input should degrade gracefully, not throw');
+
+    return { circleR: circleGuide.params.r, spiralTurns: spiralGuideResult.params.turns };
+  });
+
+  await step('SKETCH IT 2.0 Phase 1: shape-tool guide generators produce correct geometry', async () => {
+    // Dynamic-imported directly (sketchWorkspace.js runs fine here — it's a real Electron
+    // renderer with a full DOM, just like the studio window; only DOM manipulation calls that
+    // never fire until openSketchWorkspace() is actually invoked, which this check never does).
+    const { lineGuide, circleGuide, ellipseGuide, rectGuide, spiralGuide, arrowGuide, lightningGuide, bezierGuide } =
+      await import('../renderer-vfx/js/sketchWorkspace.js');
+    const dist = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+
+    const line = lineGuide({ x: 0, y: 0 }, { x: 10, y: 5 });
+    assert(line.tool === 'line' && line.points.length === 2, 'line guide should have exactly 2 points');
+    assert(dist(line.points[0], { x: 0, y: 0 }) < 1e-6 && dist(line.points[1], { x: 10, y: 5 }) < 1e-6, 'line guide endpoints should match the drag exactly');
+
+    const circle = circleGuide({ x: 5, y: 5 }, { x: 15, y: 5 }); // radius 10
+    assert(circle.tool === 'circle' && Math.abs(circle.params.r - 10) < 1e-6, `circle guide radius should be 10, got ${circle.params.r}`);
+    for (const p of circle.points) assert(Math.abs(dist(p, { x: 5, y: 5 }) - 10) < 1e-6, 'every circle guide point should sit exactly on the radius');
+
+    const ellipse = ellipseGuide({ x: 0, y: 0 }, { x: 20, y: 8 }); // rx=20, ry=8
+    assert(ellipse.tool === 'ellipse' && ellipse.params.rx === 20 && ellipse.params.ry === 8, 'ellipse guide should record independent rx/ry');
+    assert(dist(ellipse.points[0], { x: 20, y: 0 }) < 1e-6, 'ellipse guide should start on its major axis');
+
+    const rect = rectGuide({ x: 0, y: 0 }, { x: 10, y: 6 });
+    assert(rect.tool === 'rect' && rect.points.length === 5, 'rect guide should be a closed 5-point perimeter (4 corners + close)');
+    assert(dist(rect.points[0], rect.points[4]) < 1e-6, 'rect guide perimeter should close back on its first point');
+
+    const spiral = spiralGuide({ x: 0, y: 0 }, { x: 30, y: 0 }, 3); // radius 30, 3 turns
+    assert(spiral.tool === 'spiral', 'spiral guide should be tool "spiral"');
+    assert(dist(spiral.points[0], { x: 0, y: 0 }) < 1e-6, 'spiral guide should start at its own center (radius 0)');
+    assert(Math.abs(dist(spiral.points[spiral.points.length - 1], { x: 0, y: 0 }) - 30) < 1e-6, 'spiral guide should end at the full drag radius');
+
+    const arrow = arrowGuide({ x: 0, y: 0 }, { x: 8, y: 0 });
+    assert(arrow.tool === 'arrow' && arrow.points.length === 2, 'arrow guide should carry exactly its 2 endpoints (the arrowhead is drawn, not stored as extra points)');
+
+    const bolt = lightningGuide({ x: 0, y: 0 }, { x: 0, y: 40 });
+    assert(bolt.tool === 'lightning', 'lightning guide should be tool "lightning"');
+    assert(dist(bolt.points[0], { x: 0, y: 0 }) < 1e-6, 'lightning guide should start pinned exactly at the drag origin');
+    assert(dist(bolt.points[bolt.points.length - 1], { x: 0, y: 40 }) < 1e-6, 'lightning guide should end pinned exactly at the drag endpoint');
+    const midDeviation = Math.abs(bolt.points[Math.floor(bolt.points.length / 2)].x - 0);
+    assert(midDeviation > 0.01, 'lightning guide should actually jag away from the straight line somewhere in the middle');
+
+    const bez = bezierGuide([{ x: 0, y: 0 }, { x: 10, y: 10 }, { x: 20, y: 0 }]);
+    assert(bez.tool === 'bezier' && bez.points.length > 2, 'bezier guide with 3 control points should produce a smooth multi-point path');
+    assert(dist(bez.points[0], { x: 0, y: 0 }) < 1e-6, 'bezier guide should start at its first control point');
+    assert(dist(bez.points[bez.points.length - 1], { x: 20, y: 0 }) < 1e-6, 'bezier guide should end at its last control point');
+
+    return { ok: true };
+  });
+
   await step('SKETCH IT: full pipeline (analyze -> generate -> validate) produces ~30 valid, ranked candidates', async () => {
     const N = 30;
     const circlePts = Array.from({ length: N + 1 }, (_, i) => {
