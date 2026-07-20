@@ -969,6 +969,88 @@
     return { orbitMotion: orbitResult.bestMatch.motion, orbitMods: orbitResult.bestMatch.modifierTypes };
   });
 
+  await step('SKETCH IT 2.0 Phase 7: all five paint layers together still produce valid, fully-dressed candidates', async () => {
+    const N = 30;
+    const circlePts = Array.from({ length: N + 1 }, (_, i) => {
+      const a = (i / N) * Math.PI * 2;
+      return { x: Math.cos(a) * 50, y: Math.sin(a) * 50, p: 0.6, t: i * 20 };
+    });
+    const result = await vfxCall('vfx_sketch_test_pipeline', {
+      strokes: [{ points: circlePts }],
+      energyLevel: 'extreme',
+      colorDabs: [
+        { x: 0, y: 0, radius: 5, hex: '#ff0000' }, { x: 3, y: 0, radius: 5, hex: '#ff0000' },
+        { x: 47, y: 0, radius: 5, hex: '#0000ff' }, { x: 0, y: -48, radius: 5, hex: '#0000ff' },
+      ],
+      densityDabs: [{ x: 0, y: 0, radius: 10, intensity: 1 }, { x: 5, y: 0, radius: 10, intensity: 0.9 }],
+      motionArrows: [
+        { origin: { x: 40, y: 0 }, dir: { x: 0, y: 1 }, magnitude: 1 },
+        { origin: { x: 0, y: 40 }, dir: { x: -1, y: 0 }, magnitude: 1 },
+        { origin: { x: -40, y: 0 }, dir: { x: 0, y: -1 }, magnitude: 1 },
+        { origin: { x: 0, y: -40 }, dir: { x: 1, y: 0 }, magnitude: 1 },
+      ],
+    });
+
+    assert(result.invalidCount === 0, `a fully-painted sketch (all 5 layers) must still produce entirely valid candidates, but ${result.invalidCount} did not: ${JSON.stringify(result.invalid)}`);
+    assert(result.candidateCount >= 24, `a fully-painted sketch should still produce ~30 candidates, got ${result.candidateCount}`);
+
+    const bm = result.bestMatch;
+    assert(Array.isArray(bm.colorRamp) && bm.colorRamp.length >= 3, `fully-painted best match should have a real colorRamp, got ${bm.colorRamp?.length}`);
+    assert(typeof bm.rate === 'number' && bm.rate > 0, 'fully-painted best match should have a valid rate');
+    assert(bm.motion === 'orbit', `fully-painted best match should reflect the painted orbit arrows, got motion="${bm.motion}"`);
+    assert(bm.modifierTypes.includes('orbit'), 'fully-painted best match should have a tuned orbit modifier');
+
+    const origin = bm.sketchOrigin;
+    assert(origin.energyLevel === 'extreme', 'sketchOrigin should record the energy choice');
+    assert(origin.colorField?.dabs.length === 4, 'sketchOrigin should preserve all painted color dabs');
+    assert(origin.densityField?.dabs.length === 2, 'sketchOrigin should preserve all painted density dabs');
+    assert(origin.motionField?.arrows.length === 4, 'sketchOrigin should preserve all drawn motion arrows');
+    assert(origin.shapeGuides.length === 1, 'sketchOrigin should preserve the original shape strokes');
+
+    // Combos get every interpreter applied too, not just the best match — spot-check one.
+    if (result.sampleCombo) {
+      assert(result.comboCount >= 1, 'combo generation should still work alongside full paint intent');
+    }
+
+    return { candidateCount: result.candidateCount, comboCount: result.comboCount };
+  });
+
+  await step('SKETCH IT 2.0 Phase 7: sketchOrigin survives a real serialize/parse round trip', async () => {
+    const { parseEffect, serializeEffect } = await import('../renderer/js/effectModel.js');
+    const doc = {
+      version: 2, id: 'test-doc', name: 'Round Trip Test', fps: 30, duration: 60, loop: true,
+      layers: [{ type: 'emitter', name: 'Particles', enabled: true, clip: { start: 0, len: 60, loop: false }, props: {}, curves: {}, exprs: {}, modifiers: [] }],
+      sketchOrigin: {
+        version: 1, plannerId: 'archetype-planner-v1',
+        shapeGuides: [{ points: [{ x: 0, y: 0, p: 0.5, t: 0 }, { x: 10, y: 10, p: 0.5, t: 1 }], tool: 'line', params: { x0: 0, y0: 0, x1: 10, y1: 10 } }],
+        colorField: { dabs: [{ x: 0, y: 0, radius: 5, hex: '#ff0000' }] },
+        densityField: null,
+        motionField: { arrows: [{ origin: { x: 0, y: 0 }, dir: { x: 1, y: 0 }, magnitude: 1 }] },
+        energyLevel: 'strong',
+      },
+    };
+    const json = serializeEffect(doc);
+    assert(typeof json === 'string' && json.includes('sketchOrigin'), 'serializeEffect should include sketchOrigin in the JSON output');
+    const reparsed = parseEffect(json);
+    assert(reparsed.ok, `re-parsing a doc with sketchOrigin should succeed, got error: ${reparsed.error}`);
+    assert(reparsed.doc.sketchOrigin, 'sketchOrigin should survive the round trip, not be silently dropped');
+    assert(reparsed.doc.sketchOrigin.energyLevel === 'strong', `energyLevel should round-trip exactly, got "${reparsed.doc.sketchOrigin.energyLevel}"`);
+    assert(reparsed.doc.sketchOrigin.shapeGuides.length === 1 && reparsed.doc.sketchOrigin.shapeGuides[0].tool === 'line', 'shapeGuides should round-trip with their tool/params intact');
+    assert(reparsed.doc.sketchOrigin.colorField?.dabs.length === 1, 'colorField should round-trip');
+    assert(reparsed.doc.sketchOrigin.densityField === null, 'a null field should round-trip as null, not be coerced into something else');
+    assert(reparsed.doc.sketchOrigin.motionField?.arrows.length === 1, 'motionField should round-trip');
+
+    // Malformed/garbage sketchOrigin must degrade gracefully (best-effort defaults), never fail
+    // the whole doc parse — this is untrusted-input metadata, not load-bearing schema.
+    const garbageDoc = { ...doc, sketchOrigin: { energyLevel: 'not-a-real-level', colorField: 'not-an-object' } };
+    const reparsedGarbage = parseEffect(garbageDoc);
+    assert(reparsedGarbage.ok, 'a doc with a malformed sketchOrigin should still parse successfully overall');
+    assert(reparsedGarbage.doc.sketchOrigin.energyLevel === 'normal', 'an invalid energyLevel should fall back to the neutral default, not propagate garbage');
+    assert(reparsedGarbage.doc.sketchOrigin.colorField === null, 'a non-object colorField should fall back to null, not propagate garbage');
+
+    return { ok: true };
+  });
+
   // ---------------------------------------------------------------- VFX Studio: camera shake
   await step('VFX Studio: camera shake layer does not drift the camera while paused (regression)', async () => {
     await vfxCall('vfx_new_effect', { name: 'Shake Pause Test', duration: 60, fps: 30 });

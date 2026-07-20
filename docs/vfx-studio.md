@@ -82,8 +82,15 @@ Property resolution order for any animatable prop, at clip-local frame `t`:
 - **emitter** — the full existing emitter vocabulary (`rate, lifetime, speed, spreadDegrees,
   gravity, sizeStart/End, colorStart/End, transparencyStart/End, shape, motion, blendMode,
   maxParticles`) plus `burst` (particles emitted instantly at clip start), `emissionShape`
-  (a shapes-system shape particles spawn across), `offset` ([x,y,z] from effect origin).
-  Animatable: rate, lifetime, speed, spreadDegrees, gravity, sizeStart, sizeEnd.
+  (a shapes-system shape particles spawn across), `offset` ([x,y,z] from effect origin), and
+  `colorRamp`/`densityRamp` (SKETCH IT 2.0 — see below): `[{u:0..1, v, es?, ed?, bez?}]`, a real
+  multi-stop gradient over particle life-fraction that supersedes the plain Start/End pair when
+  it has ≥2 stops (empty array = inactive, falls back to Start/End exactly as before). `u` is
+  continuous 0..1 (a particle's own life-fraction), not a clip-local frame like `curves` keys —
+  evaluated by `rampEval.js`'s `evalRamp`, the life-fraction-keyed twin of `evalCurve`, kept as
+  its own leaf module specifically to avoid a circular import (`effectModel.js` already imports
+  `VFX_DEFAULTS` from `vfx.js`). Animatable: rate, lifetime, speed, spreadDegrees, gravity,
+  sizeStart, sizeEnd.
 - **shape** — a rendered mesh built from the shape system: `shape` (primitive def), `color`,
   `opacity`, `scale`, `rotation` (deg around up axis), `thickness`, `emissive` (additive vs
   normal), `offset`. Animatable: opacity, scale, rotation, thickness. This is the "core" of a
@@ -365,3 +372,124 @@ dropdowns in the browser — the same 400-point design space without 400 near-du
 existing 396 single-emitter particle presets remain browsable in their own tab and apply as a
 one-emitter-layer doc. The smoketest gate validates every archetype × every theme × every scale
 to zero errors.
+
+---
+
+# SKETCH IT — sketch-to-VFX generative workflow (2026-07-20)
+
+Full pipeline: **Sketch → Geometry/Paint Analysis → Composition Planner → Ranking → Preview
+Renderer → User Selection → Editable Effect**, an equally-first-class alternative to the manual
+preset browser above, never a replacement for it. Entry point: a "✏ SKETCH IT" banner in the
+preset browser's "Pick a starting point" modal.
+
+## Workspace: four canvas-painting layers, one canvas
+
+`renderer-vfx/js/sketchWorkspace.js`'s toolbar has a layer-tab strip — **Shape** (the only layer
+with its own 9-tool palette: Free Sketch, Line, Circle, Ellipse, Rect, Spiral, Arrow, Lightning,
+Bezier Path — feeds `sketchGeometry.js`'s `analyzeSketchStrokes`), **Color** (paints `{x,y,radius,
+hex}` dabs), **Density** (paints `{x,y,radius,intensity}` dabs, intensity via a slider — "dark
+brush = high density" is a slider value, not inferred from stroke darkness), and **Motion**
+(drags an arrow into `{origin,dir,magnitude}`, reusing the Shape tab's own `arrowGuide()` purely
+for live-preview rendering — the drag is never committed to `strokes`). None of the four share
+canvas state; only the physical canvas element (and Color/Density share the Brush-size control)
+is common. The Energy layer is *not* a canvas mode at all — just a 4-chip toolbar control (calm/
+normal/strong/extreme), since it has no spatial paint data to capture. All four buffers
+(`strokes`, `colorDabs`, `densityDabs`, `motionArrows`) live on ONE shared local undo stack.
+
+Free Sketch is the one tool whose raw capture needs cleanup: `renderer/js/sketchClean.js`'s
+`recognizeStroke(points)` snaps a confident messy circle/line/spiral into a clean `tool`+`params`
+guide (reusing `sketchGeometry.js`'s exported `analyzePrimaryStroke`/`turningAngles`), else falls
+back to a Catmull-Rom-smoothed freeform polyline. Every other Shape tool already synthesizes
+clean points+params directly at drag time via `effectShapes.js`'s real primitives (Circle/
+Lightning) or small dedicated 2D math (Ellipse/Rect/Spiral — `effectShapes.js`'s own "spiral" is
+a constant-radius 3D helix, not a flat growing-radius spiral, so it isn't reusable here).
+Thresholds are deliberately conservative: an unrecognized/ambiguous gesture always falls back to
+neutral (freehand, or no paint-layer override), never a confident wrong guess — the same
+philosophy as archetype scoring below.
+
+## SketchIntent — captured once, degraded many times, never discarded
+
+```js
+SketchIntent = {
+  shapeGuides: Guide[],                                          // the raw Shape-layer strokes
+  colorField:   null | { dabs: [{x,y,radius,hex}] },
+  densityField: null | { dabs: [{x,y,radius,intensity}] },
+  motionField:  null | { arrows: [{origin:{x,y}, dir:{x,y}, magnitude}] },
+  energyLevel: 'calm'|'normal'|'strong'|'extreme',
+}
+```
+
+`renderer/js/sketchIntent.js`'s `captureSketchIntent(session)` normalizes the raw workspace
+buffers into this shape with the *minimum* processing (no archetype/engine knowledge at all).
+`NEUTRAL_INTENT` is the all-absent default — every function downstream of it defaults to
+`intent = NEUTRAL_INTENT` and must produce byte-identical output to before this feature existed
+when nothing was painted (enforced by permanent smoketest regression checks at every phase).
+
+This exact object is what lands verbatim on **`doc.sketchOrigin`** (see effectModel.js's schema)
+— pure metadata the engine/exporter never reads, attached to *every* generated candidate whether
+or not anything was painted, per the hard requirement that painted intent is never thrown away,
+only degraded at render/export time. `parseEffect` passes it through leniently (best-effort,
+malformed input just drops the field rather than failing the whole parse); `serializeEffect`
+needs no special handling since it's plain `JSON.stringify`.
+
+## Composition Planner — the replaceable seam
+
+`renderer/js/sketchCandidates.js` exposes `registerCompositionPlanner`/`getCompositionPlanner`/
+`planCompositions(features, {count, intent, plannerId, onCandidate, signal})` — the ONE entry
+point `sketchResults.js` calls; a future planner (generative, or an LLM-backed one) registers
+under a new id and the UI never changes. The default (`archetype-planner-v1`) is not hardcoded as
+*the* planner, just the one registered today: it scores/picks from the 25 hand-tuned archetypes
+(`SCORERS` in `sketchCandidates.js`, geometry-only, never reads `intent`) and may also **combine
+two archetypes from different categories into one composition** (`effectLibrary.js`'s
+`combineArchetypeDocs` — concatenates two independently-built docs' layers; collision-safe
+because archetype layer definitions never set an explicit id, so `parseEffect` always mints a
+fresh one) for a small reserved slice of the ~30 slots, confidence deliberately kept below both
+combo partners' own solo slots so a combo can never outrank a genuine single-archetype match.
+
+## Interpreters — graceful degradation onto existing primitives, one per paint layer
+
+After the existing geometry-driven nudges (`applyGeometryNudges`, unchanged since SKETCH IT 1.0),
+`materializeCandidate` runs four more passes, each a no-op when its `intent` field is absent, each
+routed through the existing `clampProp`/modifier-param clamps:
+
+- **`interpretEnergy(doc, energyLevel)`** — a flat 4-bucket multiplier (.6×/1×/1.35×/1.8×) over
+  emitter size, light intensity, shake amplitude, and noise/pulse/flicker/glowBoost modifier
+  amounts. Never exposes raw Roblox properties to the user, only the 4-word chip.
+- **`interpretColor(doc, colorField, shapeGuides)`** — picks a sampling axis from the primary
+  shape guide's own geometry (closed+circular → radial distance from centroid; open+straight →
+  arc-length position along the path) via the shared `axisPositionsOf` helper, bucket-averages
+  painted dabs into a 3–6 stop `colorRamp` along it. No confident axis → a plain core/edge
+  `colorStart`/`colorEnd` override with **no ramp** — an honest degrade, never a guessed axis.
+- **`interpretDensity(doc, densityField, shapeGuides)`** — the "closest supported approximation"
+  principle in code: a doc with 2+ emitters samples the field **at each emitter's own offset**
+  (inverse-distance-weighted, projecting both the canvas-space dabs and the emitters'
+  effect-local offsets into comparable 0..1 spans) and weights each emitter's `rate`/
+  `maxParticles` relative to the others — the real "multiple emitters" spatial approximation,
+  zero new engine primitives. A single emitter instead gets one global sublinear density scalar
+  (same growth idiom `effectLibrary.js`'s `applyScaleToDoc` already uses) plus an optional
+  life-fraction `densityRamp` when an axis exists (reuses the exact same `axisPositionsOf`/
+  `bucketAverage` machinery as Color).
+- **`interpretMotion(doc, motionField)`** — `classifyMotion(arrows)` decomposes each arrow's
+  direction against its own radius vector (relative to the arrow set's shared centroid) into a
+  tangential component (spinning around a point) and a radial component (expanding away from/
+  toward a point), plus a raw direction-sum for "all pointing one way regardless of position" —
+  three genuinely different intents a flat direction-only average could never distinguish.
+  Classifies as `orbit`/`vortex`/`radial`/`flow`/`none` and tunes the existing `motion` enum
+  (`orbit`, `burst`) and `orbit`/`wind` modifiers accordingly (adding one if absent); `vortex`
+  additionally animates the `orbit` modifier's own `radius` over the clip via the existing
+  `setCurveKey()` (already `animatable:true`) so the swirl visibly widens/narrows — no new
+  modifier type anywhere. Ambiguous/self-contradicting arrow sets → **no override at all**.
+
+Every interpreter was verified standalone (hand-constructed fixtures with full control over
+geometry/positions) before being wired into the planner — the real pipeline's archetype/theme
+selection isn't deterministic enough to target a specific classification from an integration
+test alone, so both layers of testing exist deliberately, not redundantly.
+
+## What's deliberately NOT built (v2.0 scope)
+
+Per an explicit product decision, not an oversight: no real spatial spawn-mask engine primitive
+(Density's "multiple emitters" approximation is the interim answer), no arbitrary free-form
+path-following motion (Motion's enum-mapping is the interim answer), and the planner's
+`archetype-planner-v1` dresses/combines existing archetypes rather than generating novel layer
+graphs per sketch. Each is a real, larger follow-on project if user testing shows the
+approximation reads as too generic — not a quick tweak on top of what exists today.
