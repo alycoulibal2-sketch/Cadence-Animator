@@ -279,3 +279,87 @@
 .vfx-export-notes-head { margin-top: 10px; font-weight: 600; font-size: 12px; }
 
 .hidden { display: none; }
+
+/* Entry point banner inside presetsPanel.js's "Pick a starting point" / "Preset library" modal */
+.node-editor-cta {
+  display: block; width: 100%; margin-bottom: 8px; padding: 10px 14px;
+  font-size: 13px; font-weight: 600; text-align: left;
+  background: var(--bg-3); border: 1px solid var(--border); border-radius: var(--radius-m);
+}
+.node-editor-cta:hover { border-color: var(--accent); background: var(--bg-4, var(--bg-3)); }
+
+/* ================================================================
+   Node Editor — a near-fullscreen modal override, same technique as the preset browser/old
+   sketch workspace above: its own toolbar replaces the generic modal title/foot entirely. */
+.modal:has(.node-editor) {
+  display: flex;
+  flex-direction: column;
+  width: 96vw;
+  height: 92vh;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+}
+.modal:has(.node-editor) .modal-title { display: none; }
+.modal:has(.node-editor) .modal-foot { display: none; }
+.modal:has(.node-editor) .modal-body { flex: 1 1 auto; min-height: 0; display: flex; padding: 0; }
+
+.node-editor { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; outline: none; }
+.node-editor-toolbar {
+  display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
+  padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--bg-1);
+}
+.node-editor-title { font-weight: 600; font-size: 13.5px; margin-right: 4px; }
+.node-editor-search { width: 220px; }
+.node-editor-errors { flex: 1 1 auto; color: #ff8a65; font-size: 12px; text-align: right; cursor: help; }
+
+.node-editor-viewport {
+  position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; background: var(--bg-0);
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 22px 22px;
+  cursor: grab;
+}
+.node-editor-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.node-editor-wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.node-editor-nodes, .node-editor-comments { position: absolute; left: 0; top: 0; }
+.node-editor-rubberband {
+  position: absolute; display: none; border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent); pointer-events: none;
+}
+
+.node-wire { fill: none; stroke: var(--text-3); stroke-width: 2; pointer-events: auto; cursor: pointer; }
+.node-wire.selected, .node-wire-temp { stroke: var(--accent); }
+
+.node-box {
+  position: absolute; background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-m, 8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); user-select: none;
+}
+.node-box.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 2px 8px rgba(0, 0, 0, 0.3); }
+.node-box-header {
+  display: flex; align-items: center; height: 30px; padding: 0 8px; gap: 6px; cursor: move;
+  border-bottom: 1px solid var(--border); border-radius: var(--radius-m, 8px) var(--radius-m, 8px) 0 0;
+  background: var(--bg-3); font-size: 12.5px; font-weight: 600;
+}
+.node-box-title { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.node-box-collapse { color: var(--text-3); cursor: pointer; padding: 0 2px; }
+.node-box-body { padding: 6px 8px; display: flex; flex-direction: column; gap: 5px; }
+.node-param-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 11.5px; color: var(--text-2); }
+.node-param-row .fld { max-width: 100px; }
+.node-vec3 { display: flex; gap: 3px; }
+.node-vec3 .fld { width: 44px; }
+
+.node-socket {
+  position: absolute; top: 12px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--bg-0); border: 2px solid var(--text-3); cursor: crosshair;
+}
+.node-socket:hover { border-color: var(--accent); background: var(--accent); }
+.node-socket-in { left: -6px; }
+.node-socket-out { right: -6px; }
+
+.node-comment {
+  position: absolute; border: 1px dashed var(--border); border-radius: 6px; opacity: 0.9;
+  min-width: 80px; min-height: 60px; padding: 6px;
+}
+.node-comment.selected { border-color: var(--accent); }
+.node-comment-text { width: 100%; height: 100%; font-size: 12px; color: #1a1a1a; outline: none; overflow: auto; }
+.node-comment-resize { position: absolute; right: 0; bottom: 0; width: 12px; height: 12px; cursor: nwse-resize; }

@@ -15,6 +15,7 @@ import { initDiagnosticsPanel } from './diagnosticsPanel.js';
 import { serializeEffect, parseEffect } from '../../renderer/js/effectModel.js';
 import { buildEffectLua } from '../../renderer/js/effectExport.js';
 import { toast, modal } from '../../renderer/js/ui.js';
+import { isNodeEditorOpen } from './nodeEditor.js';
 
 // ---------------------------------------------------------------- transport
 function initTransport() {
@@ -184,6 +185,10 @@ function initKeyboard() {
       e.preventDefault();
       newEffectFlow();
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      // The node editor is a modal with its own keydown handler + stopPropagation for the keys
+      // it owns — this global fallback should never ALSO fire and delete an unrelated layer
+      // selection while the editor's open (belt-and-suspenders on top of stopPropagation).
+      if (isNodeEditorOpen()) return;
       const layer = ST.selectedLayer();
       if (layer) {
         e.preventDefault();

@@ -12,6 +12,7 @@ import {
 import { PARTICLE_PRESETS, CATEGORIES as PARTICLE_CATEGORIES, searchPresets } from '../../renderer/js/particleLibrary.js';
 import { parseEffect, newLayer, addLayer, emitterToEffect, setClip } from '../../renderer/js/effectModel.js';
 import { modal, toast } from '../../renderer/js/ui.js';
+import { openNodeEditor } from './nodeEditor.js';
 
 let activeModal = null;
 
@@ -19,6 +20,20 @@ export function openPresetBrowser({ blankState = false } = {}) {
   if (activeModal) return;
   const wrap = document.createElement('div');
   wrap.className = 'vfx-preset-browser';
+
+  // The node editor's entry point — always starts a FRESH blank graph, never converts the
+  // currently-open doc (see studioState.js's newBlankGraph). An equally-visible alternative to
+  // picking/starting-from-scratch below, never a replacement for either.
+  const nodeCta = document.createElement('button');
+  nodeCta.className = 'node-editor-cta';
+  nodeCta.textContent = '🔗 Start a Node Graph (new)';
+  nodeCta.title = 'Build an effect visually from nodes — Spawn Particles, Color, Motion, and more';
+  nodeCta.addEventListener('click', () => {
+    close();
+    ST.newBlankGraph();
+    openNodeEditor();
+  });
+  wrap.appendChild(nodeCta);
 
   // tabs
   const tabs = document.createElement('div');

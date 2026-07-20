@@ -704,6 +704,27 @@
     return result;
   });
 
+  await step('Node editor: applying a graph through the real studioState integration renders actual particles', async () => {
+    // Exercises ST.setGraph -> recompileFromGraph -> state.doc for real (not compileGraph in
+    // isolation) and confirms the result reaches the live three.js preview via the exact same
+    // vfx_render_frame path a human's own node graph would — the compile-to-existing-runtime
+    // path this whole feature is built on, proven end-to-end, not just against test fixtures.
+    const applied = await vfxCall('vfx_graph_test_apply', {
+      nodes: [
+        { id: 'spawn', type: 'spawnParticles', params: { rate: 60, maxParticles: 250, shape: 'spark' } },
+        { id: 'out', type: 'preview' },
+      ],
+      connections: [{ fromNode: 'spawn', fromSocket: 'flow', toNode: 'out', toSocket: 'flow' }],
+    });
+    assert(applied.diagnostics.filter((d) => d.severity === 'error').length === 0, `applying a valid graph should leave the doc error-free, got: ${JSON.stringify(applied.diagnostics)}`);
+    const state = await vfxCall('vfx_get_state');
+    assert(state.effect.layers.length === 1, `state.doc should have exactly 1 layer compiled from the graph, got ${state.effect.layers.length}`);
+    const shot = await vfxCall('vfx_render_frame', { frame: 10 });
+    assert(typeof shot.image === 'string' && shot.image.length > 5000, 'render_frame image looks too small/missing for a graph-authored effect');
+    assert(shot.mimeType === 'image/png', 'render_frame should return a PNG');
+    return { layerCount: state.effect.layers.length, imageBytes: shot.image.length };
+  });
+
   await step('Node editor: an unwired Create node contributes zero layers (not an error)', async () => {
     const result = await vfxCall('vfx_graph_test_compile', {
       nodes: [

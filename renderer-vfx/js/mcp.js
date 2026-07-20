@@ -310,6 +310,18 @@ const HANDLERS = {
       validationErrorCount: validation ? validation.counts.error : null,
     };
   },
+  // Test-only hook, same convention as vfx_graph_test_compile above — but exercises the REAL
+  // studioState.js integration path (ST.setGraph -> recompileFromGraph -> state.doc) instead of
+  // calling compileGraph directly, since that path (not the pure compiler alone) is what the
+  // real node editor UI drives. Lets vfx_render_frame/vfx_get_state prove the compiled graph
+  // actually reaches the live preview, exactly as if a human had built it on the canvas.
+  vfx_graph_test_apply({ nodes, connections } = {}) {
+    if (!Array.isArray(nodes) || !nodes.length) throw new Error('nodes must be a non-empty array of { id, type, params? }');
+    const parsed = parseGraph({ nodes, connections: connections || [] });
+    if (!parsed.ok) throw new Error(`graph failed to parse: ${parsed.error}`);
+    ST.setGraph(parsed.graph);
+    return writeResult();
+  },
   vfx_undo() {
     if (!ST.undo()) throw new Error('Nothing to undo');
     return writeResult();
