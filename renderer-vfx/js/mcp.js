@@ -294,6 +294,7 @@ const HANDLERS = {
       if (report.counts.error > 0) invalid.push({ id: c.id, reason: report.diagnostics.filter((d) => d.severity === 'error').map((d) => d.message).join('; ') });
     }
     const ranked = rankCandidates(candidates);
+    const combos = candidates.filter((c) => c.isCombo);
     return {
       ok: true,
       features,
@@ -307,6 +308,12 @@ const HANDLERS = {
       } : null,
       goodCount: ranked.good.length,
       moreCount: ranked.more.length,
+      comboCount: combos.length,
+      sampleCombo: combos[0] ? {
+        name: combos[0].name, archetypeKeys: combos[0].archetypeKeys,
+        layerCount: combos[0].doc.layers.length,
+        confidence: combos[0].confidence,
+      } : null,
     };
   },
   // Test-only hook for the smoketest, deliberately NOT registered as a real tool in

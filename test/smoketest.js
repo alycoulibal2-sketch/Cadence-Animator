@@ -832,6 +832,30 @@
     return { calmSize: calm.bestMatch.sizeStart, extremeSize: extreme.bestMatch.sizeStart };
   });
 
+  await step('SKETCH IT 2.0 Phase 3: Composition Planner combines two archetypes into one valid, correctly-sized candidate', async () => {
+    const N = 30;
+    const circlePts = Array.from({ length: N + 1 }, (_, i) => {
+      const a = (i / N) * Math.PI * 2;
+      return { x: Math.cos(a) * 3, y: Math.sin(a) * 3, p: 0.6, t: i * 20 };
+    });
+    const result = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }] });
+
+    assert(result.invalidCount === 0, `combo candidates must pass the same validator as everything else, but ${result.invalidCount} did not: ${JSON.stringify(result.invalid)}`);
+    assert(result.comboCount >= 1, `expected at least 1 combo candidate out of a 3-slot budget, got ${result.comboCount}`);
+    assert(result.sampleCombo, 'a combo candidate should be present and inspectable');
+    assert(Array.isArray(result.sampleCombo.archetypeKeys) && result.sampleCombo.archetypeKeys.length === 2, `a combo should record exactly 2 source archetype keys, got ${JSON.stringify(result.sampleCombo?.archetypeKeys)}`);
+    assert(result.sampleCombo.archetypeKeys[0] !== result.sampleCombo.archetypeKeys[1], 'a combo should never pair an archetype with itself');
+    assert(result.sampleCombo.name.includes('+'), `combo name should reference both source archetypes, got "${result.sampleCombo.name}"`);
+    // Both source archetypes are Combat/Magic/etc-tagged with 3-5 layers each — a real merge, not
+    // an accidental single-archetype doc mislabeled as a combo.
+    assert(result.sampleCombo.layerCount >= 4, `combined doc should have noticeably more layers than a single archetype, got ${result.sampleCombo.layerCount}`);
+    // Never confidently wrong about which archetype is "the" best match: combo confidence is
+    // deliberately kept below both partners' own solo slots, so it must never outrank the top pick.
+    assert(result.sampleCombo.confidence < result.bestMatch.confidence, 'a combo should never outrank the single-archetype best match');
+
+    return result;
+  });
+
   // ---------------------------------------------------------------- VFX Studio: camera shake
   await step('VFX Studio: camera shake layer does not drift the camera while paused (regression)', async () => {
     await vfxCall('vfx_new_effect', { name: 'Shake Pause Test', duration: 60, fps: 30 });

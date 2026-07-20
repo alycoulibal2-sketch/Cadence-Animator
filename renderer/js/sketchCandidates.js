@@ -17,7 +17,7 @@
 // 30 candidates in the same order, matching this codebase's existing preference for determinism
 // (particle spawn jitter and shape jaggedness are both stateless hashes, never Math.random()).
 
-import { EFFECT_ARCHETYPES, EFFECT_SCALES, buildArchetypeDoc } from './effectLibrary.js';
+import { EFFECT_ARCHETYPES, EFFECT_SCALES, buildArchetypeDoc, combineArchetypeDocs } from './effectLibrary.js';
 import { clampProp, setClip } from './effectModel.js';
 import { NEUTRAL_INTENT, interpretEnergy } from './sketchIntent.js';
 
@@ -104,16 +104,22 @@ function pickScaleKey(bigness) {
 
 // ---------------------------------------------------------------- generation plan
 // One "classic" variant per archetype (every archetype always gets one shot, so More Ideas is
-// never suspiciously thin) plus a themed/scaled bonus variant for the top matches, sized so the
-// total lands at `count` for today's 25-archetype library. If the library grows past `count`,
-// this degrades to "just the top `count` archetypes, one each" instead of overflowing.
+// never suspiciously thin) plus a themed/scaled bonus variant for the top matches, plus a handful
+// of combo slots (two archetypes from DIFFERENT categories merged into one composition — the
+// user's explicit requirement that the planner not be hardcoded to always dressing exactly one
+// archetype). Sized so the total lands at `count` for today's 25-archetype library — combos are
+// carved OUT of the bonus budget, never added on top, so `count` stays the real ceiling. If the
+// library grows past `count`, this degrades to "just the top `count` archetypes, one each"
+// exactly as before, with zero combo slots.
+const COMBO_BUDGET = 3;
 export function buildGenerationPlan(features, intent = NEUTRAL_INTENT, count = 30) {
   const sig = deriveSignals(features, intent);
   const scored = EFFECT_ARCHETYPES.map((a) => ({ key: a.key, score: scoreArchetype(features, a.key, sig) }))
     .sort((a, b) => b.score - a.score);
 
   const ranked = scored.length > count ? scored.slice(0, count) : scored;
-  const bonusBudget = Math.max(0, count - ranked.length);
+  const comboBudget = Math.min(COMBO_BUDGET, Math.max(0, count - ranked.length));
+  const bonusBudget = Math.max(0, count - ranked.length - comboBudget);
   const bonusKeys = new Set(ranked.slice(0, Math.min(bonusBudget, ranked.length)).map((r) => r.key));
 
   const aggroTheme = pickAggressiveTheme(sig.aggression);
@@ -121,10 +127,37 @@ export function buildGenerationPlan(features, intent = NEUTRAL_INTENT, count = 3
 
   const plan = [];
   for (const r of ranked) {
-    plan.push({ archetypeKey: r.key, theme: 'classic', scaleKey: 'standard', confidence: r.score });
+    plan.push({ archetypeKeys: [r.key], theme: 'classic', scaleKey: 'standard', confidence: r.score });
     if (bonusKeys.has(r.key)) {
-      plan.push({ archetypeKey: r.key, theme: aggroTheme, scaleKey: sizeScale, confidence: r.score - 0.001 });
+      plan.push({ archetypeKeys: [r.key], theme: aggroTheme, scaleKey: sizeScale, confidence: r.score - 0.001 });
     }
+  }
+
+  // Pair each combo slot's primary with the highest-scoring UNUSED archetype from a different
+  // category, walking down the ranked list — guarantees real variety (no archetype appears in two
+  // combos) and keeps combo confidence strictly below both partners' own solo "classic" slots (via
+  // the -0.002 offset), so a combo can never outrank a genuine single-archetype match for Best
+  // Match/Good Matches placement.
+  const usedInCombo = new Set();
+  let comboCount = 0;
+  for (let i = 0; i < ranked.length && comboCount < comboBudget; i++) {
+    const primary = ranked[i];
+    if (usedInCombo.has(primary.key)) continue;
+    const archPrimary = EFFECT_ARCHETYPES.find((a) => a.key === primary.key);
+    const partner = ranked.find((r) => {
+      if (r.key === primary.key || usedInCombo.has(r.key)) return false;
+      const archPartner = EFFECT_ARCHETYPES.find((a) => a.key === r.key);
+      return archPrimary && archPartner && archPartner.category !== archPrimary.category;
+    });
+    if (!partner) continue;
+    plan.push({
+      archetypeKeys: [primary.key, partner.key],
+      theme: 'classic', scaleKey: 'standard',
+      confidence: Math.min(primary.score, partner.score) - 0.002,
+    });
+    usedInCombo.add(primary.key);
+    usedInCombo.add(partner.key);
+    comboCount++;
   }
   return plan;
 }
@@ -172,7 +205,10 @@ function applyGeometryNudges(doc, features) {
 
 function materializeCandidate(spec, features, intent, index) {
   const scaleFactor = EFFECT_SCALES.find((s) => s.key === spec.scaleKey)?.factor ?? 1;
-  const doc = buildArchetypeDoc(spec.archetypeKey, { theme: spec.theme, scale: scaleFactor });
+  const isCombo = spec.archetypeKeys.length > 1;
+  const doc = isCombo
+    ? combineArchetypeDocs(spec.archetypeKeys[0], spec.archetypeKeys[1], { theme: spec.theme, scale: scaleFactor })
+    : buildArchetypeDoc(spec.archetypeKeys[0], { theme: spec.theme, scale: scaleFactor });
   if (!doc) return null;
   applyGeometryNudges(doc, features);
   interpretEnergy(doc, intent.energyLevel); // no-op for 'normal'/absent — see sketchIntent.js
@@ -185,13 +221,15 @@ function materializeCandidate(spec, features, intent, index) {
     motionField: intent.motionField || null,
     energyLevel: intent.energyLevel || 'normal',
   };
-  const arch = EFFECT_ARCHETYPES.find((a) => a.key === spec.archetypeKey);
+  const archs = spec.archetypeKeys.map((k) => EFFECT_ARCHETYPES.find((a) => a.key === k)).filter(Boolean);
   return {
-    id: `sketch-${spec.archetypeKey}-${spec.theme}-${spec.scaleKey}-${index}`,
-    archetypeKey: spec.archetypeKey,
+    id: `sketch-${spec.archetypeKeys.join('+')}-${spec.theme}-${spec.scaleKey}-${index}`,
+    archetypeKey: spec.archetypeKeys[0], // back-compat: single-string field every existing consumer reads
+    archetypeKeys: spec.archetypeKeys,
+    isCombo,
     name: doc.name,
-    icon: arch ? arch.icon : '✨',
-    category: arch ? arch.category : 'Effect',
+    icon: archs[0] ? archs[0].icon : '✨',
+    category: archs[0] ? archs[0].category : 'Effect',
     theme: spec.theme,
     scaleKey: spec.scaleKey,
     confidence: clamp01(spec.confidence),
