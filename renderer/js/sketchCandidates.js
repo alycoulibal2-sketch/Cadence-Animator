@@ -19,7 +19,7 @@
 
 import { EFFECT_ARCHETYPES, EFFECT_SCALES, buildArchetypeDoc, combineArchetypeDocs } from './effectLibrary.js';
 import { clampProp, setClip } from './effectModel.js';
-import { NEUTRAL_INTENT, interpretEnergy } from './sketchIntent.js';
+import { NEUTRAL_INTENT, interpretEnergy, interpretColor } from './sketchIntent.js';
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const bump = (x, center, width) => clamp01(1 - Math.abs(x - center) / width);
@@ -212,6 +212,7 @@ function materializeCandidate(spec, features, intent, index) {
   if (!doc) return null;
   applyGeometryNudges(doc, features);
   interpretEnergy(doc, intent.energyLevel); // no-op for 'normal'/absent — see sketchIntent.js
+  interpretColor(doc, intent.colorField, intent.shapeGuides); // no-op when colorField is null
   doc.sketchOrigin = {
     version: 1,
     plannerId: DEFAULT_PLANNER_ID,

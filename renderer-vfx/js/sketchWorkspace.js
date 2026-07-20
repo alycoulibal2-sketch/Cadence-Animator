@@ -168,14 +168,14 @@ const ENERGY_LEVELS = ['calm', 'normal', 'strong', 'extreme'];
 // hands results a fresh closure over openSketchWorkspace as its onEditSketch callback — that
 // keeps the dependency one-directional (workspace -> results), never circular. Also carries the
 // energy choice back in the same way, so re-editing a sketch doesn't silently reset it to Normal.
-export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel = 'normal' } = {}) {
+export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel = 'normal', initialColorDabs = null } = {}) {
   if (overlay) return;
 
   let strokes = cloneStrokes(initialStrokes);
   let currentStroke = null;
   let energyLevel = ENERGY_LEVELS.includes(initialEnergyLevel) ? initialEnergyLevel : 'normal';
   let panX = 0, panY = 0, zoom = 1;
-  let brushSize = 10; // world units
+  let brushSize = 10; // world units — doubles as color-dab radius on the Color layer
   let eraserMode = false;
   let panDrag = null;
   let erasing = false;
@@ -184,11 +184,34 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   let dragStart = null; // world-space anchor for line/circle/ellipse/rect/spiral/arrow/lightning
   let bezierPts = []; // in-progress click-to-add-point path
   let lastBezierClick = 0;
+  let currentLayer = 'shape'; // 'shape' | 'color' — which canvas-painting mode is active
+  let colorDabs = (initialColorDabs || []).map((d) => ({ ...d })); // { x, y, radius, hex }
+  let currentColor = '#7c8cff';
+  let paintingColor = false;
   const undoStack = [];
   const redoStack = [];
 
   const wrap = document.createElement('div');
   wrap.className = 'sketch-workspace';
+
+  // SKETCH IT 2.0: which layer the canvas is currently painting into. Shape is the only layer
+  // with its own tool palette (the freehand/line/circle/... shapes analyzeSketchStrokes() reads);
+  // Color paints dabs into their own buffer entirely — the two never share canvas state, only the
+  // same physical canvas element and the same Brush-size control.
+  const layerTabs = document.createElement('div');
+  layerTabs.className = 'sketch-layer-tabs';
+  const LAYER_TABS = [
+    { id: 'shape', label: '✏ Shape' },
+    { id: 'color', label: '🎨 Color' },
+  ];
+  const layerTabBtns = new Map();
+  for (const lt of LAYER_TABS) {
+    const b = toolButton(lt.label, `${lt.label.slice(2)} layer`);
+    b.className = 'tb-btn sketch-layer-tab';
+    b.addEventListener('click', () => setLayer(lt.id));
+    layerTabs.appendChild(b);
+    layerTabBtns.set(lt.id, b);
+  }
 
   const toolbar = document.createElement('div');
   toolbar.className = 'sketch-toolbar';
@@ -203,6 +226,16 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
     toolPalette.appendChild(btn);
     toolButtons.set(t.id, btn);
   }
+
+  const colorControls = document.createElement('div');
+  colorControls.className = 'sketch-color-controls';
+  const colorSwatch = document.createElement('input');
+  colorSwatch.type = 'color';
+  colorSwatch.className = 'fld sketch-color-swatch';
+  colorSwatch.value = currentColor;
+  colorSwatch.title = 'Paint color';
+  colorSwatch.addEventListener('input', () => { currentColor = colorSwatch.value; });
+  colorControls.appendChild(colorSwatch);
 
   const undoBtn = toolButton('↶', 'Undo (Ctrl+Z)');
   const redoBtn = toolButton('↷', 'Redo (Ctrl+Y)');
@@ -256,7 +289,7 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   generateBtn.textContent = '✨ Generate';
   generateBtn.title = 'Analyze the sketch and imagine ~30 VFX interpretations';
 
-  toolbar.append(toolPalette, undoBtn, redoBtn, eraserBtn, sizeWrap, energyWrap, clearBtn, hint, spacer, generateBtn);
+  toolbar.append(layerTabs, toolPalette, colorControls, undoBtn, redoBtn, eraserBtn, sizeWrap, energyWrap, clearBtn, hint, spacer, generateBtn);
 
   const canvasWrap = document.createElement('div');
   canvasWrap.className = 'sketch-canvas-wrap';
@@ -300,10 +333,22 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
       }
     }
 
+    drawColorDabs(); // under the ink strokes — reads as a color wash beneath the clean shape guides
+
     ctx.strokeStyle = P.ink;
     ctx.fillStyle = P.ink;
     for (const s of strokes) drawStroke(s);
     if (currentStroke) drawStroke(currentStroke);
+  }
+
+  function drawColorDabs() {
+    for (const d of colorDabs) {
+      const s = worldToScreen(d.x, d.y);
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = d.hex;
+      ctx.beginPath(); ctx.arc(s.x, s.y, d.radius * zoom, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   function widthFor(pt) { return Math.max(1, brushSize * (0.5 + 0.5 * (pt.p ?? 0.5)) * zoom); }
@@ -348,7 +393,10 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   }
 
   function pushLocalUndo() {
-    undoStack.push(strokes.map((s) => ({ points: s.points.slice(), tool: s.tool, params: s.params ? { ...s.params } : null })));
+    undoStack.push({
+      strokes: strokes.map((s) => ({ points: s.points.slice(), tool: s.tool, params: s.params ? { ...s.params } : null })),
+      colorDabs: colorDabs.map((d) => ({ ...d })),
+    });
     if (undoStack.length > 60) undoStack.shift();
     redoStack.length = 0;
   }
@@ -362,15 +410,19 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
       return true;
     }
     if (!undoStack.length) return false;
-    redoStack.push(strokes);
-    strokes = undoStack.pop();
+    redoStack.push({ strokes, colorDabs });
+    const snap = undoStack.pop();
+    strokes = snap.strokes;
+    colorDabs = snap.colorDabs;
     draw();
     return true;
   }
   function localRedo() {
     if (!redoStack.length) return false;
-    undoStack.push(strokes);
-    strokes = redoStack.pop();
+    undoStack.push({ strokes, colorDabs });
+    const snap = redoStack.pop();
+    strokes = snap.strokes;
+    colorDabs = snap.colorDabs;
     draw();
     return true;
   }
@@ -398,6 +450,7 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   }
 
   function updateCursor() {
+    if (currentLayer === 'color') { canvas.style.cursor = 'crosshair'; return; }
     canvas.style.cursor = eraserMode ? 'cell' : (currentTool === 'freehand' ? 'crosshair' : 'copy');
   }
   function setEraser(on) {
@@ -421,6 +474,16 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
     energyLevel = lvl;
     for (const [l, b] of energyBtns) b.classList.toggle('active', l === lvl);
   }
+  function setLayer(id) {
+    if (bezierPts.length) finishBezier();
+    currentLayer = id;
+    for (const [lid, b] of layerTabBtns) b.classList.toggle('active', lid === id);
+    toolPalette.classList.toggle('hidden', id !== 'shape');
+    colorControls.classList.toggle('hidden', id !== 'color');
+    eraserBtn.disabled = id !== 'shape'; // erasing color dabs isn't supported yet — Undo/Clear cover it
+    updateCursor();
+    draw();
+  }
 
   function finishBezier() {
     if (bezierPts.length >= 2) {
@@ -432,6 +495,13 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
     draw();
   }
 
+  function paintColorDab(e) {
+    const rect = canvas.getBoundingClientRect();
+    const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    colorDabs.push({ x: world.x, y: world.y, radius: brushSize, hex: currentColor });
+    draw();
+  }
+
   function onPointerDown(e) {
     canvas.setPointerCapture(e.pointerId);
     if (e.button === 1 || spaceHeld) {
@@ -440,6 +510,12 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
       return;
     }
     if (e.button !== 0) return;
+    if (currentLayer === 'color') {
+      pushLocalUndo();
+      paintingColor = true;
+      paintColorDab(e);
+      return;
+    }
     if (eraserMode) {
       pushLocalUndo();
       erasing = true;
@@ -482,6 +558,10 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
       draw();
       return;
     }
+    if (paintingColor) {
+      paintColorDab(e);
+      return;
+    }
     if (erasing) {
       const rect = canvas.getBoundingClientRect();
       eraseAt(screenToWorld(e.clientX - rect.left, e.clientY - rect.top), brushSize * 1.8);
@@ -502,6 +582,7 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   }
   function onPointerUp() {
     if (panDrag) { panDrag = null; updateCursor(); return; }
+    if (paintingColor) { paintingColor = false; return; }
     if (erasing) { erasing = false; return; }
     if (currentTool === 'bezier') return; // commits via finishBezier(), not on pointerup
     if (dragStart && DRAG_TOOLS[currentTool]) {
@@ -574,11 +655,12 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   }
 
   function doClear() {
-    if (!strokes.length && !currentStroke && !bezierPts.length) return;
+    if (!strokes.length && !currentStroke && !bezierPts.length && !colorDabs.length) return;
     pushLocalUndo();
     strokes = [];
     currentStroke = null;
     bezierPts = [];
+    colorDabs = [];
     draw();
     toast('Canvas cleared — Ctrl+Z restores it');
   }
@@ -588,11 +670,13 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
     const real = strokes.filter((s) => s.points.length);
     if (!real.length) { toast('Draw something first — even a quick doodle works!'); return; }
     const snapshot = cloneStrokes(real);
+    const colorSnapshot = colorDabs.map((d) => ({ ...d }));
     close();
     import('./sketchResults.js').then(({ openSketchResults }) => {
       openSketchResults(snapshot, {
         energyLevel,
-        onEditSketch: () => openSketchWorkspace(snapshot, { initialEnergyLevel: energyLevel }),
+        colorDabs: colorSnapshot,
+        onEditSketch: () => openSketchWorkspace(snapshot, { initialEnergyLevel: energyLevel, initialColorDabs: colorSnapshot }),
       });
     });
   }
@@ -612,6 +696,8 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   canvas.addEventListener('keyup', onKeyUp);
   toolButtons.get('freehand').classList.add('active');
   energyBtns.get(energyLevel).classList.add('active');
+  layerTabBtns.get('shape').classList.add('active');
+  colorControls.classList.add('hidden');
   updateCursor();
 
   const resizeObserver = new ResizeObserver(draw);

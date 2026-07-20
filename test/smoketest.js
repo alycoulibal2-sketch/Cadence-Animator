@@ -856,6 +856,48 @@
     return result;
   });
 
+  await step('SKETCH IT 2.0 Phase 4: Color layer produces a real ramp on a confident axis, a plain override otherwise', async () => {
+    const N = 30;
+    const circlePts = Array.from({ length: N + 1 }, (_, i) => {
+      const a = (i / N) * Math.PI * 2;
+      return { x: Math.cos(a) * 50, y: Math.sin(a) * 50, p: 0.6, t: i * 20 };
+    });
+    // Core painted red near the circle's center, edge painted blue near its rim — a confident
+    // radial axis (closed + circular primary guide).
+    const radialResult = await vfxCall('vfx_sketch_test_pipeline', {
+      strokes: [{ points: circlePts }],
+      colorDabs: [
+        { x: 0, y: 0, radius: 5, hex: '#ff0000' }, { x: 3, y: 0, radius: 5, hex: '#ff0000' },
+        { x: 47, y: 0, radius: 5, hex: '#0000ff' }, { x: 0, y: -48, radius: 5, hex: '#0000ff' },
+      ],
+    });
+    assert(radialResult.invalidCount === 0, `painted candidates must still pass the real validator, but ${radialResult.invalidCount} did not: ${JSON.stringify(radialResult.invalid)}`);
+    assert(Array.isArray(radialResult.bestMatch.colorRamp) && radialResult.bestMatch.colorRamp.length >= 3, `a radial-axis paint pattern should produce a real multi-stop ramp on the best match, got ${radialResult.bestMatch.colorRamp?.length} stops`);
+    assert(radialResult.bestMatch.sketchOrigin.colorField && radialResult.bestMatch.sketchOrigin.colorField.dabs.length === 4, 'sketchOrigin.colorField should preserve the original painted dabs at full fidelity, not just the simplified ramp');
+
+    // Same shape, but a call with NO colorDabs at all must stay exactly the old no-ramp behavior —
+    // absent paint must never itself trigger a ramp.
+    const unpaintedResult = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }] });
+    assert(!unpaintedResult.bestMatch.colorRamp || unpaintedResult.bestMatch.colorRamp.length === 0, 'a call with no colorDabs at all should have no colorRamp (regression: absent intent must not change output)');
+
+    // A sharp open zigzag with amplitude comparable to its horizontal span is neither closed+
+    // circular (radial axis) nor straight enough (arc-length axis) — verified directly against
+    // analyzePrimaryStroke (closed:false, circularity 0.49, straightness 0.30) before relying on
+    // it here, since "looks zigzaggy" and "low PCA straightness" are not the same thing (a shallow
+    // zigzag with a strong directional drift, e.g. x:i*8/y:0-or-40, actually scores straightness
+    // >0.9 — high horizontal variance dominates PCA despite the visual wiggle).
+    const ambiguousPts = [{ x: 0, y: 0 }, { x: 8, y: 25 }, { x: 16, y: -20 }, { x: 24, y: 22 }, { x: 32, y: -25 }, { x: 40, y: 20 }, { x: 48, y: -15 }];
+    const ambiguousResult = await vfxCall('vfx_sketch_test_pipeline', {
+      strokes: [{ points: ambiguousPts.map((p, i) => ({ ...p, p: 0.5, t: i * 16 })) }],
+      colorDabs: [{ x: 0, y: 0, radius: 5, hex: '#ffaa00' }, { x: 48, y: -15, radius: 5, hex: '#00aaff' }],
+    });
+    assert(ambiguousResult.invalidCount === 0, 'the ambiguous-axis fallback must still validate cleanly');
+    assert(!ambiguousResult.bestMatch.colorRamp || ambiguousResult.bestMatch.colorRamp.length === 0, `an ambiguous primary guide should degrade to no ramp, got ${ambiguousResult.bestMatch.colorRamp?.length} stops`);
+    assert(typeof ambiguousResult.bestMatch.colorStart === 'string' && typeof ambiguousResult.bestMatch.colorEnd === 'string', 'the ambiguous-axis fallback should still set a plain colorStart/colorEnd override');
+
+    return { radialStops: radialResult.bestMatch.colorRamp.length };
+  });
+
   // ---------------------------------------------------------------- VFX Studio: camera shake
   await step('VFX Studio: camera shake layer does not drift the camera while paused (regression)', async () => {
     await vfxCall('vfx_new_effect', { name: 'Shake Pause Test', duration: 60, fps: 30 });
