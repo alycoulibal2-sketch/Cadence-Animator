@@ -256,9 +256,25 @@ function emitLuaEmitter(L, notes, layer, id, doc, fps) {
   L.push('    end');
   L.push('    local e = Instance.new("ParticleEmitter")');
   L.push(`    e.Texture = ${luaStr(texture)}`);
-  L.push(`    e.Color = ColorSequence.new(${c3(p.colorStart)}, ${c3(p.colorEnd)})`);
+  // SKETCH IT 2.0: a >=2-stop ramp exports a real multi-keypoint sequence — Roblox's native
+  // ColorSequence/NumberSequence already support arbitrary stop counts, so this is strictly more
+  // faithful than the plain start/end pair below, never a regression. sanitizeRamp() guarantees
+  // the first/last stop sit at exactly u=0/u=1, which Roblox's Keypoint API requires.
+  if (Array.isArray(p.colorRamp) && p.colorRamp.length >= 2) {
+    const kps = p.colorRamp.map((s) => `ColorSequenceKeypoint.new(${n(s.u)}, ${c3(s.v)})`).join(', ');
+    L.push(`    e.Color = ColorSequence.new({ ${kps} })`);
+  } else {
+    L.push(`    e.Color = ColorSequence.new(${c3(p.colorStart)}, ${c3(p.colorEnd)})`);
+  }
   L.push(`    e.Size = NumberSequence.new(${n(size0)}, ${n(size1)})`);
-  L.push(`    e.Transparency = NumberSequence.new(${n(Math.max(0, Math.min(1, p.transparencyStart)))}, ${n(Math.max(0, Math.min(1, p.transparencyEnd)))})`);
+  if (Array.isArray(p.densityRamp) && p.densityRamp.length >= 2) {
+    // densityRamp.v is OPACITY (0=invisible..1=opaque, matching its inspector label); Roblox's
+    // Transparency is the inverse convention (0=opaque..1=invisible).
+    const kps = p.densityRamp.map((s) => `NumberSequenceKeypoint.new(${n(s.u)}, ${n(Math.max(0, Math.min(1, 1 - s.v)))})`).join(', ');
+    L.push(`    e.Transparency = NumberSequence.new({ ${kps} })`);
+  } else {
+    L.push(`    e.Transparency = NumberSequence.new(${n(Math.max(0, Math.min(1, p.transparencyStart)))}, ${n(Math.max(0, Math.min(1, p.transparencyEnd)))})`);
+  }
   L.push(`    e.Lifetime = NumberRange.new(${n(Math.min(ROBLOX.lifetime, Math.max(0.05, p.lifetime)))})`);
   L.push(`    e.Speed = NumberRange.new(${n(motion.speedOverride ?? p.speed)})`);
   L.push(`    e.SpreadAngle = ${typeof motion.spread === 'string' ? motion.spread : motion.spread}`);

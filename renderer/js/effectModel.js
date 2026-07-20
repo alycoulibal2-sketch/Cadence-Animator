@@ -17,6 +17,7 @@ import { evalSegment } from './easing.js';
 import { evalExpr } from './expr.js';
 import { VFX_DEFAULTS } from './vfx.js';
 import { defaultShape } from './effectShapes.js';
+import { sanitizeRamp } from './rampEval.js';
 
 export const EFFECT_VERSION = 2;
 
@@ -36,6 +37,7 @@ export const LAYER_TYPES = {
       burst: 0,
       emissionShape: null, // null = emit from the layer origin point; else a shapes-system def
       offset: [0, 0, 0],
+      colorRamp: [], densityRamp: [], // empty = inactive, falls back to colorStart/End + transparencyStart/End
     }),
     props: [
       { key: 'rate', label: 'Rate (particles/sec)', kind: 'number', min: 0, max: 2000, step: 1, animatable: true },
@@ -50,10 +52,12 @@ export const LAYER_TYPES = {
       { key: 'emissionShape', label: 'Emit from shape', kind: 'shape', optional: true },
       { key: 'colorStart', label: 'Color (start)', kind: 'color' },
       { key: 'colorEnd', label: 'Color (end)', kind: 'color' },
+      { key: 'colorRamp', label: 'Color over life (ramp)', kind: 'ramp', rampKind: 'color', optional: true },
       { key: 'sizeStart', label: 'Size (start)', kind: 'number', min: 0.005, max: 50, step: 0.01, animatable: true },
       { key: 'sizeEnd', label: 'Size (end)', kind: 'number', min: 0.005, max: 50, step: 0.01, animatable: true },
       { key: 'transparencyStart', label: 'Transparency (start)', kind: 'range', min: 0, max: 1, step: 0.01 },
       { key: 'transparencyEnd', label: 'Transparency (end)', kind: 'range', min: 0, max: 1, step: 0.01 },
+      { key: 'densityRamp', label: 'Opacity over life (ramp)', kind: 'ramp', rampKind: 'number', optional: true },
       { key: 'maxParticles', label: 'Max particles', kind: 'number', min: 1, max: 2000, step: 1 },
       { key: 'offset', label: 'Offset (studs)', kind: 'vec3' },
       { key: 'textureId', label: 'Roblox texture override', kind: 'text', placeholder: 'rbxassetid://… (export)' },
@@ -429,6 +433,26 @@ export function serializeEffect(doc) {
   return JSON.stringify(doc, null, 2);
 }
 
+const ENERGY_LEVELS = ['calm', 'normal', 'strong', 'extreme'];
+
+// SKETCH IT 2.0: pure metadata the engine/exporter never reads — sampleEffect/vfx.js/
+// effectExport.js are untouched by its presence. It exists purely so a future, smarter
+// interpreter (or a human) can re-derive a better composition from the same original painted
+// intent without re-sketching. Best-effort/lenient: malformed input just drops the field, it
+// never fails the whole doc parse.
+function sanitizeSketchOrigin(raw) {
+  if (!raw || typeof raw !== 'object') return undefined;
+  return {
+    version: 1,
+    plannerId: typeof raw.plannerId === 'string' ? raw.plannerId : 'unknown',
+    shapeGuides: Array.isArray(raw.shapeGuides) ? raw.shapeGuides : [],
+    colorField: raw.colorField && typeof raw.colorField === 'object' ? raw.colorField : null,
+    densityField: raw.densityField && typeof raw.densityField === 'object' ? raw.densityField : null,
+    motionField: raw.motionField && typeof raw.motionField === 'object' ? raw.motionField : null,
+    energyLevel: ENERGY_LEVELS.includes(raw.energyLevel) ? raw.energyLevel : 'normal',
+  };
+}
+
 // Parse + normalize an effect doc from untrusted JSON (a .cfx file, an MCP tool call, a preset).
 // Returns { ok:true, doc } or { ok:false, error }. Unknown layer/modifier types are rejected
 // rather than silently dropped — a doc referencing a type this build doesn't know is a doc this
@@ -449,6 +473,10 @@ export function parseEffect(input) {
   doc.fps = Number.isFinite(raw.fps) ? Math.max(1, Math.min(120, Math.round(raw.fps))) : 30;
   doc.duration = Number.isFinite(raw.duration) ? Math.max(1, Math.min(100000, Math.round(raw.duration))) : 60;
   doc.loop = raw.loop !== false;
+  if (raw.sketchOrigin) {
+    const origin = sanitizeSketchOrigin(raw.sketchOrigin);
+    if (origin) doc.sketchOrigin = origin;
+  }
 
   for (const rl of raw.layers) {
     if (!rl || !LAYER_TYPES[rl.type]) return { ok: false, error: `unknown layer type "${rl?.type}"` };
@@ -457,6 +485,10 @@ export function parseEffect(input) {
     layer.enabled = rl.enabled !== false;
     if (rl.clip && typeof rl.clip === 'object') setClip(layer, rl.clip, doc.duration);
     if (rl.props && typeof rl.props === 'object') setLayerProps(layer, rl.props);
+    if (layer.type === 'emitter') {
+      if (rl.props?.colorRamp !== undefined) layer.props.colorRamp = sanitizeRamp(rl.props.colorRamp, 'color');
+      if (rl.props?.densityRamp !== undefined) layer.props.densityRamp = sanitizeRamp(rl.props.densityRamp, 'number');
+    }
     if (rl.curves && typeof rl.curves === 'object') {
       for (const [prop, keys] of Object.entries(rl.curves)) {
         if (!Array.isArray(keys)) continue;

@@ -14,6 +14,7 @@ import { LAYER_TYPES, MODIFIER_TYPES, getLayer, evalCurve, setClip } from './eff
 import { scanEffect } from './effectEngine.js';
 import { checkExpr } from './expr.js';
 import { SHAPE_KINDS } from './effectShapes.js';
+import { sanitizeRamp } from './rampEval.js';
 
 const tgt = (layer, extra = {}) => ({ layerId: layer.id, layerName: layer.name, ...extra });
 
@@ -122,6 +123,43 @@ registerValidator({
             target: tgt(layer, { prop }),
             causes: ['a typo in the expression', 'an unknown variable or function name'],
             fix: { autoFixId: 'fix-drop-expr', label: 'Remove the broken expression', safe: false },
+          }));
+        }
+      }
+    }
+    return out;
+  },
+});
+
+// ---------------------------------------------------------------- ramps (SKETCH IT 2.0)
+// parseEffect() sanitizes colorRamp/densityRamp on the way in, but a generic prop write
+// (setLayerProps/an MCP set_property call) doesn't run that sanitizer — this is the safety net
+// for a ramp that reached a bad shape by some path other than the normal editor/parse flow.
+registerValidator({
+  id: 'vfx-ramps', category: 'vfx', scopes: ['effect', 'export', 'project'],
+  run({ effect }) {
+    const out = [];
+    if (!effect) return out;
+    for (const layer of effect.layers) {
+      if (layer.type !== 'emitter') continue;
+      for (const prop of ['colorRamp', 'densityRamp']) {
+        const stops = layer.props[prop];
+        if (!Array.isArray(stops) || !stops.length) continue;
+        if (stops.length === 1) {
+          out.push(diag('VFX-S010', 'suggestion', `Layer "${layer.name}"'s ${prop} has only one stop — it can never vary; add a second stop or clear it.`, {
+            target: tgt(layer, { prop }), frame: layer.clip.start,
+          }));
+          continue;
+        }
+        const us = stops.map((s) => s.u);
+        const sorted = us.every((u, i) => i === 0 || u >= us[i - 1]);
+        const dupes = new Set(us).size !== us.length;
+        const badRange = stops[0].u !== 0 || stops[stops.length - 1].u !== 1;
+        if (!sorted || dupes || badRange) {
+          out.push(diag('VFX-E030', 'error', `Layer "${layer.name}"'s ${prop} stops must be sorted, unique, and span exactly u=0..1 to export to Roblox — these were written outside the normal editor path.`, {
+            target: tgt(layer, { prop }), frame: layer.clip.start,
+            causes: ['a raw MCP set_property call bypassing the ramp editor'],
+            fix: { autoFixId: 'fix-ramp-sanitize', label: 'Re-sort and clamp the ramp', safe: true },
           }));
         }
       }
@@ -415,6 +453,16 @@ registerAutoFix({
     if (!layer) throw new Error('layer not found');
     layer.props.transparencyStart = 0;
     return 'start transparency now 0';
+  },
+});
+registerAutoFix({
+  id: 'fix-ramp-sanitize', label: 'Re-sort and clamp the ramp',
+  apply({ effect }, d) {
+    const layer = getLayer(effect, d.target.layerId);
+    if (!layer) throw new Error('layer not found');
+    const prop = d.target.prop;
+    layer.props[prop] = sanitizeRamp(layer.props[prop], prop === 'colorRamp' ? 'color' : 'number');
+    return `${prop} now ${layer.props[prop].length} clean stop(s)`;
   },
 });
 registerAutoFix({

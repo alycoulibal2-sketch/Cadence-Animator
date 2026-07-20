@@ -181,6 +181,13 @@
 .vfx-vec3 { display: flex; gap: 4px; }
 .vfx-vec3 .fld { width: 52px; }
 .vfx-shape-editor { border-left: 2px solid var(--border); padding-left: 6px; margin: 4px 0; }
+.vfx-ramp-editor { flex: 1 1 auto; border-left: 2px solid var(--border); padding-left: 6px; margin: 4px 0; }
+.vfx-ramp-strip { height: 16px; border-radius: 4px; border: 1px solid var(--border); cursor: copy; margin-bottom: 4px; }
+.vfx-ramp-stops { display: flex; flex-direction: column; gap: 3px; }
+.vfx-ramp-stop { display: flex; align-items: center; gap: 4px; }
+.vfx-ramp-stop .fld { width: 56px; }
+.vfx-ramp-stop input[type="color"] { width: 28px; padding: 0; }
+.vfx-ramp-footer { display: flex; gap: 6px; margin-top: 4px; }
 .vfx-mod-block { border: 1px solid var(--border); border-radius: var(--radius-s); padding: 6px; margin-bottom: 6px; }
 .vfx-mod-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
 .vfx-mod-name { flex: 1 1 auto; font-size: 12px; font-weight: 600; }

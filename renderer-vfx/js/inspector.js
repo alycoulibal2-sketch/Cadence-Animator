@@ -14,6 +14,7 @@ import {
 import { SHAPE_KINDS, SHAPE_KIND_KEYS, defaultShape } from '../../renderer/js/effectShapes.js';
 import { layerExportFidelity, performanceReport } from '../../renderer/js/effectValidators.js';
 import { showContextMenu, modal } from '../../renderer/js/ui.js';
+import { evalRamp, sanitizeRamp } from '../../renderer/js/rampEval.js';
 
 let body;
 let updaters = [];      // per-field in-place refreshers, run on playhead/effect events
@@ -323,6 +324,8 @@ function propRow(layerId, pm) {
     }
     case 'shape':
       return shapeEditor(layerId, pm);
+    case 'ramp':
+      return rampEditor(layerId, pm);
     default:
       return row(pm.label, el('span', 'vfx-dim', String(layer.props[pm.key])));
   }
@@ -367,6 +370,91 @@ function shapeEditor(layerId, pm) {
       }, param)));
     }
   }
+  return holder;
+}
+
+// SKETCH IT 2.0: colorRamp/densityRamp — a multi-stop gradient over particle life-fraction, in
+// place of the plain Start/End pair. Kept editable for hand-authored effects too, not just sketch
+// output: fully replaces shapeEditor's "rebuild the whole block on every change" convention rather
+// than the incremental withUpdater pattern, since add/remove/reorder all change the row count.
+function rampEditor(layerId, pm) {
+  const isColor = pm.rampKind === 'color';
+  const layerNow = () => getLayer(ST.state.doc, layerId);
+  const stops = () => layerNow()?.props[pm.key] || [];
+  const commit = (next) => ST.mutate((doc) => {
+    const l = getLayer(doc, layerId);
+    if (l) l.props[pm.key] = sanitizeRamp(next, isColor ? 'color' : 'number');
+  });
+
+  const cur = stops();
+  const holder = el('div', 'insp-row vfx-ramp-row');
+  holder.appendChild(el('span', 'l', pm.label));
+  const editorBody = el('div', 'vfx-ramp-editor');
+
+  if (cur.length < 2) {
+    const activate = el('button', 'vfx-row-btn', `+ Activate (2 stops from Start/End)`);
+    activate.addEventListener('click', () => {
+      const l = layerNow();
+      const v0 = isColor ? (l?.props.colorStart || '#ffffff') : Math.max(0, Math.min(1, 1 - (l?.props.transparencyStart ?? 0)));
+      const v1 = isColor ? (l?.props.colorEnd || '#ffffff') : Math.max(0, Math.min(1, 1 - (l?.props.transparencyEnd ?? 1)));
+      commit([{ u: 0, v: v0 }, { u: 1, v: v1 }]);
+    });
+    editorBody.appendChild(activate);
+    holder.appendChild(editorBody);
+    return holder;
+  }
+
+  const strip = el('div', 'vfx-ramp-strip');
+  const cssStops = isColor
+    ? cur.map((s) => `${s.v} ${(s.u * 100).toFixed(1)}%`).join(', ')
+    : cur.map((s) => `rgba(255,255,255,${s.v}) ${(s.u * 100).toFixed(1)}%`).join(', ');
+  strip.style.background = isColor
+    ? `linear-gradient(to right, ${cssStops})`
+    : `linear-gradient(to right, ${cssStops}), repeating-conic-gradient(#3a3a46 0% 25%, #22222c 0% 50%) 0 0/10px 10px`;
+  strip.title = 'Double-click to insert a stop here';
+  strip.addEventListener('dblclick', (e) => {
+    const rect = strip.getBoundingClientRect();
+    const u = Math.max(0, Math.min(1, (e.clientX - rect.left) / Math.max(1, rect.width)));
+    commit([...cur, { u, v: evalRamp(cur, u, cur[0].v) }]);
+  });
+  editorBody.appendChild(strip);
+
+  const list = el('div', 'vfx-ramp-stops');
+  cur.forEach((s, i) => {
+    const stopRow = el('div', 'vfx-ramp-stop');
+    const pos = numInput(s.u, (v) => {
+      const u = Math.max(0, Math.min(1, v));
+      commit(cur.map((s2, j) => (j === i ? { ...s2, u } : s2)));
+    }, { step: 0.01, min: 0, max: 1 });
+    pos.title = 'Position (0..1 of particle life)';
+    let value;
+    if (isColor) {
+      value = el('input', 'fld');
+      value.type = 'color';
+      value.value = s.v;
+      value.addEventListener('change', () => commit(cur.map((s2, j) => (j === i ? { ...s2, v: value.value } : s2))));
+    } else {
+      value = numInput(s.v, (v) => commit(cur.map((s2, j) => (j === i ? { ...s2, v: Math.max(0, Math.min(1, v)) } : s2))), { step: 0.01, min: 0, max: 1 });
+      value.title = 'Opacity (0..1)';
+    }
+    const del = el('button', 'vfx-row-btn', '🗑');
+    del.title = cur.length <= 2 ? 'A ramp needs at least 2 stops' : 'Remove stop';
+    del.disabled = cur.length <= 2;
+    del.addEventListener('click', () => commit(cur.filter((_, j) => j !== i)));
+    stopRow.append(pos, value, del);
+    list.appendChild(stopRow);
+  });
+  editorBody.appendChild(list);
+
+  const footer = el('div', 'vfx-ramp-footer');
+  const add = el('button', 'vfx-row-btn', '+ Add stop');
+  add.addEventListener('click', () => commit([...cur, { u: 0.5, v: evalRamp(cur, 0.5, cur[0].v) }]));
+  const clear = el('button', 'vfx-row-btn', 'Clear (use Start/End)');
+  clear.addEventListener('click', () => commit([]));
+  footer.append(add, clear);
+  editorBody.appendChild(footer);
+
+  holder.appendChild(editorBody);
   return holder;
 }
 

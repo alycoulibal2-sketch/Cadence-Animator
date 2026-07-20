@@ -733,6 +733,56 @@
     return result;
   });
 
+  // ---------------------------------------------------------------- SKETCH IT 2.0 Phase 0
+  await step('SKETCH IT 2.0 Phase 0: colorRamp/densityRamp render + export end-to-end, no regression for ramp-less docs', async () => {
+    await vfxCall('vfx_new_effect', { name: 'Ramp Test' });
+    const state1 = await vfxCall('vfx_get_state');
+    const layerId = state1.effect.layers[0].id;
+    const colorRamp = [{ u: 0, v: '#ff0000' }, { u: 0.33, v: '#00ff00' }, { u: 0.66, v: '#0000ff' }, { u: 1, v: '#ffff00' }];
+    const densityRamp = [{ u: 0, v: 0 }, { u: 0.5, v: 1 }, { u: 1, v: 0 }];
+    await vfxCall('vfx_update_layer', { layerId, props: { colorRamp, densityRamp } });
+
+    const full = await vfxCall('vfx_get_effect');
+    const layer = full.effect.layers.find((l) => l.id === layerId);
+    assert(layer.props.colorRamp?.length === 4, `colorRamp should round-trip with 4 stops, got ${layer.props.colorRamp?.length}`);
+    assert(layer.props.densityRamp?.length === 3, `densityRamp should round-trip with 3 stops, got ${layer.props.densityRamp?.length}`);
+
+    await vfxCall('vfx_scrub', { frame: 10 }); // exercises vfx.js's sampleParticles ramp branch for real, must not throw
+
+    const exported = await vfxCall('vfx_export_luau');
+    assert(exported.lua.includes('ColorSequenceKeypoint.new'), 'exported Luau should contain real multi-keypoint ColorSequenceKeypoint.new calls when a colorRamp is active');
+    assert(exported.lua.includes('NumberSequenceKeypoint.new'), 'exported Luau should contain real multi-keypoint NumberSequenceKeypoint.new calls when a densityRamp is active');
+
+    // Regression: a doc with no ramp still exports the plain 2-stop form, byte-identical to
+    // before this feature existed.
+    await vfxCall('vfx_new_effect', { name: 'No Ramp Test' });
+    const plainExport = await vfxCall('vfx_export_luau');
+    assert(!plainExport.lua.includes('ColorSequenceKeypoint.new'), 'a doc with no colorRamp should still export the plain 2-stop ColorSequence.new(...) form');
+    assert(plainExport.lua.includes('ColorSequence.new(Color3'), 'plain (no-ramp) export path should be unchanged');
+
+    return { colorRampStops: layer.props.colorRamp.length, densityRampStops: layer.props.densityRamp.length };
+  });
+
+  await step('SKETCH IT 2.0 Phase 0: malformed colorRamp written outside the editor is caught by validation and auto-fixable', async () => {
+    await vfxCall('vfx_new_effect', { name: 'Malformed Ramp Test' });
+    const state1 = await vfxCall('vfx_get_state');
+    const layerId = state1.effect.layers[0].id;
+    // Out of order, duplicate u, endpoints not spanning 0..1 — the exact shape a raw MCP
+    // set_property/update_layer call could produce, since setLayerProps doesn't sanitize ramps.
+    const badRamp = [{ u: 0.5, v: '#ff0000' }, { u: 0.2, v: '#00ff00' }, { u: 0.5, v: '#0000ff' }];
+    await vfxCall('vfx_update_layer', { layerId, props: { colorRamp: badRamp } });
+    const validation = await vfxCall('vfx_validate', {});
+    const found = validation.diagnostics.find((d) => d.id === 'VFX-E030');
+    assert(found, `expected a VFX-E030 diagnostic for the malformed colorRamp, got: ${JSON.stringify(validation.diagnostics.map((d) => d.id))}`);
+    const fixed = await vfxCall('vfx_auto_fix', {});
+    assert(fixed.applied.some((a) => a.autoFixId === 'fix-ramp-sanitize'), `expected fix-ramp-sanitize to be applied, got: ${JSON.stringify(fixed.applied)}`);
+    const after = await vfxCall('vfx_get_effect');
+    const layer = after.effect.layers.find((l) => l.id === layerId);
+    assert(layer.props.colorRamp.length === 2, `sanitize should dedupe the duplicate u=0.5 stop down to 2, got ${layer.props.colorRamp.length}`);
+    assert(layer.props.colorRamp[0].u === 0 && layer.props.colorRamp[1].u === 1, 'sanitized stops should span exactly u=0..1');
+    return fixed;
+  });
+
   // ---------------------------------------------------------------- wrap up
   const failed = report.steps.filter((s) => !s.ok);
   report.ok = failed.length === 0 && report.consoleErrors.length === 0;

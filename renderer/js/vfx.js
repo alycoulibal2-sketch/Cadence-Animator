@@ -7,6 +7,7 @@
 // assume of every other animatable thing in this app.
 import * as CF from './cf.js';
 import { shapePoint } from './effectShapes.js';
+import { evalRamp } from './rampEval.js';
 // Deliberately no import of state.js here: this file is reused as-is by the standalone VFX Studio
 // window (a separate renderer with no project/undo/autosave state at all), so every call site
 // takes an explicit `evalNum(itemId, track, frame, fallback)` track-evaluator instead of reaching
@@ -164,6 +165,11 @@ export function sampleParticles(item, frame, fps, resolveOrigin, evalNum = (_id,
   // this is a few float ops each, well under a millisecond even at 60fps scrub/playback rates.
   const colorStart = hexToRgb01(em.colorStart), colorEnd = hexToRgb01(em.colorEnd);
   const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  // SKETCH IT 2.0: >=2 stops activates a real multi-stop ramp in place of the plain start/end
+  // lerp — absent-safe, every doc authored before this existed has an empty array and renders
+  // bit-identically. Checked once per call (not per particle) since neither is animatable/tracked.
+  const colorRamp = Array.isArray(em.colorRamp) && em.colorRamp.length >= 2 ? em.colorRamp : null;
+  const densityRamp = Array.isArray(em.densityRamp) && em.densityRamp.length >= 2 ? em.densityRamp : null;
 
   const alive = [];
   let acc = 0, spawnIndex = 0;
@@ -211,8 +217,8 @@ export function sampleParticles(item, frame, fps, resolveOrigin, evalNum = (_id,
         alive.push({
           pos,
           size: Math.max(0.005, sizeStart + (sizeEnd - sizeStart) * lf),
-          color: lerp3(colorStart, colorEnd, lf),
-          opacity: Math.max(0, 1 - (trStart + (trEnd - trStart) * lf)),
+          color: colorRamp ? hexToRgb01(evalRamp(colorRamp, lf, em.colorEnd)) : lerp3(colorStart, colorEnd, lf),
+          opacity: Math.max(0, densityRamp ? evalRamp(densityRamp, lf, 1 - trEnd) : 1 - (trStart + (trEnd - trStart) * lf)),
           // Stable identity + life data for the modifier stack: `seed` never changes for a given
           // particle no matter what dies around it (array position does — never key on it).
           seed: spawnIndex,
