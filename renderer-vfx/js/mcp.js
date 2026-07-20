@@ -17,6 +17,9 @@ import { buildArchetypeDoc, searchEffectArchetypes, EFFECT_THEMES, EFFECT_SCALES
 import { searchPresets } from '../../renderer/js/particleLibrary.js';
 import { checkExpr } from '../../renderer/js/expr.js';
 import { scrubAndSettle, debugCameraPose, debugWaitTicks } from './preview.js';
+import { parseGraph } from '../../renderer/js/nodeGraphModel.js';
+import { compileGraph } from '../../renderer/js/graphCompiler.js';
+import '../../renderer/js/nodeTypes.js'; // side effect: registers the v1 node catalog
 
 // The uniform write-result: what changed + whether the doc is still healthy. `diagnostics`
 // carries errors/warnings only (info noise stays out of tool results; vfx_validate returns all).
@@ -285,6 +288,27 @@ const HANDLERS = {
     const drift = Math.hypot(...before.position.map((v, i) => after.position[i] - v));
     const quatDrift = Math.hypot(...before.quaternion.map((v, i) => after.quaternion[i] - v));
     return { ok: true, before, after, drift, quatDrift };
+  },
+  // Test-only hook for the smoketest, deliberately NOT registered as a real tool in
+  // mcp-server/index.js's zod schemas (same convention as vfx_test_shake_pause_stability above)
+  // — the node editor is a human canvas workflow, not something an MCP client should invoke, but
+  // the pure parseGraph -> compileGraph pipeline underneath it gets the same scripted regression
+  // coverage this codebase always gives its pure logic. `nodes`/`connections` are the caller's
+  // own bare graph shape (parseGraph's input) — pass plain readable ids ("spawn", "out", …), no
+  // need to mint real uids.
+  vfx_graph_test_compile({ nodes, connections } = {}) {
+    if (!Array.isArray(nodes) || !nodes.length) throw new Error('nodes must be a non-empty array of { id, type, params? }');
+    const parsed = parseGraph({ nodes, connections: connections || [] });
+    if (!parsed.ok) throw new Error(`graph failed to parse: ${parsed.error}`);
+    const result = compileGraph(parsed.graph);
+    const validation = result.ok ? runValidation('effect', { effect: result.doc }) : null;
+    return {
+      ok: result.ok,
+      errors: result.errors,
+      layerCount: result.doc ? result.doc.layers.length : 0,
+      layers: result.doc ? result.doc.layers.map((l) => ({ type: l.type, props: l.props, modifierTypes: l.modifiers.map((m) => m.type) })) : [],
+      validationErrorCount: validation ? validation.counts.error : null,
+    };
   },
   vfx_undo() {
     if (!ST.undo()) throw new Error('Nothing to undo');

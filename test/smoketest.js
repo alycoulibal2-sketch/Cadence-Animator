@@ -682,6 +682,80 @@
     return result;
   });
 
+  // ---------------------------------------------------------------- node editor: graph compiler
+  await step('Node editor: a Create->Color->Output chain compiles to one valid, correctly-propped layer', async () => {
+    const result = await vfxCall('vfx_graph_test_compile', {
+      nodes: [
+        { id: 'spawn', type: 'spawnParticles', params: { rate: 77, maxParticles: 300, shape: 'spark' } },
+        { id: 'color', type: 'color', params: { colorStart: '#112233', colorEnd: '#445566' } },
+        { id: 'out', type: 'preview' },
+      ],
+      connections: [
+        { fromNode: 'spawn', fromSocket: 'flow', toNode: 'color', toSocket: 'flow' },
+        { fromNode: 'color', fromSocket: 'flow', toNode: 'out', toSocket: 'flow' },
+      ],
+    });
+    assert(result.ok, `chain should compile successfully, got errors: ${JSON.stringify(result.errors)}`);
+    assert(result.errors.length === 0, `a valid chain should produce zero compile errors, got: ${JSON.stringify(result.errors)}`);
+    assert(result.layerCount === 1, `expected exactly 1 layer, got ${result.layerCount}`);
+    assert(result.layers[0].props.rate === 77, `spawnParticles node's rate should flow into the compiled layer, got ${result.layers[0].props.rate}`);
+    assert(result.layers[0].props.colorStart === '#112233' && result.layers[0].props.colorEnd === '#445566', `color node's params should flow into the compiled layer, got ${result.layers[0].props.colorStart}/${result.layers[0].props.colorEnd}`);
+    assert(result.validationErrorCount === 0, `compiled doc should validate with zero errors, got ${result.validationErrorCount}`);
+    return result;
+  });
+
+  await step('Node editor: an unwired Create node contributes zero layers (not an error)', async () => {
+    const result = await vfxCall('vfx_graph_test_compile', {
+      nodes: [
+        { id: 'spawn', type: 'spawnParticles' }, // never connected to anything
+        { id: 'out', type: 'preview' }, // never connected to anything either
+      ],
+      connections: [],
+    });
+    assert(result.ok, 'compiling a graph with no complete chains should still succeed');
+    assert(result.layerCount === 0, `an unwired Create node should contribute zero layers, got ${result.layerCount}`);
+    assert(result.errors.length === 0, `an unwired graph is a normal mid-edit state, not an error, got: ${JSON.stringify(result.errors)}`);
+  });
+
+  await step('Node editor: two Create chains into one Output produce two layers', async () => {
+    const result = await vfxCall('vfx_graph_test_compile', {
+      nodes: [
+        { id: 'spawnA', type: 'spawnParticles', params: { rate: 10 } },
+        { id: 'spawnB', type: 'spawnParticles', params: { rate: 20 } },
+        { id: 'out', type: 'preview' },
+      ],
+      connections: [
+        { fromNode: 'spawnA', fromSocket: 'flow', toNode: 'out', toSocket: 'flow' },
+        { fromNode: 'spawnB', fromSocket: 'flow', toNode: 'out', toSocket: 'flow' },
+      ],
+    });
+    assert(result.ok, `two-chain compile should succeed, got: ${JSON.stringify(result.errors)}`);
+    assert(result.layerCount === 2, `expected exactly 2 layers (one per Create chain), got ${result.layerCount}`);
+    const rates = result.layers.map((l) => l.props.rate).sort((a, b) => a - b);
+    assert(rates[0] === 10 && rates[1] === 20, `each chain's own rate should land on its own layer, got ${JSON.stringify(rates)}`);
+  });
+
+  await step('Node editor: a cyclic graph is rejected with a clear error, never a hang', async () => {
+    const result = await vfxCall('vfx_graph_test_compile', {
+      nodes: [
+        { id: 'a', type: 'color' },
+        { id: 'b', type: 'size' },
+        { id: 'out', type: 'preview' },
+      ],
+      // Hand-crafted directly (bypassing the editor's own connect(), which would refuse this) —
+      // exercises graphCompiler.js's OWN defensive cycle guard, since a hand-written/MCP-authored
+      // graph can arrive with a cycle the editor itself could never produce.
+      connections: [
+        { fromNode: 'a', fromSocket: 'flow', toNode: 'b', toSocket: 'flow' },
+        { fromNode: 'b', fromSocket: 'flow', toNode: 'a', toSocket: 'flow' },
+        { fromNode: 'b', fromSocket: 'flow', toNode: 'out', toSocket: 'flow' },
+      ],
+    });
+    assert(result.ok, 'a cyclic graph should still return ok (the cycle is reported, not a hard failure)');
+    assert(result.layerCount === 0, `a cyclic chain should never compile into a layer, got ${result.layerCount}`);
+    assert(result.errors.some((e) => /cycle/i.test(e)), `expected a cycle error to be reported, got: ${JSON.stringify(result.errors)}`);
+  });
+
   // ---------------------------------------------------------------- ramps (colorRamp/densityRamp)
   await step('colorRamp/densityRamp render + export end-to-end, no regression for ramp-less docs', async () => {
     await vfxCall('vfx_new_effect', { name: 'Ramp Test' });
