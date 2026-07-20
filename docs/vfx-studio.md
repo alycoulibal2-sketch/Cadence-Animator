@@ -405,7 +405,7 @@ Lightning) or small dedicated 2D math (Ellipse/Rect/Spiral — `effectShapes.js`
 a constant-radius 3D helix, not a flat growing-radius spiral, so it isn't reusable here).
 Thresholds are deliberately conservative: an unrecognized/ambiguous gesture always falls back to
 neutral (freehand, or no paint-layer override), never a confident wrong guess — the same
-philosophy as archetype scoring below.
+philosophy as the structural scoring below.
 
 ## SketchIntent — captured once, degraded many times, never discarded
 
@@ -437,14 +437,29 @@ needs no special handling since it's plain `JSON.stringify`.
 `renderer/js/sketchCandidates.js` exposes `registerCompositionPlanner`/`getCompositionPlanner`/
 `planCompositions(features, {count, intent, plannerId, onCandidate, signal})` — the ONE entry
 point `sketchResults.js` calls; a future planner (generative, or an LLM-backed one) registers
-under a new id and the UI never changes. The default (`archetype-planner-v1`) is not hardcoded as
-*the* planner, just the one registered today: it scores/picks from the 25 hand-tuned archetypes
-(`SCORERS` in `sketchCandidates.js`, geometry-only, never reads `intent`) and may also **combine
-two archetypes from different categories into one composition** (`effectLibrary.js`'s
-`combineArchetypeDocs` — concatenates two independently-built docs' layers; collision-safe
-because archetype layer definitions never set an explicit id, so `parseEffect` always mints a
-fresh one) for a small reserved slice of the ~30 slots, confidence deliberately kept below both
-combo partners' own solo slots so a combo can never outrank a genuine single-archetype match.
+under a new id and the UI never changes. The default (`procedural-planner-v1`) is not hardcoded as
+*the* planner, just the one registered today.
+
+**Hard requirement: Cadence never generates an effect by selecting or fusing an existing finished
+VFX.** There is no library of finished, named templates ("portal," "explosion," "aura") that a
+planner could pick or combine — `renderer/js/compositionGenerator.js`'s `synthesizeComposition`
+assembles every candidate **fresh, every call**, from low-level primitives (particle emitters,
+`effectShapes.js` shape kinds, lights, the existing motion/blend enums) via formulas over the
+sketch's own analyzed geometry. `formFamilyOf(features)` reads the geometry into one of five
+purely structural families — `radial`/`linear`/`spiral`/`jagged`/`ambient` — never a named
+effect's identity. Each family has a short per-family shortlist of primitive shape/motion choices
+(e.g. radial → ring/sphere/circle shapes, orbit/burst/ambient motion); `scoreVariation` ranks how
+well a structural choice (shape × motion × layer-complexity 1–4) suits the read geometry, the
+family's own default scoring highest but nothing ever excluded outright. `buildGenerationPlan`
+enumerates these structural variations and tops up with theme/scale-cycled repeats of the
+top-scoring one when a family's own shortlist is smaller than the ~30-candidate target (spiral
+and jagged, with only one shape primitive each, rely on this often). Primitive *assets* (a shape
+kind, a motion enum value) are the only things reused across calls — the composition itself
+(which layers, how many, with what parameter values) is computed fresh every time, so two
+sketches that read the same geometric family still typically produce different-looking output via
+`applyThemeToDoc`/`applyScaleToDoc`'s independent color/scale variation. `effectLibrary.js`'s
+`EFFECT_ARCHETYPES` remain exactly as they were, but now serve *only* the manual preset browser —
+SKETCH IT's generator never reads them.
 
 ## Interpreters — graceful degradation onto existing primitives, one per paint layer
 
@@ -481,7 +496,7 @@ routed through the existing `clampProp`/modifier-param clamps:
   modifier type anywhere. Ambiguous/self-contradicting arrow sets → **no override at all**.
 
 Every interpreter was verified standalone (hand-constructed fixtures with full control over
-geometry/positions) before being wired into the planner — the real pipeline's archetype/theme
+geometry/positions) before being wired into the planner — the real pipeline's structural/theme
 selection isn't deterministic enough to target a specific classification from an integration
 test alone, so both layers of testing exist deliberately, not redundantly.
 
@@ -489,7 +504,8 @@ test alone, so both layers of testing exist deliberately, not redundantly.
 
 Per an explicit product decision, not an oversight: no real spatial spawn-mask engine primitive
 (Density's "multiple emitters" approximation is the interim answer), no arbitrary free-form
-path-following motion (Motion's enum-mapping is the interim answer), and the planner's
-`archetype-planner-v1` dresses/combines existing archetypes rather than generating novel layer
-graphs per sketch. Each is a real, larger follow-on project if user testing shows the
-approximation reads as too generic — not a quick tweak on top of what exists today.
+path-following motion (Motion's enum-mapping is the interim answer), and the generator's per-family
+shape/motion shortlists (`compositionGenerator.js`'s `SHAPE_CHOICES_BY_FAMILY`/
+`MOTION_CHOICES_BY_FAMILY`) are still a small hand-authored set of primitive *building blocks*,
+not a learned or open-ended one — each is a real, larger follow-on project if user testing shows
+the approximation reads as too generic — not a quick tweak on top of what exists today.

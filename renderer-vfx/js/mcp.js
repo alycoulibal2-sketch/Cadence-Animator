@@ -294,7 +294,6 @@ const HANDLERS = {
       if (report.counts.error > 0) invalid.push({ id: c.id, reason: report.diagnostics.filter((d) => d.severity === 'error').map((d) => d.message).join('; ') });
     }
     const ranked = rankCandidates(candidates);
-    const combos = candidates.filter((c) => c.isCombo);
     return {
       ok: true,
       features,
@@ -302,7 +301,8 @@ const HANDLERS = {
       invalidCount: invalid.length,
       invalid: invalid.slice(0, 5),
       bestMatch: ranked.best ? {
-        name: ranked.best.name, archetypeKey: ranked.best.archetypeKey, confidence: ranked.best.confidence,
+        name: ranked.best.name, family: ranked.best.family, shapeChoice: ranked.best.shapeChoice,
+        motionStyle: ranked.best.motionStyle, complexity: ranked.best.complexity, confidence: ranked.best.confidence,
         sizeStart: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.sizeStart ?? null,
         rate: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.rate ?? null,
         maxParticles: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.maxParticles ?? null,
@@ -317,12 +317,6 @@ const HANDLERS = {
       } : null,
       goodCount: ranked.good.length,
       moreCount: ranked.more.length,
-      comboCount: combos.length,
-      sampleCombo: combos[0] ? {
-        name: combos[0].name, archetypeKeys: combos[0].archetypeKeys,
-        layerCount: combos[0].doc.layers.length,
-        confidence: combos[0].confidence,
-      } : null,
     };
   },
   // Test-only hook for the smoketest, deliberately NOT registered as a real tool in

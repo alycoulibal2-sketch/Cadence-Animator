@@ -801,8 +801,8 @@
     assert(result.invalidCount === 0, `every generated candidate should pass the real validator, but ${result.invalidCount} did not: ${JSON.stringify(result.invalid)}`);
     assert(result.bestMatch && typeof result.bestMatch.confidence === 'number', 'best match missing/malformed');
     assert(
-      ['portal', 'energy-shield', 'black-hole'].includes(result.bestMatch.archetypeKey),
-      `a closed circle sketch should best-match a circular archetype, got "${result.bestMatch.archetypeKey}"`
+      result.bestMatch.family === 'radial',
+      `a closed circle sketch should read as the "radial" geometric form family, got "${result.bestMatch.family}"`
     );
     assert(result.goodCount === 6, `expected exactly 6 Good Matches, got ${result.goodCount}`);
     assert(result.moreCount === result.candidateCount - 7, `More Ideas count should be candidateCount-7, got ${result.moreCount} vs ${result.candidateCount - 7}`);
@@ -819,12 +819,12 @@
     const extreme = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }], energyLevel: 'extreme' });
     const legacy = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }] }); // no energyLevel field at all
 
-    assert(calm.bestMatch.archetypeKey === extreme.bestMatch.archetypeKey, 'energy level should never change WHICH archetype is picked, only how it is dressed (best match is always the classic-theme variant, unaffected by the aggression bias)');
+    assert(calm.bestMatch.family === extreme.bestMatch.family, 'energy level should never change the read geometric form family, only how the composition is dressed (best match is always the classic-theme variant, unaffected by the aggression bias)');
     assert(typeof calm.bestMatch.sizeStart === 'number' && typeof extreme.bestMatch.sizeStart === 'number', 'sizeStart should be exposed on the best match');
     assert(extreme.bestMatch.sizeStart > calm.bestMatch.sizeStart, `extreme energy should produce a measurably larger sizeStart than calm, got calm=${calm.bestMatch.sizeStart} extreme=${extreme.bestMatch.sizeStart}`);
 
     assert(legacy.candidateCount === calm.candidateCount, 'a call with no energyLevel at all should still produce the same candidate count as an explicit level (regression: absent intent must not change plan size)');
-    assert(legacy.bestMatch.archetypeKey === calm.bestMatch.archetypeKey, 'a call with no energyLevel should pick the same best-match archetype as an explicit "calm"/"normal" choice');
+    assert(legacy.bestMatch.family === calm.bestMatch.family, 'a call with no energyLevel should read the same best-match form family as an explicit "calm"/"normal" choice');
 
     assert(calm.bestMatch.sketchOrigin && calm.bestMatch.sketchOrigin.energyLevel === 'calm', 'sketchOrigin.energyLevel should record the actual choice — painted intent must survive onto the generated doc');
     assert(Array.isArray(calm.bestMatch.sketchOrigin.shapeGuides) && calm.bestMatch.sketchOrigin.shapeGuides.length === 1, 'sketchOrigin.shapeGuides should carry the original strokes through, even when no other layer was painted');
@@ -832,7 +832,7 @@
     return { calmSize: calm.bestMatch.sizeStart, extremeSize: extreme.bestMatch.sizeStart };
   });
 
-  await step('SKETCH IT 2.0 Phase 3: Composition Planner combines two archetypes into one valid, correctly-sized candidate', async () => {
+  await step('SKETCH IT 2.0 Phase 3 (correction): every candidate is a fresh from-scratch composition, never a stored finished-effect template', async () => {
     const N = 30;
     const circlePts = Array.from({ length: N + 1 }, (_, i) => {
       const a = (i / N) * Math.PI * 2;
@@ -840,18 +840,12 @@
     });
     const result = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }] });
 
-    assert(result.invalidCount === 0, `combo candidates must pass the same validator as everything else, but ${result.invalidCount} did not: ${JSON.stringify(result.invalid)}`);
-    assert(result.comboCount >= 1, `expected at least 1 combo candidate out of a 3-slot budget, got ${result.comboCount}`);
-    assert(result.sampleCombo, 'a combo candidate should be present and inspectable');
-    assert(Array.isArray(result.sampleCombo.archetypeKeys) && result.sampleCombo.archetypeKeys.length === 2, `a combo should record exactly 2 source archetype keys, got ${JSON.stringify(result.sampleCombo?.archetypeKeys)}`);
-    assert(result.sampleCombo.archetypeKeys[0] !== result.sampleCombo.archetypeKeys[1], 'a combo should never pair an archetype with itself');
-    assert(result.sampleCombo.name.includes('+'), `combo name should reference both source archetypes, got "${result.sampleCombo.name}"`);
-    // Both source archetypes are Combat/Magic/etc-tagged with 3-5 layers each — a real merge, not
-    // an accidental single-archetype doc mislabeled as a combo.
-    assert(result.sampleCombo.layerCount >= 4, `combined doc should have noticeably more layers than a single archetype, got ${result.sampleCombo.layerCount}`);
-    // Never confidently wrong about which archetype is "the" best match: combo confidence is
-    // deliberately kept below both partners' own solo slots, so it must never outrank the top pick.
-    assert(result.sampleCombo.confidence < result.bestMatch.confidence, 'a combo should never outrank the single-archetype best match');
+    assert(result.invalidCount === 0, `every generated candidate must pass the real validator, but ${result.invalidCount} did not: ${JSON.stringify(result.invalid)}`);
+    assert(result.bestMatch.sketchOrigin?.plannerId === 'procedural-planner-v1', `sketchOrigin.plannerId should record the actual from-scratch planner, got "${result.bestMatch.sketchOrigin?.plannerId}"`);
+    // A generated candidate's name is always a generic "<form family> <motion style>" combination
+    // (e.g. "Radial Orbit") — never a borrowed finished-effect name like "Fireball"/"Portal".
+    const knownFinishedEffectNames = new Set(['Fireball', 'Portal', 'Energy Shield', 'Black Hole', 'Lightning Storm']);
+    assert(!knownFinishedEffectNames.has(result.bestMatch.name), `best match name should never be a borrowed finished-effect name, got "${result.bestMatch.name}"`);
 
     return result;
   });
@@ -915,12 +909,12 @@
     const unpainted = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }] });
 
     assert(heavy.invalidCount === 0 && light.invalidCount === 0, `density-painted candidates must still pass the real validator: heavy=${heavy.invalidCount} light=${light.invalidCount}`);
-    assert(heavy.bestMatch.archetypeKey === light.bestMatch.archetypeKey, 'density painting should never change WHICH archetype is picked, only its density');
+    assert(heavy.bestMatch.family === light.bestMatch.family, 'density painting should never change the read geometric form family, only its density');
     assert(typeof heavy.bestMatch.rate === 'number' && typeof light.bestMatch.rate === 'number', 'rate should be exposed on the best match');
     assert(heavy.bestMatch.rate > light.bestMatch.rate, `heavy density painting should produce a measurably higher rate than light, got heavy=${heavy.bestMatch.rate} light=${light.bestMatch.rate}`);
     assert(heavy.bestMatch.maxParticles > light.bestMatch.maxParticles, `heavy density painting should produce a measurably higher maxParticles than light, got heavy=${heavy.bestMatch.maxParticles} light=${light.bestMatch.maxParticles}`);
 
-    assert(unpainted.bestMatch.archetypeKey === heavy.bestMatch.archetypeKey, 'a call with no densityDabs at all should pick the same best-match archetype');
+    assert(unpainted.bestMatch.family === heavy.bestMatch.family, 'a call with no densityDabs at all should read the same best-match form family');
     assert(unpainted.bestMatch.rate < heavy.bestMatch.rate, 'the unpainted baseline rate should sit below the heavily-painted rate (regression sanity: absent intent must not itself inflate density)');
 
     assert(heavy.bestMatch.sketchOrigin.densityField && heavy.bestMatch.sketchOrigin.densityField.dabs.length === 2, 'sketchOrigin.densityField should preserve the original painted dabs at full fidelity, not just the derived scalar');
@@ -964,7 +958,7 @@
     const unpaintedResult = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }] });
     assert(ambiguousResult.bestMatch.motion === unpaintedResult.bestMatch.motion, `self-contradicting arrows should leave motion unchanged from the unpainted baseline, got "${ambiguousResult.bestMatch.motion}" vs "${unpaintedResult.bestMatch.motion}"`);
     assert(JSON.stringify(ambiguousResult.bestMatch.modifierTypes) === JSON.stringify(unpaintedResult.bestMatch.modifierTypes), 'self-contradicting arrows should add no modifiers beyond the unpainted baseline');
-    assert(ambiguousResult.bestMatch.archetypeKey === unpaintedResult.bestMatch.archetypeKey, 'a call with no motionArrows at all should pick the same best-match archetype');
+    assert(ambiguousResult.bestMatch.family === unpaintedResult.bestMatch.family, 'a call with no motionArrows at all should read the same best-match form family');
 
     return { orbitMotion: orbitResult.bestMatch.motion, orbitMods: orbitResult.bestMatch.modifierTypes };
   });
@@ -1007,12 +1001,7 @@
     assert(origin.motionField?.arrows.length === 4, 'sketchOrigin should preserve all drawn motion arrows');
     assert(origin.shapeGuides.length === 1, 'sketchOrigin should preserve the original shape strokes');
 
-    // Combos get every interpreter applied too, not just the best match — spot-check one.
-    if (result.sampleCombo) {
-      assert(result.comboCount >= 1, 'combo generation should still work alongside full paint intent');
-    }
-
-    return { candidateCount: result.candidateCount, comboCount: result.comboCount };
+    return { candidateCount: result.candidateCount };
   });
 
   await step('SKETCH IT 2.0 Phase 7: sketchOrigin survives a real serialize/parse round trip', async () => {
@@ -1021,7 +1010,7 @@
       version: 2, id: 'test-doc', name: 'Round Trip Test', fps: 30, duration: 60, loop: true,
       layers: [{ type: 'emitter', name: 'Particles', enabled: true, clip: { start: 0, len: 60, loop: false }, props: {}, curves: {}, exprs: {}, modifiers: [] }],
       sketchOrigin: {
-        version: 1, plannerId: 'archetype-planner-v1',
+        version: 1, plannerId: 'procedural-planner-v1',
         shapeGuides: [{ points: [{ x: 0, y: 0, p: 0.5, t: 0 }, { x: 10, y: 10, p: 0.5, t: 1 }], tool: 'line', params: { x0: 0, y0: 0, x1: 10, y1: 10 } }],
         colorField: { dabs: [{ x: 0, y: 0, radius: 5, hex: '#ff0000' }] },
         densityField: null,

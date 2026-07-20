@@ -1,39 +1,39 @@
 // The Candidate Generator + Ranking stages of the SKETCH IT pipeline:
-//   Sketch -> Geometry Analysis (sketchGeometry.js) -> Candidate Generator -> Ranking ->
+//   Sketch -> Geometry Analysis (sketchGeometry.js) -> Composition Planner -> Ranking ->
 //   Preview Renderer (sketchPreviewRenderer.js) -> User Selection -> Editable Effect.
 //
-// Deliberately built on the EXISTING hand-tuned archetype library (effectLibrary.js) rather than
-// hand-authoring new layer documents: every candidate is a real archetype run through its own
-// theme/scale transforms plus small, clamped, geometry-driven nudges — so every candidate is
-// exactly as valid, exportable, and editable as anything a human picks from the Presets browser.
-// No AI dependency: this file registers itself as the "archetype-planner-v1" Composition Planner
-// behind a small, swappable seam (registerCompositionPlanner/getCompositionPlanner) — SKETCH IT
-// 2.0's requirement that composition strategy stay replaceable (a future generative composer, or
-// a Claude/GPT/Gemini-backed planner) without the UI (sketchResults.js) ever changing. The UI only
-// ever calls planCompositions() and gets candidates back through a callback, never caring which
-// planner produced them.
+// Hard requirement: Cadence must never generate an effect by selecting or fusing an existing
+// FINISHED effect — every candidate is assembled fresh from low-level primitives by
+// compositionGenerator.js's synthesizeComposition(), planned from the sketch's own geometry. No
+// stored, named effect ever gets copied wholesale. This file registers itself as the
+// "procedural-planner-v1" Composition Planner behind a small, swappable seam
+// (registerCompositionPlanner/getCompositionPlanner) — SKETCH IT 2.0's requirement that
+// composition strategy stay replaceable (a future generative composer, or a Claude/GPT/Gemini-
+// backed planner) without the UI (sketchResults.js) ever changing. The UI only ever calls
+// planCompositions() and gets candidates back through a callback, never caring which planner
+// produced them.
 //
 // Fully deterministic on purpose (no Math.random anywhere) — same sketch always yields the same
 // 30 candidates in the same order, matching this codebase's existing preference for determinism
 // (particle spawn jitter and shape jaggedness are both stateless hashes, never Math.random()).
 
-import { EFFECT_ARCHETYPES, EFFECT_SCALES, buildArchetypeDoc, combineArchetypeDocs } from './effectLibrary.js';
+import { EFFECT_SCALES, applyThemeToDoc, applyScaleToDoc } from './effectLibrary.js';
 import { clampProp, setClip } from './effectModel.js';
 import { NEUTRAL_INTENT, interpretEnergy, interpretColor, interpretDensity, interpretMotion } from './sketchIntent.js';
+import { formFamilyOf, synthesizeComposition, scoreVariation, shapeChoicesFor, motionChoicesFor, nameFor, iconFor } from './compositionGenerator.js';
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
-const bump = (x, center, width) => clamp01(1 - Math.abs(x - center) / width);
 
-// ---------------------------------------------------------------- feature -> archetype scoring
-// Small set of derived signals shared across every archetype's scorer, computed once per
-// analysis rather than recomputed 25 times.
+// ---------------------------------------------------------------- geometry -> derived signals
+// Small set of derived signals shared across scoring/generation, computed once per analysis.
 //
-// `intent` biases `aggression` (which only feeds pickAggressiveTheme's bonus-variant theme choice,
-// NOT archetype selection — no SCORER reads sig.aggression) by the Energy layer. 'normal' — the
-// value NEUTRAL_INTENT always carries, whether the user explicitly picked it or never touched the
-// Energy control at all — contributes a bias of exactly 0, so this is byte-identical to the old
-// geometry-only formula whenever intent is absent/default. Explicit calm/strong/extreme shift the
-// read up or down from that same geometric baseline.
+// `intent` biases `aggression` (feeds pickAggressiveTheme's theme choice AND
+// compositionGenerator.js's scoreVariation, never a specific finished effect — no primitive
+// builder reads intent directly). 'normal' — the value NEUTRAL_INTENT always carries, whether the
+// user explicitly picked it or never touched the Energy control at all — contributes a bias of
+// exactly 0, so this is byte-identical to the old geometry-only formula whenever intent is
+// absent/default. Explicit calm/strong/extreme shift the read up or down from that same
+// geometric baseline.
 const ENERGY_AGGRESSION_BIAS = { calm: -0.35, normal: 0, strong: 0.25, extreme: 0.5 };
 function deriveSignals(f, intent = NEUTRAL_INTENT) {
   const geometricAggression = clamp01(0.5 * clamp01(f.maxSpeed / 1200) + 0.3 * f.zigzagScore + 0.2 * clamp01(f.crossingCount / 4));
@@ -49,46 +49,11 @@ function deriveSignals(f, intent = NEUTRAL_INTENT) {
   };
 }
 
-// Each entry is a heuristic, not a classifier — the point (per the design spec) is "a lot of
-// information for free from geometry alone," not a precise recognizer. Every candidate stays
-// browsable regardless of score; this only decides ranking, never inclusion.
-const SCORERS = {
-  'sword-slash': (f, s) => bump(f.curvature, 0.22, 0.28) * (0.4 + 0.6 * s.elongation) * (0.5 + 0.5 * s.fastness) * (f.openPath ? 1 : 0.6) * (1 - 0.6 * f.zigzagScore),
-  explosion: (f, s) => (0.5 * s.shortness + 0.5 * clamp01(f.crossingCount / 4)) * (0.4 + 0.6 * f.complexity) * (0.5 + 0.5 * s.bigness),
-  'muzzle-flash': (f, s) => s.shortness * (0.4 + 0.6 * s.fastness) * clamp01(1 - s.bigness * 0.7),
-  'ground-slam': (f, s) => (0.3 + 0.7 * (f.closed ? 1 : 0.4)) * (1 - s.elongation) * (0.4 + 0.6 * s.bigness) * (1 - 0.4 * s.fastness),
-  'hit-spark': (f, s) => s.shortness * clamp01(1 - s.bigness * 0.8) * (1 - 0.3 * f.complexity),
-  fireball: (f, s) => bump(f.circularity, 0.5, 0.35) * clamp01(1 - s.bigness * 0.4),
-  portal: (f, s) => f.circularity * (f.closed ? 1 : 0.5) * (1 - 0.5 * s.elongation),
-  'heal-burst': (f, s) => (0.4 + 0.6 * bump(f.circularity, 0.35, 0.4)) * (1 - 0.5 * s.fastness) * (1 - 0.4 * f.zigzagScore),
-  'lightning-strike': (f, s) => f.zigzagScore * (f.openPath ? 1 : 0.5) * (0.6 + 0.4 * clamp01(f.branchCount / 2)) * (0.5 + 0.5 * s.elongation),
-  'arcane-aura': (f, s) => (1 - s.fastness) * (1 - f.zigzagScore) * bump(f.circularity, 0.4, 0.45) * 0.9,
-  campfire: (f, s) => (1 - s.fastness) * bump(f.circularity, 0.45, 0.4) * clamp01(1 - s.bigness * 0.3) * 0.85,
-  'water-splash': (f, s) => s.multiStroke * s.shortness * clamp01(1 - s.bigness * 0.5) * (0.5 + 0.5 * clamp01(f.crossingCount / 3)),
-  'poison-cloud': (f, s) => (1 - s.fastness) * bump(f.circularity, 0.4, 0.45) * (0.5 + 0.5 * s.bigness) * 0.8,
-  'ice-burst': (f, s) => s.shortness * clamp01(f.crossingCount / 4) * clamp01(1 - s.bigness * 0.6) * 0.9,
-  tornado: (f, s) => f.spiralness * (0.5 + 0.5 * s.bigness),
-  rain: (f, s) => s.multiStroke * f.straightness * (1 - f.zigzagScore) * 0.85,
-  snowfall: (f, s) => s.multiStroke * f.straightness * (1 - s.fastness) * 0.8,
-  fireflies: (f, s) => (1 - s.fastness) * s.multiStroke * s.shortness * 0.7,
-  'confetti-burst': (f, s) => s.multiStroke * f.complexity * clamp01(1 - s.bigness * 0.4) * 0.9,
-  'level-up': (f, s) => (0.4 + 0.6 * bump(f.circularity, 0.35, 0.4)) * (0.5 + 0.5 * s.verticalish) * (1 - 0.3 * s.fastness) * 0.85,
-  'energy-shield': (f, s) => f.circularity * (1 - 0.4 * s.fastness) * (f.closed ? 1 : 0.6) * 0.95,
-  teleport: (f, s) => Math.max(f.straightness * s.verticalish, f.circularity * 0.7) * 0.9,
-  'black-hole': (f, s) => f.circularity * (f.closed ? 1 : 0.5) * (1 - 0.3 * s.fastness) * 0.8,
-  'speed-dash': (f, s) => s.fastness * f.straightness * s.elongation * (1 - 0.6 * f.curvature),
-  'sparkle-trail': (f, s) => (1 - s.fastness) * bump(f.curvature, 0.15, 0.25) * (1 - f.zigzagScore) * (f.openPath ? 1 : 0.6) * 0.85,
-};
-
-export function scoreArchetype(features, key, signals) {
-  const sig = signals || deriveSignals(features);
-  const fn = SCORERS[key];
-  return fn ? clamp01(fn(features, sig)) : 0.3; // unknown key: modest neutral score, never excluded
-}
-
 // ---------------------------------------------------------------- theme / scale bias
-// Not random — a fast, jagged, crossing-heavy sketch reads as more "aggressive," biasing the
-// bonus variant toward hotter/sharper themes; a slow, smooth sketch biases toward calmer ones.
+// Generic signal->key utilities (no finished-effect knowledge at all — just "a fast/jagged
+// gesture biases toward hotter/sharper colors, a slow/smooth one toward calmer ones") reused by
+// the primitive generator for color/size variety, exactly as they were reused for archetype
+// dressing before this rewrite.
 function pickAggressiveTheme(aggression) {
   if (aggression >= 0.7) return 'ember';
   if (aggression >= 0.45) return 'toxic';
@@ -103,70 +68,67 @@ function pickScaleKey(bigness) {
 }
 
 // ---------------------------------------------------------------- generation plan
-// One "classic" variant per archetype (every archetype always gets one shot, so More Ideas is
-// never suspiciously thin) plus a themed/scaled bonus variant for the top matches, plus a handful
-// of combo slots (two archetypes from DIFFERENT categories merged into one composition — the
-// user's explicit requirement that the planner not be hardcoded to always dressing exactly one
-// archetype). Sized so the total lands at `count` for today's 25-archetype library — combos are
-// carved OUT of the bonus budget, never added on top, so `count` stays the real ceiling. If the
-// library grows past `count`, this degrades to "just the top `count` archetypes, one each"
-// exactly as before, with zero combo slots.
-const COMBO_BUDGET = 3;
+// Enumerates STRUCTURAL variations (shape choice x motion style x layer complexity, shortlisted
+// per geometric form family by compositionGenerator.js) rather than picking from a fixed list of
+// named effects. Scored by scoreVariation (plausibility of the structural choice against the read
+// geometry — never "which archetype"), then topped up with theme/scale-only repeats of the
+// top-scoring structural choice if a family's own shortlist doesn't reach `count` on its own
+// (spiral/jagged have only 1 shape primitive each, so this fires often for them — real, if
+// smaller, additional variety comes from cycling theme+scale across the repeats, not just hue).
 export function buildGenerationPlan(features, intent = NEUTRAL_INTENT, count = 30) {
   const sig = deriveSignals(features, intent);
-  const scored = EFFECT_ARCHETYPES.map((a) => ({ key: a.key, score: scoreArchetype(features, a.key, sig) }))
-    .sort((a, b) => b.score - a.score);
+  const family = formFamilyOf(features);
+  const shapeChoices = shapeChoicesFor(family);
+  const motionChoices = motionChoicesFor(family);
+  const complexities = [1, 2, 3, 4];
 
-  const ranked = scored.length > count ? scored.slice(0, count) : scored;
-  const comboBudget = Math.min(COMBO_BUDGET, Math.max(0, count - ranked.length));
-  const bonusBudget = Math.max(0, count - ranked.length - comboBudget);
-  const bonusKeys = new Set(ranked.slice(0, Math.min(bonusBudget, ranked.length)).map((r) => r.key));
-
-  const aggroTheme = pickAggressiveTheme(sig.aggression);
-  const sizeScale = pickScaleKey(sig.bigness);
-
-  const plan = [];
-  for (const r of ranked) {
-    plan.push({ archetypeKeys: [r.key], theme: 'classic', scaleKey: 'standard', confidence: r.score });
-    if (bonusKeys.has(r.key)) {
-      plan.push({ archetypeKeys: [r.key], theme: aggroTheme, scaleKey: sizeScale, confidence: r.score - 0.001 });
+  const variations = [];
+  for (const shapeChoice of shapeChoices) {
+    for (const motionStyle of motionChoices) {
+      for (const complexity of complexities) {
+        variations.push({ shapeChoice, motionStyle, complexity, confidence: scoreVariation({ shapeChoice, motionStyle, complexity }, family, sig) });
+      }
     }
   }
+  variations.sort((a, b) => b.confidence - a.confidence);
 
-  // Pair each combo slot's primary with the highest-scoring UNUSED archetype from a different
-  // category, walking down the ranked list — guarantees real variety (no archetype appears in two
-  // combos) and keeps combo confidence strictly below both partners' own solo "classic" slots (via
-  // the -0.002 offset), so a combo can never outrank a genuine single-archetype match for Best
-  // Match/Good Matches placement.
-  const usedInCombo = new Set();
-  let comboCount = 0;
-  for (let i = 0; i < ranked.length && comboCount < comboBudget; i++) {
-    const primary = ranked[i];
-    if (usedInCombo.has(primary.key)) continue;
-    const archPrimary = EFFECT_ARCHETYPES.find((a) => a.key === primary.key);
-    const partner = ranked.find((r) => {
-      if (r.key === primary.key || usedInCombo.has(r.key)) return false;
-      const archPartner = EFFECT_ARCHETYPES.find((a) => a.key === r.key);
-      return archPrimary && archPartner && archPartner.category !== archPrimary.category;
-    });
-    if (!partner) continue;
+  const baseTheme = pickAggressiveTheme(sig.aggression);
+  const scaleKey = pickScaleKey(sig.bigness);
+  const themeCycle = ['classic', baseTheme, 'ice', 'toxic', 'arcane'];
+  const scaleCycle = [scaleKey, 'standard', 'large', 'small'];
+
+  const plan = [];
+  let hueSeed = 0;
+  for (const v of variations) {
+    if (plan.length >= count) break;
     plan.push({
-      archetypeKeys: [primary.key, partner.key],
-      theme: 'classic', scaleKey: 'standard',
-      confidence: Math.min(primary.score, partner.score) - 0.002,
+      family, shapeChoice: v.shapeChoice, motionStyle: v.motionStyle, complexity: v.complexity,
+      theme: plan.length === 0 ? baseTheme : 'classic', scaleKey, hueSeed: hueSeed++, confidence: v.confidence,
     });
-    usedInCombo.add(primary.key);
-    usedInCombo.add(partner.key);
-    comboCount++;
+  }
+  // Top-up: repeat the top-scoring structural choice with cycling theme/scale for extra variety —
+  // never adds a NEW structural pattern, just dresses the best-read one differently, same spirit
+  // as the old "bonus variant" but on a synthesized doc instead of a picked archetype.
+  const top = variations[0];
+  let topUpIndex = 0;
+  while (plan.length < count && top) {
+    plan.push({
+      family, shapeChoice: top.shapeChoice, motionStyle: top.motionStyle, complexity: top.complexity,
+      theme: themeCycle[topUpIndex % themeCycle.length],
+      scaleKey: scaleCycle[Math.floor(topUpIndex / themeCycle.length) % scaleCycle.length],
+      hueSeed: hueSeed++,
+      confidence: Math.max(0.05, top.confidence - 0.01 * (topUpIndex + 1)),
+    });
+    topUpIndex++;
   }
   return plan;
 }
 
 // ---------------------------------------------------------------- geometry-driven nudges
 // Rescales doc.duration, every layer's clip window, AND every curve key's clip-local `t` by the
-// SAME factor — preserving each archetype's hand-tuned relative timing/easing exactly (a key at
-// 93% of a clip's progress stays at 93% after the stretch) while letting a long, elaborate
-// gesture play out a little slower than a quick tap.
+// SAME factor — a long, elaborate gesture plays out a little slower than a quick tap. Unchanged
+// from before this rewrite; still the ONE place duration is length-driven (synthesizeComposition
+// always returns a fixed default so this signal is never double-counted).
 function rescaleTiming(doc, factor) {
   if (Math.abs(factor - 1) < 0.02) return;
   const newDuration = Math.max(4, Math.round(doc.duration * factor));
@@ -181,10 +143,11 @@ function rescaleTiming(doc, factor) {
   for (const layer of doc.layers) setClip(layer, { start: layer.clip.start, len: layer.clip.len, loop: layer.clip.loop }, doc.duration);
 }
 
-// Subtle, always-clamped personalization on top of the archetype+theme+scale base: direction
-// (only when the sketch actually had a clear one), particle speed/spread from how fast/jagged the
-// gesture was, and overall pacing from how much ink/time it took. Never touches which layers
-// exist or what they fundamentally are — SKETCH IT interprets, it doesn't invent.
+// Subtle, always-clamped personalization on top of the synthesized base: direction (only when the
+// sketch actually had a clear one), particle speed/spread from how fast/jagged the gesture was,
+// and overall pacing from how much ink/time it took. Unchanged from before this rewrite — it
+// operates on whatever layers exist, agnostic to whether they came from an archetype or (now) a
+// fresh synthesis.
 function applyGeometryNudges(doc, features) {
   if (features.empty) return;
   const speedFactor = 0.85 + 0.3 * clamp01(features.maxSpeed / 1000);
@@ -204,12 +167,12 @@ function applyGeometryNudges(doc, features) {
 }
 
 function materializeCandidate(spec, features, intent, index) {
-  const scaleFactor = EFFECT_SCALES.find((s) => s.key === spec.scaleKey)?.factor ?? 1;
-  const isCombo = spec.archetypeKeys.length > 1;
-  const doc = isCombo
-    ? combineArchetypeDocs(spec.archetypeKeys[0], spec.archetypeKeys[1], { theme: spec.theme, scale: scaleFactor })
-    : buildArchetypeDoc(spec.archetypeKeys[0], { theme: spec.theme, scale: scaleFactor });
+  const sig = deriveSignals(features, intent);
+  const doc = synthesizeComposition(features, sig, spec);
   if (!doc) return null;
+  const scaleFactor = EFFECT_SCALES.find((s) => s.key === spec.scaleKey)?.factor ?? 1;
+  applyThemeToDoc(doc, spec.theme);
+  applyScaleToDoc(doc, scaleFactor);
   applyGeometryNudges(doc, features);
   interpretEnergy(doc, intent.energyLevel); // no-op for 'normal'/absent — see sketchIntent.js
   interpretColor(doc, intent.colorField, intent.shapeGuides); // no-op when colorField is null
@@ -224,15 +187,16 @@ function materializeCandidate(spec, features, intent, index) {
     motionField: intent.motionField || null,
     energyLevel: intent.energyLevel || 'normal',
   };
-  const archs = spec.archetypeKeys.map((k) => EFFECT_ARCHETYPES.find((a) => a.key === k)).filter(Boolean);
+  doc.name = nameFor(spec.family, spec.motionStyle);
   return {
-    id: `sketch-${spec.archetypeKeys.join('+')}-${spec.theme}-${spec.scaleKey}-${index}`,
-    archetypeKey: spec.archetypeKeys[0], // back-compat: single-string field every existing consumer reads
-    archetypeKeys: spec.archetypeKeys,
-    isCombo,
+    id: `sketch-${spec.family}-${spec.shapeChoice || 'none'}-${spec.motionStyle}-c${spec.complexity}-${spec.theme}-${index}`,
+    family: spec.family,
+    shapeChoice: spec.shapeChoice,
+    motionStyle: spec.motionStyle,
+    complexity: spec.complexity,
     name: doc.name,
-    icon: archs[0] ? archs[0].icon : '✨',
-    category: archs[0] ? archs[0].category : 'Effect',
+    icon: iconFor(spec.family),
+    category: spec.family,
     theme: spec.theme,
     scaleKey: spec.scaleKey,
     confidence: clamp01(spec.confidence),
@@ -248,7 +212,7 @@ export function rankCandidates(candidates) {
 }
 
 // ---------------------------------------------------------------- Composition Planner seam
-// The UI (sketchResults.js) only ever talks to THIS seam, never to archetypePlannerGenerate
+// The UI (sketchResults.js) only ever talks to THIS seam, never to proceduralPlannerGenerate
 // directly — a future planner registers under a new id and the UI is unchanged. generate(features,
 // opts, emit): call `emit(candidate)` as each one becomes ready; opts.signal is an AbortSignal the
 // planner should check between candidates.
@@ -259,9 +223,9 @@ export function registerCompositionPlanner(id, generate) {
 export function getCompositionPlanner(id) {
   return planners.get(id) || null;
 }
-export const DEFAULT_PLANNER_ID = 'archetype-planner-v1';
+export const DEFAULT_PLANNER_ID = 'procedural-planner-v1';
 
-async function archetypePlannerGenerate(features, opts, emit) {
+async function proceduralPlannerGenerate(features, opts, emit) {
   const count = opts?.count ?? 30;
   const intent = opts?.intent ?? NEUTRAL_INTENT;
   const plan = buildGenerationPlan(features, intent, count);
@@ -277,7 +241,7 @@ async function archetypePlannerGenerate(features, opts, emit) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 }
-registerCompositionPlanner(DEFAULT_PLANNER_ID, archetypePlannerGenerate);
+registerCompositionPlanner(DEFAULT_PLANNER_ID, proceduralPlannerGenerate);
 
 // The one entry point sketchResults.js calls. Returns the full collected array (also delivered
 // incrementally via onCandidate) so a caller that doesn't care about progressiveness can just

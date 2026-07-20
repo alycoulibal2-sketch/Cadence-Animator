@@ -556,27 +556,6 @@ export function buildArchetypeDoc(key, { theme = 'classic', scale = 1 } = {}) {
   return parsed.doc;
 }
 
-// SKETCH IT 2.0's Composition Planner may combine two archetypes into one composition (the user's
-// explicit requirement: don't hardcode the planner around always dressing exactly one archetype).
-// Each source doc is built fully independently via buildArchetypeDoc — every layer id in a built
-// doc is a fresh uid() minted by parseEffect's newLayer() (archetype definitions' L() helper never
-// sets an explicit id, so nothing here can collide, even combining an archetype with itself) — so
-// this just concatenates layers and re-parses once for a clean, validated normalization pass.
-export function combineArchetypeDocs(keyA, keyB, { theme = 'classic', scale = 1 } = {}) {
-  const docA = buildArchetypeDoc(keyA, { theme, scale });
-  const docB = buildArchetypeDoc(keyB, { theme, scale });
-  if (!docA || !docB) return null;
-  const archA = EFFECT_ARCHETYPES.find((a) => a.key === keyA);
-  const archB = EFFECT_ARCHETYPES.find((a) => a.key === keyB);
-  const merged = structuredClone(docA);
-  merged.layers.push(...structuredClone(docB.layers));
-  merged.duration = Math.max(docA.duration, docB.duration);
-  merged.loop = docA.loop || docB.loop;
-  merged.name = `${archA ? archA.name : docA.name} + ${archB ? archB.name : docB.name}`;
-  const reparsed = parseEffect(merged);
-  return reparsed.ok ? reparsed.doc : null;
-}
-
 export function searchEffectArchetypes(query, category) {
   const q = (query || '').trim().toLowerCase();
   return EFFECT_ARCHETYPES.filter((a) =>
