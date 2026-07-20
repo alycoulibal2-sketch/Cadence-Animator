@@ -381,3 +381,110 @@ dropdowns in the browser — the same 400-point design space without 400 near-du
 existing 396 single-emitter particle presets remain browsable in their own tab and apply as a
 one-emitter-layer doc. The smoketest gate validates every archetype × every theme × every scale
 to zero errors.
+
+# Node Editor — the new authoring surface (2026-07-21)
+
+Cadence's long-term direction: a professional node-based VFX editor — the creative freedom of
+Unreal Niagara / Blender Geometry Nodes, made understandable to an 11-year-old. **The Golden
+Rule for every node's name/design: could an intelligent 11-year-old understand it within 10
+seconds?** Node titles are plain-language concepts, never Roblox/engine class names ("✨ Spawn
+Particles," never "ParticleEmitter"). No AI-guessed generation, no library of finished effects —
+"Recipes" (a future concept) are just node graphs, fully editable, meant to teach rather than be
+reused as locked templates.
+
+This first pass is deliberately a **foundation**: the data model, node type registry, compiler,
+and a functional-but-unpolished canvas — not the full ~40-node catalog, not AI graph assembly,
+not per-node learning tooltips, not visual polish. Each of those is additive on top of what's
+here, not a redesign of it.
+
+## Key architecture decision: a graph compiles into the existing Effect-document schema
+
+A node graph is **never executed directly**. `renderer/js/graphCompiler.js`'s `compileGraph(graph)`
+walks it and produces the exact same `{version, layers}` Effect document every other part of
+this app already understands — meaning `preview.js`, `effectExport.js`'s Luau export,
+`effectValidators.js`'s whole diagnostics/autofix pipeline, and every MCP `vfx_*` tool work on
+node-authored effects with **zero changes to any of those modules**. The node editor is a new
+*authoring* surface on top of the same execution engine, not a parallel one.
+
+## Data model — `renderer/js/nodeGraphModel.js`
+
+```js
+NodeGraph = { version: 1, id, name, nodes: [Node], connections: [Connection], comments: [Comment] }
+Node = { id, type, x, y, params: {...}, collapsed }
+Connection = { id, fromNode, fromSocket, toNode, toSocket }
+```
+
+One connection kind exists in v1: `'flow'` — the implicit particle/effect stream chaining
+Create → Appearance/Motion/Physics/Timing → Output nodes. Wiring individual node *parameters*
+from other nodes (real Niagara-style dataflow) is future work; v1 params are plain values.
+`registerNodeType`/`getNodeType` is a registry exactly like `effectModel.js`'s `LAYER_TYPES`/
+`MODIFIER_TYPES` — a node type declares `{label, icon, category, inputs, outputs, params
+(propMeta-shaped — same `kind: number|range|color|select|check|vec3|text` vocabulary the layer/
+modifier system already uses), defaults(), compile(ctx, params)}`. `connect()` rejects a
+self-connection and any edge that would close a cycle (the compiler walks a DAG, never a
+simulator); a single-input socket accepts one incoming edge, replacing the old one on a new
+connect — same as unplugging and re-plugging a real cable.
+
+## v1 node catalog — `renderer/js/nodeTypes.js`
+
+One real, fully-compiling node per category, proving the framework without the full catalog:
+**Create** (✨ Spawn Particles), **Appearance** (🎨 Color, 📈 Size Over Time), **Motion**
+(➡ Move, 🌀 Orbit), **Physics** (🌬 Wind), **Timing** (⏳ Lifetime), **Output** (👁 Preview).
+Adding a new node type going forward is one `registerNodeType()` call, never a framework
+change. **Logic** (If/Random Chance/Loop/Timer/On Spawn/On Death/On Hit) has no analog in
+today's per-frame-pure-function engine — no branching/event model exists — and is explicitly not
+attempted yet; `compile(ctx, params)` receives a mutable `ctx`, not just a props blob,
+specifically so a future Logic node can do something structurally different (e.g. skip
+compiling its downstream branch) without a redesign.
+
+## Compiler — `renderer/js/graphCompiler.js`
+
+For every Output-category node, each incoming `flow` connection is walked backward to the
+Create node that starts its chain; every node along the way (Create-first, Output-last) runs its
+`compile(ctx, params)` against a shared `ctx.layer` — a real `newLayer()` the Create node
+creates and every downstream node mutates via the exact same `setLayerProps`/`addModifier` the
+hand-editing UI and MCP tools already call. One layer per complete chain; a Create node with no
+path to an Output, or a chain that dead-ends before reaching one, contributes nothing — a normal
+mid-edit state, never an error (this codebase's "unrecognized/incomplete → neutral, never
+confidently wrong" convention, applied to graph completeness). A cycle is rejected defensively
+even though the editor's own `connect()` can never produce one — a hand-crafted or MCP-written
+graph could. The assembled doc is routed through `parseEffect` once at the end, same "always
+validate through the one true path" convention `effectLibrary.js`'s `buildArchetypeDoc` used.
+
+## Studio integration — `studioState.js`
+
+`state.graph` is the new authoring source of truth when present; `state.doc` becomes **derived**
+— a pure function of the graph, recompiled by `recompileFromGraph()` on every graph mutation,
+exactly the same discipline `sampleEffect` already applies to frame number. A hand-edited/preset
+doc with no graph (`state.graph = null`) behaves with **zero change** from before the node
+editor existed. `mutateGraph(fn)` mirrors `mutate(fn)` — one shared undo/redo history regardless
+of whether the last edit came from the node canvas or the inspector/timeline. A compile error
+keeps the last good `doc` (never blanks the preview) and surfaces via `state.graphErrors` for
+the editor to display. Studio-local autosave persists the graph alongside its compiled doc using
+a small renderer-side-only wrapper format — main process's `vfx:autosave:*` handlers just
+shuttle an opaque string to disk, so this needed zero IPC changes and stays fully backward-
+compatible with autosaves written before the node editor existed.
+
+## Canvas — `renderer-vfx/js/nodeEditor.js`
+
+A near-fullscreen modal (same `.modal:has(...)` override technique the preset browser and the
+deleted sketch workspace both used — zero changes to the main window layout). Node bodies are
+real DOM elements inside a `transform: translate() scale()` world container (pan/zoom) — nodes
+need real inputs/dropdowns/color pickers, which only DOM gives for free; a small per-kind field
+factory mirrors `inspector.js`'s prop-editor conventions without literally reusing its
+layer-specific function. Wires draw on a single SVG overlay, computed from node position + fixed
+per-type socket offsets (no DOM measurement — same hand-rolled-geometry convention as
+`clipTimeline.js`). Position/size edits (node drag, comment drag/resize) stay visual-only during
+the gesture and commit once on release, since the compiler never reads position — recomputing
+the whole graph on every pointermove would be pure waste.
+
+**v1 ships**: pan, zoom, node drag, select + shift-click + rubber-band multi-select, connect
+(drag socket-to-socket)/disconnect (click a wire, Delete), delete, copy/paste, draggable/
+resizable comments, undo/redo, right-click context menu (add node by category), search
+quick-add. **Deliberately not built yet**: node grouping/frames, keyboard-shortcut
+customization, node presets, plugin/third-party node loading.
+
+**Entry point**: a "🔗 Start a Node Graph (new)" banner in the blank-state/preset-browser modal
+— always starts a *fresh* graph (`newBlankGraph()`), never silently converts whatever hand-edited
+doc happens to be open. How the node editor and the existing layer-stack/timeline/inspector UI
+ultimately coexist is an explicitly deferred product/UI decision, not settled by this pass.
