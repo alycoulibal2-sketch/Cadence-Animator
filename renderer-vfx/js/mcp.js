@@ -281,10 +281,10 @@ const HANDLERS = {
   // is exactly the kind of pure logic this codebase always gets scripted regression coverage
   // for. Runs the real Composition Planner against real strokes and checks every candidate it
   // produces against the SAME validator the studio itself gates export/send on.
-  async vfx_sketch_test_pipeline({ strokes, energyLevel, colorDabs, densityDabs } = {}) {
+  async vfx_sketch_test_pipeline({ strokes, energyLevel, colorDabs, densityDabs, motionArrows } = {}) {
     if (!Array.isArray(strokes) || !strokes.length) throw new Error('strokes must be a non-empty array of { points: [{x,y,p,t}] }');
     const features = analyzeSketchStrokes(strokes);
-    const intent = captureSketchIntent({ shapeStrokes: strokes, energyLevel, colorDabs, densityDabs });
+    const intent = captureSketchIntent({ shapeStrokes: strokes, energyLevel, colorDabs, densityDabs, motionArrows });
     const candidates = await planCompositions(features, { count: 30, intent });
     const invalid = [];
     for (const c of candidates) {
@@ -311,6 +311,8 @@ const HANDLERS = {
         colorStart: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.colorStart ?? null,
         colorEnd: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.colorEnd ?? null,
         emitterRates: ranked.best.doc.layers.filter((l) => l.type === 'emitter').map((l) => l.props.rate),
+        motion: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.props.motion ?? null,
+        modifierTypes: ranked.best.doc.layers.find((l) => l.type === 'emitter')?.modifiers.map((m) => m.type) ?? [],
         sketchOrigin: ranked.best.doc.sketchOrigin ?? null,
       } : null,
       goodCount: ranked.good.length,

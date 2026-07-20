@@ -168,7 +168,9 @@ const ENERGY_LEVELS = ['calm', 'normal', 'strong', 'extreme'];
 // hands results a fresh closure over openSketchWorkspace as its onEditSketch callback — that
 // keeps the dependency one-directional (workspace -> results), never circular. Also carries the
 // energy choice back in the same way, so re-editing a sketch doesn't silently reset it to Normal.
-export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel = 'normal', initialColorDabs = null, initialDensityDabs = null } = {}) {
+export function openSketchWorkspace(initialStrokes = null, {
+  initialEnergyLevel = 'normal', initialColorDabs = null, initialDensityDabs = null, initialMotionArrows = null,
+} = {}) {
   if (overlay) return;
 
   let strokes = cloneStrokes(initialStrokes);
@@ -184,13 +186,15 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   let dragStart = null; // world-space anchor for line/circle/ellipse/rect/spiral/arrow/lightning
   let bezierPts = []; // in-progress click-to-add-point path
   let lastBezierClick = 0;
-  let currentLayer = 'shape'; // 'shape' | 'color' | 'density' — which canvas-painting mode is active
+  let currentLayer = 'shape'; // 'shape' | 'color' | 'density' | 'motion' — active canvas-painting mode
   let colorDabs = (initialColorDabs || []).map((d) => ({ ...d })); // { x, y, radius, hex }
   let currentColor = '#7c8cff';
   let paintingColor = false;
   let densityDabs = (initialDensityDabs || []).map((d) => ({ ...d })); // { x, y, radius, intensity }
   let currentIntensity = 0.7;
   let paintingDensity = false;
+  let motionArrows = (initialMotionArrows || []).map((a) => ({ origin: { ...a.origin }, dir: { ...a.dir }, magnitude: a.magnitude })); // { origin:{x,y}, dir:{x,y}, magnitude }
+  let motionDragStart = null;
   const undoStack = [];
   const redoStack = [];
 
@@ -199,14 +203,16 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
 
   // SKETCH IT 2.0: which layer the canvas is currently painting into. Shape is the only layer
   // with its own tool palette (the freehand/line/circle/... shapes analyzeSketchStrokes() reads);
-  // Color/Density paint dabs into their own buffers entirely — none of the three share canvas
-  // state, only the same physical canvas element and the same Brush-size control.
+  // Color/Density paint dabs and Motion draws arrows into their own buffers entirely — none of the
+  // four share canvas state, only the same physical canvas element (and Color/Density share the
+  // same Brush-size control).
   const layerTabs = document.createElement('div');
   layerTabs.className = 'sketch-layer-tabs';
   const LAYER_TABS = [
     { id: 'shape', label: '✏ Shape' },
     { id: 'color', label: '🎨 Color' },
     { id: 'density', label: '⚫ Density' },
+    { id: 'motion', label: '➡️ Motion' },
   ];
   const layerTabBtns = new Map();
   for (const lt of LAYER_TABS) {
@@ -355,11 +361,29 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
 
     drawColorDabs(); // under the ink strokes — reads as a color wash beneath the clean shape guides
     drawDensityDabs();
+    drawMotionArrows(P);
 
     ctx.strokeStyle = P.ink;
     ctx.fillStyle = P.ink;
     for (const s of strokes) drawStroke(s);
-    if (currentStroke) drawStroke(currentStroke);
+    if (currentStroke && currentLayer !== 'motion') drawStroke(currentStroke);
+  }
+
+  // Committed arrows render in the accent color (distinct from Shape-layer ink) so it's always
+  // visually clear which arrows describe motion intent vs. the Shape tab's own Arrow tool.
+  function drawMotionArrows(P) {
+    ctx.strokeStyle = P.accent;
+    ctx.fillStyle = P.accent;
+    for (const a of motionArrows) {
+      const len = 20 + a.magnitude * 60;
+      const from = { x: a.origin.x, y: a.origin.y };
+      const to = { x: a.origin.x + a.dir.x * len, y: a.origin.y + a.dir.y * len };
+      const sFrom = worldToScreen(from.x, from.y), sTo = worldToScreen(to.x, to.y);
+      ctx.lineWidth = Math.max(1.5, 3 * zoom);
+      ctx.beginPath(); ctx.moveTo(sFrom.x, sFrom.y); ctx.lineTo(sTo.x, sTo.y); ctx.stroke();
+      drawArrowhead(from, to);
+    }
+    if (currentLayer === 'motion' && currentStroke) drawStroke(currentStroke); // live drag preview, same accent color
   }
 
   function drawColorDabs() {
@@ -429,6 +453,7 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
       strokes: strokes.map((s) => ({ points: s.points.slice(), tool: s.tool, params: s.params ? { ...s.params } : null })),
       colorDabs: colorDabs.map((d) => ({ ...d })),
       densityDabs: densityDabs.map((d) => ({ ...d })),
+      motionArrows: motionArrows.map((a) => ({ origin: { ...a.origin }, dir: { ...a.dir }, magnitude: a.magnitude })),
     });
     if (undoStack.length > 60) undoStack.shift();
     redoStack.length = 0;
@@ -443,21 +468,23 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
       return true;
     }
     if (!undoStack.length) return false;
-    redoStack.push({ strokes, colorDabs, densityDabs });
+    redoStack.push({ strokes, colorDabs, densityDabs, motionArrows });
     const snap = undoStack.pop();
     strokes = snap.strokes;
     colorDabs = snap.colorDabs;
     densityDabs = snap.densityDabs;
+    motionArrows = snap.motionArrows;
     draw();
     return true;
   }
   function localRedo() {
     if (!redoStack.length) return false;
-    undoStack.push({ strokes, colorDabs, densityDabs });
+    undoStack.push({ strokes, colorDabs, densityDabs, motionArrows });
     const snap = redoStack.pop();
     strokes = snap.strokes;
     colorDabs = snap.colorDabs;
     densityDabs = snap.densityDabs;
+    motionArrows = snap.motionArrows;
     draw();
     return true;
   }
@@ -486,6 +513,7 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
 
   function updateCursor() {
     if (currentLayer === 'color' || currentLayer === 'density') { canvas.style.cursor = 'crosshair'; return; }
+    if (currentLayer === 'motion') { canvas.style.cursor = 'copy'; return; }
     canvas.style.cursor = eraserMode ? 'cell' : (currentTool === 'freehand' ? 'crosshair' : 'copy');
   }
   function setEraser(on) {
@@ -564,6 +592,11 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
       paintDensityDab(e);
       return;
     }
+    if (currentLayer === 'motion') {
+      const rect = canvas.getBoundingClientRect();
+      motionDragStart = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+      return;
+    }
     if (eraserMode) {
       pushLocalUndo();
       erasing = true;
@@ -614,6 +647,16 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
       paintDensityDab(e);
       return;
     }
+    if (motionDragStart) {
+      // Reuses the Shape tab's own arrow guide + arrowhead rendering purely for the live preview —
+      // this in-progress "stroke" is never committed to `strokes`, only converted to a
+      // {origin,dir,magnitude} entry in motionArrows on release.
+      const rect = canvas.getBoundingClientRect();
+      const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+      currentStroke = arrowGuide(motionDragStart, world);
+      draw();
+      return;
+    }
     if (erasing) {
       const rect = canvas.getBoundingClientRect();
       eraseAt(screenToWorld(e.clientX - rect.left, e.clientY - rect.top), brushSize * 1.8);
@@ -636,6 +679,21 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
     if (panDrag) { panDrag = null; updateCursor(); return; }
     if (paintingColor) { paintingColor = false; return; }
     if (paintingDensity) { paintingDensity = false; return; }
+    if (motionDragStart) {
+      if (currentStroke) {
+        const p0 = currentStroke.points[0], p1 = currentStroke.points[currentStroke.points.length - 1];
+        const dx = p1.x - p0.x, dy = p1.y - p0.y;
+        const len = Math.hypot(dx, dy);
+        if (len > 1e-3) {
+          pushLocalUndo();
+          motionArrows.push({ origin: { x: p0.x, y: p0.y }, dir: { x: dx / len, y: dy / len }, magnitude: Math.max(0.2, Math.min(1, len / 100)) });
+        }
+      }
+      motionDragStart = null;
+      currentStroke = null;
+      draw();
+      return;
+    }
     if (erasing) { erasing = false; return; }
     if (currentTool === 'bezier') return; // commits via finishBezier(), not on pointerup
     if (dragStart && DRAG_TOOLS[currentTool]) {
@@ -708,13 +766,14 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
   }
 
   function doClear() {
-    if (!strokes.length && !currentStroke && !bezierPts.length && !colorDabs.length && !densityDabs.length) return;
+    if (!strokes.length && !currentStroke && !bezierPts.length && !colorDabs.length && !densityDabs.length && !motionArrows.length) return;
     pushLocalUndo();
     strokes = [];
     currentStroke = null;
     bezierPts = [];
     colorDabs = [];
     densityDabs = [];
+    motionArrows = [];
     draw();
     toast('Canvas cleared — Ctrl+Z restores it');
   }
@@ -726,14 +785,16 @@ export function openSketchWorkspace(initialStrokes = null, { initialEnergyLevel 
     const snapshot = cloneStrokes(real);
     const colorSnapshot = colorDabs.map((d) => ({ ...d }));
     const densitySnapshot = densityDabs.map((d) => ({ ...d }));
+    const motionSnapshot = motionArrows.map((a) => ({ origin: { ...a.origin }, dir: { ...a.dir }, magnitude: a.magnitude }));
     close();
     import('./sketchResults.js').then(({ openSketchResults }) => {
       openSketchResults(snapshot, {
         energyLevel,
         colorDabs: colorSnapshot,
         densityDabs: densitySnapshot,
+        motionArrows: motionSnapshot,
         onEditSketch: () => openSketchWorkspace(snapshot, {
-          initialEnergyLevel: energyLevel, initialColorDabs: colorSnapshot, initialDensityDabs: densitySnapshot,
+          initialEnergyLevel: energyLevel, initialColorDabs: colorSnapshot, initialDensityDabs: densitySnapshot, initialMotionArrows: motionSnapshot,
         }),
       });
     });

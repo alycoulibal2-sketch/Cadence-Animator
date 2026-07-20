@@ -932,6 +932,43 @@
     return { heavyRate: heavy.bestMatch.rate, lightRate: light.bestMatch.rate };
   });
 
+  await step('SKETCH IT 2.0 Phase 6: Motion layer classifies drawn arrows into the existing motion enum/modifiers', async () => {
+    const N = 30;
+    const circlePts = Array.from({ length: N + 1 }, (_, i) => {
+      const a = (i / N) * Math.PI * 2;
+      return { x: Math.cos(a) * 50, y: Math.sin(a) * 50, p: 0.6, t: i * 20 };
+    });
+    // A ring of tangential (CCW) arrows around the shape's own center — verified standalone
+    // against interpretMotion directly before trusting it here.
+    const orbitArrows = [
+      { origin: { x: 40, y: 0 }, dir: { x: 0, y: 1 }, magnitude: 1 },
+      { origin: { x: 0, y: 40 }, dir: { x: -1, y: 0 }, magnitude: 1 },
+      { origin: { x: -40, y: 0 }, dir: { x: 0, y: -1 }, magnitude: 1 },
+      { origin: { x: 0, y: -40 }, dir: { x: 1, y: 0 }, magnitude: 1 },
+    ];
+    const orbitResult = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }], motionArrows: orbitArrows });
+    assert(orbitResult.invalidCount === 0, `motion-classified candidates must still pass the real validator, but ${orbitResult.invalidCount} did not: ${JSON.stringify(orbitResult.invalid)}`);
+    assert(orbitResult.bestMatch.motion === 'orbit', `a ring of tangential arrows should classify as orbit, got motion="${orbitResult.bestMatch.motion}"`);
+    assert(orbitResult.bestMatch.modifierTypes.includes('orbit'), `an orbit modifier should be added/tuned, got modifiers: ${JSON.stringify(orbitResult.bestMatch.modifierTypes)}`);
+    assert(orbitResult.bestMatch.sketchOrigin.motionField && orbitResult.bestMatch.sketchOrigin.motionField.arrows.length === 4, 'sketchOrigin.motionField should preserve the original drawn arrows at full fidelity');
+
+    // Self-contradicting arrows (four opposing pairs from the same origin) -> no confident
+    // classification -> no override at all, matching "unrecognized -> neutral, never a guess."
+    const ambiguousArrows = [
+      { origin: { x: 0, y: 0 }, dir: { x: 1, y: 0 }, magnitude: 1 },
+      { origin: { x: 0, y: 0 }, dir: { x: -1, y: 0 }, magnitude: 1 },
+      { origin: { x: 0, y: 0 }, dir: { x: 0, y: 1 }, magnitude: 1 },
+      { origin: { x: 0, y: 0 }, dir: { x: 0, y: -1 }, magnitude: 1 },
+    ];
+    const ambiguousResult = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }], motionArrows: ambiguousArrows });
+    const unpaintedResult = await vfxCall('vfx_sketch_test_pipeline', { strokes: [{ points: circlePts }] });
+    assert(ambiguousResult.bestMatch.motion === unpaintedResult.bestMatch.motion, `self-contradicting arrows should leave motion unchanged from the unpainted baseline, got "${ambiguousResult.bestMatch.motion}" vs "${unpaintedResult.bestMatch.motion}"`);
+    assert(JSON.stringify(ambiguousResult.bestMatch.modifierTypes) === JSON.stringify(unpaintedResult.bestMatch.modifierTypes), 'self-contradicting arrows should add no modifiers beyond the unpainted baseline');
+    assert(ambiguousResult.bestMatch.archetypeKey === unpaintedResult.bestMatch.archetypeKey, 'a call with no motionArrows at all should pick the same best-match archetype');
+
+    return { orbitMotion: orbitResult.bestMatch.motion, orbitMods: orbitResult.bestMatch.modifierTypes };
+  });
+
   // ---------------------------------------------------------------- VFX Studio: camera shake
   await step('VFX Studio: camera shake layer does not drift the camera while paused (regression)', async () => {
     await vfxCall('vfx_new_effect', { name: 'Shake Pause Test', duration: 60, fps: 30 });

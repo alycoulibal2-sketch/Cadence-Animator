@@ -23,7 +23,7 @@
 //   energyLevel: 'calm'|'normal'|'strong'|'extreme',
 // }
 
-import { MODIFIER_TYPES, clampProp } from './effectModel.js';
+import { MODIFIER_TYPES, clampProp, addModifier, setCurveKey } from './effectModel.js';
 import { analyzePrimaryStroke, dist } from './sketchGeometry.js';
 import { sanitizeRamp } from './rampEval.js';
 
@@ -290,4 +290,105 @@ export function interpretDensity(doc, densityField, shapeGuides) {
   const stopCount = Math.max(3, Math.min(6, dabs.length));
   const rampStops = sanitizeRamp(bucketAverage(samples, stopCount, averageNumber).map((s) => ({ u: s.u, v: Math.max(0, Math.min(1, s.value)) })), 'number');
   if (rampStops.length >= 2) lone.props.densityRamp = rampStops;
+}
+
+// ---------------------------------------------------------------- Motion interpreter
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+function findModifierByType(layer, type) {
+  return layer.modifiers.find((m) => m.type === type) || null;
+}
+function ensureModifier(layer, type) {
+  return findModifierByType(layer, type) || addModifier(layer, type);
+}
+
+// Classifies a set of drawn arrows, relative to their own shared centroid, into one of
+// flow/orbit/radial/vortex — 'none' when neither a rotational, radial, nor parallel pattern is
+// confident (the "unrecognized -> neutral, never confidently wrong" convention this codebase
+// already uses for sketchCandidates.js's scoreArchetype and sketchClean.js's recognizeStroke).
+// radial/tangential decomposition relative to the centroid separates "spinning around a point"
+// (tangential) from "expanding away from/toward a point" (radial) from "all pointing one way,
+// regardless of position" (parallel) — three genuinely different intents a flat direction-only
+// average could never tell apart.
+function classifyMotion(arrows) {
+  if (!arrows.length) return { kind: 'none' };
+  if (arrows.length === 1) {
+    const a = arrows[0];
+    const len = Math.hypot(a.dir.x, a.dir.y) || 1;
+    return { kind: 'flow', angleDeg: (Math.atan2(a.dir.y / len, a.dir.x / len) * 180) / Math.PI, strength: clamp01(a.magnitude ?? 1) };
+  }
+
+  let cx = 0, cy = 0;
+  for (const a of arrows) { cx += a.origin.x; cy += a.origin.y; }
+  cx /= arrows.length; cy /= arrows.length;
+
+  let radialSum = 0, tangentSum = 0, wSum = 0, sumDirX = 0, sumDirY = 0;
+  for (const a of arrows) {
+    const w = Math.max(0.05, a.magnitude ?? 1);
+    const rx = a.origin.x - cx, ry = a.origin.y - cy;
+    const rLen = Math.hypot(rx, ry) || 1;
+    const nrx = rx / rLen, nry = ry / rLen;
+    const tx = -nry, ty = nrx; // tangent, CCW
+    const dLen = Math.hypot(a.dir.x, a.dir.y) || 1;
+    const ndx = a.dir.x / dLen, ndy = a.dir.y / dLen;
+    radialSum += w * (ndx * nrx + ndy * nry);
+    tangentSum += w * (ndx * tx + ndy * ty);
+    sumDirX += w * ndx; sumDirY += w * ndy;
+    wSum += w;
+  }
+  const avgRadial = wSum > 1e-6 ? radialSum / wSum : 0;
+  const avgTangent = wSum > 1e-6 ? tangentSum / wSum : 0;
+  const parallelStrength = Math.hypot(sumDirX, sumDirY) / Math.max(1e-6, wSum); // 1 = perfectly parallel, regardless of position
+
+  const strongRadial = Math.abs(avgRadial) > 0.6;
+  const strongTangent = Math.abs(avgTangent) > 0.6;
+  const bothModerate = Math.abs(avgRadial) > 0.35 && Math.abs(avgTangent) > 0.35;
+
+  if (bothModerate) {
+    return { kind: 'vortex', curlSign: avgTangent > 0 ? 1 : -1, growing: avgRadial > 0, strength: clamp01((Math.abs(avgRadial) + Math.abs(avgTangent)) / 2) };
+  }
+  if (strongTangent) {
+    return { kind: 'orbit', curlSign: avgTangent > 0 ? 1 : -1, strength: clamp01(Math.abs(avgTangent)) };
+  }
+  if (strongRadial && avgRadial > 0) {
+    return { kind: 'radial', strength: clamp01(avgRadial) }; // inward-radial (vacuum/implosion) has no clean existing motion primitive to degrade onto — falls through to 'none' below
+  }
+  if (parallelStrength > 0.6) {
+    return { kind: 'flow', angleDeg: (Math.atan2(sumDirY, sumDirX) * 180) / Math.PI, strength: clamp01(parallelStrength) };
+  }
+  return { kind: 'none' };
+}
+
+// Drawn arrows -> the existing motion enum + orbit/wind modifiers, tuned from the classification.
+// 'vortex' additionally animates the orbit modifier's own radius over the clip (via the existing
+// setCurveKey(), radius is already animatable:true) so the swirl visibly widens/narrows — no new
+// modifier type, no new engine primitive, just driving an existing animatable param.
+export function interpretMotion(doc, motionField) {
+  if (!motionField || !Array.isArray(motionField.arrows) || !motionField.arrows.length) return;
+  const emitters = doc.layers.filter((l) => l.type === 'emitter');
+  if (!emitters.length) return;
+  const c = classifyMotion(motionField.arrows);
+  if (c.kind === 'none') return; // ambiguous arrow arrangement -> no override, never a guess
+
+  for (const em of emitters) {
+    if (c.kind === 'orbit' || c.kind === 'vortex') {
+      em.props.motion = 'orbit';
+      const mod = ensureModifier(em, 'orbit');
+      const baseSpeed = Math.abs(mod.props.speed || 2);
+      mod.props.speed = clampModParam('orbit', 'speed', baseSpeed * c.curlSign);
+      if (c.kind === 'vortex') {
+        const baseRadius = mod.props.radius || 0.6;
+        const endRadius = clampModParam('orbit', 'radius', c.growing ? baseRadius * 1.8 : baseRadius * 0.4);
+        setCurveKey(em, `mod:${mod.id}:radius`, 0, baseRadius);
+        setCurveKey(em, `mod:${mod.id}:radius`, Math.max(1, em.clip.len - 1), endRadius);
+      }
+    } else if (c.kind === 'radial') {
+      em.props.motion = 'burst';
+    } else if (c.kind === 'flow') {
+      const rad = (c.angleDeg * Math.PI) / 180;
+      const mod = ensureModifier(em, 'wind');
+      mod.props.direction = [Math.cos(rad), 0, Math.sin(rad)];
+      mod.props.strength = clampModParam('wind', 'strength', Math.max(0.5, c.strength * 6));
+    }
+  }
 }
