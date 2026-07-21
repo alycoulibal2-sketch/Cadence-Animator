@@ -2,6 +2,16 @@
 import * as CF from './cf.js';
 import { evalSegment } from './easing.js';
 
+// DISPLAY ONLY — never use this for a track/joint/part key, lookup, or export. Roblox's own
+// R15 part/joint names have no spaces (UpperTorso, RightShoulder, LeftAnkle) and MUST stay that
+// way everywhere they're actually used (set_keyframe, exported .rbxm data, Motor6D/joint lookups
+// in rigbuild.js) or animations break when brought into Studio. This only inserts a space before
+// each internal capital for readability in the timeline/inspector text — R6 names that already
+// have spaces (Left Shoulder) are untouched since the regex only matches a missing boundary.
+export function humanizeRigName(name) {
+  return name.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+}
+
 // ---------------------------------------------------------------- events
 const listeners = new Map();
 export function on(type, cb) {
@@ -10,8 +20,45 @@ export function on(type, cb) {
   return () => listeners.get(type).delete(cb);
 }
 export function emit(type, data) {
+  if (type === 'tracks') invalidateTrackCache(data);
   (listeners.get(type) || []).forEach((cb) => { try { cb(data); } catch (e) { console.error(e); } });
   if (type !== 'playhead' && type !== 'playing') (listeners.get('any') || []).forEach((cb) => cb(type));
+}
+
+// Every track mutator (setKey, deleteKeys, moveKeys, setEasing, mirrorItem, fillFrames, ...)
+// already emits 'tracks' right after touching keys/easing/space — hooking invalidation here
+// once, instead of in each of those functions, means a future mutator gets cache-safety for
+// free just by following the existing emit convention. {itemId,track} clears just that track's
+// cache (the common single-key-edit case); no payload (bulk ops, undo/redo project-swap) clears
+// every track's cache.
+function invalidateTrackCache(data) {
+  const tracks = state.project && state.project.tracks;
+  if (!tracks) return;
+  if (data && data.itemId && data.track) {
+    const tr = tracks[data.itemId] && tracks[data.itemId][data.track];
+    if (tr) trackEvalCache.delete(tr);
+    return;
+  }
+  for (const itemTracks of Object.values(tracks)) {
+    for (const tr of Object.values(itemTracks)) trackEvalCache.delete(tr);
+  }
+}
+
+// Evaluated-value cache for evalTrackCF/evalTrackNum, keyed by the track object's OWN IDENTITY —
+// deliberately NOT a property on the track object itself. `serialize()` is a raw
+// `JSON.stringify(state.project)` and undo/redo's snapshot()/applySnapshot() round-trip through
+// `structuredClone` — a `Map` stored as an enumerable field on a serializable object survives
+// structuredClone fine, but a save/load round trip (real JSON, no Map support) silently turns it
+// into `{}`, which is truthy but not a Map — a subsequent `tr._cfCache.has(t)` would then throw
+// "has is not a function" (hit exactly this crashing a real smoketest run before the WeakMap
+// rewrite). Keeping the cache in a WeakMap outside `state.project` entirely means a
+// loaded/cloned track is just a new object identity with no entry yet — cache miss, not corrupt
+// data — so this failure mode can't recur regardless of what cloning mechanism touches tracks.
+const trackEvalCache = new WeakMap(); // tr -> { cf: Map<t,cf>, num: Map<t,num> }
+function trackCache(tr) {
+  let c = trackEvalCache.get(tr);
+  if (!c) { c = { cf: new Map(), num: new Map() }; trackEvalCache.set(tr, c); }
+  return c;
 }
 
 // ---------------------------------------------------------------- state
@@ -481,37 +528,61 @@ export function setTrackSpace(itemId, track, space, convertValue) {
 }
 
 // ---------------------------------------------------------------- evaluation
-// CFrame track evaluation with per-segment easing (left key's easing shapes the segment)
+// Both evaluators memoize by exact `t`, via trackCache() (see above — NOT a property on the
+// track object), but ONLY for whole-frame queries (Number.isInteger(t)) — every repeat-read call
+// site (get_pose/render_frame/validate_animation, stepped nav, snapped scrub, export) always
+// samples a literal integer frame, often the SAME one many times in a row (e.g. orbiting the
+// camera while paused re-runs updateScene()->evalPose() every rAF tick at an unchanged playhead).
+// Real-time Play, by contrast, advances the playhead continuously (see loop() in app.js:
+// `playhead + dt*fps`) — every t during Play is essentially unique, so caching it would be
+// all-miss and would grow the Map forever for as long as Play runs. Skipping the fractional case
+// sidesteps that leak entirely rather than needing any eviction policy.
 export function evalTrackCF(itemId, track, t, fallback = CF.IDENTITY) {
   const tr = trackObj(itemId, track);
   if (!tr || !tr.keys.length) return fallback;
+  const useCache = Number.isInteger(t);
+  const cache = useCache ? trackCache(tr).cf : null;
+  if (cache && cache.has(t)) return cache.get(t);
   const keys = tr.keys;
-  if (t <= keys[0].t) return keys[0].v;
-  if (t >= keys[keys.length - 1].t) return keys[keys.length - 1].v;
-  let lo = 0;
-  for (let i = 0; i < keys.length - 1; i++) {
-    if (t >= keys[i].t && t <= keys[i + 1].t) { lo = i; break; }
+  let result;
+  if (t <= keys[0].t) result = keys[0].v;
+  else if (t >= keys[keys.length - 1].t) result = keys[keys.length - 1].v;
+  else {
+    let lo = 0;
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (t >= keys[i].t && t <= keys[i + 1].t) { lo = i; break; }
+    }
+    const a = keys[lo], b = keys[lo + 1];
+    const span = b.t - a.t || 1;
+    const alpha = evalSegment(a, (t - a.t) / span);
+    result = CF.lerp(a.v, b.v, alpha);
   }
-  const a = keys[lo], b = keys[lo + 1];
-  const span = b.t - a.t || 1;
-  const alpha = evalSegment(a, (t - a.t) / span);
-  return CF.lerp(a.v, b.v, alpha);
+  if (cache) cache.set(t, result);
+  return result;
 }
 
 export function evalTrackNum(itemId, track, t, fallback = 0) {
   const tr = trackObj(itemId, track);
   if (!tr || !tr.keys.length) return fallback;
+  const useCache = Number.isInteger(t);
+  const cache = useCache ? trackCache(tr).num : null;
+  if (cache && cache.has(t)) return cache.get(t);
   const keys = tr.keys;
-  if (t <= keys[0].t) return keys[0].v;
-  if (t >= keys[keys.length - 1].t) return keys[keys.length - 1].v;
-  let lo = 0;
-  for (let i = 0; i < keys.length - 1; i++) {
-    if (t >= keys[i].t && t <= keys[i + 1].t) { lo = i; break; }
+  let result;
+  if (t <= keys[0].t) result = keys[0].v;
+  else if (t >= keys[keys.length - 1].t) result = keys[keys.length - 1].v;
+  else {
+    let lo = 0;
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (t >= keys[i].t && t <= keys[i + 1].t) { lo = i; break; }
+    }
+    const a = keys[lo], b = keys[lo + 1];
+    const span = b.t - a.t || 1;
+    const alpha = evalSegment(a, (t - a.t) / span);
+    result = a.v + (b.v - a.v) * alpha;
   }
-  const a = keys[lo], b = keys[lo + 1];
-  const span = b.t - a.t || 1;
-  const alpha = evalSegment(a, (t - a.t) / span);
-  return a.v + (b.v - a.v) * alpha;
+  if (cache) cache.set(t, result);
+  return result;
 }
 
 // ---------------------------------------------------------------- keyframe navigation (J/K)

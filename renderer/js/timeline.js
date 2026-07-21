@@ -93,7 +93,8 @@ function rebuildRows() {
     } else if (item.rig) {
       for (const j of item.rig.joints || []) {
         if (j.kind === 'weld') continue;
-        tl.rows.push({ kind: 'track', itemId: item.id, track: j.name, label: j.name, depth: 1, part1: j.part1 });
+        // track stays the REAL joint name (used for every lookup); label is display-only.
+        tl.rows.push({ kind: 'track', itemId: item.id, track: j.name, label: S.humanizeRigName(j.name), depth: 1, part1: j.part1 });
       }
     }
   }

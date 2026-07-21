@@ -39,6 +39,27 @@ export const viewport = {
 // Snapshot of the dummy's transform at the start of the current drag — used both for the live
 // HUD readout (delta from here) and to detect whether a scale drag actually changed anything.
 export const dragStart = { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), scale: new THREE.Vector3() };
+
+// When the gizmo is anchored at a joint's anatomical pivot (see selectedWorld()) instead of the
+// part's own CFrame, the dummy no longer IS the part's transform — it's the pivot's. This holds
+// the part's pose relative to that pivot, captured once at drag start (constant through a rigid
+// drag), so onGizmoChange can reconstruct the part's desired world CFrame as
+// `dummy.matrixWorld * pivotLocalOffset` instead of treating the dummy's transform as the part's
+// directly. Null whenever the anchor IS the part's own CFrame (root/@origin, IK mode, non-jointed
+// items) — those keep the old direct behavior unchanged.
+let pivotLocalOffset = null;
+function capturePivotOffset() {
+  pivotLocalOffset = null;
+  const { itemId, partId } = S.state.selection;
+  if (!itemId || !partId || viewport.ikMode) return;
+  const inst = viewport.instances.get(itemId);
+  const pivot = inst?.jointPivotWorld?.(partId);
+  if (!pivot) return;
+  const pivotM = new THREE.Matrix4(); CF.toThreeMatrix(pivot, pivotM);
+  const partM = new THREE.Matrix4(); CF.toThreeMatrix(inst.partWorld(partId), partM);
+  pivotLocalOffset = new THREE.Matrix4().copy(pivotM).invert().multiply(partM);
+}
+
 // QA-only: drives the exact same drag-start/change/release path TransformControls itself would,
 // without needing to raycast synthetic pointer events against its picker geometry.
 export function debugSimulateDrag(applyFn) {
@@ -46,6 +67,7 @@ export function debugSimulateDrag(applyFn) {
   dragStart.pos.copy(viewport.dummy.position);
   dragStart.quat.copy(viewport.dummy.quaternion);
   dragStart.scale.copy(viewport.dummy.scale);
+  capturePivotOffset();
   applyFn(viewport.dummy);
   viewport.dummy.updateMatrixWorld(true);
   onGizmoChange();
@@ -289,6 +311,7 @@ export function initViewport(container) {
       dragStart.pos.copy(dummy.position);
       dragStart.quat.copy(dummy.quaternion);
       dragStart.scale.copy(dummy.scale);
+      capturePivotOffset();
       applyLiveSnap();
     } else {
       viewport.editingDrag = false;
@@ -540,6 +563,15 @@ function selectedWorld() {
     if (viewport.overlayOrigin.has(itemId)) origin = viewport.overlayOrigin.get(itemId);
     return origin;
   }
+  // Anatomically-correct anchor: a jointed limb's move/rotate gizmo sits at its real attachment
+  // point (the shoulder/hip/neck — Part0.World * C0, same pivot the joint-handle marker sits at)
+  // instead of the part's own geometric center, so rotating swings the limb from where it's
+  // actually attached rather than spinning it in place. IK is excluded: there the gizmo IS the
+  // reach target (the limb's tip), which must stay at the part's own position, not its pivot.
+  if (!viewport.ikMode) {
+    const pivot = inst.jointPivotWorld?.(partId);
+    if (pivot) return pivot;
+  }
   return inst.partWorld(partId);
 }
 
@@ -628,7 +660,15 @@ function onGizmoChange() {
 
   if (!partId) return;
   viewport.dummy.updateMatrixWorld(true);
-  const desired = CF.orthonormalize(CF.fromThreeMatrix(viewport.dummy.matrixWorld));
+  // If the gizmo is pivot-anchored (see selectedWorld()/capturePivotOffset), the dummy's own
+  // transform IS the pivot's, not the part's — recompose the part's actual desired world CFrame
+  // by carrying the part's (constant, drag-start-captured) offset from that pivot along with it.
+  // This is what makes a rotate drag swing the limb from its real joint instead of spinning it
+  // in place around its own geometric center.
+  const desiredM = pivotLocalOffset
+    ? new THREE.Matrix4().copy(viewport.dummy.matrixWorld).multiply(pivotLocalOffset)
+    : viewport.dummy.matrixWorld;
+  const desired = CF.orthonormalize(CF.fromThreeMatrix(desiredM));
 
   const item = S.getItem(itemId);
 
@@ -724,6 +764,18 @@ export function debugPick(e) {
 function pick(e) {
   setPointerFromEvent(e);
   viewport.raycaster.setFromCamera(viewport.pointer, viewport.camera);
+  // Selection boxes (Moon-Animator-style click targets, sized to the whole part — see
+  // RigInstance#buildPart) are checked FIRST and win outright if hit: a consistent, easy-to-click
+  // region per limb, regardless of the real mesh's exact silhouette/texture. Only when a click
+  // misses every box (e.g. a non-rig item, or empty space near a part) do we fall back to the
+  // real part meshes + joint-handle spheres, same as before this existed.
+  const boxes = [];
+  for (const [, inst] of viewport.instances) {
+    if (inst.parts) for (const [, p] of inst.parts) boxes.push(p.selBox);
+  }
+  const boxHits = boxes.length ? viewport.raycaster.intersectObjects(boxes, false) : [];
+  if (boxHits.length) return boxHits[0].object;
+
   const meshes = [];
   for (const [, inst] of viewport.instances) {
     if (inst.parts) {

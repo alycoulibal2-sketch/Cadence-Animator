@@ -756,7 +756,7 @@ async function riggingToolsFlow() {
   const item = itemId ? S.getItem(itemId) : null;
   if (!item || item.kind !== 'rig') { toast('Select a rig first', 'warn'); return; }
   const rig = item.rig;
-  const partName = (id) => rig.parts.find((p) => p.id === id)?.name || id;
+  const partName = (id) => S.humanizeRigName(rig.parts.find((p) => p.id === id)?.name || id);
 
   const wrap = document.createElement('div');
   const list = document.createElement('div');
@@ -781,7 +781,7 @@ async function riggingToolsFlow() {
         <button class="btn small conv"></button><button class="btn small del">🗑</button>`;
       row.querySelector('.kind').textContent = j.kind === 'weld' ? '🔗' : '⚙';
       row.querySelector('.kind').title = j.kind === 'weld' ? 'Weld (rigid)' : 'Motor6D (animatable)';
-      row.querySelector('.nm').textContent = j.name;
+      row.querySelector('.nm').textContent = S.humanizeRigName(j.name);
       row.querySelector('.parts').textContent = `${partName(j.part0)} → ${partName(j.part1)}`;
       const conv = row.querySelector('.conv');
       conv.textContent = j.kind === 'weld' ? 'Make Motor6D' : 'Make Weld';
@@ -790,7 +790,7 @@ async function riggingToolsFlow() {
         try {
           S.convertJoint(item.id, j.name);
           refresh3D(); renderList();
-          toast(`${j.name} is now a ${j.kind === 'weld' ? 'Weld' : 'Motor6D'}`);
+          toast(`${S.humanizeRigName(j.name)} is now a ${j.kind === 'weld' ? 'Weld' : 'Motor6D'}`);
         } catch (e) { toast(e.message, 'error'); }
       });
       row.querySelector('.del').title = 'Delete this joint' + (j.kind !== 'weld' ? ' (its keyframes are deleted too)' : '');
@@ -815,7 +815,7 @@ async function riggingToolsFlow() {
     label.textContent = labelText;
     const sel = document.createElement('select');
     sel.className = 'fld';
-    for (const p of rig.parts) sel.add(new Option(p.name, p.id));
+    for (const p of rig.parts) sel.add(new Option(S.humanizeRigName(p.name), p.id));
     return { label, sel };
   };
   const p0 = mkSelect('Part0 (parent — stays put)');
@@ -2222,9 +2222,9 @@ function wireInspector() {
     if (item && partId && partId !== '@origin' && partId !== '@camera' && item.rig) {
       const j = (item.rig.joints || []).find((j) => j.part1 === partId && j.kind !== 'weld');
       const partDef = item.rig.parts.find((p) => p.id === partId);
-      const sec = section(partDef ? partDef.name : 'Part');
+      const sec = section(partDef ? S.humanizeRigName(partDef.name) : 'Part');
       if (j) {
-        sec.appendChild(fieldRow('Joint', j.name));
+        sec.appendChild(fieldRow('Joint', S.humanizeRigName(j.name)));
         const isWorld = S.trackSpace(itemId, j.name) === 'world';
         const cur = S.evalTrackCF(itemId, j.name, S.state.playhead);
         const [rx, ry, rz] = CF.toEuler(cur).map((r) => Math.round((r * 180) / Math.PI * 100) / 100);

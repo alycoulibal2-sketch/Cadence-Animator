@@ -199,6 +199,11 @@ function partGeometry(def) {
 
 const handleGeoNormal = new THREE.SphereGeometry(0.22, 12, 10);
 const handleGeoSmall = new THREE.SphereGeometry(0.12, 12, 10);
+// Unit cube reused (scaled per-part via the matrix, like partGapVector below) for every part's
+// selection-box overlay — a Moon-Animator-style click target sized to the whole part instead of
+// its exact mesh silhouette, so clicking a limb is consistent regardless of the real geometry's
+// shape/texture. Invisible until hovered/selected (see RigInstance#setHighlight).
+const SEL_BOX_GEO = new THREE.BoxGeometry(1, 1, 1);
 
 // Roblox's own renderer always draws a subtle dark edge along every part's hard corners — one of
 // the things that reads as "flat/plastic-toy-like" in a bare PBR material without it. Shared
@@ -344,7 +349,17 @@ export class RigInstance {
     // going to black like every other material — a Neon part must keep glowing even while some
     // other part is selected, not just when this exact one is.
     const baseEmissive = mp.emissive ? { color: new THREE.Color(def.color || '#A3A2A5'), intensity: mp.emissive } : null;
-    this.parts.set(def.id, { def, mesh, world: CF.IDENTITY.slice(), extras: [], baseEmissive });
+
+    const selBoxMat = new THREE.MeshBasicMaterial({ color: 0x3355ff, transparent: true, opacity: 0, depthTest: true });
+    const selBox = new THREE.Mesh(SEL_BOX_GEO, selBoxMat);
+    selBox.matrixAutoUpdate = false;
+    // visible stays true permanently — opacity 0 is how it's "hidden" at rest, so it's always a
+    // valid pick() raycast target (pick() gates candidates on .visible, not opacity/appearance).
+    selBox.userData = { itemId: this.item.id, partId: def.id, partName: def.name, isSelBox: true };
+    this.group.add(selBox);
+    const selBoxSize = new THREE.Vector3(def.size[0], def.size[1], def.size[2]);
+
+    this.parts.set(def.id, { def, mesh, world: CF.IDENTITY.slice(), extras: [], baseEmissive, selBox, selBoxSize });
 
     // customTexture: an already-decoded data URI captured at FBX/GLB import time (see
     // meshImport.js) — no CDN, no async race with the real-mesh-fetch path below (customMesh
@@ -589,6 +604,9 @@ export class RigInstance {
       CF.toThreeMatrix(p.world, p.mesh.matrix);
       p.mesh.matrix.scale(partGapVector);
       p.mesh.matrixWorldNeedsUpdate = true;
+      CF.toThreeMatrix(p.world, p.selBox.matrix);
+      p.selBox.matrix.scale(p.selBoxSize);
+      p.selBox.matrixWorldNeedsUpdate = true;
     }
     for (const h of this.handles) {
       const p0World = worlds.get(h.joint.part0);
@@ -615,6 +633,17 @@ export class RigInstance {
 
   partWorld(partId) {
     return this.parts.get(partId)?.world || CF.IDENTITY;
+  }
+
+  // The part's real anatomical attachment point (Part0.World * C0) — the same pivot the
+  // joint-handle marker sits at in computeWorld(). Null for parts with no driving joint (root,
+  // welded/static parts) — callers fall back to partWorld() for those.
+  jointPivotWorld(partId) {
+    const j = this.jointByPart1.get(partId);
+    if (!j) return null;
+    const p0 = this.parts.get(j.part0);
+    if (!p0) return null;
+    return CF.mul(p0.world, j.c0);
   }
 
   // For a part with no direct motor Transform to solve (welded, or reached only through welds/
@@ -653,12 +682,17 @@ export class RigInstance {
   setHighlight(partId, level) { // level: 0 none, 1 hover, 2 selected
     for (const [id, p] of this.parts) {
       const em = p.mesh.material.emissive;
-      if (!em) continue;
-      if (id === partId && level === 2) em.set(0x3355ff), p.mesh.material.emissiveIntensity = 0.35;
-      else if (id === partId && level === 1) em.set(0x223377), p.mesh.material.emissiveIntensity = 0.3;
-      else if (p.baseEmissive) em.copy(p.baseEmissive.color), p.mesh.material.emissiveIntensity = p.baseEmissive.intensity;
-      else em.set(0x000000);
-      p.mesh.material.needsUpdate = false;
+      if (em) {
+        if (id === partId && level === 2) em.set(0x3355ff), p.mesh.material.emissiveIntensity = 0.35;
+        else if (id === partId && level === 1) em.set(0x223377), p.mesh.material.emissiveIntensity = 0.3;
+        else if (p.baseEmissive) em.copy(p.baseEmissive.color), p.mesh.material.emissiveIntensity = p.baseEmissive.intensity;
+        else em.set(0x000000);
+        p.mesh.material.needsUpdate = false;
+      }
+      // Selection box: invisible at rest, a soft fill on hover, a stronger one when selected —
+      // the click-target itself gives the same affordance a real cursor-over highlight would.
+      const isTarget = id === partId;
+      p.selBox.material.opacity = isTarget && level === 2 ? 0.32 : isTarget && level === 1 ? 0.16 : 0;
     }
     for (const h of this.handles) {
       const isTarget = h.joint.part1 === partId;
@@ -679,7 +713,7 @@ export class RigInstance {
     this.group.traverse((o) => {
       // handle geometries and the edge-overlay material are shared module-level constants —
       // never dispose those, or every OTHER still-live instance loses them too.
-      if (o.geometry && o.geometry !== handleGeoNormal && o.geometry !== handleGeoSmall) o.geometry.dispose();
+      if (o.geometry && o.geometry !== handleGeoNormal && o.geometry !== handleGeoSmall && o.geometry !== SEL_BOX_GEO) o.geometry.dispose();
       if (o.material && o.material !== EDGE_MATERIAL) {
         if (o.material.map) o.material.map.dispose();
         o.material.dispose();
