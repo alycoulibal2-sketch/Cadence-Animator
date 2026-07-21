@@ -93,8 +93,11 @@ function rebuildRows() {
     } else if (item.rig) {
       for (const j of item.rig.joints || []) {
         if (j.kind === 'weld') continue;
-        // track stays the REAL joint name (used for every lookup); label is display-only.
-        tl.rows.push({ kind: 'track', itemId: item.id, track: j.name, label: S.humanizeRigName(j.name), depth: 1, part1: j.part1 });
+        // track stays the REAL joint name (used for every lookup); label is display-only — shows
+        // the PART it moves (e.g. "Right Upper Arm") rather than the joint driving it, swapped
+        // with the Inspector's title (which shows the joint) per the user's explicit request.
+        const partDef = item.rig.parts.find((p) => p.id === j.part1);
+        tl.rows.push({ kind: 'track', itemId: item.id, track: j.name, label: S.humanizeRigName(partDef ? partDef.name : j.name), depth: 1, part1: j.part1 });
       }
     }
   }

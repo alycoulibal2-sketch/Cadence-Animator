@@ -2222,9 +2222,13 @@ function wireInspector() {
     if (item && partId && partId !== '@origin' && partId !== '@camera' && item.rig) {
       const j = (item.rig.joints || []).find((j) => j.part1 === partId && j.kind !== 'weld');
       const partDef = item.rig.parts.find((p) => p.id === partId);
-      const sec = section(partDef ? S.humanizeRigName(partDef.name) : 'Part');
+      // Title/field names swapped vs. before: title now shows the JOINT (matches what the
+      // timeline used to show), and the field shows the PART (matches what the title used to
+      // show) — the timeline itself was flipped the other way in the same change, so each panel
+      // now leads with the name the other one used to.
+      const sec = section(j ? S.humanizeRigName(j.name) : (partDef ? S.humanizeRigName(partDef.name) : 'Part'));
       if (j) {
-        sec.appendChild(fieldRow('Joint', S.humanizeRigName(j.name)));
+        sec.appendChild(fieldRow('Part', S.humanizeRigName(partDef ? partDef.name : partId)));
         const isWorld = S.trackSpace(itemId, j.name) === 'world';
         const cur = S.evalTrackCF(itemId, j.name, S.state.playhead);
         const [rx, ry, rz] = CF.toEuler(cur).map((r) => Math.round((r * 180) / Math.PI * 100) / 100);
