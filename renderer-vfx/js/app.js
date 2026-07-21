@@ -15,7 +15,7 @@ import { initDiagnosticsPanel } from './diagnosticsPanel.js';
 import { serializeEffect, parseEffect } from '../../renderer/js/effectModel.js';
 import { buildEffectLua } from '../../renderer/js/effectExport.js';
 import { toast, modal } from '../../renderer/js/ui.js';
-import { isNodeEditorOpen } from './nodeEditor.js';
+import { isNodeEditorOpen, openNodeEditor } from './nodeEditor.js';
 
 // ---------------------------------------------------------------- transport
 function initTransport() {
@@ -69,6 +69,19 @@ function initTitlebar() {
 
   document.getElementById('newBtn').addEventListener('click', () => newEffectFlow());
   document.getElementById('presetsBtn').addEventListener('click', () => openPresetBrowser());
+
+  // Reopens the SAME graph if this effect already has one (closing the node editor modal never
+  // discards ST.state.graph — only replacing the whole doc does). If this effect wasn't
+  // node-authored, starts a fresh graph first — same "replaces the doc as one undo step" contract
+  // every other doc-replacing action here already uses (newBlankDoc/Open/apply preset), so
+  // Ctrl+Z still restores whatever was open, no separate confirm dialog needed.
+  document.getElementById('nodesBtn').addEventListener('click', () => {
+    if (!ST.state.graph) {
+      ST.newBlankGraph();
+      toast('Started a new node graph — Ctrl+Z restores what was open');
+    }
+    openNodeEditor();
+  });
 
   document.getElementById('openBtn').addEventListener('click', async () => {
     const file = await window.vfxStudio.openEffectFile();
