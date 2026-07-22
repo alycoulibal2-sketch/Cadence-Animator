@@ -15,33 +15,6 @@ function applyToPoint(cf, p) {
   ];
 }
 
-// Rotation-only CFrame taking unit vector a to unit vector b (shortest arc), with the step
-// optionally clamped — a small per-iteration cap keeps CCD from snapping/flipping on big drags.
-function rotationBetween(a, b, maxStep = Math.PI) {
-  const la = Math.hypot(a[0], a[1], a[2]);
-  const lb = Math.hypot(b[0], b[1], b[2]);
-  if (la < 1e-6 || lb < 1e-6) return null;
-  const ax = a[0] / la, ay = a[1] / la, az = a[2] / la;
-  const bx = b[0] / lb, by = b[1] / lb, bz = b[2] / lb;
-  const dot = Math.max(-1, Math.min(1, ax * bx + ay * by + az * bz));
-  let angle = Math.acos(dot);
-  if (angle < 1e-4) return null;
-  let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
-  const nl = Math.hypot(nx, ny, nz);
-  if (nl < 1e-6) {
-    // exactly opposite vectors — pick any perpendicular axis
-    const [px, py, pz] = Math.abs(ax) < 0.9 ? [1, 0, 0] : [0, 1, 0];
-    nx = ay * pz - az * py; ny = az * px - ax * pz; nz = ax * py - ay * px;
-    const l2 = Math.hypot(nx, ny, nz) || 1;
-    nx /= l2; ny /= l2; nz /= l2;
-  } else {
-    nx /= nl; ny /= nl; nz /= nl;
-  }
-  angle = Math.min(angle, maxStep);
-  const s = Math.sin(angle / 2);
-  return CF.fromQuatPos([nx * s, ny * s, nz * s, Math.cos(angle / 2)], 0, 0, 0);
-}
-
 // The motor-joint chain from `endPartId` upward (tip joint first), stopping at the root part,
 // a branch with no motor, or `maxJoints`. R15 hand → [Wrist, Elbow, Shoulder] at the default 3.
 export function buildChain(item, endPartId, maxJoints = 3) {
@@ -91,12 +64,35 @@ export function solveIK(inst, item, endPartId, targetPos, opts = {}) {
       const pivotInv = CF.inverse(CF.mul(p0World, j.c0));
       const e = applyToPoint(pivotInv, [end[0], end[1], end[2]]);
       const t = applyToPoint(pivotInv, targetPos);
-      const R = rotationBetween(e, t, opts.maxStep ?? 0.9);
+      const R = CF.rotationBetween(e, t, opts.maxStep ?? 0.9);
       if (!R) continue;
       pose[j.name] = CF.orthonormalize(CF.mul(R, pose[j.name] || CF.IDENTITY.slice()));
       worlds = inst.solvePoseWorlds(pose, origin, unparented);
     }
     if (endDistance(worlds) < tolerance) break;
+  }
+
+  // Optional orientation control: the tip-most joint (chain[0], whose part1 === endPartId) is the
+  // only one whose rotation can change endPartId's FACING/ROLL without moving its already-solved
+  // POSITION — rotating about the exact axis from that joint's own pivot to the current
+  // end-effector position leaves every point ON that axis fixed, and the end-effector position is
+  // one such point. This is a real, but limited, notion of "orientation-aware IK": it controls
+  // twist/roll around the reach direction (e.g. which way a gripped item's edge faces), not
+  // arbitrary 3-axis facing — a chain built for position-reaching doesn't have spare degrees of
+  // freedom for full independent orientation matching.
+  if (opts.twistDeg) {
+    const tipJoint = chain[0];
+    const p0World = worlds.get(tipJoint.part0);
+    const end = worlds.get(endPartId);
+    if (p0World && end) {
+      const pivotCF = CF.mul(p0World, tipJoint.c0);
+      const pivotPos = CF.position(pivotCF);
+      const axisWorld = [end[0] - pivotPos[0], end[1] - pivotPos[1], end[2] - pivotPos[2]];
+      const axisLocal = CF.rotateVector(CF.inverse(pivotCF), axisWorld);
+      const Rtwist = CF.axisAngle(axisLocal, (opts.twistDeg * Math.PI) / 180);
+      pose[tipJoint.name] = CF.orthonormalize(CF.mul(Rtwist, pose[tipJoint.name] || CF.IDENTITY.slice()));
+      worlds = inst.solvePoseWorlds(pose, origin, unparented);
+    }
   }
 
   const out = {};

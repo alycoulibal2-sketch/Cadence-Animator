@@ -39,6 +39,7 @@ function errorResult(e) {
 const cframeSchema = z.array(z.number()).length(12)
   .describe('Flat 12-number CFrame: [x,y,z, r00,r01,r02, r10,r11,r12, r20,r21,r22] — same order as Roblox CFrame:GetComponents(). Identity is [0,0,0,1,0,0,0,1,0,0,0,1].');
 const keyRefSchema = z.object({ itemId: z.string(), track: z.string(), t: z.number() });
+const vec3Schema = z.array(z.number()).length(3).describe('[x, y, z]');
 
 const server = new McpServer({ name: 'cadence-animator', version: '0.1.0' });
 
@@ -227,6 +228,13 @@ server.tool('undo', 'Undo the last change.', {}, async () => { try { return text
 server.tool('redo', 'Redo the last undone change.', {}, async () => { try { return textResult(await call('redo')); } catch (e) { return errorResult(e); } });
 
 server.tool(
+  'set_theme',
+  'Change the app\'s visual theme and/or accent color (a UI preference, persisted to settings — has no effect on any project data). Omit either field to leave it unchanged.',
+  { theme: z.enum(['dark', 'midnight', 'slate', 'light']).optional(), accent: z.enum(['periwinkle', 'mint', 'amber', 'rose', 'cyan', 'violet']).optional() },
+  async ({ theme, accent }) => { try { return textResult(await call('set_theme', { theme, accent })); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
   'save_project', 'Save the project to its current file path. If it has never been saved to a file, this reports that autosave already has every change, since Cadence autosaves continuously.',
   {},
   async () => { try { return textResult(await call('save_project')); } catch (e) { return errorResult(e); } },
@@ -236,6 +244,13 @@ server.tool(
   'export_to_studio', 'Export a rig\'s animation directly into the connected Roblox Studio session as a KeyframeSequence (requires the user to have Studio open and connected via the Cadence Bridge plugin).',
   { itemId: z.string(), name: z.string().optional(), publish: z.boolean().optional() },
   async ({ itemId, name, publish }) => { try { return textResult(await call('export_to_studio', { itemId, name, publish })); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'export_camera_script',
+  'Bake a camera\'s @origin+@fov animation (easing included) into a self-contained Roblox Luau LocalScript that lerps between the baked frames on RenderStepped, with a PlayCameraAnimation BindableEvent for non-autoplay triggering. Pass savePath to write it to disk (.rbxmx wraps it as a droppable LocalScript instance; any other extension writes plain .lua text) — omit savePath to get the Lua source back directly in the response instead.',
+  { itemId: z.string().describe('a camera item id'), name: z.string().optional().describe('script/instance name, defaults to "<camera name> script"'), savePath: z.string().optional().describe('absolute path to write to; omit to get the Lua source back in the response instead') },
+  async ({ itemId, name, savePath }) => { try { return textResult(await call('export_camera_script', { itemId, name, savePath })); } catch (e) { return errorResult(e); } },
 );
 
 server.tool(
@@ -293,6 +308,70 @@ server.tool(
   'delete_face_preset', 'Remove a saved face preset from the library permanently.',
   { presetId: z.string() },
   async ({ presetId }) => { try { return textResult(await call('delete_face_preset', { presetId })); } catch (e) { return errorResult(e); } },
+);
+
+// ---------------------------------------------------------------- inverse kinematics & pose math
+server.tool(
+  'solve_ik',
+  'Position a limb\'s end part (e.g. a hand or foot) at an exact world-space point; the Motor6D chain above it (shoulder+elbow, or however many joints chainLength covers) solves via CCD to reach it. Keys the result at `frame` unless key:false, which instead just reports the solved pose and residual error for a dry run. Prefer this over hand-deriving a rotation whenever you have a concrete position to reach for — it reuses the app\'s own tested solver instead of composing Euler angles by hand, which is easy to get subtly wrong (see compute_swing_twist for the "aim at a direction, not a position" case). Optionally pass twistDeg to also control the end part\'s ROLL around the reach direction (e.g. which way a gripped item\'s edge faces) once the position is solved — this is a real but limited notion of "orientation": it adjusts twist/roll around the already-solved reach axis, not arbitrary independent 3-axis facing, since a chain built for reaching a position doesn\'t have spare degrees of freedom for that.',
+  {
+    itemId: z.string(), partId: z.string().describe('the limb\'s end part (id or name) to place at target — e.g. a hand or foot'),
+    target: vec3Schema.describe('world-space position in studs to reach for — a position only, NOT a CFrame/orientation'),
+    chainLength: z.number().optional().describe('how many joints up the chain to solve (e.g. 2 for hand+wrist reaching via elbow+shoulder); defaults to the app\'s current IK chain length setting (usually 3)'),
+    frame: z.number().optional().describe('defaults to the current playhead'),
+    key: z.boolean().optional().describe('set false for a dry run that returns the solved pose/error without keying anything (default true)'),
+    twistDeg: z.number().optional().describe('additional roll in degrees around the solved reach axis, applied to the tip-most joint after position convergence — controls facing/grip-roll without disturbing the reached position'),
+  },
+  async ({ itemId, partId, target, chainLength, frame, key, twistDeg }) => { try { return textResult(await call('solve_ik', { itemId, partId, target, chainLength, frame, key, twistDeg })); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'compute_swing_twist',
+  'Pure math helper (touches no project state): computes the rotation CFrame that swings restDirection to point along aimDirection, optionally twisted an extra twistDeg around that now-aimed axis afterward. Use this for a "point this joint/limb toward direction D" pose with no position to solve toward (if you DO have a world-space position target for a limb\'s end part, use solve_ik instead). Returns both the raw flat-12 CFrame and its XYZ Euler degrees for a quick sanity check — feed the cframe straight into set_keyframe once it looks right. Exists so a reach/aim rotation is computed the same correct way every time instead of hand-deriving Rodrigues/quaternion math from scratch.',
+  {
+    restDirection: vec3Schema.describe('the joint\'s un-rotated (rest-pose) local direction, e.g. [0,-1,0] for a limb hanging straight down at rest — need not be pre-normalized'),
+    aimDirection: vec3Schema.describe('the direction restDirection should end up pointing, expressed in the SAME space as restDirection (world or parent-local — this tool does no space conversion, it is pure vector math) — need not be pre-normalized'),
+    twistDeg: z.number().optional().describe('additional rotation in degrees about the now-aimed axis, applied after the swing (e.g. to roll a limb around its own length once aimed)'),
+  },
+  async ({ restDirection, aimDirection, twistDeg }) => { try { return textResult(await call('compute_swing_twist', { restDirection, aimDirection, twistDeg })); } catch (e) { return errorResult(e); } },
+);
+
+// ---------------------------------------------------------------- unparented (world-space) animation
+server.tool(
+  'set_track_space',
+  'Toggle a joint track between parent-relative (local, normal) and origin-relative world-space storage. Conversion is exact and lossless in both directions — every existing key is re-derived under the new interpretation from the rig\'s actual solved pose at that key\'s own time, so switching back and forth never drifts the pose. World-space ("unparented") animation pastes/retargets correctly onto rigs with different proportions since the motion is authored as a path through space rather than a parent-relative wobble specific to one rig\'s bone lengths.',
+  { itemId: z.string(), track: z.string(), space: z.enum(['world', 'local']) },
+  async ({ itemId, track, space }) => { try { return textResult(await call('set_track_space', { itemId, track, space })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'get_track_space', 'Get whether a joint track is currently stored parent-relative ("local") or origin-relative ("world"/unparented).',
+  { itemId: z.string(), track: z.string() },
+  async ({ itemId, track }) => { try { return textResult(await call('get_track_space', { itemId, track })); } catch (e) { return errorResult(e); } },
+);
+
+// ---------------------------------------------------------------- rigging tools
+server.tool(
+  'create_joint',
+  'Add a new Motor6D (or, with kind:"weld", a rigid weld) between two existing parts on a rig, rigging up a previously-loose part or adding a whole new limb segment. C0/C1 are derived from the parts\' REST bind CFrames (not whatever pose is currently on screen), pivoted at part1\'s rest origin — the same convention Studio itself uses when a Motor6D is authored by hand. Refuses to create a cycle or to double-drive a part that already has a motor.',
+  {
+    itemId: z.string(),
+    name: z.string().optional().describe('defaults to "<part1 name>Joint"; motor track names ARE joint names, so this becomes the track name in set_keyframe'),
+    kind: z.enum(['motor', 'weld']).optional().describe('defaults to motor (animatable); weld is a rigid, non-animatable attachment'),
+    part0: z.string().describe('the parent part (id or name) — the new joint\'s pivot anchor'),
+    part1: z.string().describe('the child part (id or name) this joint will drive'),
+  },
+  async ({ itemId, name, kind, part0, part1 }) => { try { return textResult(await call('create_joint', { itemId, name, kind, part0, part1 })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'remove_joint', 'Delete a joint (motor or weld) from a rig. A motor\'s animation track is deleted with it — recreating a same-named joint later starts with a fresh, empty track, not the old keyframes.',
+  { itemId: z.string(), name: z.string() },
+  async ({ itemId, name }) => { try { return textResult(await call('remove_joint', { itemId, name })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'convert_joint',
+  'Flip a joint between weld and Motor6D. Weld -> motor makes a previously-rigid attachment animatable. Motor -> weld freezes it rigid at its current rest position AND deletes its animation track (same reasoning as remove_joint) — make sure you don\'t need that track\'s keyframes before converting.',
+  { itemId: z.string(), name: z.string() },
+  async ({ itemId, name }) => { try { return textResult(await call('convert_joint', { itemId, name })); } catch (e) { return errorResult(e); } },
 );
 
 // ---------------------------------------------------------------- attach & detach

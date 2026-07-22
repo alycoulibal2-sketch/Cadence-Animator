@@ -24,6 +24,43 @@ const POP_ANGLE_DEG = 35;   // per-frame rotation change beyond this reads as a 
 const POP_POS_STUDS = 3;    // per-frame position jump beyond this reads as a pop
 const SAMPLE_STEP = 1;      // frames
 
+const HINGE_DOMINANCE_THRESHOLD = 0.5; // arccos(0.5) = 60° off rest — comfortable margin from both
+                                         // the 0.09 (broken) and 0.93 (fixed) real measurements below
+
+// Generic/rig-agnostic: walks item.rig.joints by part0/part1 links (same technique ik.js's
+// buildChain uses), so it applies to R6/R15/Rthro/RthroSlender or any custom rig without
+// hardcoding joint names. By this project's rig convention a joint's own bend axis is local X (its
+// C0/C1 rotation is identity on every built-in rig, verified directly against rigs/builtin.json),
+// so rotating [1,0,0] through a joint's CFrame and dotting the result with [1,0,0] again reduces to
+// exactly that CFrame's r00 (flat-12 index 3) — a plain single-axis-X hinge (an elbow/knee bending
+// however far) always keeps r00 at 1 and can never trigger this, while a ball-and-socket joint
+// (shoulder/hip) keyed with real Y/Z rotation at the same time can twist a CHILD joint's own bend
+// axis into a wrong direction — the exact bug class a numerically-clean pose can otherwise hide.
+// Measured empirically: a real broken shoulder pose scored ~0.09 here; the fixed version scored
+// ~0.93. Weakest on custom-imported rigs whose C0/C1 aren't identity (FBX/GLB bone-derived joints)
+// — same "warn, don't assert" caveat class check_collision's AABB approach already carries.
+function checkHingeAxisMisalignment(item, tracks, findings) {
+  const joints = item.rig.joints || [];
+  for (const j of joints) {
+    if (j.kind === 'weld') continue;
+    const tr = tracks[j.name];
+    if (!tr || !tr.keys.length) continue;
+    const children = joints.filter((k) => k.kind !== 'weld' && k.part0 === j.part1);
+    if (!children.length) continue;
+    for (const k of tr.keys) {
+      if (!Array.isArray(k.v) || k.v.length !== 12 || !isOrthonormal(k.v)) continue; // degenerate_cframe already flags this
+      const dominance = k.v[3];
+      if (dominance < HINGE_DOMINANCE_THRESHOLD) {
+        const angleOff = (Math.acos(Math.max(-1, Math.min(1, dominance))) * 180) / Math.PI;
+        findings.push({
+          severity: 'warn', type: 'hinge_axis_misalignment', track: j.name, frame: k.t,
+          message: `"${j.name}" at frame ${k.t} swings its own local-X axis ~${angleOff.toFixed(0)}° off rest. Downstream joint(s) may visibly twist as a result (e.g. a curl reading as a sideways swing): ${children.map((c) => c.name).join(', ')}. Usually caused by keying more than one rotation axis at once on a ball-and-socket-style joint — check the render, or use solve_ik/compute_swing_twist instead of a hand-composed rotation.`,
+        });
+      }
+    }
+  }
+}
+
 // Returns { findings: [{severity, type, track, frame, message}], summary }
 export function validateAnimation(itemId) {
   const item = S.getItem(itemId);
@@ -81,6 +118,7 @@ export function validateAnimation(itemId) {
         message: `These joints have no keyframes at all: ${neverAnimated.join(', ')}. Intentional (e.g. a static prop hand) or forgotten?`,
       });
     }
+    checkHingeAxisMisalignment(item, tracks, findings);
   }
 
   const endTimes = trackNames.map((tn) => tracks[tn].keys[tracks[tn].keys.length - 1]?.t ?? 0);

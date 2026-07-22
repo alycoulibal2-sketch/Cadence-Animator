@@ -71,6 +71,58 @@ export function fromQuatPos(q, px, py, pz) {
   ];
 }
 
+// Rotation-only CFrame: unit `axis` rotated `angleRad` about itself (right-hand rule), via the
+// quaternion exponential map. Use this when you already know the axis (e.g. the "twist" half of a
+// swing-twist decomposition); rotationBetween below derives its own axis from two vectors instead.
+export function axisAngle(axis, angleRad) {
+  const l = Math.hypot(axis[0], axis[1], axis[2]) || 1;
+  const ax = axis[0] / l, ay = axis[1] / l, az = axis[2] / l;
+  const s = Math.sin(angleRad / 2);
+  return fromQuatPos([ax * s, ay * s, az * s, Math.cos(angleRad / 2)], 0, 0, 0);
+}
+
+// Rotation-only CFrame taking unit vector a to unit vector b (shortest arc), with the resulting
+// angle optionally capped at maxStep (default Math.PI, i.e. effectively uncapped, since the angle
+// between two vectors is already <= PI) — the cap exists so ik.js's CCD loop can clamp each
+// iteration's step and avoid snapping/flipping on a big drag. Returns null if either vector is
+// ~zero-length or a/b are already ~parallel (no rotation needed).
+export function rotationBetween(a, b, maxStep = Math.PI) {
+  const la = Math.hypot(a[0], a[1], a[2]);
+  const lb = Math.hypot(b[0], b[1], b[2]);
+  if (la < 1e-6 || lb < 1e-6) return null;
+  const ax = a[0] / la, ay = a[1] / la, az = a[2] / la;
+  const bx = b[0] / lb, by = b[1] / lb, bz = b[2] / lb;
+  const dot = Math.max(-1, Math.min(1, ax * bx + ay * by + az * bz));
+  let angle = Math.acos(dot);
+  if (angle < 1e-4) return null;
+  let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
+  const nl = Math.hypot(nx, ny, nz);
+  if (nl < 1e-6) {
+    // exactly opposite vectors — pick any perpendicular axis
+    const [px, py, pz] = Math.abs(ax) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+    nx = ay * pz - az * py; ny = az * px - ax * pz; nz = ax * py - ay * px;
+    const l2 = Math.hypot(nx, ny, nz) || 1;
+    nx /= l2; ny /= l2; nz /= l2;
+  } else {
+    nx /= nl; ny /= nl; nz /= nl;
+  }
+  angle = Math.min(angle, maxStep);
+  const s = Math.sin(angle / 2);
+  return fromQuatPos([nx * s, ny * s, nz * s, Math.cos(angle / 2)], 0, 0, 0);
+}
+
+// Rotates a direction vector by a CFrame's ROTATION part only (position ignored) — use this to
+// carry a vector/axis (as opposed to a point) between spaces, e.g. converting a world-space twist
+// axis into a joint's local pivot space before building an axisAngle rotation from it.
+export function rotateVector(cf, v) {
+  const [, , , r00, r01, r02, r10, r11, r12, r20, r21, r22] = cf;
+  return [
+    r00 * v[0] + r01 * v[1] + r02 * v[2],
+    r10 * v[0] + r11 * v[1] + r12 * v[2],
+    r20 * v[0] + r21 * v[1] + r22 * v[2],
+  ];
+}
+
 function slerp(qa, qb, t) {
   let [ax, ay, az, aw] = qa;
   let [bx, by, bz, bw] = qb;

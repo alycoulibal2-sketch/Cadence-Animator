@@ -827,6 +827,40 @@
     return fixed;
   });
 
+  // ---------------------------------------------------------------- MCP registration coverage
+  // Regression guard for a real bug found 2026-07-22: solve_ik/create_joint/remove_joint/
+  // convert_joint/set_track_space/get_track_space were fully implemented in MCP_HANDLERS (built
+  // 2026-07-18) but mcp-server/index.js never registered matching tools -- completely unreachable
+  // from Claude despite being real, working, tested code. Nothing else could have caught this: the
+  // module-level checks above call MCP_HANDLERS directly, bypassing exactly the boundary that was
+  // broken. This step statically diffs the two files' name lists so a future feature can't ship
+  // the same gap silently.
+  await step('every app.js MCP_HANDLERS key has a matching mcp-server/index.js tool registration', async () => {
+    const appSrc = await window.cadence.readFile(resolveProjectPath('renderer/js/app.js'));
+    const mcpSrc = await window.cadence.readFile(resolveProjectPath('mcp-server/index.js'));
+
+    const registered = new Set([...mcpSrc.matchAll(/server\.tool\(\s*['"]([a-zA-Z_][a-zA-Z0-9_]*)['"]/g)].map((m) => m[1]));
+
+    const startMarker = 'const MCP_HANDLERS = {';
+    const start = appSrc.indexOf(startMarker);
+    const end = appSrc.indexOf('\nfunction initMcp', start);
+    assert(start !== -1 && end !== -1, 'could not locate the MCP_HANDLERS block in app.js -- this check needs updating if that structure changed');
+    const handlersBlock = appSrc.slice(start + startMarker.length, end);
+    const handlerKeys = [...handlersBlock.matchAll(/^\s{2}([a-zA-Z_][a-zA-Z0-9_]*):/gm)].map((m) => m[1]);
+    assert(handlerKeys.length > 20, `sanity check: expected dozens of top-level handler keys, only found ${handlerKeys.length} -- the extraction regex likely broke`);
+
+    // Deliberately internal-only handlers that should NOT be MCP-reachable go here, by name, with
+    // a reason -- an empty array would mean "every handler must be registered."
+    const KNOWN_UNREGISTERED = [
+      'add_vfx', // legacy single-emitter `vfx` item kind -- UI-only (command palette), superseded
+      'set_vfx_emitter', // by the richer effect/vfx_* system; target `effect` for anything new.
+    ];
+
+    const missing = handlerKeys.filter((k) => !registered.has(k) && !KNOWN_UNREGISTERED.includes(k));
+    assert(missing.length === 0, `MCP_HANDLERS has ${missing.length} handler(s) with no matching mcp-server/index.js tool registration -- implemented but unreachable from Claude: ${missing.join(', ')}`);
+    return { handlerCount: handlerKeys.length, registeredCount: registered.size, excluded: KNOWN_UNREGISTERED };
+  });
+
   // ---------------------------------------------------------------- wrap up
   const failed = report.steps.filter((s) => !s.ok);
   report.ok = failed.length === 0 && report.consoleErrors.length === 0;
