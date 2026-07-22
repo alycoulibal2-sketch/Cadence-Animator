@@ -1,4 +1,5 @@
 // Toasts, context menus, modals — the small smooth interactions.
+import { iconSvg, swapIcon } from './icons.js';
 
 // A mono-styled text block with a reliable one-click copy button (Electron's clipboard IPC,
 // not navigator.clipboard — more consistent inside a packaged app) — use this anywhere a modal
@@ -12,13 +13,13 @@ export function copyableRow(text) {
   const btn = document.createElement('button');
   btn.className = 'copy-btn';
   btn.title = 'Copy to clipboard';
-  btn.textContent = '⧉';
+  btn.innerHTML = iconSvg('copy', { size: 15 });
   btn.addEventListener('click', async () => {
     await window.cadence.copyText(text);
-    btn.textContent = '✓';
+    swapIcon(btn, 'check', { size: 15 });
     btn.classList.add('copied');
     toast('Copied to clipboard', 'success', 1600);
-    setTimeout(() => { btn.textContent = '⧉'; btn.classList.remove('copied'); }, 1200);
+    setTimeout(() => { swapIcon(btn, 'copy', { size: 15 }); btn.classList.remove('copied'); }, 1200);
   });
   row.appendChild(mono);
   row.appendChild(btn);
@@ -85,7 +86,7 @@ export function showContextMenu(x, y, items, depth = 0) {
     }
     const row = document.createElement('div');
     row.className = 'ctx-item' + (it.header ? ' header' : '') + (it.danger ? ' danger' : '') + (it.children ? ' has-sub' : '');
-    row.innerHTML = `<span class="lbl"></span>${it.shortcut ? `<span class="sc">${it.shortcut}</span>` : ''}${it.children ? '<span class="arrow">›</span>' : ''}`;
+    row.innerHTML = `${it.icon ? `<span class="ic">${iconSvg(it.icon, { size: 15 })}</span>` : ''}<span class="lbl"></span>${it.shortcut ? `<span class="sc">${it.shortcut}</span>` : ''}${it.children ? '<span class="arrow">›</span>' : ''}`;
     row.querySelector('.lbl').textContent = it.label;
     if (!it.header) {
       if (it.children) {
@@ -137,7 +138,12 @@ export function modal({ title, body, actions = [], onClose }) {
   for (const a of actions) {
     const b = document.createElement('button');
     b.className = 'btn' + (a.primary ? ' primary' : '');
-    b.textContent = a.label;
+    if (a.icon) {
+      b.insertAdjacentHTML('afterbegin', iconSvg(a.icon, { size: 14 }));
+      b.appendChild(document.createTextNode(a.label));
+    } else {
+      b.textContent = a.label;
+    }
     b.addEventListener('click', async () => {
       const keep = await a.run?.(close);
       if (!keep) close();
@@ -194,8 +200,7 @@ export function chooseModal({ title, options, onDelete }) {
     for (const o of options) {
       const card = document.createElement('button');
       card.className = 'choose-card';
-      card.innerHTML = `<span class="ic"></span><span class="t"></span><span class="d"></span>`;
-      card.querySelector('.ic').textContent = o.icon || '●';
+      card.innerHTML = `<span class="ic">${iconSvg(o.icon || 'dot', { size: 18 })}</span><span class="t"></span><span class="d"></span>`;
       card.querySelector('.t').textContent = o.label;
       card.querySelector('.d').textContent = o.desc || '';
       card.addEventListener('click', () => { resolved = true; resolve(o.id); m.close(); });
@@ -203,7 +208,7 @@ export function chooseModal({ title, options, onDelete }) {
         const del = document.createElement('span');
         del.className = 'choose-card-delete';
         del.title = 'Delete';
-        del.textContent = '🗑';
+        del.innerHTML = iconSvg('trash', { size: 13 });
         del.addEventListener('click', async (e) => {
           e.stopPropagation();
           if (await onDelete(o)) card.remove();

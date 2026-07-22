@@ -19,13 +19,12 @@
     <div id="bridgeChip" class="chip-status" title="Roblox Studio bridge — click for connection status">
       <span class="dot"></span><span class="txt">Studio offline</span>
     </div>
-    <button id="mcpBtn" class="tb-btn" title="Let Claude drive this app directly via MCP">✨ Claude Control</button>
-    <button id="mobileBtn" class="tb-btn" title="View this animation live and make small edits from your phone">📱 Mobile</button>
-    <button id="vfxStudioBtn" class="tb-btn" title="Build a particle effect in its own window, then send it here">🎆 VFX Studio</button>
-    <button id="addBtn" class="tb-btn primary">＋ Add</button>
-    <button id="importBtn" class="tb-btn">Import</button>
-    <button id="exportBtn" class="tb-btn">Export</button>
-    <button id="shortcutsBtn" class="tb-btn" title="Keyboard shortcuts (?)">⌘ Shortcuts</button>
+    <div class="tb-sep"></div>
+    <button id="vfxStudioBtn" class="tb-btn" data-icon="wand" title="Build a particle effect in its own window, then send it here">VFX Studio</button>
+    <button id="importBtn" class="tb-btn icon-only" data-icon="import" title="Import animation"></button>
+    <button id="exportBtn" class="tb-btn icon-only" data-icon="export" title="Export animation"></button>
+    <button id="addBtn" class="tb-btn primary" data-icon="plus">Add</button>
+    <button id="moreBtn" class="tb-btn icon-only" data-icon="more" title="More — Claude Control, Mobile, Shortcuts"></button>
     <div class="overlay-pad"></div>
   </header>
 
@@ -34,7 +33,7 @@
     <aside id="explorer">
       <div class="panel-head">
         <span>Scene</span>
-        <button id="addItemBtn" class="icon-btn" title="Add rig, camera or audio">＋</button>
+        <button id="addItemBtn" class="icon-btn" data-icon="plus" data-icon-size="14" title="Add rig, camera or audio"></button>
       </div>
       <div id="itemList"></div>
     </aside>
@@ -43,14 +42,15 @@
     <section id="viewportWrap">
       <div id="viewport"></div>
       <div id="vpChips">
-        <button id="moveBtn" class="vp-chip" title="Move tool (W)">✥ Move</button>
-        <button id="rotateBtn" class="vp-chip" title="Rotate tool (E)">⟳ Rotate</button>
-        <button id="trackballBtn" class="vp-chip" title="Trackball tool — drag the selected part anywhere to spin it freely">🌐 Trackball</button>
-        <button id="ikBtn" class="vp-chip" title="IK tool (T) — drag a hand/foot and the joints up the chain follow">🦾 IK</button>
-        <button id="scaleBtn" class="vp-chip" title="Scale tool — resize the selected rig">⤢ Scale</button>
+        <div class="vp-chip-pill" id="vpChipPill"></div>
+        <button id="moveBtn" class="vp-chip" data-icon="move" data-icon-size="14" title="Move tool (W)">Move</button>
+        <button id="rotateBtn" class="vp-chip" data-icon="rotate" data-icon-size="14" title="Rotate tool (E)">Rotate</button>
+        <button id="trackballBtn" class="vp-chip" data-icon="trackball" data-icon-size="14" title="Trackball tool — drag the selected part anywhere to spin it freely">Trackball</button>
+        <button id="ikBtn" class="vp-chip" data-icon="ik" data-icon-size="14" title="IK tool (T) — drag a hand/foot and the joints up the chain follow">IK</button>
+        <button id="scaleBtn" class="vp-chip" data-icon="scale" data-icon-size="14" title="Scale tool — resize the selected rig">Scale</button>
       </div>
       <div id="dragHud" class="drag-hud"></div>
-      <button id="camChip" class="vp-chip cam" title="Exit camera view (Esc)">🎥 Viewing camera — click to exit</button>
+      <button id="camChip" class="vp-chip cam" data-icon="camera" data-icon-size="14" title="Exit camera view (Esc)">Viewing camera — click to exit</button>
     </section>
 
     <div class="resizer resizer-x" id="inspectorResizer"></div>
@@ -64,19 +64,19 @@
   <!-- timeline -->
   <section id="timelinePanel">
     <div id="transport">
-      <button id="stepBackBtn" class="tr-btn" title="Back 1 frame (←)">⏮</button>
-      <button id="playBtn" class="tr-btn big" title="Play / Pause (Space)">▶</button>
-      <button id="stopBtn" class="tr-btn" title="Stop (Shift+Space)">⏹</button>
-      <button id="stepFwdBtn" class="tr-btn" title="Forward 1 frame (→)">⏭</button>
+      <button id="stepBackBtn" class="tr-btn" data-icon="step-back" data-icon-size="14" title="Back 1 frame (←)"></button>
+      <button id="playBtn" class="tr-btn big" data-icon="play" data-icon-size="15" title="Play / Pause (Space)"></button>
+      <button id="stopBtn" class="tr-btn" data-icon="stop" data-icon-size="14" title="Stop (Shift+Space)"></button>
+      <button id="stepFwdBtn" class="tr-btn" data-icon="step-fwd" data-icon-size="14" title="Forward 1 frame (→)"></button>
       <div class="frame-display">frame <span id="frameBox">0</span></div>
       <div class="tr-field">fps <input id="fpsInput" type="number" min="1" max="120" value="30"></div>
       <div class="tr-field">length <input id="lenInput" type="number" min="1" max="36000" value="90"></div>
       <div class="spacer"></div>
       <button id="loopBtn" class="tr-btn toggle" title="Loop playback">Loop</button>
-      <button id="autoKeyBtn" class="tr-btn toggle rec" title="Auto-key: record keys when you move parts (A)">● Auto-key</button>
-      <button id="keyBtn" class="tr-btn" title="Key current pose (S)">◆ Key</button>
-      <button id="curveBtn" class="tr-btn" title="Curve editor (C)">∿ Curves</button>
-      <button id="fitBtn" class="tr-btn" title="Zoom timeline to fit">⤢</button>
+      <button id="autoKeyBtn" class="tr-btn toggle rec" data-icon="dot" data-icon-size="10" title="Auto-key: record keys when you move parts (A)">Auto-key</button>
+      <button id="keyBtn" class="tr-btn" data-icon="key" data-icon-size="12" title="Key current pose (S)">Key</button>
+      <button id="curveBtn" class="tr-btn" data-icon="curves" data-icon-size="14" title="Curve editor (C)">Curves</button>
+      <button id="fitBtn" class="tr-btn icon-only" data-icon="fit" data-icon-size="14" title="Zoom timeline to fit"></button>
     </div>
     <div id="tlBody">
       <div id="trackList"></div>
@@ -89,7 +89,7 @@
           <button id="curveToBezier" class="chip accent">Custom bezier</button>
           <div id="curvePresets"></div>
           <div class="spacer"></div>
-          <button id="curveClose" class="icon-btn">✕</button>
+          <button id="curveClose" class="icon-btn" data-icon="close" data-icon-size="13"></button>
         </div>
         <div class="curve-canvas-wrap"><canvas id="curveCanvas"></canvas></div>
       </div>

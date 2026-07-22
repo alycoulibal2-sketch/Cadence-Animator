@@ -64,6 +64,15 @@ export function removeAudio() {
   S.markDirty();
 }
 
+export function renameAudio(name) {
+  const a = S.state.project?.audio;
+  if (!a || !name) return;
+  S.pushUndo();
+  a.name = name;
+  S.emit('audio');
+  S.markDirty();
+}
+
 export function setAudioOffset(frames) {
   const a = S.state.project?.audio;
   if (!a) return;

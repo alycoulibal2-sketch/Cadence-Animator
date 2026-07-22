@@ -15,6 +15,7 @@ import { initDiagnosticsPanel } from './diagnosticsPanel.js';
 import { serializeEffect, parseEffect } from '../../renderer/js/effectModel.js';
 import { buildEffectLua } from '../../renderer/js/effectExport.js';
 import { toast, modal } from '../../renderer/js/ui.js';
+import { applyStaticIcons, swapIcon } from '../../renderer/js/icons.js';
 import { isNodeEditorOpen, openNodeEditor } from './nodeEditor.js';
 
 // ---------------------------------------------------------------- transport
@@ -25,7 +26,7 @@ function initTransport() {
 
   playBtn.addEventListener('click', () => ST.setPlaying(!ST.state.playing));
   stopBtn.addEventListener('click', () => { ST.setPlaying(false); ST.setPlayhead(0); });
-  ST.on('playing', () => { playBtn.textContent = ST.state.playing ? '⏸' : '▶'; });
+  ST.on('playing', () => swapIcon(playBtn, ST.state.playing ? 'pause' : 'play', { size: 14 }));
   const updateFrame = () => {
     frameLabel.textContent = `frame ${Math.floor(ST.state.playhead)} / ${ST.state.doc.duration}`;
   };
@@ -137,17 +138,17 @@ function initTitlebar() {
       }
     }
     modal({
-      title: '📜 Export to Roblox (Luau)',
+      title: 'Export to Roblox (Luau)',
       body,
       actions: [
         {
-          label: '💾 Save .lua file', run: async () => {
+          label: 'Save .lua file', icon: 'save', run: async () => {
             const saved = await window.vfxStudio.saveTextFile(lua, `${ST.state.doc.name.replace(/[^\w\- ]+/g, '').trim() || 'effect'}.lua`);
             if (saved) toast(`Saved ${saved}`);
           },
         },
         {
-          label: '📋 Copy to clipboard', run: async () => {
+          label: 'Copy to clipboard', icon: 'copy', run: async () => {
             await navigator.clipboard.writeText(lua);
             toast('Luau script copied');
           },
@@ -224,6 +225,7 @@ import { initStudioMcp } from './mcp.js';
 
 // ---------------------------------------------------------------- boot
 async function boot() {
+  applyStaticIcons();
   initPreview();
   initClipTimeline();
   initInspector();

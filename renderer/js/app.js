@@ -5,8 +5,9 @@ import { initViewport, updateScene, render, setGizmoMode, toggleGizmoSpace, focu
 import { initTimeline, requestDraw, copySelectedKeys, cutSelectedKeys, pasteKeys, pasteKeysIntoItem, duplicateAtPlayhead, zoomToFit, openSelectedKeyMenu, toggleItemCollapse, toggleCollapseAll } from './timeline.js';
 import { initCurveEditor, toggleCurveEditor, openCurveEditor } from './curves.js';
 import { initAudio, loadAudioFromPath, removeAudio, setAudioVolume, setAudioOffset, restoreAudio } from './audio.js';
-import { toast, toastProgress, modal, promptModal, chooseModal, copyableRow } from './ui.js';
+import { toast, toastProgress, modal, promptModal, chooseModal, copyableRow, showContextMenu } from './ui.js';
 import { registerCommand, initPalette, showShortcuts, hideShortcuts } from './palette.js';
+import { iconSvg, swapIcon, applyStaticIcons, itemIcon, itemIconSvg } from './icons.js';
 import { STYLES, DIRECTIONS } from './easing.js';
 import * as IO from './io.js';
 import { validateAnimation } from './validate.js';
@@ -23,7 +24,6 @@ import { buildEffectLua } from './effectExport.js';
 let builtinRigs = null;
 let settings = {};
 
-function itemIcon(kind) { return kind === 'camera' ? '🎥' : kind === 'vfx' ? '✨' : kind === 'effect' ? '🎇' : '🧍'; }
 // The one "always-selectable, no-part-picking" partId an item's kind defaults to when it has no
 // joints — mirrors what clicking the item's icon in the viewport already gives you.
 function defaultPartId(kind) { return kind === 'camera' ? '@camera' : kind === 'vfx' ? '@vfx' : kind === 'effect' ? '@effect' : null; }
@@ -31,6 +31,7 @@ function defaultPartId(kind) { return kind === 'camera' ? '@camera' : kind === '
 // ================================================================ boot
 async function boot() {
   try {
+    applyStaticIcons();
     settings = await window.cadence.getSettings() || {};
     S.state.autoKey = settings.autoKey ?? true;
     S.state.snapping = settings.snapping ?? true;
@@ -778,8 +779,8 @@ async function riggingToolsFlow() {
       const row = document.createElement('div');
       row.className = 'rig-joint-row';
       row.innerHTML = `<span class="kind"></span><span class="nm"></span><span class="parts"></span>
-        <button class="btn small conv"></button><button class="btn small del">🗑</button>`;
-      row.querySelector('.kind').textContent = j.kind === 'weld' ? '🔗' : '⚙';
+        <button class="btn small conv"></button><button class="btn small del">${iconSvg('trash', { size: 13 })}</button>`;
+      row.querySelector('.kind').innerHTML = iconSvg(j.kind === 'weld' ? 'link' : 'gear', { size: 14 });
       row.querySelector('.kind').title = j.kind === 'weld' ? 'Weld (rigid)' : 'Motor6D (animatable)';
       row.querySelector('.nm').textContent = S.humanizeRigName(j.name);
       row.querySelector('.parts').textContent = `${partName(j.part0)} → ${partName(j.part1)}`;
@@ -835,7 +836,7 @@ async function riggingToolsFlow() {
   nameInput.placeholder = 'defaults to <Part1>Joint';
   const addBtn = document.createElement('button');
   addBtn.className = 'btn primary';
-  addBtn.textContent = '＋ Create joint';
+  addBtn.innerHTML = `${iconSvg('plus', { size: 14 })}<span>Create joint</span>`;
   addBtn.addEventListener('click', () => {
     try {
       const j = S.addJoint(item.id, {
@@ -1549,7 +1550,7 @@ function openVfxPresetPicker(itemId) {
       const card = document.createElement('button');
       card.className = 'choose-card';
       card.innerHTML = `<span class="ic"></span><span class="t"></span><span class="d"></span>`;
-      card.querySelector('.ic').textContent = '✨';
+      card.querySelector('.ic').innerHTML = iconSvg('sparkle', { size: 18 });
       card.querySelector('.t').textContent = p.name;
       card.querySelector('.d').textContent = p.category;
       card.addEventListener('click', () => {
@@ -1571,7 +1572,7 @@ function openVfxPresetPicker(itemId) {
   wrap.append(controls, grid);
   render();
 
-  const m = modal({ title: '✨ Particle preset library', body: wrap, actions: [{ label: 'Close', run: () => { } }] });
+  const m = modal({ title: 'Particle preset library', body: wrap, actions: [{ label: 'Close', run: () => { } }] });
   setTimeout(() => search.focus(), 60);
 }
 
@@ -1827,10 +1828,21 @@ function wireTopBar() {
   document.getElementById('importBtn').addEventListener('click', importMenuFlow);
   document.getElementById('exportBtn').addEventListener('click', () => exportMenuFlow());
   document.getElementById('camChip').addEventListener('click', toggleCameraView);
-  document.getElementById('mcpBtn').addEventListener('click', enableClaudeControlFlow);
-  document.getElementById('mobileBtn').addEventListener('click', openMobilePanelFlow);
   document.getElementById('vfxStudioBtn').addEventListener('click', () => window.cadence.openVfxStudio());
-  document.getElementById('shortcutsBtn').addEventListener('click', showShortcuts);
+
+  // Less-frequent actions (one-time-setup / reference) live behind a single overflow button
+  // instead of each getting a permanent titlebar slot — keeps Add/Import/Export/VFX Studio (the
+  // things actually clicked every session) from competing for attention with things clicked once
+  // in a while (pairing the phone, enabling Claude, looking up a shortcut).
+  document.getElementById('moreBtn').addEventListener('click', (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    showContextMenu(r.right - 200, r.bottom + 6, [
+      { label: 'Claude Control', icon: 'sparkle', run: enableClaudeControlFlow },
+      { label: 'Mobile companion', icon: 'phone', run: openMobilePanelFlow },
+      { sep: true },
+      { label: 'Keyboard shortcuts', icon: 'keyboard', shortcut: '?', run: showShortcuts },
+    ]);
+  });
 
   wireUpdateChip();
 }
@@ -1995,7 +2007,7 @@ async function openMobilePanelFlow() {
   const stopPolling = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
 
   modal({
-    title: '📱 Mobile Access',
+    title: 'Mobile Access',
     body: wrap,
     actions: [
       {
@@ -2095,7 +2107,7 @@ async function exportMenuFlow() {
 function wireTransport() {
   const playBtn = document.getElementById('playBtn');
   playBtn.addEventListener('click', togglePlay);
-  S.on('playing', (v) => { playBtn.textContent = v ? '⏸' : '▶'; playBtn.classList.toggle('active', v); });
+  S.on('playing', (v) => { swapIcon(playBtn, v ? 'pause' : 'play', { size: 15 }); playBtn.classList.toggle('active', v); });
   document.getElementById('stopBtn').addEventListener('click', () => { S.setPlaying(false); S.setPlayhead(0); });
   document.getElementById('stepBackBtn').addEventListener('click', () => S.setPlayhead(Math.round(S.state.playhead) - 1));
   document.getElementById('stepFwdBtn').addEventListener('click', () => S.setPlayhead(Math.round(S.state.playhead) + 1));
@@ -2138,31 +2150,46 @@ function wireTransport() {
   document.getElementById('curveBtn').addEventListener('click', toggleCurveEditor);
   document.getElementById('fitBtn').addEventListener('click', zoomToFit);
 
-  // gizmo chips
+  // gizmo chips — a single pill slides behind whichever one is active instead of each chip
+  // painting its own background, so switching tools reads as one continuous motion rather than
+  // one chip's color popping off while another's pops on.
   document.getElementById('moveBtn').addEventListener('click', () => setGizmoMode('translate'));
   document.getElementById('rotateBtn').addEventListener('click', () => setGizmoMode('rotate'));
   document.getElementById('trackballBtn').addEventListener('click', () => setGizmoMode('trackball'));
   document.getElementById('ikBtn').addEventListener('click', () => setGizmoMode('ik'));
   document.getElementById('scaleBtn').addEventListener('click', () => setGizmoMode('scale'));
+  const gizmoChips = document.getElementById('vpChips');
+  const gizmoPill = document.getElementById('vpChipPill');
+  const gizmoBtnFor = (m) => document.getElementById(
+    m === 'translate' ? 'moveBtn' : m === 'rotate' ? 'rotateBtn' : m === 'trackball' ? 'trackballBtn' : m === 'ik' ? 'ikBtn' : 'scaleBtn'
+  );
+  const positionGizmoPill = (mode) => {
+    const chip = gizmoBtnFor(mode || currentGizmoMode);
+    gizmoPill.style.width = chip.offsetWidth + 'px';
+    gizmoPill.style.transform = `translateX(${chip.offsetLeft}px)`;
+  };
   S.on('gizmo-mode', (m) => {
     document.getElementById('moveBtn').classList.toggle('active', m === 'translate');
     document.getElementById('rotateBtn').classList.toggle('active', m === 'rotate');
     document.getElementById('trackballBtn').classList.toggle('active', m === 'trackball');
     document.getElementById('ikBtn').classList.toggle('active', m === 'ik');
     document.getElementById('scaleBtn').classList.toggle('active', m === 'scale');
+    positionGizmoPill(m);
   });
   document.getElementById('moveBtn').classList.add('active');
+  requestAnimationFrame(() => positionGizmoPill()); // after layout, so offsetWidth/offsetLeft are real
+  new ResizeObserver(() => positionGizmoPill()).observe(gizmoChips);
 }
 
 function wireExplorer() {
   const listEl = document.getElementById('itemList');
-  const rebuild = () => {
+  const rebuild = (stagger) => {
     listEl.innerHTML = '';
-    for (const item of S.state.project.items) {
+    S.state.project.items.forEach((item, i) => {
       const row = document.createElement('div');
-      row.className = 'item-row' + (S.state.selection.itemId === item.id ? ' selected' : '');
-      row.innerHTML = `<span class="ic"></span><span class="nm"></span><button class="eye" title="Show / hide">${item.visible !== false ? '👁' : '·'}</button><button class="del" title="Remove">✕</button>`;
-      row.querySelector('.ic').textContent = itemIcon(item.kind);
+      row.className = 'item-row' + (S.state.selection.itemId === item.id ? ' selected' : '') + (stagger ? ' stagger' : '');
+      if (stagger) row.style.setProperty('--i', i);
+      row.innerHTML = `<span class="ic">${itemIconSvg(item.kind, { size: 14 })}</span><span class="nm"></span><button class="eye" title="Show / hide">${iconSvg(item.visible !== false ? 'eye' : 'eye-off', { size: 14 })}</button><button class="del" title="Remove">${iconSvg('trash', { size: 13 })}</button>`;
       row.querySelector('.nm').textContent = item.name;
       row.addEventListener('click', () => S.setSelection(item.id, defaultPartId(item.kind)));
       row.querySelector('.nm').addEventListener('dblclick', async (e) => {
@@ -2184,14 +2211,18 @@ function wireExplorer() {
         toast(`Removed ${item.name}`);
       });
       listEl.appendChild(row);
-    }
+    });
     if (!S.state.project.items.length) {
       listEl.innerHTML = `<div class="empty-hint">Press <b>+</b> to add a rig,<br>or drop a .rbxm file anywhere.</div>`;
     }
   };
-  S.on('items', rebuild);
-  S.on('project', rebuild);
-  S.on('selection', rebuild);
+  // 'items'/'project' actually change what's in the list, so the new rows animate in; 'selection'
+  // just moves which row has .selected — re-playing the entrance there would replay it on every
+  // click, which reads as flickery rather than fluid (the same trap the command palette avoids by
+  // never animating its hover-triggered re-renders).
+  S.on('items', () => rebuild(true));
+  S.on('project', () => rebuild(true));
+  S.on('selection', () => rebuild(false));
   document.getElementById('addItemBtn').addEventListener('click', addMenuFlow);
 }
 
@@ -2262,7 +2293,7 @@ function wireInspector() {
         sec.appendChild(button(S.state.cameraView === item.id ? 'Exit camera view' : 'Look through camera', toggleCameraView));
       } else if (item.kind === 'vfx') {
         const em = item.emitter || VFX_DEFAULTS;
-        sec.appendChild(button('✨ Browse preset library…', () => openVfxPresetPicker(item.id)));
+        sec.appendChild(button('Browse preset library…', () => openVfxPresetPicker(item.id), 'sparkle'));
         const rate = S.evalTrackNum(item.id, '@rate', S.state.playhead, em.rate ?? 8);
         const lifetime = S.evalTrackNum(item.id, '@lifetime', S.state.playhead, em.lifetime ?? 1.5);
         const speed = S.evalTrackNum(item.id, '@speed', S.state.playhead, em.speed ?? 4);
@@ -2318,11 +2349,15 @@ function wireInspector() {
           const report = runValidation('effect', { effect: doc });
           const status = document.createElement('div');
           status.className = 'insp-row';
-          status.innerHTML = `<span class="l">Status</span><span>${report.counts.error ? `⛔ ${report.summary}` : report.counts.warning ? `⚠ ${report.summary}` : '✓ valid'}</span>`;
+          const statusIcon = report.counts.error ? 'close' : report.counts.warning ? 'burst' : 'check';
+          const statusText = report.counts.error || report.counts.warning ? report.summary : 'valid';
+          status.innerHTML = `<span class="l">Status</span><span class="status-val">${iconSvg(statusIcon, { size: 13 })}<span></span></span>`;
+          status.querySelector('.status-val span').textContent = statusText;
+          status.querySelector('.status-val').classList.add(report.counts.error ? 'is-error' : report.counts.warning ? 'is-warn' : 'is-good');
           sec.appendChild(status);
         }
-        sec.appendChild(button('✏️ Edit a copy in VFX Studio…', () => editEffectInStudio(item.id)));
-        sec.appendChild(button('📜 Export to Roblox (Luau)…', () => exportEffectItemFlow(item.id)));
+        sec.appendChild(button('Edit a copy in VFX Studio…', () => editEffectInStudio(item.id), 'wand'));
+        sec.appendChild(button('Export to Roblox (Luau)…', () => exportEffectItemFlow(item.id), 'file'));
       } else {
         sec.appendChild(fieldRow('Joints', String((item.rig.joints || []).filter((j) => j.kind !== 'weld').length)));
         sec.appendChild(fieldRow('Parts', String(item.rig.parts.length)));
@@ -2428,10 +2463,15 @@ function rangeField(label, value, onChange) {
   d.appendChild(input);
   return d;
 }
-function button(label, onClick) {
+function button(label, onClick, icon) {
   const b = document.createElement('button');
   b.className = 'btn small';
-  b.textContent = label;
+  if (icon) {
+    b.insertAdjacentHTML('afterbegin', iconSvg(icon, { size: 13 }));
+    b.appendChild(document.createTextNode(label));
+  } else {
+    b.textContent = label;
+  }
   b.addEventListener('click', onClick);
   return b;
 }
@@ -2849,12 +2889,22 @@ const MCP_HANDLERS = {
   set_theme: ({ theme, accent }) => {
     if (theme && !THEMES[theme]) throw new Error(`Unknown theme "${theme}" — one of: ${Object.keys(THEMES).join(', ')}`);
     const cur = currentTheme();
-    applyTheme(theme || cur.theme, accent || cur.accent);
+    // applyTheme's own accent param is a raw hex (see themes.js) -- accept either a friendly
+    // ACCENTS id (what the MCP schema advertises) or a raw hex, and resolve to hex here so a
+    // caller passing 'rose' actually works instead of silently no-oping into the old accent.
+    let accentHex = cur.accent;
+    if (accent) {
+      const found = ACCENTS.find((a) => a.id === accent || a.hex.toLowerCase() === accent.toLowerCase());
+      if (!found) throw new Error(`Unknown accent "${accent}" — one of: ${ACCENTS.map((a) => a.id).join(', ')}`);
+      accentHex = found.hex;
+    }
+    applyTheme(theme || cur.theme, accentHex);
     const next = currentTheme();
     settings.theme = next.theme;
     settings.accent = next.accent;
     window.cadence.setSettings(settings);
-    return { theme: next.theme, accent: next.accent, available: Object.keys(THEMES), accents: ACCENTS.map((a) => a.hex) };
+    const nextAccentId = ACCENTS.find((a) => a.hex === next.accent)?.id;
+    return { theme: next.theme, accent: nextAccentId || next.accent, accentHex: next.accent, available: Object.keys(THEMES), accents: ACCENTS.map((a) => a.id) };
   },
 
   set_project_props: ({ fps, length, loop, priority, name }) => {
@@ -2963,7 +3013,7 @@ const MCP_HANDLERS = {
   // Position a limb's end part at an exact world point; the joint chain above it solves to
   // reach it. By default the result is keyed at the frame — pass key:false for a dry run that
   // just reports the solved transforms and the residual error.
-  solve_ik: ({ itemId, partId, target, chainLength, frame, key }) => {
+  solve_ik: ({ itemId, partId, target, chainLength, frame, key, twistDeg }) => {
     const item = S.getItem(itemId);
     if (!item || !item.rig) throw new Error(`No rig item with id ${itemId}`);
     const inst = getInstance(itemId);
@@ -2978,6 +3028,7 @@ const MCP_HANDLERS = {
       basePose: S.evalPose(item, f),
       origin,
       frame: f,
+      twistDeg,
     });
     if (!res) throw new Error(`${partDef.name} has no Motor6D chain above it to solve`);
     if (key !== false) {
@@ -2985,6 +3036,22 @@ const MCP_HANDLERS = {
       for (const [joint, cf] of Object.entries(res.pose)) S.setKey(itemId, joint, Math.round(f), cf, { noUndo: true });
     }
     return { chain: res.chain, errorStuds: +res.error.toFixed(4), keyed: key !== false ? Math.round(f) : null, pose: res.pose };
+  },
+
+  // Pure (touches no project state): the same shortest-arc rotation math solve_ik's CCD loop uses
+  // internally, exposed standalone for "aim this joint at a direction" with no position to solve
+  // toward at all — gait cycles, torso leans, counter-rotations, etc, which otherwise get their
+  // rotations hand-derived via Euler angles ad hoc, the exact mistake behind the shoulder-twist bug.
+  compute_swing_twist: ({ restDirection, aimDirection, twistDeg }) => {
+    if (!Array.isArray(restDirection) || restDirection.length !== 3) throw new Error('restDirection must be [x, y, z]');
+    if (!Array.isArray(aimDirection) || aimDirection.length !== 3) throw new Error('aimDirection must be [x, y, z]');
+    if (Math.hypot(...restDirection) < 1e-6) throw new Error('restDirection cannot be a zero-length vector');
+    if (Math.hypot(...aimDirection) < 1e-6) throw new Error('aimDirection cannot be a zero-length vector');
+    const swing = CF.rotationBetween(restDirection, aimDirection) || CF.IDENTITY.slice();
+    const cf = twistDeg ? CF.mul(swing, CF.axisAngle(restDirection, (twistDeg * Math.PI) / 180)) : swing;
+    const [rx, ry, rz] = CF.toEuler(cf);
+    const toDeg = (r) => +(r * 180 / Math.PI).toFixed(3);
+    return { cframe: cf, eulerDeg: { x: toDeg(rx), y: toDeg(ry), z: toDeg(rz) } };
   },
 
   // ---------------------------------------------------------------- unparented animation

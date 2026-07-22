@@ -1,9 +1,10 @@
 // Timeline: track list + dope sheet canvas + scrubber + audio waveform lane.
 import * as S from './state.js';
 import { STYLES, DIRECTIONS } from './easing.js';
-import { getWaveformSlice, hasAudio, setAudioOffset } from './audio.js';
-import { showContextMenu } from './ui.js';
+import { getWaveformSlice, hasAudio, setAudioOffset, renameAudio } from './audio.js';
+import { showContextMenu, promptModal } from './ui.js';
 import { openCurveEditor } from './curves.js';
+import { iconSvg, itemIconSvg } from './icons.js';
 
 const ROW_H = 26;
 const RULER_H = 30;
@@ -117,7 +118,7 @@ function renderList() {
       const item = S.getItem(row.itemId);
       const caret = document.createElement('span');
       caret.className = 'caret' + (tl.collapsed.has(row.itemId) ? ' closed' : '');
-      caret.textContent = '▾';
+      caret.innerHTML = iconSvg('caret', { size: 11 });
       div.appendChild(caret);
       const name = document.createElement('span');
       name.className = 'name';
@@ -125,7 +126,7 @@ function renderList() {
       div.appendChild(name);
       const icon = document.createElement('span');
       icon.className = 'kind-icon';
-      icon.textContent = item?.kind === 'camera' ? '🎥' : item?.kind === 'vfx' ? '✨' : item?.kind === 'effect' ? '🎇' : '🧍';
+      icon.innerHTML = itemIconSvg(item?.kind, { size: 12 });
       div.prepend(icon);
       div.addEventListener('click', () => {
         S.setSelection(row.itemId, null);
@@ -152,7 +153,15 @@ function renderList() {
       const isSelTrack = sel.itemId === row.itemId && trackForSelection() === row.track;
       if (isSelTrack) div.classList.add('selected');
     } else if (row.kind === 'audio') {
-      div.innerHTML = `<span class="kind-icon">🔊</span><span class="name">${row.label}</span>`;
+      div.innerHTML = `<span class="kind-icon">${iconSvg('speaker', { size: 12 })}</span><span class="name"></span>`;
+      const nameEl = div.querySelector('.name');
+      nameEl.textContent = row.label;
+      nameEl.title = 'Double-click to rename';
+      nameEl.addEventListener('dblclick', async (e) => {
+        e.stopPropagation();
+        const v = await promptModal({ title: 'Rename audio', label: 'Name', initial: row.label });
+        if (v) renameAudio(v);
+      });
     }
     el.appendChild(div);
   }

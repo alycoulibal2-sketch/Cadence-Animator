@@ -9,18 +9,18 @@
 </head>
 <body>
   <header id="titlebar">
-    <div class="logo">✨ VFX Studio</div>
+    <div class="logo">VFX Studio</div>
     <input id="vfxNameInput" class="vfx-name-input" spellcheck="false" value="Untitled Effect" />
     <div class="spacer"></div>
-    <button id="newBtn" class="tb-btn" title="Start a brand-new blank effect (Ctrl+N)">🆕 New</button>
-    <button id="presetsBtn" class="tb-btn" title="Browse effect and particle presets">🎬 Presets</button>
-    <button id="nodesBtn" class="tb-btn" title="Open the node graph for this effect">🔗 Nodes</button>
-    <button id="openBtn" class="tb-btn" title="Open a saved .cfx effect file">📁 Open</button>
-    <button id="saveBtn" class="tb-btn" title="Save this effect to a .cfx file (Ctrl+S)">💾 Save</button>
-    <button id="savePresetBtn" class="tb-btn" title="Keep this effect in your personal preset library">⭐ Save preset</button>
+    <button id="newBtn" class="tb-btn" data-icon="plus" title="Start a brand-new blank effect (Ctrl+N)">New</button>
+    <button id="presetsBtn" class="tb-btn" data-icon="sparkle" title="Browse effect and particle presets">Presets</button>
+    <button id="nodesBtn" class="tb-btn" data-icon="link" title="Open the node graph for this effect">Nodes</button>
+    <button id="openBtn" class="tb-btn icon-only" data-icon="file" title="Open a saved .cfx effect file"></button>
+    <button id="saveBtn" class="tb-btn" data-icon="save" title="Save this effect to a .cfx file (Ctrl+S)">Save</button>
+    <button id="savePresetBtn" class="tb-btn icon-only" data-icon="star" title="Keep this effect in your personal preset library"></button>
     <button id="advancedBtn" class="tb-btn" title="Advanced mode: per-property math expressions">ƒ Advanced</button>
-    <button id="exportLuaBtn" class="tb-btn" title="Export as a self-contained Roblox LocalScript">📜 Export</button>
-    <button id="sendBtn" class="tb-btn primary" title="Add this effect to the animation you have open">➜ Send to Animator</button>
+    <button id="exportLuaBtn" class="tb-btn icon-only" data-icon="export" title="Export as a self-contained Roblox LocalScript"></button>
+    <button id="sendBtn" class="tb-btn primary" data-icon="send" title="Add this effect to the animation you have open">Send to Animator</button>
   </header>
 
   <main id="vfxMain">
@@ -36,8 +36,8 @@
 
     <div id="vfxBottom">
       <div class="vfx-transport">
-        <button id="vfxPlayBtn" class="tb-btn" title="Play / pause (Space)">▶</button>
-        <button id="vfxStopBtn" class="tb-btn" title="Stop and rewind (Home)">⏮</button>
+        <button id="vfxPlayBtn" class="tb-btn icon-only" data-icon="play" data-icon-size="14" title="Play / pause (Space)"></button>
+        <button id="vfxStopBtn" class="tb-btn icon-only" data-icon="step-back" data-icon-size="14" title="Stop and rewind (Home)"></button>
         <span id="vfxFrameLabel" class="vfx-frame-label">frame 0 / 60</span>
         <div class="spacer"></div>
         <button id="vfxDiagChip" class="vfx-diag-chip" title="Diagnostics — click for details and fixes">…</button>
@@ -53,7 +53,7 @@
           <select id="vfxCurveDir" class="fld" title="Easing direction"></select>
           <div id="vfxCurvePresets" class="vfx-curve-presets"></div>
           <div class="spacer"></div>
-          <button id="vfxCurveClose" class="tb-btn" title="Close the curve editor">✕</button>
+          <button id="vfxCurveClose" class="tb-btn icon-only" data-icon="close" data-icon-size="13" title="Close the curve editor"></button>
         </div>
         <div class="vfx-curve-canvas-wrap"><canvas id="vfxCurveCanvas"></canvas></div>
       </div>
