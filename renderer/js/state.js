@@ -136,12 +136,79 @@ const undoStack = [];
 const redoStack = [];
 const UNDO_CAP = 120;
 
+// A part's `customMesh` / `customTexture` is immutable while animating — posing,
+// keyframing and timeline edits never touch it — but it dominates the project's
+// size: an imported mesh rig with embedded textures runs to tens of MB (a real
+// one measured 81.6 MB, because the same baked atlas is stored once per part).
+// Deep-cloning that on EVERY setKey pushed multiple GB through the undo stack
+// and OOM-crashed the renderer after a few dozen keyframes — hit both by MCP
+// batches and by anyone hand-keying a mesh rig.
+//
+// So: clone everything undo can actually change, and carry the immutable
+// geometry across by reference instead (strings are immutable, so sharing them
+// between snapshots costs nothing). Keyed by item/part id so it still reattaches
+// correctly after an undo that reorders or removes items.
+const HEAVY_FIELDS = ['customMesh', 'customTexture'];
+
+function partKey(pt, i) {
+  return pt.id ?? pt.name ?? i;
+}
+
+function stashHeavy(items) {
+  const stash = new Map();
+  const lite = items.map((it) => {
+    const parts = it.rig && it.rig.parts;
+    if (!Array.isArray(parts) || !parts.length) return it;
+    const perPart = new Map();
+    let found = false;
+    const litParts = parts.map((pt, i) => {
+      let copy = pt;
+      for (const f of HEAVY_FIELDS) {
+        if (pt[f] === undefined) continue;
+        if (!found) { found = true; }
+        if (copy === pt) copy = { ...pt };
+        const bag = perPart.get(partKey(pt, i)) || {};
+        bag[f] = pt[f];
+        perPart.set(partKey(pt, i), bag);
+        delete copy[f];
+      }
+      return copy;
+    });
+    if (!found) return it;
+    stash.set(it.id, perPart);
+    return { ...it, rig: { ...it.rig, parts: litParts } };
+  });
+  return { lite, stash };
+}
+
+function restoreHeavy(items, stash) {
+  if (!stash || !stash.size) return;
+  for (const it of items || []) {
+    const perPart = stash.get(it.id);
+    const parts = it.rig && it.rig.parts;
+    if (!perPart || !Array.isArray(parts)) continue;
+    parts.forEach((pt, i) => {
+      const bag = perPart.get(partKey(pt, i));
+      if (!bag) return;
+      for (const f of HEAVY_FIELDS) {
+        if (bag[f] !== undefined) pt[f] = bag[f];
+      }
+    });
+  }
+}
+
 function snapshot() {
   const p = state.project;
-  return structuredClone({ items: p.items, tracks: p.tracks, groups: p.groups, onionSkin: p.onionSkin, length: p.length, fps: p.fps, loop: p.loop, priority: p.priority, name: p.name, audio: p.audio });
+  const { lite, stash } = stashHeavy(p.items);
+  const s = structuredClone({ items: lite, tracks: p.tracks, groups: p.groups, onionSkin: p.onionSkin, length: p.length, fps: p.fps, loop: p.loop, priority: p.priority, name: p.name, audio: p.audio });
+  s.__heavy = stash;               // attached AFTER the clone — never deep-copied
+  return s;
 }
 function applySnapshot(s) {
-  Object.assign(state.project, structuredClone(s));
+  const { __heavy, ...rest } = s;
+  const next = structuredClone(rest);
+  restoreHeavy(next.items, __heavy);
+  Object.assign(state.project, next);
   emit('project');
 }
 export function pushUndo() {
