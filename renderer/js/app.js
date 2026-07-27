@@ -2677,6 +2677,32 @@ const MCP_HANDLERS = {
 
   // Clears a "Welcome back?" recovery prompt or onboarding card blocking the view — lets Claude
   // recover from a stale modal without a human needing to click through it first.
+  // Drive the viewport camera so a caller can actually inspect a pose from a
+  // chosen angle instead of being stuck with wherever the user last left the
+  // orbit. azimuth 0 looks at the rig's FRONT (camera on -Z, the direction a
+  // Roblox rig faces), 90 = its left side, 180 = its back.
+  set_view: ({ target, azimuthDeg, elevationDeg, distance }) => {
+    const cam = viewport.camera;
+    const ctr = viewport.controls;
+    if (!cam || !ctr) throw new Error('Viewport is not ready yet');
+    const t = Array.isArray(target) && target.length === 3
+      ? target
+      : [ctr.target.x, ctr.target.y, ctr.target.z];
+    const az = ((azimuthDeg ?? 0) * Math.PI) / 180;
+    const el = ((elevationDeg ?? 12) * Math.PI) / 180;
+    const d = distance ?? (cam.position.distanceTo(ctr.target) || 20);
+    ctr.target.set(t[0], t[1], t[2]);
+    cam.position.set(
+      t[0] + d * Math.sin(az) * Math.cos(el),
+      t[1] + d * Math.sin(el),
+      t[2] - d * Math.cos(az) * Math.cos(el),
+    );
+    cam.lookAt(ctr.target);
+    ctr.update();
+    render();
+    return { target: t, azimuthDeg: azimuthDeg ?? 0, elevationDeg: elevationDeg ?? 12, distance: +d.toFixed(3) };
+  },
+
   dismiss_blocking_modal: () => {
     let dismissed = false;
     const freshCard = [...document.querySelectorAll('.choose-card')].find((c) => c.querySelector('.t')?.textContent.includes('Start fresh'));

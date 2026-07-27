@@ -219,6 +219,18 @@ server.tool(
 );
 
 server.tool(
+  'set_view',
+  'Aim the viewport camera before render_frame, instead of being stuck with whatever angle the user last left the orbit at. azimuthDeg 0 looks at the rig\'s FRONT, 90 at its left side, 180 at its back; elevationDeg is the height of the camera above the target. Use this to check a pose from a second angle — a silhouette that reads correctly head-on often hides a twisted joint.',
+  {
+    target: z.array(z.number()).length(3).optional().describe('world-space point to orbit around; defaults to the current orbit target'),
+    azimuthDeg: z.number().optional().describe('0 = front, 90 = left side, 180 = back (default 0)'),
+    elevationDeg: z.number().optional().describe('camera height angle above the target (default 12)'),
+    distance: z.number().optional().describe('distance from the target; defaults to the current camera distance'),
+  },
+  async (args) => { try { return textResult(await call('set_view', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
   'set_project_props', 'Change animation-level settings: fps, length (in frames), loop, priority (Idle/Movement/Action/Action2/Action3/Action4/Core), or the project name.',
   { fps: z.number().optional(), length: z.number().optional(), loop: z.boolean().optional(), priority: z.string().optional(), name: z.string().optional() },
   async (args) => { try { return textResult(await call('set_project_props', args)); } catch (e) { return errorResult(e); } },
