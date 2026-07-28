@@ -5,7 +5,7 @@
 const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { parseMesh } = require('./rbxmesh');
+const { parseMeshAsync } = require('./rbxmesh');
 
 const userData = () => app.getPath('userData');
 const cacheDir = (sub) => {
@@ -48,7 +48,7 @@ async function fetchMeshData(meshIdOrUrl) {
     result = JSON.parse(fs.readFileSync(diskPath, 'utf8'));
   } else {
     const buf = await robloxFetch(assetUrl(id));
-    const geo = parseMesh(buf);
+    const geo = await parseMeshAsync(buf);
     result = {
       positions: Array.from(geo.positions),
       normals: Array.from(geo.normals),
@@ -82,26 +82,79 @@ async function fetchAssetBase64(idOrUrl) {
   return { id, base64: buf.toString('base64') };
 }
 
-// Classic smiley face from the local Roblox Studio install — see rigbuild.js's headFaceFallback.
-// Reads straight off disk so it never depends on an authenticated Roblox web session.
-function getClassicFaceDataUri() {
+// ---------------------------------------------------------------- local Roblox content
+//
+// Roblox ships the real classic body/head meshes AND its own avatar-compositing meshes inside
+// every Studio/Player install. Reading those is strictly better than fetching or approximating:
+// they are the exact assets the engine itself renders with, they need no network and no
+// authenticated session, and they cannot 401. Anything served from here is exact by definition.
+let contentDirCache;
+function findContentDir() {
+  if (contentDirCache !== undefined) return contentDirCache;
+  contentDirCache = null;
   try {
-    const versionsDirs = [
+    const roots = [
       path.join(process.env.LOCALAPPDATA || '', 'Roblox', 'Versions'),
       'C:/Program Files (x86)/Roblox/Versions',
       'C:/Program Files/Roblox/Versions',
     ];
-    for (const vd of versionsDirs) {
-      if (!fs.existsSync(vd)) continue;
-      for (const v of fs.readdirSync(vd)) {
-        const facePath = path.join(vd, v, 'content', 'textures', 'face.png');
-        if (fs.existsSync(facePath)) {
-          return 'data:image/png;base64,' + fs.readFileSync(facePath).toString('base64');
+    for (const root of roots) {
+      if (!fs.existsSync(root)) continue;
+      for (const v of fs.readdirSync(root)) {
+        const dir = path.join(root, v, 'content');
+        // Probe for a file only a real content tree has, so a half-installed/partial version
+        // directory can't be picked and then fail on every read afterwards.
+        if (fs.existsSync(path.join(dir, 'avatar', 'heads', 'head.mesh'))) {
+          contentDirCache = dir;
+          return contentDirCache;
         }
       }
     }
-  } catch (_) { /* fall through to null */ }
-  return null;
+  } catch (_) { /* leave null — callers fall back to the web */ }
+  return contentDirCache;
+}
+
+function localContentPath(relPath) {
+  const dir = findContentDir();
+  if (!dir) return null;
+  // Confine to the content tree: these paths come from the renderer, and a "../.." in one must
+  // not turn into an arbitrary file read.
+  const full = path.resolve(dir, relPath);
+  if (!full.startsWith(path.resolve(dir))) return null;
+  return fs.existsSync(full) ? full : null;
+}
+
+const localMeshCache = new Map();
+async function fetchLocalMesh(relPath) {
+  if (localMeshCache.has(relPath)) return localMeshCache.get(relPath);
+  const full = localContentPath(relPath);
+  if (!full) return null;
+  const geo = await parseMeshAsync(fs.readFileSync(full));
+  const result = {
+    positions: Array.from(geo.positions),
+    normals: Array.from(geo.normals),
+    uvs: Array.from(geo.uvs),
+    indices: Array.from(geo.indices),
+  };
+  localMeshCache.set(relPath, result);
+  return result;
+}
+
+function fetchLocalImageDataUri(relPath) {
+  const full = localContentPath(relPath);
+  if (!full) return null;
+  const buf = fs.readFileSync(full);
+  const mime = buf[0] === 0x89 ? 'image/png' : (buf[0] === 0xff ? 'image/jpeg' : 'application/octet-stream');
+  return `data:${mime};base64,${buf.toString('base64')}`;
+}
+
+function localContentStatus() {
+  return { dir: findContentDir() };
+}
+
+// Classic smiley face from the local Roblox Studio install — see rigbuild.js's headFaceFallback.
+function getClassicFaceDataUri() {
+  return fetchLocalImageDataUri(path.join('textures', 'face.png'));
 }
 
 module.exports = {
@@ -113,4 +166,8 @@ module.exports = {
   fetchTextureDataUri,
   fetchAssetBase64,
   getClassicFaceDataUri,
+  findContentDir,
+  fetchLocalMesh,
+  fetchLocalImageDataUri,
+  localContentStatus,
 };

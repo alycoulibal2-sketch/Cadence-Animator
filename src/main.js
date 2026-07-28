@@ -678,6 +678,11 @@ ipcMain.handle('rig:builtins', () => {
 ipcMain.handle('roblox:fetchAsset', (_e, idOrUrl) => robloxAssets.fetchAssetBase64(idOrUrl));
 ipcMain.handle('roblox:mesh', (_e, meshIdOrUrl) => robloxAssets.fetchMeshData(meshIdOrUrl));
 ipcMain.handle('roblox:texture', (_e, texIdOrUrl) => robloxAssets.fetchTextureDataUri(texIdOrUrl));
+// Roblox's own shipped meshes/images, read straight out of the local Studio install — exact
+// assets, no network, no auth, cannot 401. See robloxAssets.findContentDir.
+ipcMain.handle('roblox:localMesh', (_e, relPath) => robloxAssets.fetchLocalMesh(relPath));
+ipcMain.handle('roblox:localImage', (_e, relPath) => robloxAssets.fetchLocalImageDataUri(relPath));
+ipcMain.handle('roblox:localContent', () => robloxAssets.localContentStatus());
 
 ipcMain.handle('roblox:userId', async (_e, username) => {
   const res = await fetch('https://users.roblox.com/v1/usernames/users', {

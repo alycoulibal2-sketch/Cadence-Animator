@@ -304,13 +304,19 @@ function parsePROP(data, classes, instances, sharedStrings) {
       for (let i = 0; i < n; i++) values[i] = { ref: v[i] };
       break;
     }
-    case 0x1b: { // Color3uint8
+    // NOTE: these three ids were each off by one until 2026-07-28 (Color3uint8 read as 0x1b,
+    // Int64 as 0x1c, SharedString as 0x1d). The real format is 0x1a/0x1b/0x1c — 0x1d is
+    // ProtectedString. The symptom was silent, which is why it survived: BasePart.Color is
+    // serialised as Color3uint8, so EVERY part of EVERY .rbxm-imported rig lost its colour and
+    // fell back to the default grey, with no error anywhere. Verified against a real Studio
+    // export (a rig whose torso is Dark stone grey #635F62) before and after.
+    case 0x1a: { // Color3uint8
       for (let i = 0; i < n; i++) {
         values[i] = { r: data[pos + i] / 255, g: data[pos + n + i] / 255, b: data[pos + 2 * n + i] / 255 };
       }
       break;
     }
-    case 0x1c: { // Int64
+    case 0x1b: { // Int64
       const raw = deinterleave(data.subarray(pos, pos + n * 8), n, 8);
       for (let i = 0; i < n; i++) {
         const u = raw.readBigUInt64BE(i * 8);
@@ -318,7 +324,7 @@ function parsePROP(data, classes, instances, sharedStrings) {
       }
       break;
     }
-    case 0x1d: { // SharedString
+    case 0x1c: { // SharedString
       const v = readInterleavedU32(data, pos, n);
       for (let i = 0; i < n; i++) values[i] = sharedStrings[v[i]] ?? '';
       break;

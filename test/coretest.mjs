@@ -412,5 +412,86 @@ check('library: total preset count (particles + archetypes) exceeds 400', () => 
   assert.ok(total >= 400, `only ${total}`);
 });
 
+// ---------------------------------------------------------------- .rbxm binary parser
+// Fixture is a real Studio export (Avatar > Rig Builder R6 and R15, serialized straight out of
+// the DataModel), so these assertions are ground truth rather than something we made up.
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import * as fs_ from 'node:fs';
+import * as path_ from 'node:path';
+import { fileURLToPath } from 'node:url';
+const require_ = createRequire(import.meta.url);
+const { parse: parseRbxm } = require_('../src/lib/rbxbin.js');
+const FIXTURE = fileURLToPath(new URL('./fixtures/studio-rig-builder-r6-r15.rbxm', import.meta.url));
+
+const rbxmTree = parseRbxm(readFileSync(FIXTURE));
+const rbxmNodes = [];
+(function walkRbxm(ns) { for (const n of ns) { rbxmNodes.push(n); walkRbxm(n.children || []); } })(rbxmTree.roots);
+const findNode = (name, cls) => rbxmNodes.find((n) => n.name === name && (!cls || n.className === cls));
+
+check('rbxm: parses a real Studio export into the expected instance tree', () => {
+  assert.ok(findNode('R6', 'Model'), 'R6 model');
+  assert.ok(findNode('R15', 'Model'), 'R15 model');
+  assert.equal(rbxmNodes.filter((n) => n.className === 'Part' || n.className === 'MeshPart').length, 7 + 16);
+  assert.equal(rbxmNodes.filter((n) => n.className === 'Motor6D').length, 6 + 15);
+});
+
+check('rbxm: part colours survive the parse (Color3uint8 type id)', () => {
+  // Regression: Color3uint8/Int64/SharedString were each read one type id too high, so this
+  // property was skipped entirely and EVERY part of EVERY imported rig silently fell back to the
+  // default grey. Studio's Rig Builder torso is Dark stone grey — a value nothing else supplies.
+  const torso = findNode('Torso', 'Part');
+  const c = torso.props.Color3uint8;
+  assert.ok(c, 'Torso has no Color3uint8 — the parser skipped it');
+  const hex = [c.r, c.g, c.b].map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
+  assert.equal(hex, '635f62', 'Torso should be Dark stone grey');
+  const arm = findNode('Left Arm', 'Part');
+  const a = arm.props.Color3uint8;
+  assert.equal([a.r, a.g, a.b].map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join(''), 'a3a2a5');
+});
+
+// ---------------------------------------------------------------- mesh formats
+const { parseMesh, parseMeshAsync } = require_('../src/lib/rbxmesh.js');
+const ROBLOX_CONTENT = (() => {
+  const base = path_.join(process.env.LOCALAPPDATA || '', 'Roblox', 'Versions');
+  if (!fs_.existsSync(base)) return null;
+  for (const v of fs_.readdirSync(base)) {
+    const p = path_.join(base, v, 'content');
+    if (fs_.existsSync(path_.join(p, 'avatar', 'heads', 'head.mesh'))) return p;
+  }
+  return null;
+})();
+
+check('mesh: the classic head parses to the exact size Roblox renders it', function () {
+  if (!ROBLOX_CONTENT) { this.skip = true; return; } // no local Studio install to read
+  const g = parseMesh(fs_.readFileSync(path_.join(ROBLOX_CONTENT, 'avatar', 'heads', 'head.mesh')));
+  const p = g.positions;
+  const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < p.length; i += 3) {
+    for (let a = 0; a < 3; a++) { mn[a] = Math.min(mn[a], p[i + a]); mx[a] = Math.max(mx[a], p[i + a]); }
+  }
+  const size = mx.map((v, i) => v - mn[i]);
+  const want = [1.19785, 1.20242, 1.19785];
+  size.forEach((v, i) => assert.ok(Math.abs(v - want[i]) < 0.001, `axis ${i}: ${v} != ${want[i]}`));
+});
+
+check('mesh: a Draco (v6/v7) mesh is recognised rather than treated as corrupt', () => {
+  // Every modern avatar head is Draco-compressed. parseMesh used to throw "Unsupported mesh
+  // version", so importing a present-day character silently lost its head while the body loaded.
+  const fake = Buffer.concat([Buffer.from('version 7.00\n', 'latin1'), Buffer.alloc(64)]);
+  assert.throws(() => parseMesh(fake), /Draco-compressed/);
+  assert.equal(typeof parseMeshAsync, 'function', 'parseMeshAsync must exist for the async path');
+});
+
+check('rbxm: the R15 head Studio actually builds is Part + SpecialMesh(Head), not a MeshPart', () => {
+  const r15 = findNode('R15', 'Model');
+  const head = (r15.children || []).find((n) => n.name === 'Head');
+  assert.equal(head.className, 'Part');
+  const sm = (head.children || []).find((n) => n.className === 'SpecialMesh');
+  assert.ok(sm, 'head has no SpecialMesh');
+  assert.equal(sm.props.MeshType ?? 6, 0, 'MeshType should be Head (0)');
+  assert.equal(sm.props.Scale.x, 1.25);
+});
+
 console.log(failed ? `\n${failed} FAILED, ${passed} passed` : `\nAll ${passed} core checks passed`);
 process.exit(failed ? 1 : 0);

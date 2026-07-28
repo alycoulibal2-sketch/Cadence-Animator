@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('cadence', {
   fetchTexture: (id) => ipcRenderer.invoke('roblox:texture', id),
   lookupUser: (username) => ipcRenderer.invoke('roblox:userId', username),
   classicFace: () => ipcRenderer.invoke('roblox:classicFace'),
+  localMesh: (relPath) => ipcRenderer.invoke('roblox:localMesh', relPath),
+  localImage: (relPath) => ipcRenderer.invoke('roblox:localImage', relPath),
+  localContent: () => ipcRenderer.invoke('roblox:localContent'),
 
   // roblox files
   parseRbx: (arrayBuffer, filename) => ipcRenderer.invoke('rbx:parseBuffer', arrayBuffer, filename),
