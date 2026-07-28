@@ -226,11 +226,11 @@ function rasteriseTriangle(dst, dw, dh, src, tri) {
   }
 }
 
-function runCompositMesh(dst, mesh, src) {
+function runCompositMesh(dst, mesh, src, dw = ATLAS_W, dh = ATLAS_H) {
   const { positions: p, uvs: u, indices: idx } = mesh;
   for (let t = 0; t + 2 < idx.length; t += 3) {
     const ids = [idx[t], idx[t + 1], idx[t + 2]];
-    rasteriseTriangle(dst, ATLAS_W, ATLAS_H, src, ids.map((i) => ({
+    rasteriseTriangle(dst, dw, dh, src, ids.map((i) => ({
       x: p[i * 3],
       y: p[i * 3 + 1],
       u: u[i * 2] * src.width,
@@ -247,8 +247,7 @@ function imageToPixels(img) {
   return cx.getImageData(0, 0, img.width, img.height);
 }
 
-// A 1x1 source of a flat colour, for the base layers — they mark WHERE each body part lives in
-// the atlas; the colour comes from the part, not from any texture.
+// A 1x1 source of a flat colour, for filling a canvas with a body colour.
 function solidPixels(hex) {
   const c = document.createElement('canvas');
   c.width = c.height = 1;
@@ -256,6 +255,25 @@ function solidPixels(hex) {
   cx.fillStyle = hex;
   cx.fillRect(0, 0, 1, 1);
   return cx.getImageData(0, 0, 1, 1);
+}
+
+// The base layers only mark WHERE each body part lives in the atlas, in one flat colour — so they
+// are filled as native canvas paths rather than sampled per pixel. That matters: their meshes
+// carry ~416 triangles each including wide bleed geometry, and running five of them through the
+// software rasteriser over a 1024x512 canvas took minutes. The garment layers still go through
+// the rasteriser, which is where the exactness actually lives.
+function fillCompositMesh(ctx, mesh, hex) {
+  const { positions: p, indices: idx } = mesh;
+  ctx.fillStyle = hex;
+  ctx.beginPath();
+  for (let t = 0; t + 2 < idx.length; t += 3) {
+    const [a, b, c] = [idx[t], idx[t + 1], idx[t + 2]];
+    ctx.moveTo(p[a * 3], p[a * 3 + 1]);
+    ctx.lineTo(p[b * 3], p[b * 3 + 1]);
+    ctx.lineTo(p[c * 3], p[c * 3 + 1]);
+    ctx.closePath();
+  }
+  ctx.fill();
 }
 
 // The whole classic body's texture, exactly as Roblox bakes it. Returns null when the local
@@ -274,22 +292,100 @@ export async function buildClassicAtlas(rig, clothing) {
   const meshes = await Promise.all(ATLAS_LAYERS.map((l) => loadLocalMesh(l.mesh)));
   if (meshes.some((m) => !m)) return null; // no local Roblox install
 
-  const dst = new Uint8ClampedArray(ATLAS_W * ATLAS_H * 4);
+  const canvas = document.createElement('canvas');
+  canvas.width = ATLAS_W;
+  canvas.height = ATLAS_H;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const colorOf = (name) => {
     const def = rig.parts.find((p) => p.name === name);
     return (def && def.color) || '#A3A2A5';
   };
+
+  // Base body colours first, as native fills.
   ATLAS_LAYERS.forEach((layer, i) => {
-    const src = layer.garment ? sources[layer.garment] : solidPixels(colorOf(layer.part));
-    if (!src) return;
-    runCompositMesh(dst, meshes[i], src);
+    if (layer.garment) return;
+    fillCompositMesh(ctx, meshes[i], colorOf(layer.part));
   });
 
-  const canvas = document.createElement('canvas');
-  canvas.width = ATLAS_W;
-  canvas.height = ATLAS_H;
-  canvas.getContext('2d').putImageData(new ImageData(dst, ATLAS_W, ATLAS_H), 0, 0);
+  // Then the garments, sampled exactly.
+  const dst = ctx.getImageData(0, 0, ATLAS_W, ATLAS_H).data;
+  ATLAS_LAYERS.forEach((layer, i) => {
+    if (!layer.garment || !sources[layer.garment]) return;
+    runCompositMesh(dst, meshes[i], sources[layer.garment]);
+  });
+  ctx.putImageData(new ImageData(dst, ATLAS_W, ATLAS_H), 0, 0);
   return canvas;
+}
+
+// ---------------------------------------------------------------- R15
+//
+// R15 composites per body GROUP rather than into one body-wide sheet, and each group's parts
+// share that group's canvas, stacking disjointly down it — measured from the stock R15 meshes'
+// own UVs, which meet exactly at their boundaries:
+//     torso  LowerTorso v 0.023..0.375 | UpperTorso v 0.375..0.962
+//     arm    Hand 0.007..0.233 | LowerArm 0.247..0.543 | UpperArm 0.544..0.993
+//     leg    Foot 0.008..0.232 | LowerLeg 0.247..0.544 | UpperLeg 0.544..0.769
+//
+// Roblox ships no R15 *leg* compositing mesh. It doesn't need one: the leg UV layout is the arm
+// layout (same u span, same 0.247/0.544 breakpoints — a leg simply doesn't use the top of it), so
+// a leg reuses its side's arm mesh and draws from the PANTS template instead of the shirt. Arms
+// and legs genuinely overlap in UV space, which is what proves they are separate canvases rather
+// than one shared sheet.
+const R15_GROUPS = {
+  torso: { mesh: 'avatar/compositing/R15CompositTorsoBase.mesh', w: 388, h: 264, garments: ['pants', 'shirt'], primary: 'UpperTorso' },
+  leftArm: { mesh: 'avatar/compositing/R15CompositLeftArmBase.mesh', w: 264, h: 284, garments: ['shirt'], primary: 'LeftUpperArm' },
+  rightArm: { mesh: 'avatar/compositing/R15CompositRightArmBase.mesh', w: 264, h: 284, garments: ['shirt'], primary: 'RightUpperArm' },
+  leftLeg: { mesh: 'avatar/compositing/R15CompositLeftArmBase.mesh', w: 264, h: 284, garments: ['pants'], primary: 'LeftUpperLeg' },
+  rightLeg: { mesh: 'avatar/compositing/R15CompositRightArmBase.mesh', w: 264, h: 284, garments: ['pants'], primary: 'RightUpperLeg' },
+};
+
+const R15_PART_GROUP = {
+  UpperTorso: 'torso', LowerTorso: 'torso',
+  LeftUpperArm: 'leftArm', LeftLowerArm: 'leftArm', LeftHand: 'leftArm',
+  RightUpperArm: 'rightArm', RightLowerArm: 'rightArm', RightHand: 'rightArm',
+  LeftUpperLeg: 'leftLeg', LeftLowerLeg: 'leftLeg', LeftFoot: 'leftLeg',
+  RightUpperLeg: 'rightLeg', RightLowerLeg: 'rightLeg', RightFoot: 'rightLeg',
+};
+
+export function r15GroupOf(partName) { return R15_PART_GROUP[partName] || null; }
+
+const r15Cache = new Map();
+// One group's canvas, built with the same conventions proven for the classic atlas. Cached per
+// rig+group, since every part of a group shares one canvas.
+export function buildR15GroupAtlas(rig, clothing, partName, cacheKey) {
+  const groupName = R15_PART_GROUP[partName];
+  const group = groupName && R15_GROUPS[groupName];
+  if (!group) return Promise.resolve(null);
+  const garments = group.garments.filter((g) => clothing[g]);
+  if (!garments.length) return Promise.resolve(null);
+
+  const key = `${cacheKey}|${groupName}`;
+  if (r15Cache.has(key)) return r15Cache.get(key);
+
+  const build = (async () => {
+    const mesh = await loadLocalMesh(group.mesh);
+    if (!mesh) return null;
+    const dst = new Uint8ClampedArray(group.w * group.h * 4);
+    // Base colour for the whole group. Parts of a group can in principle differ, but they share
+    // one canvas, so this uses the group's main part — clothing covers nearly all of it anyway.
+    const def = rig.parts.find((p) => p.name === group.primary) || rig.parts.find((p) => p.name === partName);
+    const base = solidPixels((def && def.color) || '#A3A2A5');
+    for (let i = 0; i < dst.length; i += 4) {
+      dst[i] = base.data[0]; dst[i + 1] = base.data[1]; dst[i + 2] = base.data[2]; dst[i + 3] = 255;
+    }
+    for (const g of garments) { // pants before shirt, the order Roblox layers them
+      const img = await loadTemplate(clothing[g]);
+      if (!img) continue;
+      runCompositMesh(dst, mesh, imageToPixels(img), group.w, group.h);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = group.w;
+    canvas.height = group.h;
+    canvas.getContext('2d').putImageData(new ImageData(dst, group.w, group.h), 0, 0);
+    return canvas;
+  })();
+  r15Cache.set(key, build);
+  return build;
 }
 
 // One part's finished texture: the body colour underneath, then each garment's template painted

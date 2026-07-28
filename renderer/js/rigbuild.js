@@ -4,8 +4,8 @@ import * as CF from './cf.js';
 import { isClosedShape } from './effectShapes.js';
 import { buildShapeGeometry } from './effectMeshBuilder.js';
 import {
-  isClothedPart, buildPartClothingCanvas, buildClassicAtlas, loadTemplate, loadLocalMesh,
-  classicHeadMeshPath, classicPartMeshPath,
+  isClothedPart, buildPartClothingCanvas, buildClassicAtlas, buildR15GroupAtlas, r15GroupOf,
+  loadTemplate, loadLocalMesh, classicHeadMeshPath, classicPartMeshPath,
 } from './clothing.js';
 
 let classicFacePromise = null;
@@ -624,13 +624,13 @@ export class RigInstance {
       // should look like. The atlas is Roblox's own composite (see clothing.js), and each part's
       // mesh already carries UVs into it, so applying it is just a texture assignment.
       if (this.clothingImages && isClothedPart(def.name)) {
-        const applyCanvas = (canvas) => {
+        // isAtlas: a composite authored in image space (Y down), which the body meshes' UVs
+        // already address that way — so it must NOT get the flip an uploaded texture gets.
+        const applyCanvas = (canvas, isAtlas) => {
           if (!canvas) return false;
           const tex = new THREE.CanvasTexture(canvas);
           tex.colorSpace = THREE.SRGBColorSpace;
-          // The atlas is authored in image space (Y down) and the body meshes' UVs already address
-          // it that way, so it must NOT be flipped the way an ordinary uploaded texture is.
-          tex.flipY = !this.usingAtlas;
+          tex.flipY = !isAtlas;
           material.map = tex;
           // The composite already carries the body colour underneath, so the material must not
           // tint it a second time.
@@ -638,12 +638,16 @@ export class RigInstance {
           material.needsUpdate = true;
           return true;
         };
-        // Roblox's own bake first; the per-part approximation only if its content isn't here.
-        Promise.resolve(this.classicAtlas).then((atlas) => {
-          if (this.usingAtlas && applyCanvas(atlas)) return;
+        // Roblox's own bake first — the body-wide sheet for a classic rig, the per-group canvas
+        // for R15 — falling back to the per-part approximation only if its content isn't here.
+        const exact = (def.className === 'MeshPart' && r15GroupOf(def.name))
+          ? buildR15GroupAtlas(this.item.rig, this.clothing, def.name, this.item.id)
+          : Promise.resolve(this.classicAtlas).then((a) => (this.usingAtlas ? a : null));
+        exact.then((canvas) => {
+          if (applyCanvas(canvas, true)) return;
           return this.clothingImages.then((images) => {
             if (!images) return;
-            applyCanvas(buildPartClothingCanvas(def, mesh.geometry, this.partDefsByName, images));
+            applyCanvas(buildPartClothingCanvas(def, mesh.geometry, this.partDefsByName, images), false);
           });
         });
         return;

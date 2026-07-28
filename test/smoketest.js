@@ -757,7 +757,38 @@
     // get the flip an ordinary uploaded texture gets.
     assert(map.flipY === false, 'the atlas must not be Y-flipped');
     S.removeItem(item.id);
-    return { atlas: [map.image.width, map.image.height], armTris: tris };
+
+    // R15 composites per body GROUP instead, each into its own canvas. Roblox ships no R15 leg
+    // mesh — legs reuse their side's arm mesh with the pants template, which is only valid
+    // because arms and legs are separate canvases (their UVs genuinely overlap).
+    const rig15 = structuredClone(builtins.r15);
+    rig15.clothing = rig.clothing;
+    const item15 = D.addRigItem(rig15, 'ClothingCheck15');
+    await new Promise((r) => setTimeout(r, 8000));
+    const inst15 = D.getInstance(item15.id);
+    const expect = {
+      UpperTorso: [388, 264], LowerTorso: [388, 264],
+      LeftUpperArm: [264, 284], LeftHand: [264, 284],
+      RightUpperLeg: [264, 284], RightFoot: [264, 284],
+    };
+    for (const [name, size] of Object.entries(expect)) {
+      const m15 = inst15.parts.get(name).mesh.material.map;
+      assert(m15 && m15.image, `${name} should carry its group's composite`);
+      assert(m15.image.width === size[0] && m15.image.height === size[1],
+        `${name} canvas should be ${size.join('x')}, got ${m15.image.width}x${m15.image.height}`);
+      assert(m15.flipY === false, `${name}'s composite must not be Y-flipped`);
+    }
+    // Parts of one group share a canvas; different groups must not.
+    const torso = inst15.parts.get('UpperTorso').mesh.material.map.image;
+    assert(inst15.parts.get('LowerTorso').mesh.material.map.image === torso,
+      'a group’s parts should share one canvas');
+    assert(inst15.parts.get('LeftUpperArm').mesh.material.map.image !== torso,
+      'different groups must not share a canvas');
+    assert(inst15.parts.get('LeftUpperArm').mesh.material.map.image
+      !== inst15.parts.get('LeftUpperLeg').mesh.material.map.image,
+      'arms and legs overlap in UV space, so they must be separate canvases');
+    S.removeItem(item15.id);
+    return { atlas: [map.image.width, map.image.height], armTris: tris, r15: 'per-group canvases verified' };
   });
 
   // ---------------------------------------------------------------- implicit frame-0 key
