@@ -665,6 +665,36 @@ body {
   white-space: pre-wrap;
 }
 
+/* Colour picker (Moon's ColorPicker window) */
+.color-picker { display: flex; flex-direction: column; gap: 8px; width: 260px; }
+.cp-row { display: flex; gap: 8px; }
+.cp-sv {
+  position: relative; flex: 1 1 auto; height: 150px; border-radius: 4px;
+  border: 1px solid var(--line, rgba(255,255,255,0.15)); cursor: crosshair; touch-action: none;
+}
+.cp-hue {
+  position: relative; width: 18px; border-radius: 4px; cursor: ns-resize; touch-action: none;
+  border: 1px solid var(--line, rgba(255,255,255,0.15));
+  background: linear-gradient(to bottom, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%);
+}
+.cp-cursor {
+  position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%;
+  border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.6); pointer-events: none;
+}
+.cp-hue-cursor {
+  position: absolute; left: -2px; right: -2px; height: 3px; margin-top: -1.5px;
+  background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.6); pointer-events: none;
+}
+.cp-swatch { height: 26px; border-radius: 4px; border: 1px solid var(--line, rgba(255,255,255,0.15)); }
+.cp-fields { display: flex; gap: 6px; }
+.cp-field { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-2); flex: 1 1 0; min-width: 0; }
+.cp-field.wide { flex: 1 1 100%; }
+.cp-field input { flex: 1 1 0; min-width: 0; }
+.color-swatch-btn {
+  cursor: pointer; text-align: center; font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 10px; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+
 /* Add-a-Roblox-object dialog */
 .prop-add { display: flex; flex-direction: column; gap: 4px; min-width: 360px; }
 

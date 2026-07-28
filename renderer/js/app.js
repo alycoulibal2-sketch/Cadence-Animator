@@ -12,6 +12,8 @@ import { STYLES, DIRECTIONS, paramsFor, PARAM_DATA, isDirectional } from './easi
 import * as IO from './io.js';
 import * as PROPS from './propTracks.js';
 import { initScreenFx, addScreenEffect, SCREEN_EFFECTS, SCREEN_EFFECT_KEYS } from './screenFx.js';
+import { pickColor } from './colorPicker.js';
+import { rgbToHex } from './color.js';
 import { validateAnimation } from './validate.js';
 import { initPanels } from './panels.js';
 import { THEMES, ACCENTS, DEFAULT_THEME, DEFAULT_ACCENT, applyTheme, currentTheme } from './themes.js';
@@ -2731,7 +2733,7 @@ function wireInspector() {
           } else if (type === 'boolean') {
             sec.appendChild(checkField(name, !!cur, (v) => S.setKey(item.id, name, t, v)));
           } else if (type === 'Color3') {
-            sec.appendChild(vecField(`${name} (r,g,b)`, (cur || [1, 1, 1]).map((n) => Math.round(n * 100) / 100), (vals) => S.setKey(item.id, name, t, vals)));
+            sec.appendChild(colorField(name, cur || [1, 1, 1], (vals) => S.setKey(item.id, name, t, vals)));
           } else if (type === 'Vector3' || type === 'Vector2') {
             sec.appendChild(vecField(name, cur || (type === 'Vector2' ? [0, 0] : [0, 0, 0]), (vals) => S.setKey(item.id, name, t, vals)));
           } else {
@@ -2878,6 +2880,27 @@ function numField(label, value, onChange) {
   d.appendChild(input);
   return d;
 }
+// A swatch that opens the full picker (Moon's ColorPicker window), with the hex shown inline
+// so the value is readable without opening anything.
+function colorField(label, rgb, onChange) {
+  const d = document.createElement('div');
+  d.className = 'insp-row';
+  d.innerHTML = `<span class="l">${label}</span>`;
+  const btn = document.createElement('button');
+  btn.className = 'fld color-swatch-btn';
+  const paint = (v) => {
+    btn.style.background = `rgb(${v.map((n) => Math.round(Math.max(0, Math.min(1, n)) * 255)).join(',')})`;
+    btn.textContent = '#' + rgbToHex(v[0], v[1], v[2]);
+  };
+  paint(rgb);
+  btn.addEventListener('click', async () => {
+    const picked = await pickColor({ title: label, initial: rgb });
+    if (picked) { paint(picked); onChange(picked); }
+  });
+  d.appendChild(btn);
+  return d;
+}
+
 // Free-text field, for the property types with no richer editor: strings, instance paths,
 // Enum names (`Material.Neon`), and the sequence types Cadence stores as a single stop.
 function textField(label, value, onChange) {

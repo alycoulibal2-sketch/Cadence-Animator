@@ -81,6 +81,7 @@ Subtitles animate `MaxVisibleGraphemes`, which types the line out character by c
 - **Welder** (`Windows/Welder.module.lua`) — its "Weld Model" button, as `weldAllParts`: join every loose part of a rig to one base part in a single action, as rigid Welds or animatable Motor6Ds. Parts that already have a joint are skipped, so running it twice is safe.
 - **Edit Selection** (`Windows/EditKeyframes_Value.module.lua`) — bulk-edit every selected keyframe's value and easing, with Moon's "leave a varied field alone" rule: a blank field means "don't touch", so a mixed selection can be nudged on one axis only. Bound to Keypad 7, as in Moon.
 - **Ease parameters in the curve editor** (`Windows/EditKeyframes_Ease.module.lua`) — the Back/Elastic parameter inputs, and the direction control greys out for Linear/Constant.
+- **Colour picker** (`Windows/ColorPicker.module.lua`) — the same three linked representations (H/S/V, R/G/B, hex) over a saturation-value square with a hue slider, used wherever a Color3 property track is edited. The conversions live in `color.js`, a pure leaf module with no imports, so they can be unit-tested with plain `node` (anything importing `ui.js` touches `window` at load time).
 
 ## What does not cross over
 
@@ -96,4 +97,11 @@ Cadence also has substantial capability Moon does not: a real 3D viewport, IK, w
 
 ## Testing
 
-`test/smoketest.js` carries seven permanent Moon-parity steps covering the easing engine, markers, play range, wiggle fill, property/action tracks, screen effects and the welder. The bit-exactness check for easing lives in the first of those; the full 21,108-comparison sweep against an independent transcription was a one-off verification during the port.
+`test/smoketest.js` carries eight permanent Moon-parity steps covering the easing engine, markers, play range, wiggle fill, property/action tracks, screen effects, colour conversions and the welder. The bit-exactness check for easing lives in the first of those; the full 21,108-comparison sweep against an independent transcription was a one-off verification during the port.
+
+Full suite at the time of writing: **47 checks, 0 console errors**.
+
+Two bugs were found by running the suite rather than by review, both worth remembering as failure shapes:
+
+- `fillFrames` sampled the curve *while* writing to it, so wiggle compounded frame over frame. Moon's precomputed `BufferMap` exists for exactly this reason.
+- `makeInstance` fell through to `RigInstance` for any item without a rig, so every prop item threw on `item.rig.parts` on **every animation frame** — hundreds of console errors and a stalled run. Items with nothing to draw now get `NullInstance`.

@@ -1053,6 +1053,27 @@
     return { effects: S.state.project.items.filter((i) => i.screenEffect).length };
   });
 
+  await step('colour conversions round-trip (the picker backing Color3 property tracks)', async () => {
+    const C = await import('../renderer/js/color.js');
+    for (let r = 0; r <= 1.001; r += 0.25) {
+      for (let g = 0; g <= 1.001; g += 0.25) {
+        for (let b = 0; b <= 1.001; b += 0.25) {
+          const [h, s, v] = C.rgbToHsv(r, g, b);
+          const back = C.hsvToRgb(h, s, v);
+          assert(Math.abs(back[0] - r) < 1e-9 && Math.abs(back[1] - g) < 1e-9 && Math.abs(back[2] - b) < 1e-9,
+            `rgb->hsv->rgb should round-trip, ${[r, g, b]} became ${back}`);
+        }
+      }
+    }
+    assert(C.rgbToHex(1, 0, 0) === 'ff0000' && C.rgbToHex(0.5, 0.5, 0.5) === '808080', 'rgbToHex');
+    assert(Math.abs(C.hexToRgb('#00ff80')[1] - 1) < 1e-9, 'hexToRgb should parse a leading #');
+    // A half-typed hex must read as "not applicable yet", not as an error or a wrong colour --
+    // the picker relies on that to avoid fighting the user mid-keystroke.
+    assert(C.hexToRgb('nope') === null && C.hexToRgb('#abc') === null, 'an incomplete hex should return null');
+    assert(C.cssRgb([2, -1, 0.5]) === 'rgb(255,0,128)', 'cssRgb should clamp out-of-range channels');
+    return { ok: true };
+  });
+
   await step('welder joins every loose part once, and is idempotent', async () => {
     await D.addBuiltinRig('r15');
     const item = S.state.project.items[S.state.project.items.length - 1];
