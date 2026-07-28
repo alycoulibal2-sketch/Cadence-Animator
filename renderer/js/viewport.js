@@ -6,7 +6,7 @@ import { OrbitControls } from '../vendor/three/OrbitControls.js';
 import { TransformControls } from '../vendor/three/TransformControls.js';
 import * as CF from './cf.js';
 import * as S from './state.js';
-import { RigInstance, CameraInstance, VfxInstance, EffectInstance, NullInstance, PART_GAP_SCALE, updateEdgeResolution } from './rigbuild.js';
+import { RigInstance, CameraInstance, VfxInstance, EffectInstance, NullInstance, PART_GAP_SCALE } from './rigbuild.js';
 import { viewportPalette } from './themes.js';
 import { buildChain, solveIK } from './ik.js';
 import { sampleParticles } from './vfx.js';
@@ -34,6 +34,9 @@ export const viewport = {
   trackballMode: false,
   ikMode: false, // IK tool: drag a limb's end part, the joint chain above it follows
   dragHud: null, // { text } while a move/rotate/scale drag is live, read by app.js's render loop
+  // Set by app.js: double-clicking a part asks it to key that part at the playhead. Lives here as
+  // a callback because the keying logic (overlays, toasts, undo) is app-level, not viewport-level.
+  onKeyPartRequest: null,
 };
 
 // Snapshot of the dummy's transform at the start of the current drag — used both for the live
@@ -245,19 +248,35 @@ export function initViewport(container) {
     controls.update();
   }, { capture: true, passive: false });
 
-  // lights
-  const hemi = new THREE.HemisphereLight('#cdd3e6', '#3a3d4d', 1.05);
+  // Lights approximate Roblox Studio's own default outdoor setup, so a rig here reads at the same
+  // brightness it does in Studio rather than as a dark grey silhouette. Studio's defaults (read
+  // straight off game.Lighting in a fresh baseplate): ClockTime 14.5 — a high afternoon sun —
+  // Brightness 3, Ambient and OutdoorAmbient both 0.275 grey, EnvironmentDiffuseScale 1. The big
+  // sky term is the part that matters: Roblox lifts every surface a long way off black, which is
+  // why Medium stone grey reads as a light blue-grey there and used to read near-charcoal here.
+  //
+  // The numbers are solved, not dialled in by eye: sample the framebuffer where a known albedo
+  // faces the camera, convert to linear, and pick intensities that land on what Studio renders
+  // the same albedo as. Two things fall out of that and are deliberate. The sky/ground colours
+  // are close together because Roblox's ambient is a flat term (Ambient == OutdoorAmbient), not
+  // a strong sky gradient; and the sun is weak relative to it, because Studio's default lighting
+  // really is that flat — a strong key here overshoots every upward-facing surface to white.
+  const hemi = new THREE.HemisphereLight('#e9f1fd', '#c9d2e2', 5.8);
   scene.add(hemi);
-  const key = new THREE.DirectionalLight('#ffffff', 1.7);
-  key.position.set(14, 26, 12);
+  const key = new THREE.DirectionalLight('#fffcf6', 1.95);
+  // In front of the rig, not behind it. A rig faces -Z, so the old +Z key never touched a single
+  // front-facing surface: every face you actually look at was lit by ambient alone.
+  key.position.set(12, 24, -10);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
   key.shadow.camera.left = -30; key.shadow.camera.right = 30;
   key.shadow.camera.top = 30; key.shadow.camera.bottom = -30;
   key.shadow.bias = -0.0004;
   scene.add(key);
-  const fill = new THREE.DirectionalLight('#aab4ff', 0.35);
-  fill.position.set(-12, 8, -14);
+  // Back rim only — placed behind the rig so it separates the silhouette without adding a second
+  // front light that would throw off the calibration above.
+  const fill = new THREE.DirectionalLight('#c2ccdf', 1.0);
+  fill.position.set(-14, 6, 14);
   scene.add(fill);
 
   // ground
@@ -343,6 +362,7 @@ export function initViewport(container) {
 
   // picking
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
+  renderer.domElement.addEventListener('dblclick', onDoubleClick);
   renderer.domElement.addEventListener('pointermove', onPointerMove);
   renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -363,10 +383,6 @@ function resize() {
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  // Edge-overlay LineMaterial sizes its line width in physical pixels relative to this — stale
-  // after a resize would make every part's outline read too thick or too thin.
-  const ratio = renderer.getPixelRatio();
-  updateEdgeResolution(w * ratio, h * ratio);
 }
 
 // ---------------------------------------------------------------- items
@@ -593,7 +609,14 @@ function onSelectionChanged() {
     viewport.selBox.visible = false;
     return;
   }
-  inst.setHighlight?.(partId, 2);
+  // Highlight every selected part (they can span more than one rig), not only the primary. The
+  // gizmo still anchors to the primary — dragging a multi-selection is not a thing here.
+  const byItem = new Map();
+  for (const p of S.selectedParts()) {
+    if (!byItem.has(p.itemId)) byItem.set(p.itemId, []);
+    byItem.get(p.itemId).push(p.partId);
+  }
+  for (const [id, ids] of byItem) viewport.instances.get(id)?.setHighlight?.(ids, 2);
   updateGizmoAnchor(true);
   viewport.gizmo.attach(viewport.dummy);
 }
@@ -866,12 +889,28 @@ function onPointerDown(e) {
     if (moved > 4 || viewport.editingDrag) return;
     const hit = pick(ue);
     if (hit && hit.userData.itemId) {
-      S.setSelection(hit.userData.itemId, hit.userData.partId);
-    } else {
+      // Shift-click adds/removes, exactly like shift-clicking keyframes in the timeline.
+      if (ue.shiftKey) S.toggleSelectedPart(hit.userData.itemId, hit.userData.partId);
+      else S.setSelection(hit.userData.itemId, hit.userData.partId);
+    } else if (!ue.shiftKey) {
       S.setSelection(null, null);
     }
   };
   window.addEventListener('pointerup', up);
+}
+
+// Double-clicking a part keys it where it is, at the frame the playhead is on — the quickest way
+// to pin a limb's current pose down without reaching for the toolbar. Wired here (rather than
+// synthesised from the click handler) so the browser's own double-click detection decides what
+// counts as one.
+function onDoubleClick(e) {
+  if (e.button !== 0) return;
+  const hit = pick(e);
+  if (!hit || !hit.userData.itemId) return;
+  if (!S.isPartSelected(hit.userData.itemId, hit.userData.partId)) {
+    S.setSelection(hit.userData.itemId, hit.userData.partId);
+  }
+  viewport.onKeyPartRequest?.(hit.userData.itemId, hit.userData.partId);
 }
 
 let hoverThrottle = 0;
@@ -885,12 +924,15 @@ function onPointerMove(e) {
   viewport.hovered = key;
   for (const [id, inst] of viewport.instances) {
     if (!inst.setHighlight) continue;
-    const selectedHere = S.state.selection.itemId === id ? S.state.selection.partId : null;
-    if (hit && hit.userData.itemId === id && hit.userData.partId !== selectedHere) {
+    // Selection here can be several parts (shift-click), so hover must repaint the whole set —
+    // highlighting only the primary would visibly drop the rest the moment the cursor moves.
+    const selectedHere = S.selectedParts().filter((p) => p.itemId === id).map((p) => p.partId);
+    const hoveringHere = hit && hit.userData.itemId === id && !selectedHere.includes(hit.userData.partId);
+    if (hoveringHere) {
       inst.setHighlight(hit.userData.partId, 1);
-      if (selectedHere) inst.setHighlight(selectedHere, 2);
+      if (selectedHere.length) inst.setHighlight(selectedHere, 2);
     } else {
-      inst.setHighlight(selectedHere, selectedHere ? 2 : 0);
+      inst.setHighlight(selectedHere, selectedHere.length ? 2 : 0);
     }
   }
   viewport.renderer.domElement.style.cursor = hit ? 'pointer' : 'default';

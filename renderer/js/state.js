@@ -65,7 +65,7 @@ function trackCache(tr) {
 // ---------------------------------------------------------------- state
 export const state = {
   project: null,
-  selection: { itemId: null, partId: null, keys: [], markers: [] }, // keys/markers: [{itemId, track, t}] / [{itemId, t}]
+  selection: { itemId: null, partId: null, parts: [], keys: [], markers: [] }, // keys/markers: [{itemId, track, t}] / [{itemId, t}]
   playhead: 0,
   playing: false,
   autoKey: true,
@@ -111,7 +111,7 @@ export function newProject(name = 'Untitled') {
     onionSkin: { enabledItemIds: [], range: 3 },
     audio: null, // { name, path, offset, volume }
   };
-  state.selection = { itemId: null, partId: null, keys: [], markers: [] };
+  state.selection = { itemId: null, partId: null, parts: [], keys: [], markers: [] };
   state.playhead = 0;
   state.projectPath = null;
   undoStack.length = 0;
@@ -130,7 +130,7 @@ export function loadProject(json, filePath = null) {
   p.onionSkin = p.onionSkin || { enabledItemIds: [], range: 3 };
   state.project = p;
   state.projectPath = filePath;
-  state.selection = { itemId: null, partId: null, keys: [], markers: [] };
+  state.selection = { itemId: null, partId: null, parts: [], keys: [], markers: [] };
   state.playhead = 0;
   undoStack.length = 0;
   redoStack.length = 0;
@@ -393,10 +393,50 @@ export function setItemFace(itemId, layers) {
 }
 
 // ---------------------------------------------------------------- selection / playhead
+//
+// Parts are multi-selectable, the same way timeline keyframes are (shift-click to add/remove).
+// `selection.parts` is the full set; `itemId`/`partId` stay as the PRIMARY (last-clicked) member,
+// which is what the gizmo anchors to and the inspector shows. Keeping the primary fields means
+// every existing single-selection call site keeps working untouched — the set is purely additive.
 export function setSelection(itemId, partId, keepKeys = false) {
   state.selection.itemId = itemId;
   state.selection.partId = partId;
+  state.selection.parts = (itemId && partId) ? [{ itemId, partId }] : [];
   if (!keepKeys) { state.selection.keys = []; state.selection.markers = []; }
+  emit('selection');
+}
+
+// Every selected part, always including the primary — single-selection callers can treat this as
+// a one-element list rather than special-casing.
+export function selectedParts() {
+  const list = state.selection.parts || [];
+  if (list.length) return list;
+  const { itemId, partId } = state.selection;
+  return (itemId && partId) ? [{ itemId, partId }] : [];
+}
+
+export function isPartSelected(itemId, partId) {
+  return selectedParts().some((p) => p.itemId === itemId && p.partId === partId);
+}
+
+// Shift-click behaviour: add the part if it isn't selected, remove it if it is. The primary
+// follows the click — on removal it falls back to whatever is still selected, so the gizmo never
+// ends up anchored to a part that is no longer part of the selection.
+export function toggleSelectedPart(itemId, partId) {
+  if (!itemId || !partId) return;
+  const list = selectedParts().slice();
+  const at = list.findIndex((p) => p.itemId === itemId && p.partId === partId);
+  if (at >= 0) {
+    list.splice(at, 1);
+    const primary = list[list.length - 1] || null;
+    state.selection.itemId = primary ? primary.itemId : null;
+    state.selection.partId = primary ? primary.partId : null;
+  } else {
+    list.push({ itemId, partId });
+    state.selection.itemId = itemId;
+    state.selection.partId = partId;
+  }
+  state.selection.parts = list;
   emit('selection');
 }
 export function setSelectedKeys(keys) {
@@ -462,8 +502,39 @@ function trackObj(itemId, track, create = false) {
 export function getTrack(itemId, track) { return trackObj(itemId, track, false); }
 export function getTracks(itemId) { return state.project.tracks[itemId] || {}; }
 
+// The value a track holds when nothing has posed it: a joint's rest pose (identity, since joint
+// tracks are deltas from rest), the item's own placement for @origin, and the property's own
+// current setting for the numeric tracks. This is "the default properties of the body part" that
+// the implicit frame-0 key below is written with.
+export function restValueForTrack(itemId, track) {
+  const item = getItem(itemId);
+  if (track === '@origin') return (item && item.origin) ? item.origin.slice() : CF.IDENTITY.slice();
+  if (track === '@fov') return (item && item.fov) || 70;
+  if (isNumericTrack(track)) return (item && item.emitter && item.emitter[track.slice(1)]) ?? 1;
+  if (trackValueType(itemId, track) !== 'CFrame') return evalTrackValue(itemId, track, 0);
+  return CF.IDENTITY.slice();
+}
+
+// An animation that starts partway through the timeline has no defined starting pose — playback
+// would hold the first key's pose from frame 0 up to it, so a part "animated" from frame 20 sits
+// wrong for the first 20 frames. Keying anything at frame >= 1 therefore also lays down the rest
+// pose at frame 0, so the motion actually starts from where the part really is.
+//
+// Only ever fills a GAP: if frame 0 already has a key, that key is the start and nothing is
+// added. Bulk/mechanical writes (animation import, paste, fill, repeat) pass noAutoZero, since
+// they are reproducing an existing set of keys rather than authoring a new pose.
+function ensureZeroKey(itemId, track, t, opts) {
+  if (opts.noAutoZero || !(t >= 1)) return;
+  const tr = trackObj(itemId, track, false);
+  if (tr && tr.keys.some((k) => Math.abs(k.t) < 1e-6)) return;
+  const dest = trackObj(itemId, track, true);
+  dest.keys.push({ t: 0, v: restValueForTrack(itemId, track), es: 'Cubic', ed: 'Out', bez: null, ep: null });
+  dest.keys.sort((a, b) => a.t - b.t);
+}
+
 export function setKey(itemId, track, t, value, opts = {}) {
   if (!opts.noUndo) pushUndo();
+  ensureZeroKey(itemId, track, t, opts);
   const tr = trackObj(itemId, track, true);
   const existing = tr.keys.find((k) => Math.abs(k.t - t) < 1e-6);
   if (existing) {
@@ -1026,7 +1097,9 @@ function isNumericTrack(track) { return NUMERIC_TRACKS.has(track); }
 // "refine the curve" operation you then nudge, matching Moon's M key.
 export function splitKeyframe(itemId, track, t) {
   const value = isNumericTrack(track) ? evalTrackNum(itemId, track, t) : evalTrackCF(itemId, track, t);
-  setKey(itemId, track, t, value);
+  // Refining an existing curve, not authoring a new pose — must not change what plays before the
+  // first existing key, so no implicit frame-0 key here.
+  setKey(itemId, track, t, value, { noAutoZero: true });
 }
 export function splitStride(itemId, track, tStart, tEnd, stride) {
   if (stride <= 0) return;
@@ -1039,7 +1112,7 @@ export function splitStride(itemId, track, tStart, tEnd, stride) {
 }
 function splitKeyframeNoUndo(itemId, track, t) {
   const value = isNumericTrack(track) ? evalTrackNum(itemId, track, t) : evalTrackCF(itemId, track, t);
-  setKey(itemId, track, t, value, { noUndo: true });
+  setKey(itemId, track, t, value, { noUndo: true, noAutoZero: true });
 }
 
 // Fill: bake every intermediate frame in [tStart, tEnd] into an explicit keyframe holding
@@ -1064,7 +1137,7 @@ export function fillFrames(itemId, track, tStart, tEnd, step = 1, opts = {}) {
   }
   for (const [t, base] of buffer) {
     const value = wiggle ? (isNumeric ? wiggleNumber(base, wiggle) : wiggleCFrame(base, wiggle)) : base;
-    setKey(itemId, track, t, value, { noUndo: true, es: opts.es, ed: opts.ed });
+    setKey(itemId, track, t, value, { noUndo: true, noAutoZero: true, es: opts.es, ed: opts.ed });
   }
   emit('tracks', {});
   markDirty();
@@ -1146,7 +1219,7 @@ export function repeatFrames(list, times) {
   for (let rep = 1; rep <= times; rep++) {
     const offset = (span + 1) * rep;
     for (const { ref, key } of byRef) {
-      setKey(ref.itemId, ref.track, ref.t + offset, structuredClone(key.v), { noUndo: true, es: key.es, ed: key.ed, bez: key.bez });
+      setKey(ref.itemId, ref.track, ref.t + offset, structuredClone(key.v), { noUndo: true, noAutoZero: true, es: key.es, ed: key.ed, bez: key.bez });
     }
   }
   const newEnd = maxT + (span + 1) * times;

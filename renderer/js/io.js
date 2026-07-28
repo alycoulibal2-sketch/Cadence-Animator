@@ -316,12 +316,23 @@ export function rigFromModelTree(modelNode) {
     }
   }
 
+  // Classic clothing is never on a part — it lives on Shirt/Pants/ShirtGraphic instances holding a
+  // flat template that Roblox wraps onto the body at render time. Capture it here for the same
+  // reason the Studio bridge does: without it, an imported character has skin but no clothes.
+  const clothing = {};
+  walkTree([modelNode], (n) => {
+    if (n.className === 'Shirt' && !clothing.shirt) clothing.shirt = prop(n, 'ShirtTemplate') || undefined;
+    else if (n.className === 'Pants' && !clothing.pants) clothing.pants = prop(n, 'PantsTemplate') || undefined;
+    else if (n.className === 'ShirtGraphic' && !clothing.graphic) clothing.graphic = prop(n, 'Graphic') || undefined;
+  });
+
   return {
     name: modelNode.name,
     rigType: 'Custom',
     rootPart: idByNode.get(rootNode),
     parts,
     joints,
+    ...(clothing.shirt || clothing.pants || clothing.graphic ? { clothing } : {}),
   };
 }
 
@@ -403,6 +414,9 @@ export function applyAnimationToItem(item, anim, opts = {}) {
       const next = keys[i + 1];
       S.setKey(item.id, joint, keys[i].t, keys[i].cf, {
         noUndo: true,
+        // Reproducing an animation exactly as authored elsewhere — never inject a frame-0 key it
+        // did not have, which would change the imported motion.
+        noAutoZero: true,
         es: next ? next.es : 'Linear',
         ed: next ? next.ed : 'Out',
       });

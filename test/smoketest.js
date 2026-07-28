@@ -56,8 +56,13 @@
   D.setHandlesVisible(false);
 
   // ---------------------------------------------------------------- builtin rigs: colors + edges
-  await step('builtin rigs: torso/root color, box edge overlays present + depth-correct, no facet-lines on round geometry, no NaN', async () => {
+  await step('builtin rigs: colors survive to the material, classic head is Roblox-exact, parts are outline-free, no NaN', async () => {
     const results = {};
+    // Roblox's own head.mesh, read out of the local Studio install: every classic head (R6 AND
+    // R15 — Studio's Rig Builder gives both a Part + SpecialMesh(Head) head, not a MeshPart) must
+    // render at exactly this size. Guards the two bugs that made Cadence's heads look wrong:
+    // a guessed lathe profile, and multiplying by SpecialMesh.Scale instead of dividing by it.
+    const CLASSIC_HEAD = [1.19785, 1.20242, 1.19785];
     for (const key of ['r6', 'r15', 'rthro', 'rthroSlender']) {
       const item = await D.addBuiltinRig(key);
       await new Promise((r) => setTimeout(r, 800));
@@ -69,22 +74,40 @@
       const headDef = item.rig.parts.find((p) => p.name === 'Head');
       const rootDef = item.rig.parts.find((p) => p.id === item.rig.rootPart);
       const torsoPart = inst.parts.get(torsoDef.id);
-      const armPart = inst.parts.get(armDef.id);
       const headPart = inst.parts.get(headDef.id);
-      const rootPart = inst.parts.get(rootDef.id);
       const torsoColor = torsoPart.mesh.material.color.getHexString();
-      const armColor = armPart.mesh.material.color.getHexString();
-      const rootColor = rootPart.mesh.material.color.getHexString();
+      const armColor = inst.parts.get(armDef.id).mesh.material.color.getHexString();
+      const rootColor = inst.parts.get(rootDef.id).mesh.material.color.getHexString();
+      // Data-driven: whatever the preset declares must be what actually reaches the material.
+      // (Deliberately not hard-coding the root's colour — R6/R15 come straight out of Studio,
+      // where the HumanoidRootPart really is Medium stone grey, while Rthro's is still dark.)
+      for (const [label, def, got] of [['torso', torsoDef, torsoColor], ['arm', armDef, armColor], ['root', rootDef, rootColor]]) {
+        assert(got === def.color.slice(1).toLowerCase(), `${key} ${label} should render ${def.color}, got #${got}`);
+      }
       assert(torsoColor === '635f62', `${key} torso should be Dark stone grey, got #${torsoColor}`);
-      assert(rootColor === '635f62', `${key} root part should be Dark stone grey, got #${rootColor}`);
       assert(armColor === 'a3a2a5', `${key} arm should be Medium stone grey, got #${armColor}`);
-      assert(!headPart.mesh.children.some((c) => c.userData.isEdgeOverlay), `${key} head must not have a facet-line edge overlay`);
-      // Roblox draws a visible dark border on every box-shaped body part — must actually be
-      // present, and depth-tested (not depthTest:false, which x-rays hidden edges through the
-      // front of the part — see rigbuild.js's buildEdgeOverlay for the full story).
-      const torsoEdge = torsoPart.mesh.children.find((c) => c.userData.isEdgeOverlay);
-      assert(!!torsoEdge, `${key} torso (a box) must have a visible edge overlay`);
-      assert(torsoEdge.material.depthTest === true, `${key} torso edge overlay must depth-test normally, not x-ray through the part`);
+
+      if (headDef.specialMesh && headDef.specialMesh.meshType === 'Head') {
+        const g = headPart.mesh.geometry;
+        g.computeBoundingBox();
+        const size = [
+          g.boundingBox.max.x - g.boundingBox.min.x,
+          g.boundingBox.max.y - g.boundingBox.min.y,
+          g.boundingBox.max.z - g.boundingBox.min.z,
+        ];
+        size.forEach((v, i) => assert(Math.abs(v - CLASSIC_HEAD[i]) < 0.005,
+          `${key} classic head axis ${i} is ${v.toFixed(4)}, Roblox renders ${CLASSIC_HEAD[i]}`));
+        results[`${key}_head`] = size.map((v) => +v.toFixed(4));
+      }
+
+      // Roblox has no outline pass — nothing may add line geometry on top of a part. This used to
+      // assert the opposite (that a dark edge overlay was present); measuring a real part in
+      // Studio showed its edges are rounded highlights, not drawn lines.
+      for (const [, p] of inst.parts) {
+        assert(!p.mesh.children.some((c) => c.userData.isEdgeOverlay || c.isLineSegments2 || c.isLine),
+          `${key} ${p.def.name} must not carry an outline overlay`);
+      }
+
       const worlds = inst.solvePoseWorlds(S.evalPose(item, 0), item.origin);
       let nan = 0;
       for (const [, cf] of worlds) if (cf.some((v) => !isFinite(v))) nan++;
@@ -359,6 +382,18 @@
     assert(res.ok, `${type} failed: ${res.error}`);
     return res.data;
   }
+
+  // The studio window is a second renderer with its own module graph to boot, and the fixed wait
+  // above is a guess — on a slower/loaded machine the first vfx_* call can land before it is
+  // listening and fail with a timeout that says nothing about the feature under test. Poll until
+  // it answers instead, so this suite reports real VFX regressions rather than boot races.
+  await (async () => {
+    for (let i = 0; i < 20; i++) {
+      const res = await window.cadence.debugCallMcp('vfx_get_state', {});
+      if (res.ok) return;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  })();
 
   await step('VFX Studio MCP: new effect, add layers, curve, modifier round-trip via get_effect', async () => {
     await vfxCall('vfx_new_effect', { name: 'Smoketest Effect', duration: 60, fps: 30 });
@@ -645,7 +680,7 @@
   });
 
   // ---------------------------------------------------------------- face decal
-  await step('face decal: curved patch exists on the head, no NaN', async () => {
+  await step('face decal: patch is flush on the head and maps the texture across the full head width', async () => {
     const item = await D.addBuiltinRig('r6');
     await new Promise((r) => setTimeout(r, 600));
     const headDef = item.rig.parts.find((p) => p.name === 'Head');
@@ -653,12 +688,165 @@
     const headPart = inst.parts.get(headDef.id);
     const faceChild = headPart.mesh.children.find((c) => c.userData.isFaceLayer);
     assert(!!faceChild, 'no face decal found on R6 head');
-    assert(faceChild.geometry.type === 'CylinderGeometry', `expected a curved CylinderGeometry patch, got ${faceChild.geometry.type}`);
-    const pos = faceChild.geometry.attributes.position;
+    const g = faceChild.geometry;
+    const pos = g.attributes.position, uv = g.attributes.uv;
+    assert(!!uv, 'face patch has no UVs — it cannot be projecting the texture');
+    let minU = Infinity, maxU = -Infinity, minX = Infinity, maxX = -Infinity;
+    let minR = Infinity, maxR = -Infinity;
     for (let i = 0; i < pos.count; i++) {
-      assert(isFinite(pos.getX(i)) && isFinite(pos.getY(i)) && isFinite(pos.getZ(i)), 'NaN vertex in face patch');
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      assert(isFinite(x) && isFinite(y) && isFinite(z), 'NaN vertex in face patch');
+      const u = uv.getX(i);
+      if (u < minU) minU = u; if (u > maxU) maxU = u;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (Math.abs(y) < 0.05) { // the head's straight wall, where its radius is exactly HEAD_R
+        const r = Math.hypot(x, z);
+        if (r < minR) minR = r; if (r > maxR) maxR = r;
+      }
     }
-    return { geometryType: faceChild.geometry.type };
+    // Calibrated against Roblox: face.png's two eyes sit 0.1875 of the texture apart and render
+    // 0.183 of the head's width apart in Studio, i.e. the texture spans the head ~1:1. Since the
+    // patch maps u linearly to x, studs-per-unit-u must come out as the head's own width. The
+    // previous cylinder-section patch spanned only ~0.58 of it, so the face rendered too small.
+    const studsPerU = (maxX - minX) / (maxU - minU);
+    assert(Math.abs(studsPerU - 1.202) < 0.04, `face texture should span the head's width (~1.202 studs), spans ${studsPerU.toFixed(3)}`);
+    // Flush: sitting on the head's own surface, a hair proud of it — never floating or sunk.
+    assert(minR > 0.601 && maxR < 0.601 + 0.02, `face patch is not flush on the head wall (radius ${minR.toFixed(4)}..${maxR.toFixed(4)}, wall is 0.601)`);
+    return { studsPerU: +studsPerU.toFixed(4), patchRadius: [+minR.toFixed(4), +maxR.toFixed(4)] };
+  });
+
+  // ---------------------------------------------------------------- exact clothing composite
+  await step('classic clothing uses Roblox’s own compositing meshes and body meshes', async () => {
+    const local = await window.cadence.localContent();
+    if (!local || !local.dir) return { skipped: 'no local Roblox install on this machine' };
+
+    // Roblox's compositing meshes describe the engine's own bake: a vertex POSITION is a
+    // destination pixel in the 1024x512 body atlas and its UV samples the template. Confirm the
+    // correspondence that pins the conventions down, so a wrong flip can never creep back in:
+    // CompositLeftArmBase's vertex (568,112) must land on template pixel (217,289) — the corner
+    // of the right-limb UP region.
+    const cm = await window.cadence.localMesh('avatar/compositing/CompositLeftArmBase.mesh');
+    assert(cm, 'CompositLeftArmBase.mesh should be readable from the local install');
+    let found = false;
+    for (let i = 0; i < cm.positions.length / 3; i++) {
+      if (Math.abs(cm.positions[i * 3] - 568) < 0.5 && Math.abs(cm.positions[i * 3 + 1] - 112) < 0.5) {
+        const u = cm.uvs[i * 2] * 585;
+        const v = (1 - cm.uvs[i * 2 + 1]) * 559; // raw file V — the parser flips it on read
+        assert(Math.abs(u - 217) < 1.5 && Math.abs(v - 289) < 1.5,
+          `composit UV convention drifted: (568,112) -> template (${u.toFixed(1)},${v.toFixed(1)}), expected (217,289)`);
+        found = true;
+        break;
+      }
+    }
+    assert(found, 'the reference vertex (568,112) is missing from CompositLeftArmBase');
+
+    // A clothed R6 rig must adopt Roblox's own body meshes, whose UVs address that atlas.
+    const builtins = await window.cadence.builtinRigs();
+    const rig = structuredClone(builtins.r6);
+    rig.clothing = { shirt: 'rbxassetid://3670737337', pants: 'rbxassetid://129458425' };
+    const item = D.addRigItem(rig, 'ClothingCheck');
+    await new Promise((r) => setTimeout(r, 6000));
+    const inst = D.getInstance(item.id);
+    const arm = inst.parts.get('Left Arm');
+    const tris = arm.mesh.geometry.index ? arm.mesh.geometry.index.count / 3 : 0;
+    assert(tris === 44, `Left Arm should be Roblox's own 44-triangle mesh, got ${tris}`);
+    const map = arm.mesh.material.map;
+    assert(map && map.image && map.image.width === 1024 && map.image.height === 512,
+      'clothed parts should sample the 1024x512 body atlas');
+    // The atlas is authored Y-down and the body meshes' UVs address it that way, so it must not
+    // get the flip an ordinary uploaded texture gets.
+    assert(map.flipY === false, 'the atlas must not be Y-flipped');
+    S.removeItem(item.id);
+    return { atlas: [map.image.width, map.image.height], armTris: tris };
+  });
+
+  // ---------------------------------------------------------------- implicit frame-0 key
+  await step('keying past frame 0 lays down the rest pose at frame 0, exactly once', async () => {
+    const item = await D.addBuiltinRig('r15');
+    const id = item.id;
+    const REST = CF.IDENTITY;
+    const POSED = [0, 0, 0, 1, 0, 0, 0, 0.7071, -0.7071, 0, 0.7071, 0.7071];
+
+    S.setKey(id, 'LeftShoulder', 20, POSED.slice());
+    let keys = S.getTrack(id, 'LeftShoulder').keys;
+    assert(keys.length === 2 && keys[0].t === 0 && keys[1].t === 20, `expected keys at 0 and 20, got ${keys.map((k) => k.t)}`);
+    assert(keys[0].v.every((v, i) => Math.abs(v - REST[i]) < 1e-9), 'the implicit frame-0 key must hold the rest pose');
+
+    S.setKey(id, 'LeftShoulder', 30, REST.slice());
+    keys = S.getTrack(id, 'LeftShoulder').keys;
+    assert(keys.filter((k) => k.t === 0).length === 1, 'a second key must not add another frame-0 key');
+
+    // A frame-0 key the user authored themselves is the start of the animation — never replaced.
+    const mine = [0, 5, 0, ...REST.slice(3)];
+    S.setKey(id, 'RightShoulder', 0, mine.slice());
+    S.setKey(id, 'RightShoulder', 12, REST.slice());
+    const rk = S.getTrack(id, 'RightShoulder').keys;
+    assert(rk.length === 2 && Math.abs(rk[0].v[1] - 5) < 1e-9, 'a user-authored frame-0 key must be preserved as-is');
+
+    // Bulk paths that reproduce existing keys (animation import, paste, fill) must not inject.
+    S.setKey(id, 'Waist', 15, REST.slice(), { noAutoZero: true });
+    assert(S.getTrack(id, 'Waist').keys.length === 1, 'noAutoZero must suppress the implicit key');
+
+    // The implicit key belongs to the same undo step as the key that caused it.
+    S.setKey(id, 'Neck', 10, POSED.slice());
+    S.undo();
+    const neck = S.getTrack(id, 'Neck');
+    assert(!neck || neck.keys.length === 0, `undo must remove the implicit key too, left ${neck && neck.keys.length}`);
+
+    S.removeItem(id);
+    return { ok: true };
+  });
+
+  // ---------------------------------------------------------------- part multi-select + keying
+  await step('parts multi-select like keyframes; double-click keys one at the playhead', async () => {
+    const item = await D.addBuiltinRig('r15');
+    const id = item.id;
+
+    S.setSelection(id, 'LeftUpperArm');
+    S.toggleSelectedPart(id, 'RightUpperArm');
+    S.toggleSelectedPart(id, 'Head');
+    assert(S.selectedParts().length === 3, `expected 3 selected parts, got ${S.selectedParts().length}`);
+    assert(S.state.selection.partId === 'Head', 'the primary should follow the most recent click');
+    S.toggleSelectedPart(id, 'Head');
+    assert(!S.isPartSelected(id, 'Head'), 'shift-clicking a selected part must deselect it');
+    assert(S.state.selection.partId === 'RightUpperArm', 'the primary must fall back to a still-selected part');
+    S.setSelection(id, 'LeftUpperArm');
+    assert(S.selectedParts().length === 1, 'a plain click must reset to a single part');
+
+    // Keying a multi-selection keys every member, not just the primary.
+    S.setPlayhead(24, false);
+    S.setSelection(id, 'LeftUpperLeg');
+    S.toggleSelectedPart(id, 'RightUpperLeg');
+    D.keyCurrentPose();
+    for (const track of ['LeftHip', 'RightHip']) {
+      const tr = S.getTrack(id, track);
+      assert(tr && tr.keys.some((k) => k.t === 24), `${track} should have been keyed at 24`);
+    }
+
+    // Double-click: keys the clicked part where it is, at the current frame.
+    S.setPlayhead(33, false);
+    D.viewport.onKeyPartRequest(id, 'LeftLowerArm');
+    const elbow = S.getTrack(id, 'LeftElbow');
+    assert(elbow && elbow.keys.some((k) => k.t === 33), 'double-click should key that part at the playhead');
+
+    // The root part has no joint above it — it animates through @origin instead.
+    S.setPlayhead(40, false);
+    D.viewport.onKeyPartRequest(id, 'HumanoidRootPart');
+    const origin = S.getTrack(id, '@origin');
+    assert(origin && origin.keys.some((k) => k.t === 40), 'double-clicking the root part should key @origin');
+
+    // A multi-selected part must still read as selected while another is hovered.
+    const inst = D.getInstance(id);
+    S.setSelection(id, 'LeftUpperArm');
+    S.toggleSelectedPart(id, 'RightUpperArm');
+    inst.setHighlight(S.selectedParts().map((p) => p.partId), 2);
+    for (const name of ['LeftUpperArm', 'RightUpperArm']) {
+      assert(inst.parts.get(name).selBox.material.opacity > 0.3, `${name} should render as selected`);
+    }
+    assert(inst.parts.get('Head').selBox.material.opacity === 0, 'an unselected part must not render as selected');
+
+    S.removeItem(id);
+    return { ok: true };
   });
 
   // ---------------------------------------------------------------- save/load + undo/redo

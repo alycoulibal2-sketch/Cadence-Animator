@@ -1024,7 +1024,7 @@ export function pasteKeys() {
   S.pushUndo();
   const sel = [];
   for (const en of clip.entries) {
-    S.setKey(en.itemId, en.track, t0 + en.dt, structuredClone(en.key.v), { noUndo: true, es: en.key.es, ed: en.key.ed, bez: en.key.bez });
+    S.setKey(en.itemId, en.track, t0 + en.dt, structuredClone(en.key.v), { noUndo: true, noAutoZero: true, es: en.key.es, ed: en.key.ed, bez: en.key.bez });
     sel.push({ itemId: en.itemId, track: en.track, t: t0 + en.dt });
   }
   S.setSelectedKeys(sel);
@@ -1041,7 +1041,7 @@ export function pasteKeysIntoItem(targetItemId) {
   S.pushUndo();
   const sel = [];
   for (const en of clip.entries) {
-    S.setKey(targetItemId, en.track, t0 + en.dt, structuredClone(en.key.v), { noUndo: true, es: en.key.es, ed: en.key.ed, bez: en.key.bez });
+    S.setKey(targetItemId, en.track, t0 + en.dt, structuredClone(en.key.v), { noUndo: true, noAutoZero: true, es: en.key.es, ed: en.key.ed, bez: en.key.bez });
     sel.push({ itemId: targetItemId, track: en.track, t: t0 + en.dt });
   }
   S.setSelectedKeys(sel);

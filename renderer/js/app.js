@@ -55,6 +55,13 @@ async function boot() {
     applyTheme(settings.theme || DEFAULT_THEME, settings.accent || DEFAULT_ACCENT);
 
     initViewport(document.getElementById('viewport'));
+    // Double-clicking a part in the viewport keys it where it is, at the current frame.
+    viewport.onKeyPartRequest = (itemId, partId) => {
+      const t = Math.round(S.state.playhead);
+      const track = keyPartAt(itemId, partId, t);
+      if (track) toast(`Keyed ${track} @ ${t}`);
+      else toast('That part has no joint to animate', 'warn');
+    };
     initTimeline({
       listEl: document.getElementById('trackList'),
       canvasEl: document.getElementById('tlCanvas'),
@@ -414,6 +421,27 @@ function toggleAutoKey() {
   toast(`Auto-key ${S.state.autoKey ? 'on — moving parts records keyframes' : 'off — press S to key a pose'}`);
 }
 
+// The track that drives a part: its own Motor6D, or the rig's origin for the root part (which has
+// no joint above it). Returns null for a part nothing can animate, e.g. one held by a rigid weld.
+function trackForPart(item, partId) {
+  if (!item || !item.rig || !partId) return null;
+  if (partId === '@origin' || partId === '@camera') return partId;
+  if (partId === item.rig.rootPart) return '@origin';
+  const j = (item.rig.joints || []).find((jj) => jj.part1 === partId && jj.kind !== 'weld');
+  return j ? j.name : null;
+}
+
+// Key one part exactly where it currently sits, at frame t. Shared by double-click-to-key and the
+// multi-part path in keyCurrentPose, so both write identical values.
+function keyPartAt(itemId, partId, t, opts = {}) {
+  const item = S.getItem(itemId);
+  const track = trackForPart(item, partId);
+  if (!track) return null;
+  const fallback = track === '@origin' ? (item.origin || CF.IDENTITY) : CF.IDENTITY;
+  S.setKey(itemId, track, t, S.evalTrackCF(itemId, track, t, fallback), opts);
+  return track;
+}
+
 function keyCurrentPose() {
   if (commitOverlays()) { toast('Pose keyed'); return; }
   // no pending edits: key the selected joint (or all joints of selected item) at playhead
@@ -421,6 +449,18 @@ function keyCurrentPose() {
   if (!itemId) { toast('Select a rig or part first', 'warn'); return; }
   const item = S.getItem(itemId);
   const t = Math.round(S.state.playhead);
+  // Several parts selected (shift-click): key every one of them, not just the primary.
+  const selParts = S.selectedParts();
+  if (selParts.length > 1) {
+    S.pushUndo();
+    const keyed = [];
+    for (const p of selParts) {
+      const track = keyPartAt(p.itemId, p.partId, t, { noUndo: true });
+      if (track) keyed.push(track);
+    }
+    toast(keyed.length ? `Keyed ${keyed.length} parts @ ${t}` : 'None of the selected parts can be animated', keyed.length ? undefined : 'warn');
+    return;
+  }
   if (partId && partId !== '@origin' && partId !== '@camera' && item.rig) {
     const j = (item.rig.joints || []).find((j) => j.part1 === partId && j.kind !== 'weld');
     if (j) {

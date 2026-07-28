@@ -118,6 +118,157 @@ local MESHTYPE_NAMES = {
 	[Enum.MeshType.CornerWedge] = "CornerWedge",
 }
 
+-- ==================================================================== auto-rigging
+--
+-- A character built by Players:CreateHumanoidModelFromDescription (what "add rig from a Roblox
+-- username" uses) arrives in edit mode with attachments but ZERO Motor6Ds, and
+-- Humanoid:BuildRigFromAttachments() does nothing outside a running game — verified directly:
+-- 0 joints before the call, 0 after. So the avatar imported as a pile of loose parts: no
+-- animatable tracks at all, and nothing holding the head onto the body.
+--
+-- Rebuild the rig the way Roblox itself does at runtime. Two parts that both carry an attachment
+-- named "<Joint>RigAttachment" are the two ends of a joint; walking outward from the
+-- HumanoidRootPart decides which end is the parent; the Motor6D is named "<Joint>" with C0/C1
+-- taken straight from the two attachments. Reproduces every part's existing world CFrame exactly
+-- (measured: 0.000000 position error on all 15 R15 joints), so nothing moves when it is applied.
+local RIG_ATTACHMENT_SUFFIX = "RigAttachment"
+
+local function ensureRigFromAttachments(model)
+	local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+	if not root or not root:IsA("BasePart") then return 0 end
+
+	-- Anything ALREADY joined (motor or weld, either direction) is left completely alone, so this
+	-- can never duplicate a joint on a rig that was authored properly in the first place.
+	local connected = {}
+	local function link(a, b)
+		connected[a] = connected[a] or {}
+		connected[a][b] = true
+	end
+	for _, d in ipairs(model:GetDescendants()) do
+		if (d:IsA("JointInstance") or d:IsA("WeldConstraint")) and d.Part0 and d.Part1 then
+			link(d.Part0, d.Part1)
+			link(d.Part1, d.Part0)
+		end
+	end
+
+	local byJoint = {}
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("Attachment") and d.Parent and d.Parent:IsA("BasePart") then
+			local jointName = string.match(d.Name, "^(.+)" .. RIG_ATTACHMENT_SUFFIX .. "$")
+			if jointName then
+				byJoint[jointName] = byJoint[jointName] or {}
+				table.insert(byJoint[jointName], { part = d.Parent, att = d })
+			end
+		end
+	end
+
+	local edges = {}
+	for jointName, ends in pairs(byJoint) do
+		-- exactly two ends, or it isn't a joint (a stray duplicate attachment name is not one)
+		if #ends == 2 then
+			local a, b = ends[1], ends[2]
+			if a.part ~= b.part then
+				edges[a.part] = edges[a.part] or {}
+				table.insert(edges[a.part], { near = a, far = b, name = jointName })
+				edges[b.part] = edges[b.part] or {}
+				table.insert(edges[b.part], { near = b, far = a, name = jointName })
+			end
+		end
+	end
+
+	local created = 0
+	local visited = { [root] = true }
+	local queue = { root }
+	while #queue > 0 do
+		local nextQueue = {}
+		for _, parent in ipairs(queue) do
+			for _, e in ipairs(edges[parent] or {}) do
+				local child = e.far.part
+				if not visited[child] then
+					visited[child] = true
+					table.insert(nextQueue, child)
+					if not (connected[parent] and connected[parent][child]) then
+						local motor = Instance.new("Motor6D")
+						motor.Name = e.name
+						motor.Part0 = parent
+						motor.Part1 = child
+						motor.C0 = e.near.att.CFrame
+						motor.C1 = e.far.att.CFrame
+						motor.Parent = child -- where Roblox keeps them: on the child part
+						created = created + 1
+					end
+				end
+			end
+		end
+		queue = nextQueue
+	end
+	return created
+end
+
+-- Accessories from CreateHumanoidModelFromDescription are positioned correctly but carry no weld
+-- at all, so they arrive unattached to anything. Roblox resolves the attach point purely by
+-- matching attachment NAMES between the Handle and a body part (both carry e.g. "HatAttachment");
+-- do the same, and weld body -> handle so the accessory hangs off the rig and follows the pose.
+local function ensureAccessoryWelds(model)
+	local welded = {}
+	for _, d in ipairs(model:GetDescendants()) do
+		if (d:IsA("JointInstance") or d:IsA("WeldConstraint")) and d.Part0 and d.Part1 then
+			welded[d.Part1] = true
+			welded[d.Part0] = true
+		end
+	end
+	local bodyParts = {}
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") and not (d.Parent and d.Parent:IsA("Accessory")) then
+			table.insert(bodyParts, d)
+		end
+	end
+
+	local created = 0
+	for _, acc in ipairs(model:GetDescendants()) do
+		if acc:IsA("Accessory") then
+			local handle = acc:FindFirstChild("Handle")
+			if handle and handle:IsA("BasePart") and not welded[handle] then
+				local handleAtt = handle:FindFirstChildWhichIsA("Attachment")
+				if handleAtt then
+					for _, body in ipairs(bodyParts) do
+						local bodyAtt = body:FindFirstChild(handleAtt.Name)
+						if bodyAtt and bodyAtt:IsA("Attachment") then
+							-- Park the Handle exactly where the two attachments line up first: a Weld
+							-- between anchored parts records an offset, it does not move anything.
+							handle.CFrame = body.CFrame * bodyAtt.CFrame * handleAtt.CFrame:Inverse()
+							local weld = Instance.new("Weld")
+							weld.Name = "AccessoryWeld"
+							-- body is Part0 so the solver treats it as the parent in the chain
+							weld.Part0 = body
+							weld.Part1 = handle
+							weld.C0 = bodyAtt.CFrame
+							weld.C1 = handleAtt.CFrame
+							weld.Parent = handle
+							created = created + 1
+							break
+						end
+					end
+				end
+			end
+		end
+	end
+	return created
+end
+
+-- Everything that hands a Studio model to Cadence goes through here, so "import a character" and
+-- "import the selected rig" both come back animatable instead of only the ones that happened to
+-- be rigged already.
+local function autoRig(model)
+	local motors = ensureRigFromAttachments(model)
+	local welds = ensureAccessoryWelds(model)
+	if motors > 0 or welds > 0 then
+		ChangeHistoryService:SetWaypoint(string.format(
+			"Cadence auto-rig: %s (+%d joints, +%d accessory welds)", model.Name, motors, welds))
+	end
+	return motors, welds
+end
+
 -- Walks EVERY descendant regardless of nesting depth (Model > Folder > Model > Part, etc.) —
 -- this is the fix for Moon's "fails past 3 layers of nesting" bug: there is no depth limit here.
 local function serializeRig(model, displayName)
@@ -303,12 +454,29 @@ local function serializeRig(model, displayName)
 	local hum = model:FindFirstChildOfClass("Humanoid")
 	if hum then rigType = hum.RigType.Name end
 
+	-- Classic clothing lives on Shirt/Pants/ShirtGraphic instances, NOT on any part's texture —
+	-- Roblox composites it onto the body at render time. Nothing here used to capture it, which is
+	-- why an imported avatar arrived with the right skin colour but no clothes at all. Hand the
+	-- template ids over and let the renderer do its own compositing.
+	local clothing = nil
+	local shirt = model:FindFirstChildOfClass("Shirt")
+	local pants = model:FindFirstChildOfClass("Pants")
+	local graphic = model:FindFirstChildOfClass("ShirtGraphic")
+	if (shirt and shirt.ShirtTemplate ~= "") or (pants and pants.PantsTemplate ~= "") or (graphic and graphic.Graphic ~= "") then
+		clothing = {
+			shirt = shirt and shirt.ShirtTemplate ~= "" and shirt.ShirtTemplate or nil,
+			pants = pants and pants.PantsTemplate ~= "" and pants.PantsTemplate or nil,
+			graphic = graphic and graphic.Graphic ~= "" and graphic.Graphic or nil,
+		}
+	end
+
 	return {
 		name = displayName or model.Name,
 		rigType = rigType,
 		rootPart = idByPart[rootPart],
 		parts = parts,
 		joints = joints,
+		clothing = clothing,
 	}
 end
 
@@ -436,9 +604,11 @@ function HANDLERS.buildAvatar(payload)
 		end
 	end
 	model.Parent = getStagingFolder()
+	-- CreateHumanoidModelFromDescription hands back an UNRIGGED model in edit mode — see autoRig.
+	local motors, welds = autoRig(model)
 	local id = ensureCadenceId(model)
 	local rig = serializeRig(model, model.Name)
-	return { rig = rig, studioId = id }
+	return { rig = rig, studioId = id, autoRigged = { motors = motors, welds = welds } }
 end
 
 function HANDLERS.getSelectedRig()
@@ -454,9 +624,12 @@ function HANDLERS.getSelectedRig()
 		end
 		model = anc
 	end
+	-- A character grabbed straight out of a game's Workspace is often unrigged the same way an
+	-- avatar built from a HumanoidDescription is; rig it rather than importing loose parts.
+	local motors, welds = autoRig(model)
 	local id = ensureCadenceId(model)
 	local rig = serializeRig(model, model.Name)
-	return { rig = rig, studioId = id }
+	return { rig = rig, studioId = id, autoRigged = { motors = motors, welds = welds } }
 end
 
 function HANDLERS.insertAsset(payload)
@@ -470,9 +643,10 @@ function HANDLERS.insertAsset(payload)
 			part.CanCollide = false
 		end
 	end
+	local motors, welds = autoRig(container)
 	local id = ensureCadenceId(container)
 	local rig = serializeRig(container, container.Name)
-	return { rig = rig, studioId = id }
+	return { rig = rig, studioId = id, autoRigged = { motors = motors, welds = welds } }
 end
 
 function HANDLERS.buildAnimation(payload)
