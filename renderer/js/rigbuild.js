@@ -40,11 +40,30 @@ function fetchMeshGeometry(meshId) {
   return meshGeoCache.get(id);
 }
 
+// Roblox renders avatar textures with anisotropic filtering. Without it a surface viewed at any
+// angle — which is most of a body most of the time — samples along a single axis and reads
+// noticeably blurrier than the same character in Studio. three.js defaults anisotropy to 1, so
+// nothing here got it. The maximum the GPU supports is published by the renderer at init.
+let maxAnisotropy = 1;
+export function setMaxAnisotropy(n) { maxAnisotropy = Math.max(1, n | 0); }
+
+// Every texture this file produces goes through here, so filtering can never be set on one path
+// and forgotten on another.
+function configureTexture(tex) {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = maxAnisotropy;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter; // trilinear, so distant parts don't shimmer
+  tex.magFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 function loadRobloxTexture(texId) {
   const id = String(texId).match(/(\d{4,})/)?.[1];
   if (!id) return Promise.resolve(null);
   return window.cadence.fetchTexture(id).then((dataUri) => new Promise((resolve) => {
-    texLoader.load(dataUri, (t) => { t.colorSpace = THREE.SRGBColorSpace; resolve(t); }, undefined, () => resolve(null));
+    texLoader.load(dataUri, (t) => resolve(configureTexture(t)), undefined, () => resolve(null));
   })).catch(() => null);
 }
 
@@ -579,7 +598,7 @@ export class RigInstance {
     // parts never have a meshId, so that path is always skipped for these), just load it.
     if (def.customTexture) {
       texLoader.load(def.customTexture, (tex) => {
-        tex.colorSpace = THREE.SRGBColorSpace;
+        configureTexture(tex);
         material.map = tex;
         material.color.set('#ffffff');
         material.needsUpdate = true;
@@ -628,8 +647,7 @@ export class RigInstance {
         // already address that way — so it must NOT get the flip an uploaded texture gets.
         const applyCanvas = (canvas, isAtlas) => {
           if (!canvas) return false;
-          const tex = new THREE.CanvasTexture(canvas);
-          tex.colorSpace = THREE.SRGBColorSpace;
+          const tex = configureTexture(new THREE.CanvasTexture(canvas));
           tex.flipY = !isAtlas;
           material.map = tex;
           // The composite already carries the body colour underneath, so the material must not
@@ -768,7 +786,7 @@ export class RigInstance {
   // Face-Presets/classic-smiley callers above, which only ever target the front of a head.
   #buildFacePlane(def, partMesh, dataUri, opacity, face, layerIndex, preloadedTex) {
     const place = (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
+      configureTexture(tex);
       let patch;
       if (face === 'Front' && isLatheHeadPart(def)) {
         // A flat plane can only touch the head's curved surface at one point, gapping everywhere

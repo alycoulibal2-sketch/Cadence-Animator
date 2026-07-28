@@ -183,6 +183,14 @@ export function loadTemplate(assetId) {
 // region in the table above.
 export const ATLAS_W = 1024, ATLAS_H = 512;
 
+// The compositing meshes map the template roughly 1:1 (measured: median destination:source edge
+// ratio 1.00), so at native size a template texel becomes an atlas texel and the GPU has nothing
+// spare when the surface is magnified or viewed at an angle. Rendering the composite at 2x gives
+// the mipmap chain a finer base and stops the nearest-neighbour sampling in the rasteriser from
+// showing as stair-stepping along the template's hard edges. Purely a quality knob: the mapping
+// is linear, and part UVs are normalised, so nothing else has to change.
+export const ATLAS_SCALE = 2;
+
 // Drawn in the Z order the meshes themselves carry: body colour (~15.8), pants (46.8), shirt
 // (63.6). That ordering is what puts a shirt over pants at the waist, exactly as in game.
 const ATLAS_LAYERS = [
@@ -226,13 +234,13 @@ function rasteriseTriangle(dst, dw, dh, src, tri) {
   }
 }
 
-function runCompositMesh(dst, mesh, src, dw = ATLAS_W, dh = ATLAS_H) {
+function runCompositMesh(dst, mesh, src, dw = ATLAS_W * ATLAS_SCALE, dh = ATLAS_H * ATLAS_SCALE, scale = ATLAS_SCALE) {
   const { positions: p, uvs: u, indices: idx } = mesh;
   for (let t = 0; t + 2 < idx.length; t += 3) {
     const ids = [idx[t], idx[t + 1], idx[t + 2]];
     rasteriseTriangle(dst, dw, dh, src, ids.map((i) => ({
-      x: p[i * 3],
-      y: p[i * 3 + 1],
+      x: p[i * 3] * scale,
+      y: p[i * 3 + 1] * scale,
       u: u[i * 2] * src.width,
       v: (1 - u[i * 2 + 1]) * src.height,
     })));
@@ -262,15 +270,15 @@ function solidPixels(hex) {
 // carry ~416 triangles each including wide bleed geometry, and running five of them through the
 // software rasteriser over a 1024x512 canvas took minutes. The garment layers still go through
 // the rasteriser, which is where the exactness actually lives.
-function fillCompositMesh(ctx, mesh, hex) {
+function fillCompositMesh(ctx, mesh, hex, scale = ATLAS_SCALE) {
   const { positions: p, indices: idx } = mesh;
   ctx.fillStyle = hex;
   ctx.beginPath();
   for (let t = 0; t + 2 < idx.length; t += 3) {
     const [a, b, c] = [idx[t], idx[t + 1], idx[t + 2]];
-    ctx.moveTo(p[a * 3], p[a * 3 + 1]);
-    ctx.lineTo(p[b * 3], p[b * 3 + 1]);
-    ctx.lineTo(p[c * 3], p[c * 3 + 1]);
+    ctx.moveTo(p[a * 3] * scale, p[a * 3 + 1] * scale);
+    ctx.lineTo(p[b * 3] * scale, p[b * 3 + 1] * scale);
+    ctx.lineTo(p[c * 3] * scale, p[c * 3 + 1] * scale);
     ctx.closePath();
   }
   ctx.fill();
@@ -293,8 +301,8 @@ export async function buildClassicAtlas(rig, clothing) {
   if (meshes.some((m) => !m)) return null; // no local Roblox install
 
   const canvas = document.createElement('canvas');
-  canvas.width = ATLAS_W;
-  canvas.height = ATLAS_H;
+  canvas.width = ATLAS_W * ATLAS_SCALE;
+  canvas.height = ATLAS_H * ATLAS_SCALE;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   const colorOf = (name) => {
     const def = rig.parts.find((p) => p.name === name);
@@ -308,12 +316,12 @@ export async function buildClassicAtlas(rig, clothing) {
   });
 
   // Then the garments, sampled exactly.
-  const dst = ctx.getImageData(0, 0, ATLAS_W, ATLAS_H).data;
+  const dst = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
   ATLAS_LAYERS.forEach((layer, i) => {
     if (!layer.garment || !sources[layer.garment]) return;
     runCompositMesh(dst, meshes[i], sources[layer.garment]);
   });
-  ctx.putImageData(new ImageData(dst, ATLAS_W, ATLAS_H), 0, 0);
+  ctx.putImageData(new ImageData(dst, canvas.width, canvas.height), 0, 0);
   return canvas;
 }
 
@@ -365,7 +373,8 @@ export function buildR15GroupAtlas(rig, clothing, partName, cacheKey) {
   const build = (async () => {
     const mesh = await loadLocalMesh(group.mesh);
     if (!mesh) return null;
-    const dst = new Uint8ClampedArray(group.w * group.h * 4);
+    const gw = group.w * ATLAS_SCALE, gh = group.h * ATLAS_SCALE;
+    const dst = new Uint8ClampedArray(gw * gh * 4);
     // Base colour for the whole group. Parts of a group can in principle differ, but they share
     // one canvas, so this uses the group's main part — clothing covers nearly all of it anyway.
     const def = rig.parts.find((p) => p.name === group.primary) || rig.parts.find((p) => p.name === partName);
@@ -376,12 +385,12 @@ export function buildR15GroupAtlas(rig, clothing, partName, cacheKey) {
     for (const g of garments) { // pants before shirt, the order Roblox layers them
       const img = await loadTemplate(clothing[g]);
       if (!img) continue;
-      runCompositMesh(dst, mesh, imageToPixels(img), group.w, group.h);
+      runCompositMesh(dst, mesh, imageToPixels(img), gw, gh);
     }
     const canvas = document.createElement('canvas');
-    canvas.width = group.w;
-    canvas.height = group.h;
-    canvas.getContext('2d').putImageData(new ImageData(dst, group.w, group.h), 0, 0);
+    canvas.width = gw;
+    canvas.height = gh;
+    canvas.getContext('2d').putImageData(new ImageData(dst, gw, gh), 0, 0);
     return canvas;
   })();
   r15Cache.set(key, build);

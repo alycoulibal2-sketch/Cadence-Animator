@@ -750,9 +750,13 @@
     const arm = inst.parts.get('Left Arm');
     const tris = arm.mesh.geometry.index ? arm.mesh.geometry.index.count / 3 : 0;
     assert(tris === 44, `Left Arm should be Roblox's own 44-triangle mesh, got ${tris}`);
+    const { ATLAS_SCALE } = await import('./js/clothing.js');
     const map = arm.mesh.material.map;
-    assert(map && map.image && map.image.width === 1024 && map.image.height === 512,
-      'clothed parts should sample the 1024x512 body atlas');
+    assert(map && map.image && map.image.width === 1024 * ATLAS_SCALE && map.image.height === 512 * ATLAS_SCALE,
+      `clothed parts should sample the body atlas at ${ATLAS_SCALE}x, got ${map && map.image && map.image.width}x${map && map.image && map.image.height}`);
+    // Roblox filters avatar textures anisotropically; without it a body reads blurry at any angle.
+    assert(map.anisotropy > 1, 'the composite should use anisotropic filtering');
+    assert(map.generateMipmaps === true, 'the composite should have mipmaps');
     // The atlas is authored Y-down and the body meshes' UVs address it that way, so it must not
     // get the flip an ordinary uploaded texture gets.
     assert(map.flipY === false, 'the atlas must not be Y-flipped');
@@ -771,11 +775,13 @@
       LeftUpperArm: [264, 284], LeftHand: [264, 284],
       RightUpperLeg: [264, 284], RightFoot: [264, 284],
     };
-    for (const [name, size] of Object.entries(expect)) {
+    for (const [name, base] of Object.entries(expect)) {
+      const size = base.map((v) => v * ATLAS_SCALE);
       const m15 = inst15.parts.get(name).mesh.material.map;
       assert(m15 && m15.image, `${name} should carry its group's composite`);
       assert(m15.image.width === size[0] && m15.image.height === size[1],
         `${name} canvas should be ${size.join('x')}, got ${m15.image.width}x${m15.image.height}`);
+      assert(m15.anisotropy > 1, `${name} should use anisotropic filtering`);
       assert(m15.flipY === false, `${name}'s composite must not be Y-flipped`);
     }
     // Parts of one group share a canvas; different groups must not.

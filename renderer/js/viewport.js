@@ -6,7 +6,7 @@ import { OrbitControls } from '../vendor/three/OrbitControls.js';
 import { TransformControls } from '../vendor/three/TransformControls.js';
 import * as CF from './cf.js';
 import * as S from './state.js';
-import { RigInstance, CameraInstance, VfxInstance, EffectInstance, NullInstance, PART_GAP_SCALE } from './rigbuild.js';
+import { RigInstance, CameraInstance, VfxInstance, EffectInstance, NullInstance, PART_GAP_SCALE, setMaxAnisotropy } from './rigbuild.js';
 import { viewportPalette } from './themes.js';
 import { buildChain, solveIK } from './ik.js';
 import { sampleParticles } from './vfx.js';
@@ -165,6 +165,8 @@ export function initViewport(container) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   container.appendChild(renderer.domElement);
   viewport.renderer = renderer;
+  // Only the renderer knows what the GPU supports; every texture built in rigbuild.js uses it.
+  setMaxAnisotropy(renderer.capabilities.getMaxAnisotropy());
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#101016');
