@@ -166,8 +166,21 @@ server.tool(
 
 server.tool(
   'fill_frames', 'Bake an explicit keyframe every `step` frames across [tStart, tEnd] on one track, turning an interpolated curve into explicit per-frame keys you can then hand-tune.',
-  { itemId: z.string(), track: z.string(), tStart: z.number(), tEnd: z.number(), step: z.number().optional() },
-  async ({ itemId, track, tStart, tEnd, step }) => { try { return textResult(await call('fill_frames', { itemId, track, tStart, tEnd, step })); } catch (e) { return errorResult(e); } },
+  {
+    itemId: z.string(), track: z.string(), tStart: z.number(), tEnd: z.number(), step: z.number().optional(),
+    wiggle: z.object({
+      pos: z.array(z.number()).length(3).optional().describe('random position magnitude per axis, in studs'),
+      rot: z.array(z.number()).length(3).optional().describe('random rotation magnitude per axis, in degrees'),
+      num: z.number().optional().describe('random magnitude for numeric tracks (@fov, @rate, @lifetime, @speed)'),
+      minZero: z.boolean().optional().describe('nudge only upward instead of symmetrically around the original value'),
+    }).optional().describe('randomise each baked frame instead of baking the exact interpolated value — cheap hand-drawn jitter on a held pose'),
+  },
+  async ({ itemId, track, tStart, tEnd, step, wiggle }) => { try { return textResult(await call('fill_frames', { itemId, track, tStart, tEnd, step, wiggle })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'offset_frames', 'Shift every keyframe and event marker along the timeline by `dt` frames (negative moves earlier). Pass an itemId to offset just that item.',
+  { dt: z.number(), itemId: z.string().optional() },
+  async ({ dt, itemId }) => { try { return textResult(await call('offset_frames', { dt, itemId })); } catch (e) { return errorResult(e); } },
 );
 server.tool(
   'repeat_frames', 'Duplicate the time range spanned by the given keyframes forward `times` more times, back-to-back.',
@@ -219,6 +232,18 @@ server.tool(
   'move_markers', 'Shift event markers along the timeline by `dt` frames.',
   { markers: z.array(markerRefSchema), dt: z.number() },
   async ({ markers, dt }) => { try { return textResult(await call('move_markers', { markers, dt })); } catch (e) { return errorResult(e); } },
+);
+
+// ---------------------------------------------------------------- play range
+server.tool(
+  'get_play_range', 'Get the play range — the frame window playback and looping are confined to. `full: true` means the whole animation.',
+  {},
+  async () => { try { return textResult(await call('get_play_range', {})); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'set_play_range', 'Confine playback and looping to a frame window, so you can loop just the section you are polishing. Omit both bounds to clear it and play the whole animation again.',
+  { start: z.number().optional(), end: z.number().optional() },
+  async ({ start, end }) => { try { return textResult(await call('set_play_range', { start: start ?? null, end: end ?? null })); } catch (e) { return errorResult(e); } },
 );
 
 server.tool(

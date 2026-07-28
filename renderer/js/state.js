@@ -106,6 +106,7 @@ export function newProject(name = 'Untitled') {
     tracks: {},
     groups: [], // [{ id, keys: [{itemId, track, t}] }] — keys that move together (Ctrl+G)
     markers: {}, // itemId -> [{t, width, name, codeBegin, codeEnd, kf}] — Moon's Events track
+    playRange: null, // {start, end} — Moon's PlayArea; null means the whole animation
     onionSkin: { enabledItemIds: [], range: 3 },
     audio: null, // { name, path, offset, volume }
   };
@@ -124,6 +125,7 @@ export function loadProject(json, filePath = null) {
   p.id = p.id || crypto.randomUUID();
   p.groups = p.groups || [];
   p.markers = p.markers || {}; // projects saved before markers existed simply have none
+  p.playRange = p.playRange || null;
   p.onionSkin = p.onionSkin || { enabledItemIds: [], range: 3 };
   state.project = p;
   state.projectPath = filePath;
@@ -207,7 +209,7 @@ function restoreHeavy(items, stash) {
 function snapshot() {
   const p = state.project;
   const { lite, stash } = stashHeavy(p.items);
-  const s = structuredClone({ items: lite, tracks: p.tracks, groups: p.groups, markers: p.markers || {}, onionSkin: p.onionSkin, length: p.length, fps: p.fps, loop: p.loop, priority: p.priority, name: p.name, audio: p.audio });
+  const s = structuredClone({ items: lite, tracks: p.tracks, groups: p.groups, markers: p.markers || {}, playRange: p.playRange || null, onionSkin: p.onionSkin, length: p.length, fps: p.fps, loop: p.loop, priority: p.priority, name: p.name, audio: p.audio });
   s.__heavy = stash;               // attached AFTER the clone — never deep-copied
   return s;
 }
@@ -410,6 +412,40 @@ export function setPlayhead(t, snap = null) {
 export function setPlaying(v) {
   state.playing = v;
   emit('playing', v);
+}
+
+// ---------------------------------------------------------------- play range (Moon's PlayArea)
+// Playback is confined to [start, end] instead of the whole animation, so you can loop a few
+// frames while polishing them. Stored on the project (it is an editing decision worth saving,
+// and Moon persists it in its own save format too). A null range means "the whole animation".
+export function playRange() {
+  const p = state.project;
+  const r = p && p.playRange;
+  if (!r) return { start: 0, end: p ? p.length : 0, full: true };
+  const start = Math.max(0, Math.min(r.start, p.length));
+  const end = Math.max(start, Math.min(r.end, p.length));
+  return { start, end, full: start === 0 && end === p.length };
+}
+
+export function setPlayRange(start, end, opts = {}) {
+  const p = state.project;
+  if (!p) return;
+  if (start == null && end == null) {
+    if (!opts.noUndo) pushUndo();
+    p.playRange = null;
+  } else {
+    const cur = playRange();
+    let s = Math.round(start ?? cur.start);
+    let e = Math.round(end ?? cur.end);
+    if (s > e) [s, e] = [e, s]; // dragging the start past the end swaps rather than inverting
+    s = Math.max(0, Math.min(s, p.length));
+    e = Math.max(s, Math.min(e, p.length));
+    if (!opts.noUndo) pushUndo();
+    p.playRange = { start: s, end: e };
+  }
+  emit('play-range');
+  markDirty();
+  return playRange();
 }
 
 // ---------------------------------------------------------------- tracks & keys
@@ -891,15 +927,92 @@ function splitKeyframeNoUndo(itemId, track, t) {
 // Fill: bake every intermediate frame in [tStart, tEnd] into an explicit keyframe holding
 // the currently-interpolated value, at the given frame step — turns a smooth curve into
 // an explicit per-frame one so each frame can be hand-tuned independently.
-export function fillFrames(itemId, track, tStart, tEnd, step = 1) {
+// `wiggle` is Moon's randomised fill (FillFrames' Wiggle checkbox): instead of baking the exact
+// interpolated value, each generated key is nudged by a random amount, which is how you get
+// cheap hand-drawn jitter/noise on a held pose. Magnitudes are per-channel:
+//   { pos: [x,y,z], rot: [rx,ry,rz] (degrees), num: n, minZero: bool }
+// `minZero` mirrors Moon's MinZero: nudge only upward (0..mag) rather than symmetrically.
+export function fillFrames(itemId, track, tStart, tEnd, step = 1, opts = {}) {
   pushUndo();
   const isNumeric = isNumericTrack(track);
+  const wiggle = opts.wiggle || null;
+  // Sample the ORIGINAL curve for every target frame BEFORE writing any keys — this mirrors
+  // Moon's precomputed BufferMap. Writing as we go would make each frame interpolate against
+  // the keys just written, so a wiggle would compound frame over frame and blow well past the
+  // requested magnitude instead of staying a bounded jitter around the original curve.
+  const buffer = [];
   for (let t = Math.ceil(tStart); t <= Math.floor(tEnd); t += step) {
-    const value = isNumeric ? evalTrackNum(itemId, track, t) : evalTrackCF(itemId, track, t);
-    setKey(itemId, track, t, value, { noUndo: true });
+    buffer.push([t, isNumeric ? evalTrackNum(itemId, track, t) : evalTrackCF(itemId, track, t)]);
+  }
+  for (const [t, base] of buffer) {
+    const value = wiggle ? (isNumeric ? wiggleNumber(base, wiggle) : wiggleCFrame(base, wiggle)) : base;
+    setKey(itemId, track, t, value, { noUndo: true, es: opts.es, ed: opts.ed });
   }
   emit('tracks', {});
   markDirty();
+}
+
+// Moon's wiggleFuncs:number — value + random in [lower, upper].
+function wiggleNumber(v, w) {
+  const mag = Math.abs(w.num ?? 0);
+  if (!mag) return v;
+  const lower = w.minZero ? 0 : -mag;
+  return v + lower + Math.random() * (mag - lower);
+}
+// Moon's wiggleFuncs:CFrame — (value * CFrame.Angles(rx,ry,rz)) + positionOffset, i.e. the
+// rotation is applied in the value's OWN local space while the position offset is added in
+// world space. Reproduced exactly here.
+function wiggleCFrame(cf, w) {
+  const pos = w.pos || [0, 0, 0];
+  const rot = w.rot || [0, 0, 0];
+  const r = (mag) => {
+    const m = Math.abs(mag || 0);
+    if (!m) return 0;
+    const lower = w.minZero ? 0 : -m;
+    return lower + Math.random() * (m - lower);
+  };
+  const angles = CF.fromEuler(
+    (r(rot[0]) * Math.PI) / 180,
+    (r(rot[1]) * Math.PI) / 180,
+    (r(rot[2]) * Math.PI) / 180,
+  );
+  const rotated = CF.mul(cf, angles);
+  return CF.setPosition(rotated, rotated[0] + r(pos[0]), rotated[1] + r(pos[1]), rotated[2] + r(pos[2]));
+}
+
+// Moon's FrameOffset: shift every keyframe (and every event marker) in the project by `dt`
+// frames, so an animation can be nudged wholesale without reselecting everything.
+export function offsetAllFrames(dt, opts = {}) {
+  dt = Math.round(dt);
+  if (!dt) return 0;
+  pushUndo();
+  let moved = 0;
+  const itemIds = opts.itemId ? [opts.itemId] : Object.keys(state.project.tracks || {});
+  for (const itemId of itemIds) {
+    const tracks = state.project.tracks[itemId] || {};
+    for (const tr of Object.values(tracks)) {
+      for (const k of tr.keys) { k.t = Math.max(0, k.t + dt); moved++; }
+      // clamping at 0 can collide two keys onto the same frame — keep the later one, as
+      // setKey's overwrite semantics would
+      const seen = new Map();
+      for (const k of tr.keys) seen.set(k.t, k);
+      tr.keys = [...seen.values()].sort((a, b) => a.t - b.t);
+    }
+    const list = state.project.markers?.[itemId];
+    if (list) for (const m of list) m.t = Math.max(0, m.t + dt);
+  }
+  // groups track keys by time too, so they have to follow or grouping silently breaks
+  for (const g of state.project.groups || []) {
+    if (opts.itemId && !g.keys.some((k) => k.itemId === opts.itemId)) continue;
+    for (const k of g.keys) if (!opts.itemId || k.itemId === opts.itemId) k.t = Math.max(0, k.t + dt);
+  }
+  state.selection.keys = [];
+  state.selection.markers = [];
+  emit('tracks', {});
+  emit('markers', {});
+  emit('selection');
+  markDirty();
+  return moved;
 }
 
 // Repeat: duplicate the keyframe range spanned by `list` forward `times` more times back-to-back.

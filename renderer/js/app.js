@@ -110,15 +110,18 @@ function loop(now) {
   const dt = Math.min(0.1, (now - lastTime) / 1000);
   lastTime = now;
   if (S.state.playing && S.state.project) {
+    // Playback is confined to the play range (Moon's PlayArea) — which defaults to the whole
+    // animation, so this is the previous behaviour whenever no range has been set.
+    const { start, end } = S.playRange();
     let ph = S.state.playhead + dt * S.state.project.fps;
-    if (ph >= S.state.project.length) {
+    if (ph >= end) {
       if (S.state.loopPlayback) {
-        ph = 0;
-        S.setPlayhead(0, false);
+        ph = start;
+        S.setPlayhead(start, false);
         S.emit('playing', true); // resync audio
       } else {
         S.setPlaying(false);
-        ph = S.state.project.length;
+        ph = end;
       }
     }
     S.setPlayhead(ph, false);
@@ -170,6 +173,9 @@ function registerAllCommands() {
   C({ title: 'Toggle move grid snap', hint: 'or just hold Shift while dragging to snap on demand', section: 'Animating', run: toggleMoveGrid });
   C({ title: 'Snap increments…', hint: 'change the fixed degree/stud values rotate & move snap to', section: 'Animating', run: setSnapIncrementsFlow });
   C({ title: 'Curve editor', hint: 'interactive bezier easing curves — now on the toolbar/right-click, C is taken by rotation grid', section: 'Animating', run: toggleCurveEditor });
+  C({ title: 'Set play range from selected keyframes', hint: 'loop just the frames you are polishing', section: 'Playback', run: playRangeFromSelectionFlow });
+  C({ title: 'Set play range…', hint: 'type the start and end frames playback is confined to', section: 'Playback', run: setPlayRangeFlow });
+  C({ title: 'Clear play range', hint: 'play the whole animation again', section: 'Playback', run: () => { S.setPlayRange(null, null); toast('Play range cleared'); } });
   C({ title: 'Add event marker at playhead', hint: 'a named event on the selected item\'s timeline — exports as a Roblox keyframe marker', section: 'Animating', run: addMarkerAtPlayheadFlow });
   C({ title: 'Edit event marker…', hint: 'name, length, keyframe markers and Luau for the event at the playhead', section: 'Animating', run: editMarkerAtPlayheadFlow });
   C({ title: 'Toggle "use last ease"', hint: 'new keyframes inherit the easing you last applied instead of the default', section: 'Animating', run: toggleUseLastEasing });
@@ -188,7 +194,8 @@ function registerAllCommands() {
   C({ title: 'Ungroup keyframes instantly', shortcut: 'Shift+Ctrl+U', section: 'Animating', run: () => ungroupSelectedKeys(true) });
   C({ title: 'Split keyframe (smooth)', shortcut: 'M', section: 'Animating', run: splitSelectedKeyframes });
   C({ title: 'Split at stride…', shortcut: 'Shift+M', section: 'Animating', run: splitStrideFlow });
-  C({ title: 'Fill frames…', shortcut: 'Shift+K', hint: 'bake explicit keys across a range', section: 'Animating', run: fillFramesFlow });
+  C({ title: 'Fill frames…', shortcut: 'Shift+K', hint: 'bake explicit keys across a range, optionally with random wiggle', section: 'Animating', run: fillFramesFlow });
+  C({ title: 'Offset frames…', hint: 'shift the whole animation earlier or later along the timeline', section: 'Animating', run: frameOffsetFlow });
   C({ title: 'Repeat frames…', shortcut: 'Shift+L', section: 'Animating', run: repeatFramesFlow });
   C({ title: 'Stretch frames…', shortcut: 'Numpad 3', section: 'Animating', run: stretchFramesFlow });
   C({ title: 'Reflect rig (mirror left/right)', shortcut: 'Ctrl+R', section: 'Animating', run: mirrorSelectedItem });
@@ -370,7 +377,12 @@ function wireKeyboard() {
 }
 
 function togglePlay() {
-  if (S.state.playhead >= S.state.project.length - 0.001 && !S.state.playing) S.setPlayhead(0, false);
+  if (!S.state.playing) {
+    // Moon's Play(): if the playhead sits outside the play range (or right on its end), it
+    // snaps back to the range start rather than playing zero frames.
+    const { start, end } = S.playRange();
+    if (S.state.playhead >= end - 0.001 || S.state.playhead < start) S.setPlayhead(start, false);
+  }
   S.setPlaying(!S.state.playing);
 }
 
@@ -440,6 +452,29 @@ function persistPrefs() {
   settings.useLastEasing = S.state.useLastEasing;
   settings.easeColors = S.state.easeColors;
   window.cadence.setSettings(settings);
+}
+
+// ---- play range (Moon's PlayArea)
+function playRangeFromSelectionFlow() {
+  const keys = S.state.selection.keys;
+  if (!keys.length) { toast('Select some keyframes first', 'warn'); return; }
+  const ts = keys.map((k) => k.t);
+  const r = S.setPlayRange(Math.min(...ts), Math.max(...ts));
+  toast(`Play range ${r.start}–${r.end}`);
+}
+async function setPlayRangeFlow() {
+  const cur = S.playRange();
+  const v = await promptModal({
+    title: 'Play range',
+    label: 'Start and end frame (e.g. "12 48"), or blank for the whole animation',
+    initial: cur.full ? '' : `${cur.start} ${cur.end}`,
+  });
+  if (v === null) return;
+  const nums = String(v).trim().split(/[\s,]+/).filter(Boolean).map(Number);
+  if (!nums.length) { S.setPlayRange(null, null); toast('Play range cleared'); return; }
+  if (nums.length < 2 || nums.some((n) => !Number.isFinite(n))) { toast('Enter two frame numbers', 'warn'); return; }
+  const r = S.setPlayRange(nums[0], nums[1]);
+  toast(`Play range ${r.start}–${r.end}`);
 }
 
 // ---- event markers (Moon's Events track)
@@ -594,11 +629,90 @@ async function fillFramesFlow() { // Shift+K
   if (!itemId || !track) { toast('Select a joint or origin track first', 'warn'); return; }
   const tr = S.getTrack(itemId, track);
   if (!tr || tr.keys.length < 2) { toast('That track needs at least 2 keyframes', 'warn'); return; }
-  const step = await promptModal({ title: 'Fill frames', label: 'Bake an explicit keyframe every N frames', placeholder: '1', initial: '1', okLabel: 'Fill' });
-  const n = parseInt(step, 10);
-  if (!n || n <= 0) return;
-  S.fillFrames(itemId, track, tr.keys[0].t, tr.keys[tr.keys.length - 1].t, n);
-  toast('Filled');
+  // Port of Moon's FillFrames window: interval + optional Wiggle with per-channel magnitudes.
+  const isNumeric = ['@fov', '@rate', '@lifetime', '@speed'].includes(track);
+  const wrap = document.createElement('div');
+  wrap.className = 'fill-frames';
+  const field = (label, el) => {
+    const l = document.createElement('label');
+    l.className = 'fld-label';
+    l.textContent = label;
+    wrap.append(l, el);
+    return el;
+  };
+  const num = (val, step = '1') => Object.assign(document.createElement('input'), { className: 'fld', type: 'number', step, value: String(val) });
+  const intervalInp = field('Bake a keyframe every N frames', num(1));
+
+  const wiggleRow = document.createElement('label');
+  wiggleRow.className = 'check-row';
+  const wiggleChk = Object.assign(document.createElement('input'), { type: 'checkbox' });
+  wiggleRow.append(wiggleChk, document.createTextNode(' Wiggle — randomise each baked frame'));
+  wrap.appendChild(wiggleRow);
+
+  const wiggleBox = document.createElement('div');
+  wiggleBox.className = 'wiggle-box hidden';
+  wrap.appendChild(wiggleBox);
+  const wField = (label, el) => {
+    const l = document.createElement('label');
+    l.className = 'fld-label';
+    l.textContent = label;
+    wiggleBox.append(l, el);
+    return el;
+  };
+  let posInp = [], rotInp = [], numInp = null;
+  if (isNumeric) {
+    numInp = wField('Amount', num(1, '0.1'));
+  } else {
+    const posWrap = document.createElement('div');
+    posWrap.className = 'vec-row';
+    posInp = ['X', 'Y', 'Z'].map(() => { const i = num(0, '0.05'); posWrap.appendChild(i); return i; });
+    wField('Position magnitude (studs, X/Y/Z)', posWrap);
+    const rotWrap = document.createElement('div');
+    rotWrap.className = 'vec-row';
+    rotInp = ['X', 'Y', 'Z'].map(() => { const i = num(2, '0.5'); rotWrap.appendChild(i); return i; });
+    wField('Rotation magnitude (degrees, X/Y/Z)', rotWrap);
+  }
+  const minZeroRow = document.createElement('label');
+  minZeroRow.className = 'check-row';
+  const minZeroChk = Object.assign(document.createElement('input'), { type: 'checkbox' });
+  minZeroRow.append(minZeroChk, document.createTextNode(' Only nudge upward (never below the original value)'));
+  wiggleBox.appendChild(minZeroRow);
+
+  wiggleChk.addEventListener('change', () => wiggleBox.classList.toggle('hidden', !wiggleChk.checked));
+
+  modal({
+    title: 'Fill frames',
+    body: wrap,
+    actions: [
+      { label: 'Cancel' },
+      {
+        label: 'Fill', primary: true, run: () => {
+          const n = Math.max(1, Math.round(parseFloat(intervalInp.value) || 1));
+          const wiggle = wiggleChk.checked ? {
+            minZero: minZeroChk.checked,
+            num: numInp ? parseFloat(numInp.value) || 0 : 0,
+            pos: posInp.map((i) => parseFloat(i.value) || 0),
+            rot: rotInp.map((i) => parseFloat(i.value) || 0),
+          } : null;
+          S.fillFrames(itemId, track, tr.keys[0].t, tr.keys[tr.keys.length - 1].t, n, { wiggle });
+          toast(wiggle ? 'Filled with wiggle' : 'Filled');
+        },
+      },
+    ],
+  });
+}
+
+// Moon's FrameOffset window: shift the whole animation along the timeline.
+async function frameOffsetFlow() {
+  const v = await promptModal({
+    title: 'Offset frames',
+    label: 'Shift every keyframe and event by N frames (negative moves earlier)',
+    placeholder: '0', initial: '0', okLabel: 'Offset',
+  });
+  const dt = parseInt(v, 10);
+  if (!Number.isFinite(dt) || dt === 0) return;
+  const moved = S.offsetAllFrames(dt);
+  toast(moved ? `Offset ${moved} keyframes by ${dt}` : 'Nothing to offset');
 }
 
 async function repeatFramesFlow() { // Shift+L
@@ -2885,7 +2999,8 @@ const MCP_HANDLERS = {
   group_keys: ({ keys }) => ({ group: S.groupKeys(keys) }),
   ungroup_keys: ({ keys }) => ({ ok: S.ungroupKeys(keys) }),
   mirror_item: ({ itemId }) => { S.mirrorItem(itemId); return { ok: true }; },
-  fill_frames: ({ itemId, track, tStart, tEnd, step }) => { S.fillFrames(itemId, track, tStart, tEnd, step || 1); return { ok: true }; },
+  fill_frames: ({ itemId, track, tStart, tEnd, step, wiggle }) => { S.fillFrames(itemId, track, tStart, tEnd, step || 1, { wiggle: wiggle || null }); return { ok: true }; },
+  offset_frames: ({ dt, itemId }) => ({ moved: S.offsetAllFrames(dt, { itemId: itemId || null }) }),
   repeat_frames: ({ keys, times }) => { S.repeatFrames(keys, times); return { ok: true }; },
   stretch_frames: ({ keys, factor }) => ({ moved: S.stretchFrames(keys, factor) }),
 
@@ -2907,6 +3022,12 @@ const MCP_HANDLERS = {
   },
   delete_markers: ({ markers }) => { S.deleteMarkers(markers); return { ok: true }; },
   move_markers: ({ markers, dt }) => ({ moved: S.moveMarkers(markers, dt) }),
+
+  // ---------------------------------------------------------------- play range
+  get_play_range: () => S.playRange(),
+  set_play_range: ({ start, end }) => (start == null && end == null)
+    ? (S.setPlayRange(null, null), S.playRange())
+    : S.setPlayRange(start, end),
 
   // Pure query — world CFrame per part for an arbitrary frame, without touching the display.
   // This is the ground-truth numeric alternative to eyeballing a screenshot.

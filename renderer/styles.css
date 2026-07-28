@@ -647,6 +647,18 @@ body {
 .chip.accent { background: var(--accent-dim); color: #e2e5ff; border-color: var(--accent); }
 #curvePresets { display: flex; gap: 4px; flex-wrap: wrap; }
 
+/* Fill-frames dialog (Moon's FillFrames, including Wiggle) */
+.fill-frames { display: flex; flex-direction: column; gap: 4px; min-width: 340px; }
+.check-row { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 12px; cursor: pointer; }
+.wiggle-box {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 8px 10px; margin-top: 2px;
+  border: 1px solid var(--line, rgba(255,255,255,0.12)); border-radius: 6px;
+}
+.wiggle-box.hidden { display: none; }
+.vec-row { display: flex; gap: 4px; }
+.vec-row input { flex: 1 1 0; min-width: 0; }
+
 /* Event-marker editor (Moon's EditMarkers) */
 .marker-editor { display: flex; flex-direction: column; gap: 4px; min-width: 380px; }
 .marker-editor textarea.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; resize: vertical; }

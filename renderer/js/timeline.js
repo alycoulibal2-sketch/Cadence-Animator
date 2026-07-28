@@ -10,6 +10,8 @@ const ROW_H = 26;
 const RULER_H = 30;
 const AUDIO_ROW_H = 44;
 const PAD_LEFT = 14; // breathing room so frame-0 keyframes aren't flush against the canvas edge
+const PLAYRANGE_BAR_H = 5; // play-range grab strip along the bottom of the ruler
+const PLAYRANGE_GRAB_PX = 6; // how close to an end handle counts as grabbing it rather than the middle
 
 export const tl = {
   listEl: null,
@@ -53,7 +55,7 @@ export function initTimeline({ listEl, canvasEl, wrapEl }) {
     tl.needsDraw = true;
   });
 
-  ['tracks', 'items', 'selection', 'project', 'overlay', 'project-props', 'audio', 'groups', 'markers', 'theme'].forEach((ev) =>
+  ['tracks', 'items', 'selection', 'project', 'overlay', 'project-props', 'audio', 'groups', 'markers', 'play-range', 'theme'].forEach((ev) =>
     S.on(ev, () => { rebuildRows(); tl.needsDraw = true; }));
   S.on('playhead', () => { tl.needsDraw = true; ensurePlayheadVisible(); });
 
@@ -410,6 +412,24 @@ function draw() {
   ctx.fillStyle = 'rgba(255,120,120,0.5)';
   ctx.fillRect(endX, 0, 2, h);
 
+  // play range (Moon's PlayArea) — dim everything outside it and draw grab handles in the ruler
+  const pr = S.playRange();
+  if (!pr.full) {
+    const rx0 = frameToX(pr.start), rx1 = frameToX(pr.end);
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    if (rx0 > 0) ctx.fillRect(0, RULER_H, rx0, h - RULER_H);
+    if (rx1 < w) ctx.fillRect(rx1, RULER_H, w - rx1, h - RULER_H);
+  }
+  {
+    const rx0 = frameToX(pr.start), rx1 = frameToX(pr.end);
+    const barY = RULER_H - PLAYRANGE_BAR_H;
+    ctx.fillStyle = pr.full ? 'rgba(124,140,255,0.20)' : 'rgba(124,140,255,0.55)';
+    ctx.fillRect(rx0, barY, Math.max(2, rx1 - rx0), PLAYRANGE_BAR_H);
+    ctx.fillStyle = pr.full ? 'rgba(124,140,255,0.45)' : 'rgba(160,175,255,0.95)';
+    ctx.fillRect(rx0 - 1, barY, 3, PLAYRANGE_BAR_H);
+    ctx.fillRect(rx1 - 2, barY, 3, PLAYRANGE_BAR_H);
+  }
+
   // playhead
   const px = frameToX(S.state.playhead);
   ctx.fillStyle = cAccent;
@@ -605,6 +625,26 @@ function onPointerDown(e) {
 
   if (e.button !== 0) return;
 
+  // play-range strip along the bottom of the ruler → drag its ends, or the whole window
+  if (y >= RULER_H - PLAYRANGE_BAR_H && y < RULER_H) {
+    const pr = S.playRange();
+    const rx0 = frameToX(pr.start), rx1 = frameToX(pr.end);
+    let handle = 'middle';
+    if (Math.abs(x - rx0) <= PLAYRANGE_GRAB_PX) handle = 'start';
+    else if (Math.abs(x - rx1) <= PLAYRANGE_GRAB_PX) handle = 'end';
+    else if (x < rx0 || x > rx1) handle = 'start'; // clicking outside starts a fresh range here
+    S.pushUndo(); // once, at gesture start — the drag then mutates with noUndo
+    if (handle === 'start' && (x < rx0 - PLAYRANGE_GRAB_PX || x > rx1 + PLAYRANGE_GRAB_PX)) {
+      const f = Math.round(xToFrame(x));
+      S.setPlayRange(f, f, { noUndo: true });
+      tl.drag = { kind: 'playrange', handle: 'end', anchor: f };
+    } else {
+      tl.drag = { kind: 'playrange', handle, startX: x, start0: pr.start, end0: pr.end };
+    }
+    tl.needsDraw = true;
+    return;
+  }
+
   // ruler → scrub
   if (y < RULER_H) {
     tl.drag = { kind: 'scrub' };
@@ -680,6 +720,22 @@ function onPointerMove(e) {
     let dt = (x - d.startX) / tl.pxPerFrame;
     if (S.state.snapping && !e.altKey) dt = Math.round(dt);
     d.dt = dt;
+    tl.needsDraw = true;
+  } else if (d.kind === 'playrange') {
+    const f = Math.round(xToFrame(x));
+    if (d.handle === 'start') S.setPlayRange(f, null, { noUndo: true });
+    else if (d.handle === 'end') {
+      // a fresh range drags out from its anchor, so pulling left of it still reads correctly
+      if (d.anchor != null) S.setPlayRange(Math.min(d.anchor, f), Math.max(d.anchor, f), { noUndo: true });
+      else S.setPlayRange(null, f, { noUndo: true });
+    } else {
+      // middle: slide the whole window, keeping its length
+      let dt = Math.round((x - d.startX) / tl.pxPerFrame);
+      const len = d.end0 - d.start0;
+      const maxStart = Math.max(0, S.state.project.length - len);
+      const s = Math.max(0, Math.min(d.start0 + dt, maxStart));
+      S.setPlayRange(s, s + len, { noUndo: true });
+    }
     tl.needsDraw = true;
   } else if (d.kind === 'marker-move') {
     let dt = (x - d.startX) / tl.pxPerFrame;
