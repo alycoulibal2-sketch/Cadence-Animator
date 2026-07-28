@@ -10,6 +10,7 @@ import { registerCommand, initPalette, showShortcuts, hideShortcuts } from './pa
 import { iconSvg, swapIcon, applyStaticIcons, itemIcon, itemIconSvg } from './icons.js';
 import { STYLES, DIRECTIONS, paramsFor, PARAM_DATA, isDirectional } from './easing.js';
 import * as IO from './io.js';
+import * as PROPS from './propTracks.js';
 import { validateAnimation } from './validate.js';
 import { initPanels } from './panels.js';
 import { THEMES, ACCENTS, DEFAULT_THEME, DEFAULT_ACCENT, applyTheme, currentTheme } from './themes.js';
@@ -176,6 +177,9 @@ function registerAllCommands() {
   C({ title: 'Set play range from selected keyframes', hint: 'loop just the frames you are polishing', section: 'Playback', run: playRangeFromSelectionFlow });
   C({ title: 'Set play range…', hint: 'type the start and end frames playback is confined to', section: 'Playback', run: setPlayRangeFlow });
   C({ title: 'Clear play range', hint: 'play the whole animation again', section: 'Playback', run: () => { S.setPlayRange(null, null); toast('Play range cleared'); } });
+  C({ title: 'Animate a Roblox object…', hint: 'keyframe any instance property — Lighting, a Sound, a ParticleEmitter, a GUI, a constraint…', section: 'Scene', run: addPropItemFlow });
+  C({ title: 'Add a property or event track…', hint: 'to the selected Roblox object item', section: 'Scene', run: () => addPropertyTrackFlow(S.state.selection.itemId) });
+  C({ title: 'Export property animation script…', hint: 'Luau that applies every property/event track in Studio', section: 'Export', run: exportPropertyScriptFlow });
   C({ title: 'Add event marker at playhead', hint: 'a named event on the selected item\'s timeline — exports as a Roblox keyframe marker', section: 'Animating', run: addMarkerAtPlayheadFlow });
   C({ title: 'Edit event marker…', hint: 'name, length, keyframe markers and Luau for the event at the playhead', section: 'Animating', run: editMarkerAtPlayheadFlow });
   C({ title: 'Toggle "use last ease"', hint: 'new keyframes inherit the easing you last applied instead of the default', section: 'Animating', run: toggleUseLastEasing });
@@ -452,6 +456,105 @@ function persistPrefs() {
   settings.useLastEasing = S.state.useLastEasing;
   settings.easeColors = S.state.easeColors;
   window.cadence.setSettings(settings);
+}
+
+// ---- Roblox property items (Moon's "add any instance to the timeline")
+// The class picker drives which properties are animatable; the target is the instance path the
+// generated Luau resolves at runtime, so this works without Cadence ever seeing the real object.
+async function addPropItemFlow() {
+  const wrap = document.createElement('div');
+  wrap.className = 'prop-add';
+  const mk = (label, el) => {
+    const l = document.createElement('label');
+    l.className = 'fld-label';
+    l.textContent = label;
+    wrap.append(l, el);
+    return el;
+  };
+  const classSel = document.createElement('select');
+  classSel.className = 'fld';
+  for (const c of PROPS.CLASS_NAMES) classSel.add(new Option(c, c));
+  classSel.value = 'Lighting';
+  mk('Roblox class', classSel);
+  const targetInp = Object.assign(document.createElement('input'), {
+    className: 'fld', type: 'text', value: 'Lighting',
+    placeholder: 'e.g. Lighting, or Workspace.Campfire.Fire',
+  });
+  mk('Instance path in your game', targetInp);
+  const nameInp = Object.assign(document.createElement('input'), { className: 'fld', type: 'text', value: '' });
+  mk('Name in the timeline (optional)', nameInp);
+  const hint = document.createElement('p');
+  hint.className = 'fld-note';
+  hint.textContent = 'Cadence keyframes these properties and exports a Luau script that applies them in Studio — it cannot preview a live Roblox instance itself.';
+  wrap.appendChild(hint);
+  // Choosing a class pre-fills the path with a sensible default for service-level objects.
+  classSel.addEventListener('change', () => {
+    const c = classSel.value;
+    if (['Lighting', 'Workspace', 'Terrain', 'SoundService'].includes(c)) targetInp.value = c;
+  });
+
+  modal({
+    title: 'Animate a Roblox object',
+    body: wrap,
+    actions: [
+      { label: 'Cancel' },
+      {
+        label: 'Add', primary: true, run: () => {
+          const className = classSel.value;
+          const target = targetInp.value.trim();
+          if (!target) { toast('Enter the instance path', 'warn'); return true; }
+          const item = S.addPropItem({ name: nameInp.value.trim() || target, className, target });
+          S.setSelection(item.id, null);
+          toast(`Added ${className} — ${S.getTracks(item.id) ? Object.keys(S.getTracks(item.id)).length : 0} default tracks`);
+        },
+      },
+    ],
+  });
+}
+
+async function addPropertyTrackFlow(itemId) {
+  const item = S.getItem(itemId);
+  if (!item || item.kind !== 'prop') { toast('Select a Roblox object item first', 'warn'); return; }
+  const existing = new Set(Object.keys(S.getTracks(itemId)));
+  const options = PROPS.propertiesFor(item.className)
+    .filter((p) => !existing.has(p.prop))
+    .map((p) => ({ id: p.prop, label: p.prop, desc: p.type }));
+  const actions = PROPS.actionsFor(item.className)
+    .filter((k) => !existing.has(S.ACTION_PREFIX + k))
+    .map((k) => ({ id: 'act:' + k, label: PROPS.ACTIONS[k].label, desc: 'event' + (PROPS.ACTIONS[k].arg ? ` · ${PROPS.ACTIONS[k].arg}` : ''), icon: '⚡' }));
+  if (!options.length && !actions.length) { toast('Every property of this class is already tracked', 'warn'); return; }
+  const pick = await chooseModal({ title: `Add a track to ${item.name}`, options: [...options, ...actions] });
+  if (!pick) return;
+  if (pick.startsWith('act:')) S.addActionTrack(itemId, pick.slice(4));
+  else S.addPropertyTrack(itemId, pick);
+  toast(`Added ${pick.replace(/^act:/, '')}`);
+}
+
+async function exportPropertyScriptFlow() {
+  const items = S.state.project.items.filter((i) => i.kind === 'prop');
+  if (!items.length) { toast('No Roblox object items to export', 'warn'); return; }
+  const data = IO.buildPropertyScriptData(items);
+  if (!data.targets.length) { toast('Those items have no keyframed tracks yet', 'warn'); return; }
+  const lua = IO.buildPropertyScriptLua(data);
+  const pick = await chooseModal({
+    title: 'Export property animation',
+    options: [
+      { id: 'lua', label: 'Luau script (.lua)', desc: 'paste into a Script in Studio', icon: '📄' },
+      { id: 'rbxmx', label: 'Droppable Script (.rbxmx)', desc: 'drag straight into Studio', icon: '📦' },
+      { id: 'clip', label: 'Copy to clipboard', desc: 'the Luau source', icon: '📋' },
+    ],
+  });
+  if (!pick) return;
+  if (pick === 'clip') { await navigator.clipboard.writeText(lua); toast('Copied'); return; }
+  const isLua = pick === 'lua';
+  const name = `${S.state.project.name} properties`;
+  const res = await window.cadence.saveFileDialog({
+    defaultPath: `${name}.${isLua ? 'lua' : 'rbxmx'}`,
+    filters: [{ name: isLua ? 'Luau' : 'Roblox model', extensions: [isLua ? 'lua' : 'rbxmx'] }],
+  });
+  if (!res || res.canceled) return;
+  await window.cadence.writeFile(res.filePath, isLua ? lua : IO.buildPropertyScriptRbxmx(name, lua));
+  toast('Exported');
 }
 
 // ---- play range (Moon's PlayArea)
@@ -2222,10 +2325,12 @@ async function addMenuFlow() {
       { id: 'camera', label: 'Camera', desc: 'animatable, with FOV track', icon: '🎥' },
       { id: 'vfx', label: 'VFX emitter', desc: 'particle emitter — rate/lifetime/speed tracks', icon: '✨' },
       { id: 'audio', label: 'Audio track…', desc: 'waveform + scrubbing', icon: '🔊' },
+      { id: 'prop', label: 'Roblox object…', desc: 'animate any instance property — Lighting, a Sound, a ParticleEmitter, a GUI…', icon: '🎛' },
     ],
   });
   if (!pick) return;
-  if (pick === 'avatar') addAvatarFlow();
+  if (pick === 'prop') addPropItemFlow();
+  else if (pick === 'avatar') addAvatarFlow();
   else if (pick === 'studio') addFromStudioSelection();
   else if (pick === 'asset') addByAssetIdFlow();
   else if (pick === 'file') addFromFileFlow();
@@ -2452,9 +2557,34 @@ function wireInspector() {
 
     if (item) {
       let sectionsAlreadyAppended = false;
-      const sec = section(item.kind === 'camera' ? 'Camera' : item.kind === 'vfx' ? 'VFX Emitter' : item.kind === 'effect' ? 'VFX Studio Effect' : 'Rig');
+      const sec = section(item.kind === 'camera' ? 'Camera' : item.kind === 'vfx' ? 'VFX Emitter' : item.kind === 'effect' ? 'VFX Studio Effect' : item.kind === 'prop' ? 'Roblox Object' : 'Rig');
       sec.appendChild(fieldRow('Name', item.name));
-      if (item.kind === 'camera') {
+      if (item.kind === 'prop') {
+        sec.appendChild(fieldRow('Class', item.className));
+        sec.appendChild(fieldRow('Path', item.target || '(not set)'));
+        // Editing a keyed property writes a keyframe at the playhead, matching how every other
+        // animatable field in this inspector behaves.
+        for (const name of Object.keys(S.getTracks(item.id))) {
+          if (S.isActionTrack(name)) continue;
+          const type = S.trackValueType(item.id, name);
+          const cur = S.evalTrackValue(item.id, name, S.state.playhead);
+          const t = Math.round(S.state.playhead);
+          if (type === 'number') {
+            sec.appendChild(numField(name, Math.round((cur ?? 0) * 1000) / 1000, (v) => S.setKey(item.id, name, t, v)));
+          } else if (type === 'boolean') {
+            sec.appendChild(checkField(name, !!cur, (v) => S.setKey(item.id, name, t, v)));
+          } else if (type === 'Color3') {
+            sec.appendChild(vecField(`${name} (r,g,b)`, (cur || [1, 1, 1]).map((n) => Math.round(n * 100) / 100), (vals) => S.setKey(item.id, name, t, vals)));
+          } else if (type === 'Vector3' || type === 'Vector2') {
+            sec.appendChild(vecField(name, cur || (type === 'Vector2' ? [0, 0] : [0, 0, 0]), (vals) => S.setKey(item.id, name, t, vals)));
+          } else {
+            // string / Instance path / EnumItem / sequences — all edited as plain text
+            sec.appendChild(textField(name, cur == null ? '' : String(cur), (v) => S.setKey(item.id, name, t, v)));
+          }
+        }
+        sec.appendChild(button('Add a property or event track…', () => addPropertyTrackFlow(item.id), 'plus'));
+        sec.appendChild(button('Export property script…', exportPropertyScriptFlow));
+      } else if (item.kind === 'camera') {
         const fov = S.evalTrackNum(item.id, '@fov', S.state.playhead, item.fov || 70);
         sec.appendChild(numField('Field of view', Math.round(fov * 10) / 10, (v) => {
           S.setKey(item.id, '@fov', Math.round(S.state.playhead), Math.max(5, Math.min(120, v)));
@@ -2587,6 +2717,20 @@ function numField(label, value, onChange) {
   input.className = 'fld';
   input.value = value;
   input.addEventListener('change', () => onChange(parseFloat(input.value) || 0));
+  d.innerHTML = `<span class="l">${label}</span>`;
+  d.appendChild(input);
+  return d;
+}
+// Free-text field, for the property types with no richer editor: strings, instance paths,
+// Enum names (`Material.Neon`), and the sequence types Cadence stores as a single stop.
+function textField(label, value, onChange) {
+  const d = document.createElement('div');
+  d.className = 'insp-row';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'fld';
+  input.value = value;
+  input.addEventListener('change', () => onChange(input.value));
   d.innerHTML = `<span class="l">${label}</span>`;
   d.appendChild(input);
   return d;
@@ -2993,7 +3137,12 @@ const MCP_HANDLERS = {
     S.setKey(itemId, track, t, value, { es, ed, bez });
     return { itemId, track, t };
   },
-  get_track: ({ itemId, track }) => S.getTrack(itemId, track) || { keys: [] },
+  get_track: ({ itemId, track }) => {
+    const tr = S.getTrack(itemId, track);
+    // vtype tells a caller how to read `v` — a rig/origin track's flat-12 CFrame, a plain
+    // number, an [r,g,b] Color3, a discrete string, and so on.
+    return tr ? { ...tr, vtype: S.trackValueType(itemId, track) } : { keys: [], vtype: null };
+  },
   delete_keyframes: ({ keys }) => { S.deleteKeys(keys); return { ok: true }; },
   move_keyframes: ({ keys, dt }) => ({ moved: S.moveKeys(keys, dt) }),
   group_keys: ({ keys }) => ({ group: S.groupKeys(keys) }),
@@ -3022,6 +3171,41 @@ const MCP_HANDLERS = {
   },
   delete_markers: ({ markers }) => { S.deleteMarkers(markers); return { ok: true }; },
   move_markers: ({ markers, dt }) => ({ moved: S.moveMarkers(markers, dt) }),
+
+  // ---------------------------------------------------------------- Roblox property items
+  list_prop_classes: ({ search }) => {
+    const q = (search || '').toLowerCase();
+    const names = PROPS.CLASS_NAMES.filter((c) => !q || c.toLowerCase().includes(q));
+    return { classes: names.map((c) => ({ className: c, properties: PROPS.propertiesFor(c).length, actions: PROPS.actionsFor(c).length })) };
+  },
+  list_class_properties: ({ className }) => {
+    if (!PROPS.CLASS_PROPERTIES[className]) throw new Error(`Unknown class ${className}`);
+    return {
+      className,
+      properties: PROPS.propertiesFor(className),
+      actions: PROPS.actionsFor(className).map((k) => ({ key: k, label: PROPS.ACTIONS[k].label, arg: PROPS.ACTIONS[k].arg })),
+      defaults: PROPS.defaultPropertiesFor(className),
+    };
+  },
+  add_prop_item: ({ name, className, target, withDefaults }) => {
+    if (!PROPS.CLASS_PROPERTIES[className]) throw new Error(`Unknown class ${className}`);
+    const item = S.addPropItem({ name, className, target, withDefaults: withDefaults !== false });
+    return { item: { id: item.id, name: item.name, className, target: item.target }, tracks: Object.keys(S.getTracks(item.id)) };
+  },
+  add_property_track: ({ itemId, property }) => {
+    if (!S.addPropertyTrack(itemId, property)) throw new Error(`${property} is not an animatable property of that item's class`);
+    return { ok: true, tracks: Object.keys(S.getTracks(itemId)) };
+  },
+  add_action_track: ({ itemId, action }) => {
+    if (!S.addActionTrack(itemId, action)) throw new Error(`Unknown action ${action}`);
+    return { ok: true, tracks: Object.keys(S.getTracks(itemId)) };
+  },
+  remove_track: ({ itemId, track }) => ({ ok: S.removeTrack(itemId, track) }),
+  export_property_script: ({ itemIds }) => {
+    const items = S.state.project.items.filter((i) => i.kind === 'prop' && (!itemIds || itemIds.includes(i.id)));
+    const data = IO.buildPropertyScriptData(items);
+    return { lua: IO.buildPropertyScriptLua(data), targets: data.targets.length, lastFrame: data.end };
+  },
 
   // ---------------------------------------------------------------- play range
   get_play_range: () => S.playRange(),

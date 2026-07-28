@@ -4,6 +4,7 @@ import * as CF from './cf.js';
 import * as S from './state.js';
 import { needsBaking, evalSegment } from './easing.js';
 import { getInstance } from './viewport.js';
+import * as PROPS from './propTracks.js';
 
 // ---------------------------------------------------------------- XML (.rbxmx)
 export function parseRbxmx(text) {
@@ -810,6 +811,195 @@ if AUTOPLAY then play() end
 export function buildCameraScriptRbxmx(name, luaSource) {
   return `<roblox version="4">
 <Item class="LocalScript" referent="ECLCAM0"><Properties>
+<string name="Name">${esc(name)}</string>
+<ProtectedString name="Source">${esc(luaSource)}</ProtectedString>
+</Properties></Item>
+</roblox>`;
+}
+
+// ---------------------------------------------------------------- property tracks → script export
+// Property and action tracks have no representation in a Roblox KeyframeSequence — Moon sidesteps
+// that because it drives live Studio instances directly. Cadence has no Roblox runtime, so
+// delivery is a generated Luau script instead: every property track is baked one row per frame
+// (easing included, the same "bake, don't translate" rule buildExportData uses) and every action
+// track becomes a one-shot call fired as the playhead crosses its keyframe.
+export function buildPropertyScriptData(items) {
+  const p = S.state.project;
+  const fps = p.fps;
+  let lastFrame = 0;
+  const targets = [];
+
+  for (const item of items) {
+    if (item.kind !== 'prop') continue;
+    const tracks = S.getTracks(item.id);
+    const props = [];
+    const actions = [];
+    for (const name of Object.keys(tracks)) {
+      const tr = tracks[name];
+      if (!tr.keys.length) continue;
+      for (const k of tr.keys) lastFrame = Math.max(lastFrame, k.t);
+      if (S.isActionTrack(name)) {
+        const key = S.actionKeyOf(name);
+        if (!PROPS.ACTIONS[key]) continue;
+        actions.push({ action: key, keys: tr.keys.map((k) => ({ t: k.t, v: k.v })) });
+      } else {
+        props.push({ prop: name, type: S.trackValueType(item.id, name), keyTimes: tr.keys.map((k) => k.t) });
+      }
+    }
+    if (props.length || actions.length) targets.push({ item, props, actions });
+  }
+
+  // Bake each property track frame by frame, so the runtime never has to know about easing.
+  for (const t of targets) {
+    for (const pr of t.props) {
+      pr.frames = [];
+      const first = Math.floor(pr.keyTimes[0]);
+      const last = Math.ceil(pr.keyTimes[pr.keyTimes.length - 1]);
+      for (let f = first; f <= last; f++) pr.frames.push([f, S.evalTrackValue(t.item.id, pr.prop, f)]);
+    }
+  }
+  return { fps, loop: p.loop, end: Math.max(Math.ceil(lastFrame), 0), targets, name: p.name };
+}
+
+export function buildPropertyScriptLua(data, opts = {}) {
+  const L = [];
+  L.push(`-- ${opts.name || `${data.name} property animation`}`);
+  L.push('-- Exported from Cadence Animator. Put this Script somewhere that can reach the');
+  L.push('-- instances named below; it plays automatically unless AUTOPLAY is set to false.');
+  L.push('');
+  L.push('local RunService = game:GetService("RunService")');
+  L.push('');
+  L.push(`local FPS = ${data.fps}`);
+  L.push(`local LOOP = ${data.loop ? 'true' : 'false'}`);
+  L.push(`local LAST_FRAME = ${data.end}`);
+  L.push('local AUTOPLAY = true');
+  L.push('');
+  // Paths resolve leniently: a missing instance disables only its own tracks rather than
+  // erroring out and taking the whole animation down with it.
+  L.push('local function resolve(path)');
+  L.push('\tlocal node = game');
+  L.push('\tfor part in string.gmatch(path, "[^%.]+") do');
+  L.push('\t\tif node == game then');
+  L.push('\t\t\tlocal ok, svc = pcall(function() return game:GetService(part) end)');
+  L.push('\t\t\tnode = (ok and svc) or node:FindFirstChild(part)');
+  L.push('\t\telse');
+  L.push('\t\t\tnode = node:FindFirstChild(part)');
+  L.push('\t\tend');
+  L.push('\t\tif not node then return nil end');
+  L.push('\tend');
+  L.push('\treturn node');
+  L.push('end');
+  L.push('');
+  L.push('local function lerp(a, b, t)');
+  L.push('\tif type(a) == "number" then return a + (b - a) * t end');
+  L.push('\tlocal ty = typeof(a)');
+  L.push('\tif ty == "Color3" or ty == "Vector3" or ty == "Vector2" or ty == "CFrame" then return a:Lerp(b, t) end');
+  L.push('\tif ty == "NumberRange" then return NumberRange.new(a.Min + (b.Min - a.Min) * t, a.Max + (b.Max - a.Max) * t) end');
+  L.push('\treturn t >= 1 and b or a -- discrete: hold the earlier value until the next key');
+  L.push('end');
+  L.push('');
+
+  data.targets.forEach((t, ti) => {
+    const v = `target${ti}`;
+    L.push(`-- ${t.item.name} (${t.item.className})`);
+    L.push(`local ${v} = resolve(${PROPS.luaString(t.item.target)})`);
+    for (const pr of t.props) {
+      L.push(`local ${v}_${sanitizeLuaName(pr.prop)} = {`);
+      L.push(pr.frames.map(([f, val]) => `\t[${f}] = ${PROPS.luaValue(pr.type, val)},`).join('\n'));
+      L.push('}');
+    }
+    L.push('');
+  });
+
+  L.push('local function applyFrame(frame)');
+  data.targets.forEach((t, ti) => {
+    const v = `target${ti}`;
+    if (!t.props.length) return;
+    L.push(`\tif ${v} then`);
+    for (const pr of t.props) {
+      const tbl = `${v}_${sanitizeLuaName(pr.prop)}`;
+      const lo = pr.frames[0][0];
+      const hi = pr.frames[pr.frames.length - 1][0];
+      L.push('\t\tdo');
+      L.push(`\t\t\tlocal f = math.clamp(frame, ${lo}, ${hi})`);
+      L.push('\t\t\tlocal i = math.floor(f)');
+      L.push(`\t\t\tlocal a = ${tbl}[i]`);
+      L.push(`\t\t\tlocal b = ${tbl}[math.min(i + 1, ${hi})] or a`);
+      L.push(`\t\t\tif a ~= nil then ${v}.${pr.prop} = lerp(a, b, f - i) end`);
+      L.push('\t\tend');
+    }
+    L.push('\tend');
+  });
+  L.push('end');
+  L.push('');
+
+  // Actions fire exactly once, when the playhead crosses their frame.
+  L.push('local function fireActions(fromFrame, toFrame)');
+  const anyActions = data.targets.some((t) => t.actions.length);
+  if (!anyActions) L.push('\t-- no action tracks in this animation');
+  data.targets.forEach((t, ti) => {
+    const v = `target${ti}`;
+    if (!t.actions.length) return;
+    L.push(`\tif ${v} then`);
+    for (const act of t.actions) {
+      const spec = PROPS.ACTIONS[act.action];
+      for (const k of act.keys) {
+        const arg = spec.arg ? PROPS.luaValue(spec.arg, k.v) : null;
+        L.push(`\t\tif fromFrame < ${k.t} and toFrame >= ${k.t} then ${spec.lua(v, arg)} end`);
+      }
+    }
+    L.push('\tend');
+  });
+  L.push('end');
+  L.push('');
+  L.push('local playing = false');
+  L.push('local function play()');
+  L.push('\tif playing then return end');
+  L.push('\tplaying = true');
+  L.push('\tlocal t0 = os.clock()');
+  L.push('\tlocal prev = -1');
+  L.push('\tlocal conn');
+  L.push('\tconn = RunService.Heartbeat:Connect(function()');
+  L.push('\t\tlocal f = (os.clock() - t0) * FPS');
+  L.push('\t\tif f > LAST_FRAME then');
+  L.push('\t\t\tif LOOP and LAST_FRAME > 0 then');
+  L.push('\t\t\t\tfireActions(prev, LAST_FRAME)');
+  L.push('\t\t\t\tt0 = os.clock()');
+  L.push('\t\t\t\tprev = -1');
+  L.push('\t\t\t\tf = 0');
+  L.push('\t\t\telse');
+  L.push('\t\t\t\tapplyFrame(LAST_FRAME)');
+  L.push('\t\t\t\tfireActions(prev, LAST_FRAME)');
+  L.push('\t\t\t\tconn:Disconnect()');
+  L.push('\t\t\t\tplaying = false');
+  L.push('\t\t\t\treturn');
+  L.push('\t\t\tend');
+  L.push('\t\tend');
+  L.push('\t\tapplyFrame(f)');
+  L.push('\t\tfireActions(prev, f)');
+  L.push('\t\tprev = f');
+  L.push('\tend)');
+  L.push('end');
+  L.push('');
+  L.push('local trigger = Instance.new("BindableEvent")');
+  L.push('trigger.Name = "PlayPropertyAnimation"');
+  L.push('trigger.Parent = script');
+  L.push('trigger.Event:Connect(play)');
+  L.push('if AUTOPLAY then play() end');
+  L.push('');
+  return L.join('\n');
+}
+
+// Luau identifiers cannot contain every character a property name might use — the current
+// registry is all safe, this guards anything it grows later.
+function sanitizeLuaName(s) {
+  return String(s).replace(/[^A-Za-z0-9_]/g, '_');
+}
+
+// The same script wrapped as a droppable .rbxmx Script.
+export function buildPropertyScriptRbxmx(name, luaSource) {
+  return `<roblox version="4">
+<Item class="Script" referent="ECLPROP0"><Properties>
 <string name="Name">${esc(name)}</string>
 <ProtectedString name="Source">${esc(luaSource)}</ProtectedString>
 </Properties></Item>

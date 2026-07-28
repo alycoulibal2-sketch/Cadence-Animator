@@ -234,6 +234,51 @@ server.tool(
   async ({ markers, dt }) => { try { return textResult(await call('move_markers', { markers, dt })); } catch (e) { return errorResult(e); } },
 );
 
+// ---------------------------------------------------------------- Roblox property items
+// These cover the "animate any instance property" half of Moon Animator that a KeyframeSequence
+// cannot express — Lighting, sounds, particle emitters, GUIs, constraints, post-processing.
+// They are delivered as a generated Luau script (export_property_script), not as animation data.
+server.tool(
+  'list_prop_classes', 'List the Roblox classes whose properties can be animated, with how many properties and one-shot actions each exposes. Optionally filter by a search string.',
+  { search: z.string().optional() },
+  async ({ search }) => { try { return textResult(await call('list_prop_classes', { search })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'list_class_properties', 'List every animatable property of a Roblox class (with its value type) plus its one-shot actions, and which properties are added by default.',
+  { className: z.string() },
+  async ({ className }) => { try { return textResult(await call('list_class_properties', { className })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'add_prop_item', 'Add a Roblox object to the timeline so its properties can be keyframed — e.g. className "Lighting" target "Lighting", or className "ParticleEmitter" target "Workspace.Campfire.Fire". `target` is the instance path the exported script resolves at runtime.',
+  {
+    className: z.string().describe('use list_prop_classes to see valid names'),
+    target: z.string().describe('instance path in the game, e.g. "Lighting" or "Workspace.Campfire.Fire"'),
+    name: z.string().optional().describe('label in the timeline; defaults to the target path'),
+    withDefaults: z.boolean().optional().describe('create tracks for the class\'s default properties straight away (default true)'),
+  },
+  async (a) => { try { return textResult(await call('add_prop_item', a)); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'add_property_track', 'Add a track for one more property of a Roblox object item, so it can be keyframed.',
+  { itemId: z.string(), property: z.string() },
+  async ({ itemId, property }) => { try { return textResult(await call('add_property_track', { itemId, property })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'add_action_track', 'Add a one-shot action track to a Roblox object item — Sound.Play, ParticleEmitter.Emit, Humanoid.MoveTo and so on. Each keyframe fires the call once as playback crosses it.',
+  { itemId: z.string(), action: z.string().describe('e.g. "Sound.Play" — see list_class_properties for what a class supports') },
+  async ({ itemId, action }) => { try { return textResult(await call('add_action_track', { itemId, action })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'remove_track', 'Remove a track and all its keyframes from an item.',
+  { itemId: z.string(), track: z.string() },
+  async ({ itemId, track }) => { try { return textResult(await call('remove_track', { itemId, track })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'export_property_script', 'Generate the self-contained Luau script that reproduces every property and action track in Studio. Property values are baked per frame with easing already applied; actions fire once as playback crosses them.',
+  { itemIds: z.array(z.string()).optional().describe('limit to these Roblox object items; omit for all of them') },
+  async ({ itemIds }) => { try { return textResult(await call('export_property_script', { itemIds })); } catch (e) { return errorResult(e); } },
+);
+
 // ---------------------------------------------------------------- play range
 server.tool(
   'get_play_range', 'Get the play range — the frame window playback and looping are confined to. `full: true` means the whole animation.',

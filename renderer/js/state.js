@@ -1,6 +1,7 @@
 // Project state, undo/redo, autosave, track evaluation.
 import * as CF from './cf.js';
 import { evalSegment, paramsFor } from './easing.js';
+import { propertyDef, defaultPropertiesFor, defaultValueFor, tweenValue, tweenOf, ACTIONS } from './propTracks.js';
 
 // DISPLAY ONLY — never use this for a track/joint/part key, lookup, or export. Roblox's own
 // R15 part/joint names have no spaces (UpperTorso, RightShoulder, LeftAnkle) and MUST stay that
@@ -636,6 +637,123 @@ export function getKey(itemId, track, t) {
   const tr = trackObj(itemId, track);
   if (!tr) return null;
   return tr.keys.find((k) => Math.abs(k.t - t) < 1e-6) || null;
+}
+
+// ---------------------------------------------------------------- property & action tracks
+// A `prop` item is a named Roblox instance whose properties are being animated — Moon's
+// equivalent of adding a Lighting / ParticleEmitter / Sound / GUI object to the timeline.
+// `target` is the instance path the generated Luau resolves at runtime (e.g.
+// "Workspace.Campfire.Fire"); service-level targets like "Lighting" are just the service name.
+//
+// Track naming on a prop item:
+//   "Transparency"        a property track  (its value type comes from the registry)
+//   "@act:Sound.Play"     an action track   (one-shot calls, fired when playback crosses the key)
+export const ACTION_PREFIX = '@act:';
+export function isActionTrack(track) { return typeof track === 'string' && track.startsWith(ACTION_PREFIX); }
+export function actionKeyOf(track) { return isActionTrack(track) ? track.slice(ACTION_PREFIX.length) : null; }
+
+export function addPropItem({ name, className, target, withDefaults = true }) {
+  const item = {
+    id: crypto.randomUUID(),
+    kind: 'prop',
+    name: name || target || className,
+    className,
+    target: target || '',
+  };
+  addItem(item);
+  if (withDefaults) {
+    for (const p of defaultPropertiesFor(className)) addPropertyTrack(item.id, p, { noUndo: true });
+  }
+  emit('tracks', {});
+  return item;
+}
+
+// The value type is recorded ON the track (`vtype`) rather than re-derived from the class each
+// time: the item's className could be edited later, and an existing track's keys must keep
+// being read as whatever they were authored as.
+export function addPropertyTrack(itemId, prop, opts = {}) {
+  const item = getItem(itemId);
+  if (!item) return null;
+  const def = propertyDef(item.className, prop);
+  if (!def) return null;
+  if (!opts.noUndo) pushUndo();
+  const tr = trackObj(itemId, prop, true);
+  tr.vtype = def.type;
+  if (!opts.noUndo) { emit('tracks', { itemId, track: prop }); markDirty(); }
+  return tr;
+}
+
+export function addActionTrack(itemId, actionKey, opts = {}) {
+  if (!ACTIONS[actionKey]) return null;
+  if (!opts.noUndo) pushUndo();
+  const name = ACTION_PREFIX + actionKey;
+  const tr = trackObj(itemId, name, true);
+  tr.vtype = ACTIONS[actionKey].arg || 'boolean';
+  tr.action = actionKey;
+  if (!opts.noUndo) { emit('tracks', { itemId, track: name }); markDirty(); }
+  return tr;
+}
+
+export function removeTrack(itemId, track) {
+  const t = state.project.tracks[itemId];
+  if (!t || !t[track]) return false;
+  pushUndo();
+  delete t[track];
+  state.selection.keys = state.selection.keys.filter((k) => !(k.itemId === itemId && k.track === track));
+  emit('tracks', {});
+  emit('selection');
+  markDirty();
+  return true;
+}
+
+// The value type a track's keys hold. Falls back to the registry (for tracks written before
+// vtype existed) and finally to CFrame, which is what every rig/origin track is.
+export function trackValueType(itemId, track) {
+  const tr = trackObj(itemId, track);
+  if (tr && tr.vtype) return tr.vtype;
+  if (isActionTrack(track)) return ACTIONS[actionKeyOf(track)]?.arg || 'boolean';
+  const item = getItem(itemId);
+  if (item && item.className) {
+    const def = propertyDef(item.className, track);
+    if (def) return def.type;
+  }
+  if (isNumericTrack(track)) return 'number';
+  return 'CFrame';
+}
+
+// Generic typed evaluation, dispatching on the track's value type. CFrame and plain-number
+// tracks keep using the existing dedicated (and cached) evaluators so nothing regresses.
+export function evalTrackValue(itemId, track, t, fallback) {
+  const type = trackValueType(itemId, track);
+  if (type === 'CFrame') return evalTrackCF(itemId, track, t, fallback ?? CF.IDENTITY);
+  if (tweenOf(type) === 'number') return evalTrackNum(itemId, track, t, fallback ?? 0);
+  const tr = trackObj(itemId, track);
+  if (!tr || !tr.keys.length) return fallback ?? defaultValueFor(type);
+  const keys = tr.keys;
+  if (t <= keys[0].t) return keys[0].v;
+  if (t >= keys[keys.length - 1].t) return keys[keys.length - 1].v;
+  let lo = 0;
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (t >= keys[i].t && t <= keys[i + 1].t) { lo = i; break; }
+  }
+  const a = keys[lo], b = keys[lo + 1];
+  const span = b.t - a.t || 1;
+  const alpha = evalSegment(a, (t - a.t) / span, span);
+  return tweenValue(type, a.v, b.v, alpha);
+}
+
+// Every action key strictly inside (t0, t1] — what a playhead crossing that span should fire.
+// Used by the Luau exporter; Cadence itself never executes them (no Roblox runtime here).
+export function actionEventsBetween(itemId, t0, t1) {
+  const out = [];
+  const tracks = getTracks(itemId);
+  for (const name of Object.keys(tracks)) {
+    if (!isActionTrack(name)) continue;
+    for (const k of tracks[name].keys) {
+      if (k.t > t0 && k.t <= t1) out.push({ track: name, action: actionKeyOf(name), t: k.t, v: k.v });
+    }
+  }
+  return out.sort((a, b) => a.t - b.t);
 }
 
 // ---------------------------------------------------------------- markers ("Events" track)

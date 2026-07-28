@@ -5,6 +5,7 @@ import { getWaveformSlice, hasAudio, setAudioOffset, renameAudio } from './audio
 import { showContextMenu, promptModal, modal, toast } from './ui.js';
 import { openCurveEditor } from './curves.js';
 import { iconSvg, itemIconSvg } from './icons.js';
+import * as PROPS from './propTracks.js';
 
 const ROW_H = 26;
 const RULER_H = 30;
@@ -85,7 +86,11 @@ function rebuildRows() {
     if (tl.collapsed.has(item.id)) continue;
     // Moon gives every item an "Events" lane (its MarkerTrack) above the property tracks.
     tl.rows.push({ kind: 'events', itemId: item.id, label: 'Events', depth: 1 });
-    tl.rows.push({ kind: 'track', itemId: item.id, track: '@origin', label: item.kind === 'camera' ? 'Camera Position' : item.kind === 'vfx' ? 'Emitter Position' : item.kind === 'effect' ? 'Effect Position' : 'Rig Origin', depth: 1 });
+    // A prop item is a Roblox instance being driven by property tracks — it has no position in
+    // Cadence's own viewport, so it gets no origin row.
+    if (item.kind !== 'prop') {
+      tl.rows.push({ kind: 'track', itemId: item.id, track: '@origin', label: item.kind === 'camera' ? 'Camera Position' : item.kind === 'vfx' ? 'Emitter Position' : item.kind === 'effect' ? 'Effect Position' : 'Rig Origin', depth: 1 });
+    }
     if (item.kind === 'camera') {
       tl.rows.push({ kind: 'track', itemId: item.id, track: '@fov', label: 'Field of View', depth: 1 });
     } else if (item.kind === 'vfx') {
@@ -95,6 +100,18 @@ function rebuildRows() {
     } else if (item.kind === 'effect') {
       // No per-track numeric keyframes — an effect document's own curves live inside item.effect,
       // not as animator timeline tracks (docs/vfx-studio.md). Only its placement is keyable here.
+    } else if (item.kind === 'prop') {
+      // One row per animated property / action on the targeted Roblox instance, in the order
+      // they were added (Object.keys preserves insertion order for string keys).
+      for (const name of Object.keys(S.getTracks(item.id))) {
+        if (name === '@origin') continue; // already emitted above
+        const isAct = S.isActionTrack(name);
+        tl.rows.push({
+          kind: 'track', itemId: item.id, track: name, depth: 1,
+          label: isAct ? (PROPS.ACTIONS[S.actionKeyOf(name)]?.label || S.actionKeyOf(name)) : S.humanizeRigName(name),
+          action: isAct,
+        });
+      }
     } else if (item.rig) {
       for (const j of item.rig.joints || []) {
         if (j.kind === 'weld') continue;
@@ -824,6 +841,10 @@ function onDblClick(e) {
   } else if (row.track === '@origin') {
     const item = S.getItem(row.itemId);
     S.setKey(row.itemId, row.track, f, S.evalTrackCF(row.itemId, '@origin', f, item.origin || [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]));
+  } else if (S.getItem(row.itemId)?.kind === 'prop') {
+    // A property/action track holds a typed value, so key whatever it currently evaluates to
+    // rather than assuming a CFrame.
+    S.setKey(row.itemId, row.track, f, S.evalTrackValue(row.itemId, row.track, f));
   } else {
     S.setKey(row.itemId, row.track, f, S.evalTrackCF(row.itemId, row.track, f));
   }
