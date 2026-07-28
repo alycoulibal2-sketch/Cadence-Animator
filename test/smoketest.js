@@ -861,6 +861,209 @@
     return { handlerCount: handlerKeys.length, registeredCount: registered.size, excluded: KNOWN_UNREGISTERED };
   });
 
+  // ---------------------------------------------------------------- Moon Animator parity
+  // These cover the subsystems ported from Moon Animator 2 (see docs/moon-parity.md): the
+  // easing engine, event markers, the play range, wiggle fill / frame offset, property and
+  // action tracks, and the screen effects.
+
+  await step('easing: Sextic/OutIn, Back overshoot and Elastic amplitude+period round-trip and evaluate', async () => {
+    const EASE = await import('../renderer/js/easing.js');
+    assert(EASE.STYLES.includes('Sextic'), 'Sextic style should exist (Moon has it, Roblox does not)');
+    assert(EASE.DIRECTIONS.includes('OutIn'), 'OutIn direction should exist');
+    // Every style/direction must start at 0 and be finite throughout. Exponential In/OutIn end at
+    // 0.999/0.9995 -- that is Moon's own 0.001 fudge, reproduced deliberately, not a bug.
+    const endpointExceptions = { ExponentialIn: 0.999, ExponentialOutIn: 0.9995 };
+    for (const style of EASE.STYLES) {
+      const dirs = EASE.EASE_DATA[style].directional ? EASE.DIRECTIONS : ['Out'];
+      for (const dir of dirs) {
+        assert(Math.abs(EASE.ease(style, dir, 0)) < 1e-9, `${style}${dir} should start at 0`);
+        const want = endpointExceptions[style + dir] ?? 1;
+        assert(Math.abs(EASE.ease(style, dir, 1) - want) < 1e-9, `${style}${dir} should end at ${want}`);
+        for (let i = 0; i <= 20; i++) {
+          assert(Number.isFinite(EASE.ease(style, dir, i / 20)), `${style}${dir} produced a non-finite value`);
+        }
+      }
+    }
+    // Parameters must actually change the curve, and Moon's Expo/Circ spellings must still resolve.
+    const b1 = EASE.ease('Back', 'Out', 0.5, { Overshoot: 1.70158 });
+    const b2 = EASE.ease('Back', 'Out', 0.5, { Overshoot: 6 });
+    assert(Math.abs(b1 - b2) > 1e-6, 'Back Overshoot should change the curve');
+    const e1 = EASE.ease('Elastic', 'Out', 0.4, { Amplitude: 1, Period: 0.3 });
+    const e2 = EASE.ease('Elastic', 'Out', 0.4, { Amplitude: 1, Period: 0.8 });
+    assert(Math.abs(e1 - e2) > 1e-6, 'Elastic Period should change the curve');
+    assert(EASE.canonicalStyle('Expo') === 'Exponential' && EASE.canonicalStyle('Circ') === 'Circular',
+      "Moon's Expo/Circ spellings should resolve to Roblox's Exponential/Circular");
+    // Period is frame-relative: the same stored value must read differently on segments of
+    // different lengths, and a key with no params must be unaffected by segment length.
+    const key = { es: 'Elastic', ed: 'Out', ep: { Amplitude: 1, Period: 6 } };
+    assert(Math.abs(EASE.evalSegment(key, 0.5, 6) - EASE.evalSegment(key, 0.5, 12)) > 1e-6,
+      'a frame-relative Period should differ between a 6-frame and a 12-frame segment');
+    const plain = { es: 'Quad', ed: 'Out' };
+    assert(Math.abs(EASE.evalSegment(plain, 0.3, 4) - EASE.evalSegment(plain, 0.3, 40)) < 1e-15,
+      'a key with no easing params must not depend on segment length');
+    return { styles: EASE.STYLES.length, directions: EASE.DIRECTIONS.length };
+  });
+
+  await step('event markers: add/move/resize/export round-trip, and the undo snapshot includes them', async () => {
+    await D.addBuiltinRig('r15');
+    const item = S.state.project.items[S.state.project.items.length - 1];
+    const m = S.addMarker(item.id, 12, { name: 'footstep', width: 3, kf: { Sound: 'step1' } });
+    assert(m && m.t === 12, 'addMarker should return the new marker');
+    assert(S.addMarker(item.id, 12) === null, 'two markers must not share a start frame');
+    assert(!!S.markerSpanning(item.id, 14) && !S.markerSpanning(item.id, 16),
+      'markerSpanning should respect the marker width');
+
+    // Width clamps against the next marker (Moon's EditMarkers maxWidth rule).
+    S.addMarker(item.id, 18);
+    S.setMarker(item.id, 12, { width: 99 });
+    assert(S.getMarker(item.id, 12).width === 5, `width should clamp to 5 (18-12-1), got ${S.getMarker(item.id, 12).width}`);
+
+    // Moving onto an occupied frame must not merge two markers into one.
+    S.moveMarkers([{ itemId: item.id, t: 12 }], 6);
+    assert(S.getMarkers(item.id).length === 2, 'a colliding move must keep both markers');
+
+    // Export: a named marker becomes a named Keyframe with KeyframeMarker children.
+    const data = IO.buildExportData(item, {});
+    const named = data.keyframes.find((kf) => kf.name === 'footstep');
+    assert(named, 'the exported KeyframeSequence should carry the marker name on its Keyframe');
+    assert(named.markers.some((x) => x.name === 'Sound' && x.value === 'step1'), 'KeyframeMarkers should export');
+    const xml = IO.buildKeyframeSequenceXML(data);
+    assert(xml.includes('class="KeyframeMarker"'), 'the XML should contain a real KeyframeMarker instance');
+
+    // Regression: project.markers was originally missing from the undo snapshot, which made
+    // every marker edit silently un-undoable.
+    const before = S.getMarkers(item.id).length;
+    S.addMarker(item.id, 40, { name: 'temp' });
+    S.undo();
+    assert(S.getMarkers(item.id).length === before, 'undo must restore markers');
+    return { markers: S.getMarkers(item.id).length };
+  });
+
+  await step('play range confines playback, clamps, swaps inverted input, and survives undo', async () => {
+    assert(S.playRange().full, 'a fresh project should have no play range');
+    let r = S.setPlayRange(10, 40);
+    assert(r.start === 10 && r.end === 40 && !r.full, 'setPlayRange should store the window');
+    r = S.setPlayRange(50, 20);
+    assert(r.start === 20 && r.end === 50, 'an inverted range should swap rather than invert');
+    r = S.setPlayRange(-5, 99999);
+    assert(r.start === 0 && r.end === S.state.project.length, 'the range should clamp to the project');
+    S.setPlayRange(5, 15);
+    S.undo();
+    assert(S.playRange().full, 'undo must restore the previous play range');
+    S.setPlayRange(null, null);
+    return { cleared: S.playRange().full };
+  });
+
+  await step('wiggle fill stays within its magnitude (it must not compound frame over frame)', async () => {
+    const item = S.state.project.items.find((i) => i.rig);
+    const joint = item.rig.joints.find((j) => j.kind !== 'weld');
+    S.state.project.tracks[item.id][joint.name] = { keys: [] };
+    const I = [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1];
+    S.setKey(item.id, joint.name, 0, I.slice());
+    S.setKey(item.id, joint.name, 8, I.slice());
+    S.fillFrames(item.id, joint.name, 0, 8, 1, { wiggle: { pos: [0, 0, 0], rot: [10, 10, 10], minZero: false } });
+
+    // The original implementation sampled the curve as it wrote, so each frame interpolated
+    // against the keys just written and the jitter compounded well past the requested angle.
+    // Moon reads from a precomputed BufferMap for exactly this reason.
+    for (const k of S.getTrack(item.id, joint.name).keys) {
+      const angs = CF.toEuler(k.v).map((a) => Math.abs((a * 180) / Math.PI));
+      assert(angs.every((a) => a <= 10.001), `wiggle exceeded its 10 degree magnitude: ${angs.join(', ')}`);
+      // and it must stay a valid rotation, or the pose solver corrupts downstream
+      const m = k.v.slice(3);
+      const col = (i) => [m[i], m[i + 3], m[i + 6]];
+      const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      assert(Math.abs(dot(col(0), col(0)) - 1) < 1e-6 && Math.abs(dot(col(0), col(1))) < 1e-6,
+        'a wiggled CFrame must stay orthonormal');
+    }
+
+    // Frame offset shifts keys and markers together.
+    const marker0 = S.getMarkers(item.id)[0];
+    const t0 = marker0 ? marker0.t : null;
+    S.offsetAllFrames(4, { itemId: item.id });
+    if (t0 !== null) assert(!!S.getMarker(item.id, t0 + 4), 'offsetAllFrames should move event markers too');
+    return { keys: S.getTrack(item.id, joint.name).keys.length };
+  });
+
+  await step('property + action tracks: typed evaluation, discrete hold, and Luau export', async () => {
+    const lighting = S.addPropItem({ name: 'Lighting', className: 'Lighting', target: 'Lighting' });
+    assert(Object.keys(S.getTracks(lighting.id)).includes('ClockTime'), 'a prop item should get its class defaults');
+
+    S.setKey(lighting.id, 'ClockTime', 0, 6, { es: 'Linear' });
+    S.setKey(lighting.id, 'ClockTime', 10, 18, { es: 'Linear' });
+    assert(Math.abs(S.evalTrackValue(lighting.id, 'ClockTime', 5) - 12) < 1e-9, 'a number track should lerp');
+
+    S.setKey(lighting.id, 'Ambient', 0, [0, 0, 0], { es: 'Linear' });
+    S.setKey(lighting.id, 'Ambient', 10, [1, 1, 1], { es: 'Linear' });
+    const mid = S.evalTrackValue(lighting.id, 'Ambient', 5);
+    assert(mid.every((c) => Math.abs(c - 0.5) < 1e-9), 'a Color3 track should lerp componentwise');
+
+    // Discrete types hold the earlier value until the next key, then snap (Moon's Discrete tween).
+    S.addPropertyTrack(lighting.id, 'GlobalShadows');
+    S.setKey(lighting.id, 'GlobalShadows', 0, false, { es: 'Linear' });
+    S.setKey(lighting.id, 'GlobalShadows', 10, true, { es: 'Linear' });
+    assert(S.evalTrackValue(lighting.id, 'GlobalShadows', 9) === false, 'a discrete track must hold, not blend');
+    assert(S.evalTrackValue(lighting.id, 'GlobalShadows', 10) === true, 'a discrete track must snap at the next key');
+
+    // Class inheritance is honoured (SpotLight gets Light's properties).
+    const spot = S.addPropItem({ name: 'Lamp', className: 'SpotLight', target: 'Workspace.Lamp.Light' });
+    assert(!!S.addPropertyTrack(spot.id, 'Brightness'), 'SpotLight should inherit Brightness from Light');
+    assert(S.addPropertyTrack(spot.id, 'NotAThing') === null, 'a bogus property must be rejected');
+
+    // Action tracks fire once as playback crosses them.
+    const sound = S.addPropItem({ name: 'Hit', className: 'Sound', target: 'Workspace.Hit', withDefaults: false });
+    S.addActionTrack(sound.id, 'Sound.Play');
+    S.setKey(sound.id, '@act:Sound.Play', 12, true);
+    assert(S.actionEventsBetween(sound.id, 11, 13).length === 1, 'the action key should be found in its crossing window');
+    assert(S.actionEventsBetween(sound.id, 12, 20).length === 0, 'the crossing window must be half-open at the start');
+
+    const items = S.state.project.items.filter((i) => i.kind === 'prop');
+    const lua = IO.buildPropertyScriptLua(IO.buildPropertyScriptData(items));
+    assert(lua.includes('resolve("Lighting")'), 'the generated script should resolve the target path');
+    assert(lua.includes('Color3.new('), 'Color3 values should emit a Color3 constructor');
+    assert(/if fromFrame < 12 and toFrame >= 12 then target\d+:Play\(\) end/.test(lua), 'the action should emit a crossing guard');
+    assert(!/undefined|NaN|\[object/.test(lua), 'generated Luau must never contain undefined/NaN/[object Object]');
+    return { targets: items.length };
+  });
+
+  await step('screen effects render over the viewport and export as a real ScreenGui', async () => {
+    const FX = await import('../renderer/js/screenFx.js');
+    const vig = FX.addScreenEffect('vignette');
+    assert(vig.kind === 'prop' && vig.className === 'ImageLabel', 'a screen effect should be an ordinary prop item');
+    assert(FX.addScreenEffect('vignette').id === vig.id, 'adding the same effect twice should reuse it');
+    FX.addScreenEffect('letterbox');
+    FX.addScreenEffect('cover');
+    const subs = FX.addScreenEffect('subtitles');
+
+    S.setKey(subs.id, 'Text', 0, 'Hello world');
+    S.setKey(subs.id, 'MaxVisibleGraphemes', 0, 5);
+    S.setPlayhead(0);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const layer = document.getElementById('screenFx');
+    assert(layer && layer.children.length >= 4, `the overlay should render every effect, got ${layer?.children.length}`);
+    const sub = [...layer.children].find((c) => c.className === 'fx-subtitles');
+    assert(sub && sub.textContent === 'Hello', `MaxVisibleGraphemes should type the line out, got "${sub?.textContent}"`);
+    // The overlay sits above the 3D canvas -- if it ever caught pointer events, gizmo drags would die.
+    assert(getComputedStyle(layer).pointerEvents === 'none', 'the screen-effect overlay must stay pointer-transparent');
+
+    const lua = IO.buildPropertyScriptLua(IO.buildPropertyScriptData(S.state.project.items.filter((i) => i.kind === 'prop')));
+    assert(lua.includes('Instance.new("ScreenGui")'), 'screen effects should build their own ScreenGui on export');
+    assert(lua.includes('if _built[path] then return _built[path] end'),
+      'instances the script builds live under PlayerGui, so resolve() must check them before walking from game');
+    return { effects: S.state.project.items.filter((i) => i.screenEffect).length };
+  });
+
+  await step('welder joins every loose part once, and is idempotent', async () => {
+    await D.addBuiltinRig('r15');
+    const item = S.state.project.items[S.state.project.items.length - 1];
+    item.rig.joints = [];
+    const created = S.weldAllParts(item.id, { kind: 'weld' });
+    assert(created.length === item.rig.parts.length - 1, `every part but the base should be welded, got ${created.length}`);
+    assert(!item.rig.joints.some((j) => j.part0 === j.part1), 'nothing should be welded to itself');
+    assert(S.weldAllParts(item.id, { kind: 'weld' }).length === 0, 'welding twice must be a no-op, never a duplicate');
+    return { welded: created.length };
+  });
+
   // ---------------------------------------------------------------- wrap up
   const failed = report.steps.filter((s) => !s.ok);
   report.ok = failed.length === 0 && report.consoleErrors.length === 0;

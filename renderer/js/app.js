@@ -11,6 +11,7 @@ import { iconSvg, swapIcon, applyStaticIcons, itemIcon, itemIconSvg } from './ic
 import { STYLES, DIRECTIONS, paramsFor, PARAM_DATA, isDirectional } from './easing.js';
 import * as IO from './io.js';
 import * as PROPS from './propTracks.js';
+import { initScreenFx, addScreenEffect, SCREEN_EFFECTS, SCREEN_EFFECT_KEYS } from './screenFx.js';
 import { validateAnimation } from './validate.js';
 import { initPanels } from './panels.js';
 import { THEMES, ACCENTS, DEFAULT_THEME, DEFAULT_ACCENT, applyTheme, currentTheme } from './themes.js';
@@ -58,6 +59,7 @@ async function boot() {
       wrapEl: document.getElementById('tlCanvasWrap'),
     });
     initCurveEditor();
+    initScreenFx();
     initAudio();
     initPalette();
     registerAllCommands();
@@ -178,8 +180,19 @@ function registerAllCommands() {
   C({ title: 'Set play range…', hint: 'type the start and end frames playback is confined to', section: 'Playback', run: setPlayRangeFlow });
   C({ title: 'Clear play range', hint: 'play the whole animation again', section: 'Playback', run: () => { S.setPlayRange(null, null); toast('Play range cleared'); } });
   C({ title: 'Animate a Roblox object…', hint: 'keyframe any instance property — Lighting, a Sound, a ParticleEmitter, a GUI, a constraint…', section: 'Scene', run: addPropItemFlow });
+  for (const key of SCREEN_EFFECT_KEYS) {
+    C({
+      title: `Add ${SCREEN_EFFECTS[key].label.toLowerCase()}`,
+      hint: 'screen effect — previews over the viewport and exports as a real ScreenGui',
+      section: 'Scene',
+      run: () => { const i = addScreenEffect(key); S.setSelection(i.id, null); toast(`${SCREEN_EFFECTS[key].label} added`); },
+    });
+  }
   C({ title: 'Add a property or event track…', hint: 'to the selected Roblox object item', section: 'Scene', run: () => addPropertyTrackFlow(S.state.selection.itemId) });
   C({ title: 'Export property animation script…', hint: 'Luau that applies every property/event track in Studio', section: 'Export', run: exportPropertyScriptFlow });
+  C({ title: 'Edit selected keyframes…', shortcut: 'Numpad 7', hint: 'set values and easing on every selected keyframe at once', section: 'Animating', run: editSelectedKeyframesFlow });
+  C({ title: 'Keyframe menu', hint: 'the right-click menu for the selected keyframes', section: 'Animating', run: () => { if (!openSelectedKeyMenu()) toast('Select a keyframe first', 'warn'); } });
+  C({ title: 'Weld loose parts…', hint: 'join every unattached part of a rig to its root — Moon\'s Easy Weld', section: 'Scene', run: weldAllPartsFlow });
   C({ title: 'Add event marker at playhead', hint: 'a named event on the selected item\'s timeline — exports as a Roblox keyframe marker', section: 'Animating', run: addMarkerAtPlayheadFlow });
   C({ title: 'Edit event marker…', hint: 'name, length, keyframe markers and Luau for the event at the playhead', section: 'Animating', run: editMarkerAtPlayheadFlow });
   C({ title: 'Toggle "use last ease"', hint: 'new keyframes inherit the easing you last applied instead of the default', section: 'Animating', run: toggleUseLastEasing });
@@ -340,7 +353,9 @@ function wireKeyboard() {
     else if (isDigit(e, 5)) { stop(); exportFlow('studio'); }
     else if (isDigit(e, 0)) { stop(); saveProjectFlow(false); }
     else if (isDigit(e, 8)) { stop(); animationSettingsFlow(); }
-    else if (isDigit(e, 7)) { stop(); if (!openSelectedKeyMenu()) toast('Select a keyframe first', 'warn'); }
+    // Moon's Keypad 7 is "Edit Selection…" (its EditKeyframes_Value window), not the key menu —
+    // right-click still opens the context menu.
+    else if (isDigit(e, 7)) { stop(); editSelectedKeyframesFlow(); }
     else if (isDigit(e, 9)) { stop(); addMenuFlow(); }
     else if (isDigit(e, 2)) { stop(); toggleCollapseAll(); }
     else if (isDigit(e, 3)) { stop(); stretchFramesFlow(); }
@@ -456,6 +471,144 @@ function persistPrefs() {
   settings.useLastEasing = S.state.useLastEasing;
   settings.easeColors = S.state.easeColors;
   window.cadence.setSettings(settings);
+}
+
+// ---- Moon's EditKeyframes_Value: edit every selected keyframe's value at once.
+// Moon shows one editor per value type and marks fields that differ across the selection as
+// "varied"; leaving a varied field alone leaves those keys alone. Same rule here: a blank
+// field means "don't touch", so a mixed selection can be nudged on one axis only.
+async function editSelectedKeyframesFlow() {
+  const keys = S.state.selection.keys;
+  if (!keys.length) { toast('Select some keyframes first', 'warn'); return; }
+  const first = S.getKey(keys[0].itemId, keys[0].track, keys[0].t);
+  if (!first) { toast('Those keyframes no longer exist', 'warn'); return; }
+  const type = S.trackValueType(keys[0].itemId, keys[0].track);
+  const mixed = keys.some((k) => S.trackValueType(k.itemId, k.track) !== type);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'prop-add';
+  const mk = (label, el) => {
+    const l = document.createElement('label');
+    l.className = 'fld-label';
+    l.textContent = label;
+    wrap.append(l, el);
+    return el;
+  };
+  const info = document.createElement('p');
+  info.className = 'fld-note';
+  info.textContent = mixed
+    ? `${keys.length} keyframes across different value types — only easing can be set for all of them.`
+    : `${keys.length} keyframe${keys.length > 1 ? 's' : ''} · ${type}. Leave a field blank to leave it unchanged.`;
+  wrap.appendChild(info);
+
+  const txt = (ph) => Object.assign(document.createElement('input'), { className: 'fld', type: 'text', placeholder: ph, value: '' });
+  let posIn = null, rotIn = null, numIn = null, vecIn = null, strIn = null;
+  let relative = null;
+  if (!mixed) {
+    if (type === 'CFrame') {
+      posIn = ['X', 'Y', 'Z'].map(() => txt('unchanged'));
+      const pw = document.createElement('div'); pw.className = 'vec-row'; posIn.forEach((i) => pw.appendChild(i));
+      mk('Position (studs)', pw);
+      rotIn = ['X', 'Y', 'Z'].map(() => txt('unchanged'));
+      const rw = document.createElement('div'); rw.className = 'vec-row'; rotIn.forEach((i) => rw.appendChild(i));
+      mk('Rotation (degrees)', rw);
+      const relRow = document.createElement('label');
+      relRow.className = 'check-row';
+      relative = Object.assign(document.createElement('input'), { type: 'checkbox' });
+      relRow.append(relative, document.createTextNode(' Treat these as offsets to add, not absolute values'));
+      wrap.appendChild(relRow);
+    } else if (PROPS.tweenOf(type) === 'number') {
+      numIn = mk('Value', txt(String(first.v ?? 0)));
+      const relRow = document.createElement('label');
+      relRow.className = 'check-row';
+      relative = Object.assign(document.createElement('input'), { type: 'checkbox' });
+      relRow.append(relative, document.createTextNode(' Treat as an offset to add'));
+      wrap.appendChild(relRow);
+    } else if (['Color3', 'Vector2', 'Vector3', 'NumberRange'].includes(type)) {
+      const n = type === 'Vector2' || type === 'NumberRange' ? 2 : 3;
+      vecIn = Array.from({ length: n }, () => txt('unchanged'));
+      const vw = document.createElement('div'); vw.className = 'vec-row'; vecIn.forEach((i) => vw.appendChild(i));
+      mk(type === 'Color3' ? 'Color (r, g, b — 0 to 1)' : 'Value', vw);
+    } else {
+      strIn = mk('Value', txt(String(first.v ?? '')));
+    }
+  }
+
+  const styleSel = document.createElement('select');
+  styleSel.className = 'fld';
+  styleSel.add(new Option('(leave unchanged)', ''));
+  for (const s of STYLES) styleSel.add(new Option(s, s));
+  mk('Easing style', styleSel);
+  const dirSel = document.createElement('select');
+  dirSel.className = 'fld';
+  dirSel.add(new Option('(leave unchanged)', ''));
+  for (const d of DIRECTIONS) dirSel.add(new Option(d, d));
+  mk('Easing direction', dirSel);
+
+  modal({
+    title: 'Edit keyframes',
+    body: wrap,
+    actions: [
+      { label: 'Cancel' },
+      {
+        label: 'Apply', primary: true, run: () => {
+          const parse = (el) => { const s = el.value.trim(); if (!s) return null; const n = parseFloat(s); return Number.isFinite(n) ? n : null; };
+          S.pushUndo();
+          const rel = !!relative?.checked;
+          for (const ref of keys) {
+            const k = S.getKey(ref.itemId, ref.track, ref.t);
+            if (!k) continue;
+            if (posIn || rotIn) {
+              const cur = k.v;
+              const [rx, ry, rz] = CF.toEuler(cur).map((r) => (r * 180) / Math.PI);
+              const px = parse(posIn[0]), py = parse(posIn[1]), pz = parse(posIn[2]);
+              const ax = parse(rotIn[0]), ay = parse(rotIn[1]), az = parse(rotIn[2]);
+              const nx = px == null ? cur[0] : (rel ? cur[0] + px : px);
+              const ny = py == null ? cur[1] : (rel ? cur[1] + py : py);
+              const nz = pz == null ? cur[2] : (rel ? cur[2] + pz : pz);
+              const nrx = ax == null ? rx : (rel ? rx + ax : ax);
+              const nry = ay == null ? ry : (rel ? ry + ay : ay);
+              const nrz = az == null ? rz : (rel ? rz + az : az);
+              const next = CF.fromEuler((nrx * Math.PI) / 180, (nry * Math.PI) / 180, (nrz * Math.PI) / 180);
+              S.setKey(ref.itemId, ref.track, ref.t, CF.setPosition(next, nx, ny, nz), { noUndo: true });
+            } else if (numIn) {
+              const n = parse(numIn);
+              if (n != null) S.setKey(ref.itemId, ref.track, ref.t, rel ? (k.v || 0) + n : n, { noUndo: true });
+            } else if (vecIn) {
+              const cur = Array.isArray(k.v) ? k.v.slice() : vecIn.map(() => 0);
+              vecIn.forEach((el, i) => { const n = parse(el); if (n != null) cur[i] = n; });
+              S.setKey(ref.itemId, ref.track, ref.t, cur, { noUndo: true });
+            } else if (strIn && strIn.value.trim()) {
+              S.setKey(ref.itemId, ref.track, ref.t, strIn.value, { noUndo: true });
+            }
+          }
+          if (styleSel.value || dirSel.value) {
+            S.setEasing(keys, styleSel.value || null, dirSel.value || null, undefined, { noUndo: true });
+          }
+          S.emit('tracks', {});
+          toast(`Updated ${keys.length} keyframe${keys.length > 1 ? 's' : ''}`);
+        },
+      },
+    ],
+  });
+}
+
+// Moon's Welder ("Easy Weld") — weld every loose part of a rig to one base part at once.
+async function weldAllPartsFlow() {
+  const itemId = S.state.selection.itemId;
+  const item = itemId ? S.getItem(itemId) : null;
+  if (!item || !item.rig) { toast('Select a rig first', 'warn'); return; }
+  const pick = await chooseModal({
+    title: `Weld loose parts of ${item.name}`,
+    options: [
+      { id: 'weld', label: 'Rigid welds', desc: 'parts are locked to the base part — Moon\'s default', icon: '🔩' },
+      { id: 'motor', label: 'Animatable Motor6Ds', desc: 'each part gets its own timeline track', icon: '🎚' },
+    ],
+  });
+  if (!pick) return;
+  const created = S.weldAllParts(itemId, { kind: pick });
+  refreshInstance(itemId);
+  toast(created.length ? `Welded ${created.length} part${created.length > 1 ? 's' : ''}` : 'Every part was already joined');
 }
 
 // ---- Roblox property items (Moon's "add any instance to the timeline")
@@ -2326,10 +2479,14 @@ async function addMenuFlow() {
       { id: 'vfx', label: 'VFX emitter', desc: 'particle emitter — rate/lifetime/speed tracks', icon: '✨' },
       { id: 'audio', label: 'Audio track…', desc: 'waveform + scrubbing', icon: '🔊' },
       { id: 'prop', label: 'Roblox object…', desc: 'animate any instance property — Lighting, a Sound, a ParticleEmitter, a GUI…', icon: '🎛' },
+      ...SCREEN_EFFECT_KEYS.map((k) => ({ id: 'fx:' + k, label: SCREEN_EFFECTS[k].label, desc: 'screen effect', icon: '🎬' })),
     ],
   });
   if (!pick) return;
-  if (pick === 'prop') addPropItemFlow();
+  if (pick.startsWith('fx:')) {
+    const item = addScreenEffect(pick.slice(3));
+    S.setSelection(item.id, null);
+  } else if (pick === 'prop') addPropItemFlow();
   else if (pick === 'avatar') addAvatarFlow();
   else if (pick === 'studio') addFromStudioSelection();
   else if (pick === 'asset') addByAssetIdFlow();
@@ -3201,6 +3358,14 @@ const MCP_HANDLERS = {
     return { ok: true, tracks: Object.keys(S.getTracks(itemId)) };
   },
   remove_track: ({ itemId, track }) => ({ ok: S.removeTrack(itemId, track) }),
+  weld_all_parts: ({ itemId, kind, basePartId }) => ({
+    created: S.weldAllParts(itemId, { kind: kind || 'weld', basePartId: basePartId || null }),
+  }),
+  add_screen_effect: ({ effect }) => {
+    const item = addScreenEffect(effect);
+    if (!item) throw new Error(`Unknown screen effect ${effect} — expected one of ${SCREEN_EFFECT_KEYS.join(', ')}`);
+    return { item: { id: item.id, name: item.name, className: item.className, screenEffect: item.screenEffect }, tracks: Object.keys(S.getTracks(item.id)) };
+  },
   export_property_script: ({ itemIds }) => {
     const items = S.state.project.items.filter((i) => i.kind === 'prop' && (!itemIds || itemIds.includes(i.id)));
     const data = IO.buildPropertyScriptData(items);

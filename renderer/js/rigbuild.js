@@ -723,6 +723,36 @@ export class RigInstance {
 }
 
 // Camera items get a small visible camera body + a real PerspectiveCamera
+// An item with nothing to draw in the 3D viewport — currently `prop` items, which drive
+// properties on a Roblox instance that lives in the user's game, and the screen effects, which
+// render through the DOM overlay in screenFx.js instead.
+//
+// This exists so `makeInstance` never falls through to RigInstance for a rig-less item: doing so
+// threw on `item.rig.parts` on every single animation frame, silently spamming the console and
+// stalling anything watching for a clean run. Every method the viewport calls on an instance is
+// answered here with a harmless no-op or an identity value.
+export class NullInstance {
+  constructor(item) {
+    this.item = item;
+    this.group = new THREE.Group(); // never added to the scene — nothing to render
+    this.parts = new Map();
+    this.handles = null;
+    this.world = CF.IDENTITY.slice();
+  }
+  computeWorld() { }
+  solvePoseWorlds() { return new Map(); }
+  partWorld() { return CF.IDENTITY.slice(); }
+  jointPivotWorld() { return null; }
+  originForWorld(world) { return world; }
+  transformForWorld() { return CF.IDENTITY.slice(); }
+  setHighlight() { }
+  setHandlesVisible() { }
+  setHandleSize() { }
+  setBodyVisible() { }
+  setFrustumVisible() { }
+  dispose() { }
+}
+
 export class CameraInstance {
   constructor(item, scene) {
     this.item = item;

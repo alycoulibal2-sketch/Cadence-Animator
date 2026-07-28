@@ -274,6 +274,20 @@ server.tool(
   async ({ itemId, track }) => { try { return textResult(await call('remove_track', { itemId, track })); } catch (e) { return errorResult(e); } },
 );
 server.tool(
+  'weld_all_parts', 'Join every unattached part of a rig to one base part in a single call (Moon\'s "Easy Weld"). Parts that already have a joint are skipped, so running it twice is safe. Use kind "motor" to get animatable Motor6Ds with their own timeline tracks instead of rigid welds.',
+  {
+    itemId: z.string(),
+    kind: z.enum(['weld', 'motor']).optional().describe('rigid weld (default) or animatable Motor6D'),
+    basePartId: z.string().optional().describe('part id or name to weld everything to; defaults to the rig root'),
+  },
+  async (a) => { try { return textResult(await call('weld_all_parts', a)); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'add_screen_effect', 'Add one of Moon\'s screen effects — a vignette, letterboxing bars, a full-screen cover (for fades) or subtitles. Each becomes a keyframeable item that previews over the viewport and exports as a real ScreenGui. Subtitles animate Text plus MaxVisibleGraphemes, which types the line out character by character.',
+  { effect: z.enum(['vignette', 'letterbox', 'cover', 'subtitles']) },
+  async ({ effect }) => { try { return textResult(await call('add_screen_effect', { effect })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
   'export_property_script', 'Generate the self-contained Luau script that reproduces every property and action track in Studio. Property values are baked per frame with easing already applied; actions fire once as playback crosses them.',
   { itemIds: z.array(z.string()).optional().describe('limit to these Roblox object items; omit for all of them') },
   async ({ itemIds }) => { try { return textResult(await call('export_property_script', { itemIds })); } catch (e) { return errorResult(e); } },

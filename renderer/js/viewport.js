@@ -6,7 +6,7 @@ import { OrbitControls } from '../vendor/three/OrbitControls.js';
 import { TransformControls } from '../vendor/three/TransformControls.js';
 import * as CF from './cf.js';
 import * as S from './state.js';
-import { RigInstance, CameraInstance, VfxInstance, EffectInstance, PART_GAP_SCALE, updateEdgeResolution } from './rigbuild.js';
+import { RigInstance, CameraInstance, VfxInstance, EffectInstance, NullInstance, PART_GAP_SCALE, updateEdgeResolution } from './rigbuild.js';
 import { viewportPalette } from './themes.js';
 import { buildChain, solveIK } from './ik.js';
 import { sampleParticles } from './vfx.js';
@@ -395,6 +395,11 @@ function makeInstance(item) {
   if (item.kind === 'camera') return new CameraInstance(item, viewport.scene);
   if (item.kind === 'vfx') return new VfxInstance(item, viewport.scene);
   if (item.kind === 'effect') return new EffectInstance(item, viewport.scene);
+  // A `prop` item drives properties on a Roblox instance that lives in the user's game, not in
+  // this viewport — there is nothing to build. Screen effects render through the DOM overlay in
+  // screenFx.js instead. Anything without a rig gets the same treatment rather than falling
+  // through to RigInstance, which would throw on `item.rig.parts` every frame.
+  if (item.kind === 'prop' || !item.rig) return new NullInstance(item);
   return new RigInstance(item, viewport.scene, {
     onMeshError: (def, kind, reason) => S.emit('mesh-error', { itemId: item.id, itemName: item.name, partName: def.name, kind, reason }),
   });
@@ -519,6 +524,10 @@ function applyOrigin(item, inst, origin, t) {
     const docFrame = S.effectDocFrame(item, Math.round(t));
     const sample = docFrame < 0 ? null : sampleEffect(doc, docFrame, { origin, resolveOrigin: resolveOriginAt });
     inst.computeWorld(origin, sample);
+  } else if (item.kind === 'prop') {
+    // Nothing to draw: a prop item's target lives in the user's Roblox game, and the screen
+    // effects render through the DOM overlay in screenFx.js. Return before the pose solve so
+    // it does not run every frame for an item that has no rig to pose.
   } else {
     const pose = S.evalPose(item, t);
     const overlay = viewport.overlayPose.get(item.id);

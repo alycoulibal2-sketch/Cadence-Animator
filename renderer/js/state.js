@@ -1309,6 +1309,46 @@ export function addJoint(itemId, { name, kind, part0, part1 }) {
   return joint;
 }
 
+// Moon's Welder ("Easy Weld") — its "Weld Model" button joins every loose part of a model to
+// one base part in a single action, rather than making you pick pairs one at a time.
+// `kind: 'motor'` produces animatable Motor6Ds instead of rigid Welds, matching Moon's
+// "Animatable" checkbox.
+export function weldAllParts(itemId, { kind = 'weld', basePartId = null } = {}) {
+  const item = getItem(itemId);
+  if (!item || !item.rig) throw new Error('No rig on that item');
+  const rig = item.rig;
+  const base = rig.parts.find((p) => p.id === basePartId || p.name === basePartId) || rig.parts.find((p) => p.id === rig.rootPart);
+  if (!base) throw new Error('No base part to weld to');
+
+  // Anything already joined to something is left alone — Moon skips existing joints too, so
+  // running this twice is safe and never duplicates a joint.
+  const alreadyJoined = new Set();
+  for (const j of rig.joints || []) alreadyJoined.add(j.part1);
+
+  const created = [];
+  pushUndo();
+  rig.joints = rig.joints || [];
+  for (const p of rig.parts) {
+    if (p.id === base.id || alreadyJoined.has(p.id)) continue;
+    const name = uniqueJointName(rig, `${p.name}Weld`);
+    const joint = { name, part0: base.id, part1: p.id, c0: CF.mul(CF.inverse(base.cf), p.cf), c1: CF.IDENTITY.slice() };
+    if (kind === 'weld') joint.kind = 'weld';
+    rig.joints.push(joint);
+    created.push(name);
+  }
+  emit('items');
+  markDirty();
+  return created;
+}
+
+function uniqueJointName(rig, base) {
+  const taken = new Set((rig.joints || []).map((j) => j.name));
+  if (!taken.has(base)) return base;
+  let i = 2;
+  while (taken.has(`${base}#${i}`)) i++;
+  return `${base}#${i}`;
+}
+
 export function removeJoint(itemId, jointName) {
   const item = getItem(itemId);
   if (!item || !item.rig) throw new Error('No rig on that item');

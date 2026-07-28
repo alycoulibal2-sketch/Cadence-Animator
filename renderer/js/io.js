@@ -5,6 +5,7 @@ import * as S from './state.js';
 import { needsBaking, evalSegment } from './easing.js';
 import { getInstance } from './viewport.js';
 import * as PROPS from './propTracks.js';
+import { buildScreenFxPreambleLua } from './screenFx.js';
 
 // ---------------------------------------------------------------- XML (.rbxmx)
 export function parseRbxmx(text) {
@@ -874,9 +875,14 @@ export function buildPropertyScriptLua(data, opts = {}) {
   L.push(`local LAST_FRAME = ${data.end}`);
   L.push('local AUTOPLAY = true');
   L.push('');
-  // Paths resolve leniently: a missing instance disables only its own tracks rather than
-  // erroring out and taking the whole animation down with it.
+  // Instances this script builds itself (screen effects) register here, because they live under
+  // PlayerGui rather than anywhere reachable by a path walk from `game`.
+  L.push('local _built = {}');
+  L.push('');
+  // Everything else resolves leniently: a missing instance disables only its own tracks rather
+  // than erroring out and taking the whole animation down with it.
   L.push('local function resolve(path)');
+  L.push('\tif _built[path] then return _built[path] end');
   L.push('\tlocal node = game');
   L.push('\tfor part in string.gmatch(path, "[^%.]+") do');
   L.push('\t\tif node == game then');
@@ -898,6 +904,11 @@ export function buildPropertyScriptLua(data, opts = {}) {
   L.push('\treturn t >= 1 and b or a -- discrete: hold the earlier value until the next key');
   L.push('end');
   L.push('');
+
+  // Screen-effect items are the one case where the target instance does not already exist in
+  // the game — build the ScreenGui first, then the generic resolve() below finds it by path.
+  const preamble = buildScreenFxPreambleLua(data.targets.map((t) => t.item));
+  if (preamble) { L.push(preamble); }
 
   data.targets.forEach((t, ti) => {
     const v = `target${ti}`;
