@@ -351,7 +351,11 @@ export function neutralAnimFromTree(ksNode) {
       }
     };
     walkPose(kf);
-    keyframes.push({ time, poses });
+    // KeyframeMarkers + a non-default Keyframe name come back as a Cadence event marker.
+    const markers = kf.children
+      .filter((c) => c.className === 'KeyframeMarker')
+      .map((c) => ({ name: c.name, value: prop(c, 'Value') ?? '' }));
+    keyframes.push({ time, poses, name: kf.name, markers });
   }
   keyframes.sort((a, b) => a.time - b.time);
   const pr = prop(ksNode, 'Priority');
@@ -403,6 +407,21 @@ export function applyAnimationToItem(item, anim, opts = {}) {
       added++;
     }
   }
+  // Event markers: a keyframe carrying KeyframeMarkers, or named anything other than the
+  // default "Keyframe", round-trips back into the item's Events lane.
+  let markersAdded = 0;
+  for (const kf of anim.keyframes) {
+    const named = kf.name && kf.name !== 'Keyframe';
+    if (!named && !(kf.markers && kf.markers.length)) continue;
+    const t = Math.round(kf.time * fps);
+    const kfMap = {};
+    for (const mk of kf.markers || []) kfMap[mk.name] = mk.value;
+    const existing = S.getMarker(item.id, t);
+    if (existing) S.setMarker(item.id, t, { name: named ? kf.name : existing.name, kf: { ...existing.kf, ...kfMap } });
+    else S.addMarker(item.id, t, { name: named ? kf.name : '', kf: kfMap });
+    markersAdded++;
+  }
+
   if (anim.keyframes.length) {
     const endT = Math.max(...anim.keyframes.map((k) => k.time)) * fps;
     if (endT > S.state.project.length) {
@@ -412,7 +431,7 @@ export function applyAnimationToItem(item, anim, opts = {}) {
   }
   if (!opts.silent) S.emit('tracks', {});
   S.markDirty();
-  return { added, skipped, tracks: raw.size };
+  return { added, skipped, tracks: raw.size, markers: markersAdded };
 }
 
 // ---------------------------------------------------------------- unparented (world-space) export
@@ -482,7 +501,7 @@ export function buildExportData(item, opts = {}) {
       if (next && needsBaking(k)) {
         const step = Math.max(1, Math.round(opts.bakeStep || 1));
         for (let f = Math.ceil(k.t) + step; f < next.t; f += step) {
-          const alpha = evalSegment(k, (f - k.t) / (next.t - k.t));
+          const alpha = evalSegment(k, (f - k.t) / (next.t - k.t), next.t - k.t);
           keys.push({ t: f, cf: CF.lerp(k.v, next.v, alpha), es: 'Linear', ed: 'Out', baked: true });
         }
         // the original key's own easing becomes Linear once baked
@@ -494,12 +513,26 @@ export function buildExportData(item, opts = {}) {
   }
 
   // 2. union of times → keyframes with sparse poses
+  // Event markers contribute their own times too: a Roblox Keyframe is the only thing that can
+  // carry a name or a KeyframeMarker, so a marker sitting where no joint is keyed still needs
+  // one to exist. Those pose-less keyframes are kept in step 4's filter.
+  const markers = S.getMarkers(item.id);
   const times = new Set();
   for (const [, keys] of baked) for (const k of keys) times.add(Math.round(k.t * 1e6) / 1e6);
+  for (const m of markers) times.add(Math.round(m.t * 1e6) / 1e6);
   const sortedTimes = [...times].sort((a, b) => a - b);
 
-  const keyframes = sortedTimes.map((t) => ({ time: t / fps, poses: [] }));
+  const keyframes = sortedTimes.map((t) => ({ time: t / fps, poses: [], name: 'Keyframe', markers: [] }));
   const timeIndex = new Map(sortedTimes.map((t, i) => [t, i]));
+
+  for (const m of markers) {
+    const idx = timeIndex.get(Math.round(m.t * 1e6) / 1e6);
+    if (idx === undefined) continue;
+    // Roblox fires KeyframeReached with the Keyframe's Name, so a named marker becomes the
+    // keyframe name; its kf entries become child KeyframeMarker instances.
+    if (m.name) keyframes[idx].name = m.name;
+    for (const [k, v] of Object.entries(m.kf || {})) keyframes[idx].markers.push({ name: k, value: String(v) });
+  }
 
   for (const [joint, keys] of baked) {
     const part = partNameByJoint.get(joint);
@@ -535,7 +568,8 @@ export function buildExportData(item, opts = {}) {
     fps,
     rootPart: rootPartName,
     parentByPart,
-    keyframes: keyframes.filter((kf) => kf.poses.length),
+    // keep pose-less keyframes only when they actually carry an event (a name or a marker)
+    keyframes: keyframes.filter((kf) => kf.poses.length || kf.markers.length || kf.name !== 'Keyframe'),
   };
 }
 
@@ -565,9 +599,17 @@ export function buildKeyframeSequenceXML(data) {
 
   for (const kf of data.keyframes) {
     lines.push(`<Item class="Keyframe" referent="${ref()}"><Properties>` +
-      `<string name="Name">Keyframe</string>` +
+      `<string name="Name">${esc(kf.name || 'Keyframe')}</string>` +
       `<float name="Time">${kf.time}</float>` +
       `</Properties>`);
+    // Event markers ride along as KeyframeMarker children — Roblox fires
+    // AnimationTrack:GetMarkerReachedSignal(name) for each one.
+    for (const mk of kf.markers || []) {
+      lines.push(`<Item class="KeyframeMarker" referent="${ref()}"><Properties>` +
+        `<string name="Name">${esc(mk.name)}</string>` +
+        `<string name="Value">${esc(mk.value)}</string>` +
+        `</Properties></Item>`);
+    }
 
     // build nested pose tree: chain every posed part up to the root
     const posed = new Map(kf.poses.map((p) => [p.part, p]));

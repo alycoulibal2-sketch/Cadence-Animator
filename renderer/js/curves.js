@@ -1,10 +1,10 @@
 // Interactive curve editor: named easings + draggable cubic-bezier handles.
 import * as S from './state.js';
-import { STYLES, DIRECTIONS, BEZIER_PRESETS, evalSegment } from './easing.js';
+import { STYLES, DIRECTIONS, BEZIER_PRESETS, evalSegment, paramsFor, PARAM_DATA, isDirectional } from './easing.js';
 
 const cv = {
   panel: null, canvas: null, ctx: null,
-  styleSel: null, dirSel: null, presetWrap: null,
+  styleSel: null, dirSel: null, presetWrap: null, paramWrap: null,
   drag: null, // 'p1' | 'p2'
 };
 
@@ -19,6 +19,17 @@ function firstSelectedKey() {
   return k ? { ref, key: k } : null;
 }
 
+// How many frames the selected key's outgoing segment spans. Elastic's Period is
+// frame-relative (Moon marks it frame_relative), so the preview has to be drawn against the
+// real segment length or it would not match what playback actually does.
+function segmentFrames(ref) {
+  if (!ref) return 1;
+  const tr = S.getTrack(ref.itemId, ref.track);
+  if (!tr) return 1;
+  const next = tr.keys.find((k) => k.t > ref.t + 1e-6);
+  return next ? next.t - ref.t : 1;
+}
+
 export function initCurveEditor() {
   cv.panel = document.getElementById('curvePanel');
   cv.canvas = document.getElementById('curveCanvas');
@@ -26,6 +37,7 @@ export function initCurveEditor() {
   cv.styleSel = document.getElementById('curveStyle');
   cv.dirSel = document.getElementById('curveDir');
   cv.presetWrap = document.getElementById('curvePresets');
+  cv.paramWrap = document.getElementById('curveParams');
 
   for (const s of STYLES) cv.styleSel.add(new Option(s, s));
   for (const d of DIRECTIONS) cv.dirSel.add(new Option(d, d));
@@ -55,11 +67,47 @@ export function initCurveEditor() {
   ['selection', 'tracks'].forEach((ev) => S.on(ev, drawSoon));
 }
 
-function applyToSelection(es, ed, bez) {
+function applyToSelection(es, ed, bez, ep) {
   const sel = S.state.selection.keys;
   if (!sel.length) return;
-  S.setEasing(sel, es, ed, bez);
+  S.setEasing(sel, es, ed, bez, ep === undefined ? {} : { ep });
+  syncParamInputs();
   drawSoon();
+}
+
+// Rebuild the extra numeric inputs a style exposes (Back → Overshoot, Elastic → Amplitude +
+// Period). Built via the CSSOM rather than an innerHTML string with inline style/onclick
+// attributes — the app's CSP silently drops those, which has bitten this codebase repeatedly.
+function syncParamInputs() {
+  if (!cv.paramWrap) return;
+  cv.paramWrap.replaceChildren();
+  const found = firstSelectedKey();
+  if (!found) return;
+  const { key } = found;
+  if (key.bez) return; // a custom bezier has no named-style parameters
+  const names = paramsFor(key.es);
+  for (const name of names) {
+    const meta = PARAM_DATA[name];
+    const wrap = document.createElement('label');
+    wrap.className = 'curve-param';
+    const span = document.createElement('span');
+    span.textContent = name;
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.className = 'fld slim';
+    inp.step = String(meta.inc);
+    inp.value = String(key.ep?.[name] ?? meta.default);
+    inp.addEventListener('change', () => {
+      const v = parseFloat(inp.value);
+      if (!Number.isFinite(v)) { inp.value = String(key.ep?.[name] ?? meta.default); return; }
+      const cur = firstSelectedKey();
+      const next = { ...(cur?.key.ep || {}) };
+      next[name] = v;
+      applyToSelection(null, null, undefined, next);
+    });
+    wrap.append(span, inp);
+    cv.paramWrap.appendChild(wrap);
+  }
 }
 
 export function openCurveEditor() {
@@ -121,9 +169,13 @@ function draw() {
     ctx.globalAlpha = 1;
     return;
   }
-  const { key } = found;
+  const { key, ref } = found;
   cv.styleSel.value = key.es || 'Linear';
   cv.dirSel.value = key.ed || 'Out';
+  // Linear/Constant take no direction — Moon greys the control out rather than implying one.
+  cv.dirSel.disabled = !isDirectional(key.es);
+  syncParamInputs();
+  const segFrames = segmentFrames(ref);
 
   // grid
   ctx.strokeStyle = ink;
@@ -159,7 +211,7 @@ function draw() {
   ctx.beginPath();
   for (let i = 0; i <= 120; i++) {
     const t = i / 120;
-    const v = evalSegment(key, t);
+    const v = evalSegment(key, t, segFrames);
     if (i === 0) ctx.moveTo(X(t, w), Y(v, h));
     else ctx.lineTo(X(t, w), Y(v, h));
   }

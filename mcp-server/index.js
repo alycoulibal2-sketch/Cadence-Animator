@@ -180,6 +180,47 @@ server.tool(
   async ({ keys, factor }) => { try { return textResult(await call('stretch_frames', { keys, factor })); } catch (e) { return errorResult(e); } },
 );
 
+// ---------------------------------------------------------------- event markers
+const markerRefSchema = z.object({ itemId: z.string(), t: z.number() });
+server.tool(
+  'list_markers', 'List an item\'s event markers — the labelled bars on its timeline "Events" lane. Each marker exports as a named Roblox Keyframe plus any KeyframeMarker children.',
+  { itemId: z.string() },
+  async ({ itemId }) => { try { return textResult(await call('list_markers', { itemId })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'add_marker', 'Add an event marker to an item\'s Events lane at frame `t`. Use these to mark footsteps, hit frames, sound cues — anything gameplay code should react to. `kf` entries become Roblox KeyframeMarkers, which fire AnimationTrack:GetMarkerReachedSignal(name) in-game.',
+  {
+    itemId: z.string(),
+    t: z.number().describe('start frame'),
+    name: z.string().optional().describe('label; also becomes the exported Roblox Keyframe name, which KeyframeReached fires with'),
+    width: z.number().optional().describe('length in frames (0 = a single-frame event)'),
+    codeBegin: z.string().optional().describe('Luau to run at the start — stored and exported, never executed by Cadence itself'),
+    codeEnd: z.string().optional().describe('Luau to run at the end — stored and exported, never executed by Cadence itself'),
+    kf: z.record(z.string()).optional().describe('{name: value} pairs exported as Roblox KeyframeMarker instances'),
+  },
+  async (a) => { try { return textResult(await call('add_marker', a)); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'set_marker', 'Update an existing event marker (identified by its item and start frame). Only the fields you pass are changed.',
+  {
+    itemId: z.string(), t: z.number(),
+    name: z.string().optional(), width: z.number().optional(),
+    codeBegin: z.string().optional(), codeEnd: z.string().optional(),
+    kf: z.record(z.string()).optional(),
+  },
+  async (a) => { try { return textResult(await call('set_marker', a)); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'delete_markers', 'Delete event markers.',
+  { markers: z.array(markerRefSchema) },
+  async ({ markers }) => { try { return textResult(await call('delete_markers', { markers })); } catch (e) { return errorResult(e); } },
+);
+server.tool(
+  'move_markers', 'Shift event markers along the timeline by `dt` frames.',
+  { markers: z.array(markerRefSchema), dt: z.number() },
+  async ({ markers, dt }) => { try { return textResult(await call('move_markers', { markers, dt })); } catch (e) { return errorResult(e); } },
+);
+
 server.tool(
   'get_pose', 'Get the exact world-space CFrame of every part of a rig at a given frame, without touching the app\'s current display. This is the precise numeric alternative to eyeballing a screenshot — use it to check exact positions, detect clipping, or verify a pose before/after an edit.',
   { itemId: z.string(), frame: z.number() },
@@ -279,8 +320,17 @@ server.tool(
 );
 server.tool(
   'set_easing', 'Bulk-set the easing style/direction on a list of keyframes at once — e.g. set them all to Constant for a stop-motion/stepped look (the app\'s one-click "Stop Motion" is exactly this).',
-  { keys: z.array(keyRefSchema), es: z.string().optional().describe('Linear, Constant, Sine, Quad, Cubic, Quart, Quint, Exponential, Circular, Back, Elastic, Bounce'), ed: z.enum(['In', 'Out', 'InOut']).optional() },
-  async ({ keys, es, ed }) => { try { return textResult(await call('set_easing', { keys, es, ed })); } catch (e) { return errorResult(e); } },
+  {
+    keys: z.array(keyRefSchema),
+    es: z.string().optional().describe('Linear, Constant, Sine, Quad, Cubic, Quart, Quint, Sextic, Exponential, Circular, Back, Elastic, Bounce'),
+    ed: z.enum(['In', 'Out', 'InOut', 'OutIn']).optional(),
+    ep: z.object({
+      Overshoot: z.number().optional().describe('Back only — how far past the target it swings (default 1.70158)'),
+      Amplitude: z.number().optional().describe('Elastic only — oscillation size (default 1)'),
+      Period: z.number().optional().describe('Elastic only — oscillation wavelength in frames (default 0.3)'),
+    }).optional().describe('Extra parameters for the styles that take them; omitted params fall back to the style default'),
+  },
+  async ({ keys, es, ed, ep }) => { try { return textResult(await call('set_easing', { keys, es, ed, ep })); } catch (e) { return errorResult(e); } },
 );
 
 // ---------------------------------------------------------------- resize

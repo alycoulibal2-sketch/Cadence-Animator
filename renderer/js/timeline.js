@@ -1,8 +1,8 @@
 // Timeline: track list + dope sheet canvas + scrubber + audio waveform lane.
 import * as S from './state.js';
-import { STYLES, DIRECTIONS } from './easing.js';
+import { STYLES, DIRECTIONS, easeColor } from './easing.js';
 import { getWaveformSlice, hasAudio, setAudioOffset, renameAudio } from './audio.js';
-import { showContextMenu, promptModal } from './ui.js';
+import { showContextMenu, promptModal, modal, toast } from './ui.js';
 import { openCurveEditor } from './curves.js';
 import { iconSvg, itemIconSvg } from './icons.js';
 
@@ -53,7 +53,7 @@ export function initTimeline({ listEl, canvasEl, wrapEl }) {
     tl.needsDraw = true;
   });
 
-  ['tracks', 'items', 'selection', 'project', 'overlay', 'project-props', 'audio', 'groups', 'theme'].forEach((ev) =>
+  ['tracks', 'items', 'selection', 'project', 'overlay', 'project-props', 'audio', 'groups', 'markers', 'theme'].forEach((ev) =>
     S.on(ev, () => { rebuildRows(); tl.needsDraw = true; }));
   S.on('playhead', () => { tl.needsDraw = true; ensurePlayheadVisible(); });
 
@@ -81,6 +81,8 @@ function rebuildRows() {
     if (item.kind === 'camera' && !S.state.cameraTracksVisible) continue;
     tl.rows.push({ kind: 'item', itemId: item.id, label: item.name });
     if (tl.collapsed.has(item.id)) continue;
+    // Moon gives every item an "Events" lane (its MarkerTrack) above the property tracks.
+    tl.rows.push({ kind: 'events', itemId: item.id, label: 'Events', depth: 1 });
     tl.rows.push({ kind: 'track', itemId: item.id, track: '@origin', label: item.kind === 'camera' ? 'Camera Position' : item.kind === 'vfx' ? 'Emitter Position' : item.kind === 'effect' ? 'Effect Position' : 'Rig Origin', depth: 1 });
     if (item.kind === 'camera') {
       tl.rows.push({ kind: 'track', itemId: item.id, track: '@fov', label: 'Field of View', depth: 1 });
@@ -152,6 +154,24 @@ function renderList() {
       });
       const isSelTrack = sel.itemId === row.itemId && trackForSelection() === row.track;
       if (isSelTrack) div.classList.add('selected');
+    } else if (row.kind === 'events') {
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = row.label;
+      div.appendChild(name);
+      div.style.paddingLeft = '26px';
+      div.title = 'Double-click the lane to add an event marker';
+      const add = document.createElement('button');
+      add.className = 'tl-row-btn';
+      add.textContent = '+';
+      add.title = 'Add an event marker at the playhead';
+      add.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const m = S.addMarker(row.itemId, Math.round(S.state.playhead));
+        if (m) { S.setSelectedMarkers([{ itemId: row.itemId, t: m.t }]); openMarkerEditor(row.itemId, m.t); }
+        else toast('There is already an event at this frame', 'warn');
+      });
+      div.appendChild(add);
     } else if (row.kind === 'audio') {
       div.innerHTML = `<span class="kind-icon">${iconSvg('speaker', { size: 12 })}</span><span class="name"></span>`;
       const nameEl = div.querySelector('.name');
@@ -304,7 +324,9 @@ function draw() {
     const rh = ROW_H;
     if (y + rh < RULER_H || y > h) continue;
     const cy = y + rh / 2;
-    if (row.kind === 'item') {
+    if (row.kind === 'events') {
+      drawMarkerLane(ctx, row, y, rh, w);
+    } else if (row.kind === 'item') {
       // aggregated dope-sheet markers
       const times = new Set();
       const tracks = S.getTracks(row.itemId);
@@ -334,7 +356,11 @@ function draw() {
           ctx.stroke();
           ctx.lineWidth = 1;
         }
-        ctx.fillStyle = isSel ? cKeySel : cKey;
+        // Moon's "Easing Colors" option: tint each keyframe by its ease style so a dope sheet
+        // reads at a glance. Selection still wins — it has to stay unambiguous.
+        ctx.fillStyle = isSel ? cKeySel
+          : (S.state.easeColors && !k.bez) ? easeColor(k.es || 'Linear')
+          : cKey;
         if (dragging) {
           // ghost at destination
           ctx.globalAlpha = 0.35;
@@ -427,6 +453,57 @@ function drawAudioRow(ctx, y, rh, w) {
   ctx.restore();
 }
 
+// Moon's markers render as a labelled bar spanning [t, t+width] with end caps, not a point —
+// a zero-width marker still gets a minimum visual width so it stays clickable.
+const MARKER_MIN_PX = 10;
+function markerRect(m) {
+  const x0 = frameToX(m.t);
+  const x1 = frameToX(m.t + (m.width || 0));
+  return { x0, x1: Math.max(x1, x0 + MARKER_MIN_PX) };
+}
+function drawMarkerLane(ctx, row, y, rh, w) {
+  const list = S.getMarkers(row.itemId);
+  if (!list.length) return;
+  const selSet = new Set((S.state.selection.markers || []).map((m) => `${m.itemId}|${m.t}`));
+  const barH = Math.min(rh - 8, 13);
+  const by = y + (rh - barH) / 2;
+  ctx.font = '10px Inter, system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  for (const m of list) {
+    const { x0, x1 } = markerRect(m);
+    if (x1 < -4 || x0 > w + 4) continue;
+    const isSel = selSet.has(`${row.itemId}|${m.t}`);
+    const dragging = tl.drag?.kind === 'marker-move' && isSel;
+    const dx = dragging ? tl.drag.dt * tl.pxPerFrame : 0;
+    ctx.globalAlpha = dragging ? 0.9 : 1;
+    ctx.fillStyle = isSel ? 'rgba(240,185,92,0.55)' : 'rgba(114,200,180,0.30)';
+    roundRect(ctx, x0 + dx, by, x1 - x0, barH, 3);
+    ctx.fill();
+    ctx.strokeStyle = isSel ? 'rgba(240,185,92,0.95)' : 'rgba(114,200,180,0.75)';
+    ctx.lineWidth = 1;
+    roundRect(ctx, x0 + dx + 0.5, by + 0.5, x1 - x0 - 1, barH - 1, 3);
+    ctx.stroke();
+    if (m.name) {
+      // clip the label to the bar so a long name can't bleed across the whole lane
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x0 + dx + 3, by, Math.max(0, x1 - x0 - 6), barH);
+      ctx.clip();
+      ctx.fillStyle = themeVar('--tl-ruler-text', 'rgba(255,255,255,0.8)');
+      ctx.textAlign = 'left';
+      ctx.fillText(m.name, x0 + dx + 4, by + barH / 2);
+      ctx.restore();
+    }
+    // a marker carrying exported KeyframeMarkers or Luau gets a dot so it reads as "has data"
+    if ((m.kf && Object.keys(m.kf).length) || m.codeBegin || m.codeEnd) {
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillRect(x1 + dx - 4, by + 2, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+  ctx.textBaseline = 'alphabetic';
+}
+
 function drawDiamond(ctx, x, y, r) {
   ctx.beginPath();
   ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y);
@@ -445,11 +522,22 @@ function niceStep(ppf) {
 }
 
 // ---------------------------------------------------------------- interaction
+// Marker hit test on an Events lane. `onEndCap` means the cursor is within the right-edge
+// grab zone, which starts a resize rather than a move.
+const MARKER_CAP_PX = 5;
+function markerAt(x, itemId) {
+  for (const m of S.getMarkers(itemId)) {
+    const { x0, x1 } = markerRect(m);
+    if (x >= x0 - 2 && x <= x1 + 2) return { m, onEndCap: x >= x1 - MARKER_CAP_PX };
+  }
+  return null;
+}
+
 function keyAt(x, y) {
   const i = rowAtY(y);
   if (i < 0) return null;
   const row = tl.rows[i];
-  if (!row || row.kind === 'audio') return null;
+  if (!row || row.kind === 'audio' || row.kind === 'events') return null;
   const hitR = 7;
   if (row.kind === 'track') {
     const tr = S.getTrack(row.itemId, row.track);
@@ -489,6 +577,22 @@ function onPointerDown(e) {
   }
 
   if (e.button === 2) {
+    const rIdx = rowAtY(y);
+    const r = rIdx >= 0 ? tl.rows[rIdx] : null;
+    if (r && r.kind === 'events') {
+      const mk = markerAt(x, r.itemId);
+      if (mk) {
+        S.setSelectedMarkers([{ itemId: r.itemId, t: mk.m.t }]);
+        openMarkerContextMenu(e.clientX, e.clientY, r.itemId, mk.m.t);
+      } else {
+        const f = Math.round(xToFrame(x));
+        showContextMenu(e.clientX, e.clientY, [
+          { label: `Frame ${f}`, header: true },
+          { label: 'Add event marker', run: () => { const m = S.addMarker(r.itemId, f); if (m) openMarkerEditor(r.itemId, m.t); } },
+        ]);
+      }
+      return;
+    }
     const hit = keyAt(x, y);
     if (hit) {
       const keys = hit.track === '*' ? expandItemKeys(hit.itemId, hit.t) : [hit];
@@ -514,6 +618,27 @@ function onPointerDown(e) {
   // audio row → drag offset
   if (row && row.kind === 'audio') {
     tl.drag = { kind: 'audio', startX: x, startOffset: S.state.project.audio.offset || 0 };
+    return;
+  }
+
+  // Events lane → select / move / resize a marker, or drop a new one on empty space
+  if (row && row.kind === 'events') {
+    const mk = markerAt(x, row.itemId);
+    if (mk) {
+      const already = (S.state.selection.markers || []).some((s) => s.itemId === row.itemId && Math.abs(s.t - mk.m.t) < 1e-6);
+      if (!already) S.setSelectedMarkers([{ itemId: row.itemId, t: mk.m.t }]);
+      // grabbing within a few px of the right cap resizes instead of moving, like Moon's
+      // end-handle — resize is per-marker, so it never applies to a multi-selection.
+      if (mk.onEndCap) {
+        S.pushUndo(); // once, at gesture start — the resize itself then mutates with noUndo
+        tl.drag = { kind: 'marker-resize', itemId: row.itemId, t: mk.m.t, startX: x, startWidth: mk.m.width || 0 };
+      } else {
+        tl.drag = { kind: 'marker-move', startX: x, dt: 0 };
+      }
+    } else {
+      S.setSelectedMarkers([]);
+    }
+    tl.needsDraw = true;
     return;
   }
 
@@ -556,6 +681,17 @@ function onPointerMove(e) {
     if (S.state.snapping && !e.altKey) dt = Math.round(dt);
     d.dt = dt;
     tl.needsDraw = true;
+  } else if (d.kind === 'marker-move') {
+    let dt = (x - d.startX) / tl.pxPerFrame;
+    if (S.state.snapping && !e.altKey) dt = Math.round(dt);
+    d.dt = dt;
+    tl.needsDraw = true;
+  } else if (d.kind === 'marker-resize') {
+    let dw = (x - d.startX) / tl.pxPerFrame;
+    if (S.state.snapping && !e.altKey) dw = Math.round(dw);
+    // live-applied so the bar tracks the cursor; setMarker clamps against the next marker
+    S.setMarker(d.itemId, d.t, { width: Math.max(0, d.startWidth + dw) }, { noUndo: true });
+    tl.needsDraw = true;
   } else if (d.kind === 'box') {
     d.f1 = xToFrame(x);
     d.rowY1 = y + tl.scrollY;
@@ -577,6 +713,8 @@ window.addEventListener('pointerup', () => {
   if (d.kind === 'move' && d.dt !== 0) {
     const moved = S.moveKeys(S.state.selection.keys, d.dt);
     S.setSelectedKeys(moved);
+  } else if (d.kind === 'marker-move' && d.dt !== 0) {
+    S.moveMarkers(S.state.selection.markers, d.dt);
   } else if (d.kind === 'box') {
     // Compare against frame numbers / logical row positions, not stale on-screen pixels — a
     // drag that auto-scrolled (or was scrolled manually) mid-select still resolves correctly,
@@ -607,6 +745,15 @@ function onDblClick(e) {
   const i = rowAtY(y);
   if (i < 0) return;
   const row = tl.rows[i];
+  // Events lane: double-click adds a marker on empty space, or opens the editor on an existing one
+  if (row.kind === 'events') {
+    let f = Math.round(xToFrame(x));
+    const mk = markerAt(x, row.itemId);
+    if (mk) { openMarkerEditor(row.itemId, mk.m.t); return; }
+    const m = S.addMarker(row.itemId, f);
+    if (m) { S.setSelectedMarkers([{ itemId: row.itemId, t: m.t }]); openMarkerEditor(row.itemId, m.t); }
+    return;
+  }
   if (row.kind !== 'track') return;
   let f = xToFrame(x);
   if (S.state.snapping) f = Math.round(f);
@@ -642,6 +789,97 @@ function onWheel(e) {
     tl.listEl.scrollTop += e.deltaY;
   }
   tl.needsDraw = true;
+}
+
+// ---------------------------------------------------------------- markers
+function openMarkerContextMenu(cx, cy, itemId, t) {
+  const m = S.getMarker(itemId, t);
+  if (!m) return;
+  showContextMenu(cx, cy, [
+    { label: m.name || `Event @ ${m.t}`, header: true },
+    { label: 'Edit event…', run: () => openMarkerEditor(itemId, t) },
+    { label: 'Move to playhead', run: () => S.moveMarkers([{ itemId, t }], Math.round(S.state.playhead) - t) },
+    { sep: true },
+    { label: 'Delete', danger: true, run: () => S.deleteMarkers([{ itemId, t }]) },
+  ]);
+}
+
+// Port of Moon's EditMarkers window. `kf` is its KFMarkers key/value list — those become real
+// Roblox KeyframeMarker instances on export. codeBegin/codeEnd are stored and exported but not
+// executed here (see the note on state.js's marker section for why).
+export function openMarkerEditor(itemId, t) {
+  const m = S.getMarker(itemId, t);
+  if (!m) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'marker-editor';
+
+  const mk = (label, el) => {
+    const l = document.createElement('label');
+    l.className = 'fld-label';
+    l.textContent = label;
+    wrap.append(l, el);
+    return el;
+  };
+  const nameInp = mk('Name', Object.assign(document.createElement('input'), { className: 'fld', type: 'text', value: m.name || '' }));
+  const widthInp = mk('Length (frames)', Object.assign(document.createElement('input'), { className: 'fld', type: 'number', min: '0', step: '1', value: String(m.width || 0) }));
+  const beginInp = mk('Run at start (Luau)', Object.assign(document.createElement('textarea'), { className: 'fld mono', rows: 3, value: m.codeBegin || '' }));
+  const endInp = mk('Run at end (Luau)', Object.assign(document.createElement('textarea'), { className: 'fld mono', rows: 3, value: m.codeEnd || '' }));
+
+  const note = document.createElement('p');
+  note.className = 'fld-note';
+  note.textContent = 'Luau runs in Roblox Studio after export — Cadence stores it but does not execute it.';
+  wrap.appendChild(note);
+
+  // KeyframeMarker key/value rows
+  const kfLabel = document.createElement('label');
+  kfLabel.className = 'fld-label';
+  kfLabel.textContent = 'Keyframe markers (exported to Roblox)';
+  wrap.appendChild(kfLabel);
+  const kfWrap = document.createElement('div');
+  kfWrap.className = 'kv-list';
+  wrap.appendChild(kfWrap);
+  let kfRows = Object.entries(m.kf || {}).map(([k, v]) => ({ k, v }));
+  function renderKf() {
+    kfWrap.replaceChildren();
+    kfRows.forEach((row, i) => {
+      const line = document.createElement('div');
+      line.className = 'kv-row';
+      const kIn = Object.assign(document.createElement('input'), { className: 'fld slim', type: 'text', placeholder: 'name', value: row.k });
+      const vIn = Object.assign(document.createElement('input'), { className: 'fld slim', type: 'text', placeholder: 'value', value: row.v });
+      kIn.addEventListener('input', () => { row.k = kIn.value; });
+      vIn.addEventListener('input', () => { row.v = vIn.value; });
+      const del = Object.assign(document.createElement('button'), { className: 'btn slim', textContent: '✕' });
+      del.addEventListener('click', () => { kfRows.splice(i, 1); renderKf(); });
+      line.append(kIn, vIn, del);
+      kfWrap.appendChild(line);
+    });
+    const add = Object.assign(document.createElement('button'), { className: 'btn slim', textContent: '+ Add marker' });
+    add.addEventListener('click', () => { kfRows.push({ k: '', v: '' }); renderKf(); });
+    kfWrap.appendChild(add);
+  }
+  renderKf();
+
+  modal({
+    title: `Event @ frame ${m.t}`,
+    body: wrap,
+    actions: [
+      { label: 'Delete', run: () => { S.deleteMarkers([{ itemId, t }]); } },
+      { label: 'Cancel' },
+      {
+        label: 'Save', primary: true, run: () => {
+          const kf = {};
+          for (const r of kfRows) if (r.k.trim()) kf[r.k.trim()] = r.v;
+          S.setMarker(itemId, t, {
+            name: nameInp.value,
+            width: Math.max(0, Math.round(parseFloat(widthInp.value) || 0)),
+            codeBegin: beginInp.value,
+            codeEnd: endInp.value,
+            kf,
+          });
+        },
+      },
+    ],
+  });
 }
 
 // ---------------------------------------------------------------- context menu

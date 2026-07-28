@@ -2,13 +2,13 @@
 import * as S from './state.js';
 import * as CF from './cf.js';
 import { initViewport, updateScene, render, setGizmoMode, toggleGizmoSpace, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, commitOverlays, getInstance, syncItems, refreshInstance, setHandlesVisible, setHandleSize, setRotationSnap, setTranslationSnap, viewport } from './viewport.js';
-import { initTimeline, requestDraw, copySelectedKeys, cutSelectedKeys, pasteKeys, pasteKeysIntoItem, duplicateAtPlayhead, zoomToFit, openSelectedKeyMenu, toggleItemCollapse, toggleCollapseAll } from './timeline.js';
+import { initTimeline, requestDraw, copySelectedKeys, cutSelectedKeys, pasteKeys, pasteKeysIntoItem, duplicateAtPlayhead, zoomToFit, openSelectedKeyMenu, toggleItemCollapse, toggleCollapseAll, openMarkerEditor } from './timeline.js';
 import { initCurveEditor, toggleCurveEditor, openCurveEditor } from './curves.js';
 import { initAudio, loadAudioFromPath, removeAudio, setAudioVolume, setAudioOffset, restoreAudio } from './audio.js';
 import { toast, toastProgress, modal, promptModal, chooseModal, copyableRow, showContextMenu } from './ui.js';
 import { registerCommand, initPalette, showShortcuts, hideShortcuts } from './palette.js';
 import { iconSvg, swapIcon, applyStaticIcons, itemIcon, itemIconSvg } from './icons.js';
-import { STYLES, DIRECTIONS } from './easing.js';
+import { STYLES, DIRECTIONS, paramsFor, PARAM_DATA, isDirectional } from './easing.js';
 import * as IO from './io.js';
 import { validateAnimation } from './validate.js';
 import { initPanels } from './panels.js';
@@ -42,6 +42,8 @@ async function boot() {
     S.state.posGridDistance = settings.posGridDistance ?? 1;
     S.state.ikChainLength = settings.ikChainLength ?? 3;
     S.state.trackpadMode = settings.trackpadMode ?? false;
+    S.state.useLastEasing = settings.useLastEasing ?? false;
+    S.state.easeColors = settings.easeColors ?? false;
 
     initPanels(settings, (sizes) => { Object.assign(settings, sizes); window.cadence.setSettings(settings); });
 
@@ -168,6 +170,10 @@ function registerAllCommands() {
   C({ title: 'Toggle move grid snap', hint: 'or just hold Shift while dragging to snap on demand', section: 'Animating', run: toggleMoveGrid });
   C({ title: 'Snap increments…', hint: 'change the fixed degree/stud values rotate & move snap to', section: 'Animating', run: setSnapIncrementsFlow });
   C({ title: 'Curve editor', hint: 'interactive bezier easing curves — now on the toolbar/right-click, C is taken by rotation grid', section: 'Animating', run: toggleCurveEditor });
+  C({ title: 'Add event marker at playhead', hint: 'a named event on the selected item\'s timeline — exports as a Roblox keyframe marker', section: 'Animating', run: addMarkerAtPlayheadFlow });
+  C({ title: 'Edit event marker…', hint: 'name, length, keyframe markers and Luau for the event at the playhead', section: 'Animating', run: editMarkerAtPlayheadFlow });
+  C({ title: 'Toggle "use last ease"', hint: 'new keyframes inherit the easing you last applied instead of the default', section: 'Animating', run: toggleUseLastEasing });
+  C({ title: 'Toggle easing colors', hint: 'tint keyframes in the timeline by their easing style', section: 'Animating', run: toggleEaseColors });
   C({ title: 'Focus selected part', shortcut: 'F', section: 'Animating', run: focusSelected });
   C({ title: 'Fit animation length to last keyframe', shortcut: 'Shift+F', section: 'Animating', run: fitLengthToLastKeyframe });
   C({ title: 'Select all keyframes', shortcut: 'Alt+F', section: 'Animating', run: () => S.selectAllKeys(S.state.selection.itemId) });
@@ -301,6 +307,8 @@ function wireKeyboard() {
     // ---- deletion / navigation
     else if (k === 'Delete' || k === 'Backspace') {
       if (k === 'Backspace' && !shift && !ctrl && !alt) { stop(); closeFileFlow(); }
+      // Markers and keys are mutually exclusive selections, so Delete applies to whichever is live.
+      else if (S.state.selection.markers?.length) { stop(); S.deleteMarkers(S.state.selection.markers); }
       else { stop(); S.deleteKeys(S.state.selection.keys); }
     }
     else if (k === ' ' && shift) { stop(); toggleItemCollapse(S.state.selection.itemId); }
@@ -429,7 +437,45 @@ function persistPrefs() {
   settings.posGridDistance = S.state.posGridDistance;
   settings.ikChainLength = S.state.ikChainLength;
   settings.trackpadMode = S.state.trackpadMode;
+  settings.useLastEasing = S.state.useLastEasing;
+  settings.easeColors = S.state.easeColors;
   window.cadence.setSettings(settings);
+}
+
+// ---- event markers (Moon's Events track)
+function addMarkerAtPlayheadFlow() {
+  const itemId = S.state.selection.itemId;
+  if (!itemId) { toast('Select an item first', 'warn'); return; }
+  const t = Math.round(S.state.playhead);
+  const m = S.addMarker(itemId, t);
+  if (!m) { toast(`There is already an event at frame ${t}`, 'warn'); openMarkerEditor(itemId, t); return; }
+  S.setSelectedMarkers([{ itemId, t }]);
+  openMarkerEditor(itemId, t);
+}
+function editMarkerAtPlayheadFlow() {
+  const sel = S.state.selection.markers?.[0];
+  if (sel) { openMarkerEditor(sel.itemId, sel.t); return; }
+  const itemId = S.state.selection.itemId;
+  if (!itemId) { toast('Select an item first', 'warn'); return; }
+  // fall back to whichever marker's span contains the playhead
+  const m = S.markerSpanning(itemId, Math.round(S.state.playhead));
+  if (!m) { toast('No event marker here — add one first', 'warn'); return; }
+  openMarkerEditor(itemId, m.t);
+}
+
+// Moon's Options > "Use Last Ease": a new keyframe inherits the ease you last applied.
+function toggleUseLastEasing() {
+  S.state.useLastEasing = !S.state.useLastEasing;
+  persistPrefs();
+  toast(`Use last ease ${S.state.useLastEasing ? 'on — new keyframes inherit the last easing you applied' : 'off'}`);
+}
+
+// Moon's Options > "Easing Colors": tint keyframes in the dope sheet by their ease style.
+function toggleEaseColors() {
+  S.state.easeColors = !S.state.easeColors;
+  persistPrefs();
+  S.emit('tracks', {});
+  toast(`Easing colors ${S.state.easeColors ? 'on' : 'off'}`);
 }
 
 function toggleTrackpadMode(force) {
@@ -2241,9 +2287,18 @@ function wireInspector() {
       const k0 = S.getKey(keys[0].itemId, keys[0].track, keys[0].t);
       if (k0) {
         const styleSel = selectField('Easing style', STYLES, k0.bez ? 'Cubic' : (k0.es || 'Cubic'), (v) => S.setEasing(keys, v, null, null));
-        const dirSel = selectField('Direction', DIRECTIONS, k0.ed || 'Out', (v) => S.setEasing(keys, null, v, null));
         sec.appendChild(styleSel);
-        sec.appendChild(dirSel);
+        if (isDirectional(k0.es)) {
+          sec.appendChild(selectField('Direction', DIRECTIONS, k0.ed || 'Out', (v) => S.setEasing(keys, null, v, null)));
+        }
+        // Back's Overshoot and Elastic's Amplitude/Period, mirroring Moon's Ease params panel.
+        for (const name of paramsFor(k0.es)) {
+          const meta = PARAM_DATA[name];
+          sec.appendChild(numField(name, k0.ep?.[name] ?? meta.default, (v) => {
+            const cur = S.getKey(keys[0].itemId, keys[0].track, keys[0].t);
+            S.setEasing(keys, null, null, undefined, { ep: { ...(cur?.ep || {}), [name]: v } });
+          }));
+        }
         const btn = button(k0.bez ? 'Edit bezier curve' : 'Open curve editor', () => openCurveEditor());
         sec.appendChild(btn);
       }
@@ -2834,6 +2889,25 @@ const MCP_HANDLERS = {
   repeat_frames: ({ keys, times }) => { S.repeatFrames(keys, times); return { ok: true }; },
   stretch_frames: ({ keys, factor }) => ({ moved: S.stretchFrames(keys, factor) }),
 
+  // ---------------------------------------------------------------- event markers
+  list_markers: ({ itemId }) => {
+    if (!S.getItem(itemId)) throw new Error(`No item with id ${itemId}`);
+    return { markers: S.getMarkers(itemId) };
+  },
+  add_marker: ({ itemId, t, name, width, codeBegin, codeEnd, kf }) => {
+    if (!S.getItem(itemId)) throw new Error(`No item with id ${itemId}`);
+    const m = S.addMarker(itemId, t, { name, width, codeBegin, codeEnd, kf });
+    if (!m) throw new Error(`An event marker already exists at frame ${t} on ${itemId}`);
+    return { marker: m };
+  },
+  set_marker: ({ itemId, t, name, width, codeBegin, codeEnd, kf }) => {
+    const m = S.setMarker(itemId, t, { name, width, codeBegin, codeEnd, kf });
+    if (!m) throw new Error(`No event marker at frame ${t} on ${itemId}`);
+    return { marker: m };
+  },
+  delete_markers: ({ markers }) => { S.deleteMarkers(markers); return { ok: true }; },
+  move_markers: ({ markers, dt }) => ({ moved: S.moveMarkers(markers, dt) }),
+
   // Pure query — world CFrame per part for an arbitrary frame, without touching the display.
   // This is the ground-truth numeric alternative to eyeballing a screenshot.
   get_pose: ({ itemId, frame }) => {
@@ -2983,7 +3057,10 @@ const MCP_HANDLERS = {
 
   // ---------------------------------------------------------------- effects
   reverse_frames: ({ keys }) => ({ moved: S.reverseFrames(keys) }),
-  set_easing: ({ keys, es, ed, bez }) => { S.setEasing(keys, es ?? null, ed ?? null, bez ?? null); return { ok: true }; },
+  set_easing: ({ keys, es, ed, bez, ep }) => {
+    S.setEasing(keys, es ?? null, ed ?? null, bez ?? null, ep === undefined ? {} : { ep });
+    return { ok: true };
+  },
 
   // ---------------------------------------------------------------- resize
   resize_item: ({ itemId, factor }) => {

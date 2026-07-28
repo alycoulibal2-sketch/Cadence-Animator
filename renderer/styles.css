@@ -646,6 +646,26 @@ body {
 .chip:hover { background: var(--bg-4); color: var(--text-0); }
 .chip.accent { background: var(--accent-dim); color: #e2e5ff; border-color: var(--accent); }
 #curvePresets { display: flex; gap: 4px; flex-wrap: wrap; }
+
+/* Event-marker editor (Moon's EditMarkers) */
+.marker-editor { display: flex; flex-direction: column; gap: 4px; min-width: 380px; }
+.marker-editor textarea.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; resize: vertical; }
+.fld-note { margin: 2px 0 6px; font-size: 11px; color: var(--text-2); opacity: 0.8; }
+.kv-list { display: flex; flex-direction: column; gap: 4px; }
+.kv-row { display: flex; gap: 4px; align-items: center; }
+.kv-row input { flex: 1 1 auto; min-width: 0; }
+.btn.slim { padding: 2px 8px; font-size: 11px; }
+.tl-row-btn {
+  margin-left: auto; padding: 0 6px; background: transparent; cursor: pointer;
+  border: 1px solid var(--line, rgba(255,255,255,0.12)); border-radius: 4px;
+  color: var(--text-2); font-size: 12px; line-height: 16px;
+}
+.tl-row-btn:hover { color: var(--text-1); border-color: var(--accent); }
+
+/* Per-style easing parameters (Back → Overshoot, Elastic → Amplitude/Period) */
+.curve-params { display: flex; gap: 8px; align-items: center; }
+.curve-param { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-2); }
+.curve-param input { width: 62px; }
 .curve-canvas-wrap { flex: 1 1 auto; padding: 10px; min-height: 0; }
 #curveCanvas { width: 100%; height: 100%; display: block; }
 

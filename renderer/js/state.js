@@ -1,6 +1,6 @@
 // Project state, undo/redo, autosave, track evaluation.
 import * as CF from './cf.js';
-import { evalSegment } from './easing.js';
+import { evalSegment, paramsFor } from './easing.js';
 
 // DISPLAY ONLY — never use this for a track/joint/part key, lookup, or export. Roblox's own
 // R15 part/joint names have no spaces (UpperTorso, RightShoulder, LeftAnkle) and MUST stay that
@@ -64,7 +64,7 @@ function trackCache(tr) {
 // ---------------------------------------------------------------- state
 export const state = {
   project: null,
-  selection: { itemId: null, partId: null, keys: [] }, // keys: [{itemId, track, t}]
+  selection: { itemId: null, partId: null, keys: [], markers: [] }, // keys/markers: [{itemId, track, t}] / [{itemId, t}]
   playhead: 0,
   playing: false,
   autoKey: true,
@@ -86,6 +86,11 @@ export const state = {
   showSeconds: false,
   uiHidden: false, // Ctrl+H focus mode
   cameraTracksVisible: true,
+  // Moon's Options menu: "Use Last Ease" makes a new keyframe inherit the last applied easing,
+  // "Easing Colors" tints keyframes in the dope sheet by their ease style.
+  useLastEasing: false,
+  easeColors: false,
+  lastEasing: null, // {es, ed, bez, ep} — the most recent ease applied via setEasing
 };
 
 export function newProject(name = 'Untitled') {
@@ -100,10 +105,11 @@ export function newProject(name = 'Untitled') {
     items: [],
     tracks: {},
     groups: [], // [{ id, keys: [{itemId, track, t}] }] — keys that move together (Ctrl+G)
+    markers: {}, // itemId -> [{t, width, name, codeBegin, codeEnd, kf}] — Moon's Events track
     onionSkin: { enabledItemIds: [], range: 3 },
     audio: null, // { name, path, offset, volume }
   };
-  state.selection = { itemId: null, partId: null, keys: [] };
+  state.selection = { itemId: null, partId: null, keys: [], markers: [] };
   state.playhead = 0;
   state.projectPath = null;
   undoStack.length = 0;
@@ -117,10 +123,11 @@ export function loadProject(json, filePath = null) {
   if (!p || !Array.isArray(p.items)) throw new Error('Not a valid Cadence project file');
   p.id = p.id || crypto.randomUUID();
   p.groups = p.groups || [];
+  p.markers = p.markers || {}; // projects saved before markers existed simply have none
   p.onionSkin = p.onionSkin || { enabledItemIds: [], range: 3 };
   state.project = p;
   state.projectPath = filePath;
-  state.selection = { itemId: null, partId: null, keys: [] };
+  state.selection = { itemId: null, partId: null, keys: [], markers: [] };
   state.playhead = 0;
   undoStack.length = 0;
   redoStack.length = 0;
@@ -200,7 +207,7 @@ function restoreHeavy(items, stash) {
 function snapshot() {
   const p = state.project;
   const { lite, stash } = stashHeavy(p.items);
-  const s = structuredClone({ items: lite, tracks: p.tracks, groups: p.groups, onionSkin: p.onionSkin, length: p.length, fps: p.fps, loop: p.loop, priority: p.priority, name: p.name, audio: p.audio });
+  const s = structuredClone({ items: lite, tracks: p.tracks, groups: p.groups, markers: p.markers || {}, onionSkin: p.onionSkin, length: p.length, fps: p.fps, loop: p.loop, priority: p.priority, name: p.name, audio: p.audio });
   s.__heavy = stash;               // attached AFTER the clone — never deep-copied
   return s;
 }
@@ -386,10 +393,11 @@ export function setItemFace(itemId, layers) {
 export function setSelection(itemId, partId, keepKeys = false) {
   state.selection.itemId = itemId;
   state.selection.partId = partId;
-  if (!keepKeys) state.selection.keys = [];
+  if (!keepKeys) { state.selection.keys = []; state.selection.markers = []; }
   emit('selection');
 }
 export function setSelectedKeys(keys) {
+  state.selection.markers = []; // keys and markers are separate selections, never mixed
   state.selection.keys = keys;
   emit('selection');
 }
@@ -426,8 +434,19 @@ export function setKey(itemId, track, t, value, opts = {}) {
     if (opts.es) existing.es = opts.es;
     if (opts.ed) existing.ed = opts.ed;
     if (opts.bez !== undefined) existing.bez = opts.bez;
+    if (opts.ep !== undefined) existing.ep = opts.ep;
   } else {
-    tr.keys.push({ t, v: value, es: opts.es || 'Cubic', ed: opts.ed || 'Out', bez: opts.bez ?? null });
+    // Moon's "Use Last Ease" option: a newly created keyframe inherits whatever ease was last
+    // applied, instead of always resetting to the default. `opts.es` still wins when given.
+    const inherit = (!opts.es && state.useLastEasing) ? state.lastEasing : null;
+    tr.keys.push({
+      t,
+      v: value,
+      es: opts.es || inherit?.es || 'Cubic',
+      ed: opts.ed || inherit?.ed || 'Out',
+      bez: opts.bez ?? inherit?.bez ?? null,
+      ep: opts.ep ?? (inherit?.ep ? { ...inherit.ep } : null),
+    });
     tr.keys.sort((a, b) => a.t - b.t);
   }
   emit('tracks', { itemId, track });
@@ -542,6 +561,8 @@ export function ungroupKeys(list) {
   return true;
 }
 
+// `ep` carries the style's extra parameters (Back's Overshoot, Elastic's Amplitude/Period),
+// matching Moon's Ease params table. Pass null to clear them back to the style defaults.
 export function setEasing(list, es, ed, bez, opts = {}) {
   if (!list.length) return;
   if (!opts.noUndo) pushUndo();
@@ -553,6 +574,23 @@ export function setEasing(list, es, ed, bez, opts = {}) {
     if (es !== undefined && es !== null) k.es = es;
     if (ed !== undefined && ed !== null) k.ed = ed;
     if (bez !== undefined) k.bez = bez;
+    if (opts.ep !== undefined) k.ep = opts.ep ? { ...opts.ep } : null;
+    // Changing the style drops parameters that style does not accept, so a Back key that
+    // becomes a Quad key cannot keep a stale Overshoot around to reappear later.
+    if (es) {
+      const allowed = paramsFor(es);
+      if (!allowed.length) k.ep = null;
+      else if (k.ep) {
+        const next = {};
+        for (const p of allowed) if (k.ep[p] != null) next[p] = k.ep[p];
+        k.ep = Object.keys(next).length ? next : null;
+      }
+    }
+  }
+  // Remember the most recent ease for Moon's "Use Last Ease" behaviour on new keyframes.
+  if (es || ed || bez !== undefined) {
+    const first = getKey(list[0].itemId, list[0].track, list[0].t);
+    if (first) state.lastEasing = { es: first.es, ed: first.ed, bez: first.bez, ep: first.ep ? { ...first.ep } : null };
   }
   emit('tracks', {});
   markDirty();
@@ -562,6 +600,137 @@ export function getKey(itemId, track, t) {
   const tr = trackObj(itemId, track);
   if (!tr) return null;
   return tr.keys.find((k) => Math.abs(k.t - t) < 1e-6) || null;
+}
+
+// ---------------------------------------------------------------- markers ("Events" track)
+// A port of Moon's Marker / MarkerTrack. Unlike a keyframe, a marker spans a RANGE: it has a
+// start frame plus a `width`, so it reads as a labelled bar on the item's Events lane.
+//
+//   name       display label on the bar
+//   width      length in frames (0 = a single-frame marker)
+//   codeBegin  Luau to run when playback reaches the marker's start
+//   codeEnd    Luau to run when playback reaches its end
+//   kf         {key: value} pairs exported as Roblox KeyframeMarkers on that frame
+//
+// codeBegin/codeEnd are STORED AND EXPORTED but never executed by Cadence. Moon can run them
+// because it lives inside Studio with a real Luau VM; this app is an Electron renderer with no
+// Luau runtime, and its CSP has no 'unsafe-eval' by design. They run in Studio after export.
+export function getMarkers(itemId) {
+  if (!state.project.markers) state.project.markers = {};
+  return state.project.markers[itemId] || [];
+}
+function markerList(itemId, create = false) {
+  if (!state.project.markers) state.project.markers = {};
+  if (!state.project.markers[itemId] && create) state.project.markers[itemId] = [];
+  return state.project.markers[itemId];
+}
+export function getMarker(itemId, t) {
+  return getMarkers(itemId).find((m) => Math.abs(m.t - t) < 1e-6) || null;
+}
+// The marker whose [t, t+width] span contains `frame`, if any.
+export function markerSpanning(itemId, frame) {
+  return getMarkers(itemId).find((m) => frame >= m.t && frame <= m.t + (m.width || 0)) || null;
+}
+
+export function addMarker(itemId, t, patch = {}) {
+  t = Math.max(0, Math.round(t));
+  if (getMarker(itemId, t)) return null; // one marker per start frame, as in Moon
+  pushUndo();
+  const list = markerList(itemId, true);
+  const m = {
+    t,
+    width: Math.max(0, Math.round(patch.width ?? 0)),
+    name: patch.name ?? '',
+    codeBegin: patch.codeBegin ?? '',
+    codeEnd: patch.codeEnd ?? '',
+    kf: patch.kf ? { ...patch.kf } : {},
+  };
+  list.push(m);
+  list.sort((a, b) => a.t - b.t);
+  emit('markers', { itemId });
+  markDirty();
+  return m;
+}
+
+// `opts.noUndo` is for live-mutating drags (the timeline's marker resize): those push a single
+// undo entry at gesture START and then mutate freely, exactly like curves.js's bezier drag.
+// Pushing per-move would both spam and OOM the undo stack.
+export function setMarker(itemId, t, patch, opts = {}) {
+  const m = getMarker(itemId, t);
+  if (!m) return null;
+  if (!opts.noUndo) pushUndo();
+  if (patch.name !== undefined) m.name = patch.name;
+  if (patch.codeBegin !== undefined) m.codeBegin = patch.codeBegin;
+  if (patch.codeEnd !== undefined) m.codeEnd = patch.codeEnd;
+  if (patch.kf !== undefined) m.kf = patch.kf ? { ...patch.kf } : {};
+  if (patch.width !== undefined) m.width = clampMarkerWidth(itemId, m, patch.width);
+  emit('markers', { itemId });
+  markDirty();
+  return m;
+}
+
+// Moon caps a marker's width at the next marker's start (EditMarkers computes exactly this
+// maxWidth), so two markers on one lane can never overlap.
+function clampMarkerWidth(itemId, m, want) {
+  const list = getMarkers(itemId);
+  const next = list.find((o) => o.t > m.t + 1e-6);
+  const limit = next ? next.t - m.t - 1 : Math.max(0, state.project.length - m.t);
+  return Math.max(0, Math.min(Math.round(want), limit));
+}
+
+export function deleteMarkers(list) {
+  if (!list.length) return;
+  pushUndo();
+  for (const { itemId, t } of list) {
+    const arr = markerList(itemId);
+    if (!arr) continue;
+    state.project.markers[itemId] = arr.filter((m) => Math.abs(m.t - t) > 1e-6);
+  }
+  state.selection.markers = [];
+  emit('markers', {});
+  emit('selection');
+  markDirty();
+}
+
+export function moveMarkers(list, dt, opts = {}) {
+  if (!list.length || !dt) return list;
+  if (!opts.noUndo) pushUndo();
+  const grabbed = [];
+  for (const { itemId, t } of list) {
+    const arr = markerList(itemId);
+    if (!arr) continue;
+    const m = arr.find((x) => Math.abs(x.t - t) < 1e-6);
+    if (!m) continue;
+    grabbed.push({ itemId, m });
+    state.project.markers[itemId] = arr.filter((x) => x !== m);
+  }
+  const moved = [];
+  for (const { itemId, m } of grabbed) {
+    const arr = markerList(itemId, true);
+    const nt = Math.max(0, Math.round(m.t + dt));
+    // Landing on an occupied start frame drops the mover rather than silently merging two
+    // markers into one — same "one marker per start frame" rule addMarker enforces.
+    if (arr.some((x) => Math.abs(x.t - nt) < 1e-6)) { arr.push(m); arr.sort((a, b) => a.t - b.t); continue; }
+    m.t = nt;
+    arr.push(m);
+    arr.sort((a, b) => a.t - b.t);
+    moved.push({ itemId, t: nt });
+  }
+  // widths may now overlap a neighbour that moved, so re-clamp every touched lane
+  for (const itemId of new Set(grabbed.map((g) => g.itemId))) {
+    for (const m of getMarkers(itemId)) m.width = clampMarkerWidth(itemId, m, m.width);
+  }
+  state.selection.markers = moved;
+  emit('markers', {});
+  emit('selection');
+  markDirty();
+  return moved;
+}
+
+export function setSelectedMarkers(list) {
+  state.selection.keys = [];
+  state.selection.markers = list;
+  emit('selection');
 }
 
 // ---------------------------------------------------------------- unparented (world-space) tracks
@@ -621,7 +790,9 @@ export function evalTrackCF(itemId, track, t, fallback = CF.IDENTITY) {
     }
     const a = keys[lo], b = keys[lo + 1];
     const span = b.t - a.t || 1;
-    const alpha = evalSegment(a, (t - a.t) / span);
+    // `span` is also handed to evalSegment so Elastic's frame-relative Period reads the same
+    // on a short and a long segment, exactly as Moon's frame_relative param does.
+    const alpha = evalSegment(a, (t - a.t) / span, span);
     result = CF.lerp(a.v, b.v, alpha);
   }
   if (cache) cache.set(t, result);
@@ -645,7 +816,9 @@ export function evalTrackNum(itemId, track, t, fallback = 0) {
     }
     const a = keys[lo], b = keys[lo + 1];
     const span = b.t - a.t || 1;
-    const alpha = evalSegment(a, (t - a.t) / span);
+    // `span` is also handed to evalSegment so Elastic's frame-relative Period reads the same
+    // on a short and a long segment, exactly as Moon's frame_relative param does.
+    const alpha = evalSegment(a, (t - a.t) / span, span);
     result = a.v + (b.v - a.v) * alpha;
   }
   if (cache) cache.set(t, result);
