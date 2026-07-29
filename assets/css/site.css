@@ -1229,6 +1229,12 @@ thead .col-us { background: rgba(124, 140, 255, 0.1); color: var(--accent-bright
   .footer-about { grid-column: 1 / -1; }
   .keys-list > div { flex-direction: column; align-items: flex-start; gap: 7px; }
   .keys-list .kbds { justify-content: flex-start; }
+
+  /* A long filename in a download card wrapped to two lines while staying
+     right-aligned under its label, which read as ragged. Stack the label above
+     the value instead — more legible, and it removes the wrap entirely. */
+  .kv > div { flex-direction: column; gap: 3px; padding: 10px 0; }
+  .kv dd { text-align: left; }
 }
 
 @media print {

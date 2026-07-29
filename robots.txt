@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://alycoulibal2-sketch.github.io/Cadence-Animator/sitemap.xml
