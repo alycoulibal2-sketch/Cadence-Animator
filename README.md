@@ -65,7 +65,21 @@ You'll need a GitHub Personal Access Token with `repo` scope (Settings → Devel
 
 Every release:
 1. Bump `version` in `package.json` (and re-sync `package-lock.json`'s version with `npm install --package-lock-only`) — electron-updater compares this against what's installed, so it must go up.
-2. `GH_TOKEN=<your token> npm run release` — builds the installer/portable exe and publishes a GitHub Release with them attached, tagged from `package.json`'s version.
-3. Done. Anyone on an older version sees the update chip next time they open the app (or within its periodic check).
+2. `npm run smoketest` — 51 checks. Wipe `test-output/userdata` and kill stray `electron` processes first.
+3. `GH_TOKEN=<your token> npm run release` — builds the installer/portable exe and publishes a GitHub Release with them attached, tagged from `package.json`'s version.
+4. **Update the website.** This is part of the release, not a follow-up — the site prints the version, both file sizes, both SHA-256 checksums and a lot of exact counts, and every one of those goes stale on its own:
+
+   ```bash
+   node site/tools/gen-shortcuts.js   # regenerate the keyboard reference from app.js
+   node site/tools/sync-release.js    # refresh version, filenames, sizes, checksums
+   ```
+
+   Then write any new capability into `site/index.html`'s feature grid and the matching `site/docs.html` section by hand — no script can do that part. Re-count anything countable from source rather than copying a number out of a changelog. Full checklist and the counting one-liners are in [`site/README.md`](site/README.md).
+5. Publish the site: push `main`, then `git subtree split --prefix=site -b gh-pages-tmp && git push origin gh-pages-tmp:gh-pages --force && git branch -D gh-pages-tmp`. Live at <https://alycoulibal2-sketch.github.io/Cadence-Animator/>.
+6. Done. Anyone on an older version sees the update chip next time they open the app (or within its periodic check).
 
 `npm run dist` (no token, no publish) still works exactly as before for local builds you just want to hand someone directly.
+
+## Website
+
+`site/` holds the project's website — a dependency-free static site, deployed to GitHub Pages. It doubles as the public documentation. See [`site/README.md`](site/README.md) for how to work on it and for the release checklist above in more detail.
