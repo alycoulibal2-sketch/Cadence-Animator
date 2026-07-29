@@ -803,19 +803,18 @@ export function debugPick(e) {
 function pick(e) {
   setPointerFromEvent(e);
   viewport.raycaster.setFromCamera(viewport.pointer, viewport.camera);
-  // Selection boxes (Moon-Animator-style click targets, sized to the whole part — see
-  // RigInstance#buildPart) are checked FIRST and win outright if hit: a consistent, easy-to-click
-  // region per limb, regardless of the real mesh's exact silhouette/texture. Only when a click
-  // misses every box (e.g. a non-rig item, or empty space near a part) do we fall back to the
-  // real part meshes + joint-handle spheres, same as before this existed.
+  // The visible part marker is checked FIRST and wins outright if hit — it is the thing the user
+  // aims at, and it sits a hair proud of the surface.
+  //
+  // The per-part selection BOX is deliberately NOT a click target. It is an axis-aligned box
+  // around the whole part, so on a rotated or slim limb it juts well past the visible surface and
+  // clicking empty space near a part selected it. Selection now requires actually hitting the
+  // part: its marker, or its real mesh below. The box stays purely as the translucent highlight
+  // drawn on the selected part.
   const boxes = [];
   for (const [, inst] of viewport.instances) {
     if (inst.parts) {
       for (const [, p] of inst.parts) {
-        boxes.push(p.selBox);
-        // The visible part marker is a click target in its own right, so the thing the user is
-        // actually aiming at always hits — it sits a hair proud of the surface and can overhang a
-        // thin part's silhouette, where the box alone would miss.
         if (p.marker && p.marker.visible) boxes.push(p.marker);
       }
     }

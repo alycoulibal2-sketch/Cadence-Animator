@@ -492,10 +492,10 @@ const PART_MARKER_GEO = new THREE.PlaneGeometry(1, 1);
 const MARKER_COLOR = 0x8ed0e8;        // pale blue, matching Moon's
 const MARKER_COLOR_HOVER = 0xd7f2ff;
 const MARKER_COLOR_SELECTED = 0x7c8cff;
-// Fraction of a part's cross-section the patch covers, then clamped, so a big torso doesn't get a
-// slab and a hand doesn't get something too small to hit.
-const MARKER_FRACTION = 0.5;
-const MARKER_MIN = 0.18, MARKER_MAX = 0.9;
+// Fraction of the face's shorter side the patch covers, then clamped — the cap is what stops a
+// big part like the torso getting a slab that swamps it.
+const MARKER_FRACTION = 0.45;
+const MARKER_MIN = 0.18, MARKER_MAX = 0.62;
 // Scratch objects for updatePartMarkers — it runs for every part every frame, so it allocates
 // nothing.
 const _mkCamPos = new THREE.Vector3();
@@ -510,6 +510,12 @@ const _mkMat = new THREE.Matrix4();
 const _mkNormalMat = new THREE.Matrix4();
 const _mkLook = new THREE.Matrix4();
 const _mkBoxSize = new THREE.Vector3();
+const _mkU = new THREE.Vector3();
+const _mkV = new THREE.Vector3();
+const _mkN = new THREE.Vector3();
+const _mkBasis = new THREE.Matrix4();
+const _mkRot = new THREE.Matrix3();
+const _mkRotT = new THREE.Matrix3();
 
 // Half-extents of what a part actually DRAWS as, cached against the geometry object so a part that
 // swaps its placeholder for a real mesh picks the new bounds up automatically.
@@ -528,14 +534,11 @@ function partHalfExtents(p) {
   return p._extents;
 }
 
-// Marker size from those same rendered bounds: a fraction of the part's two smaller dimensions,
-// clamped so a torso doesn't get a slab and a hand still gets something clickable.
-function markerSizeFor(p, half) {
-  if (!p._markerSize) {
-    const dims = [half[0] * 2, half[1] * 2, half[2] * 2].sort((a, b) => a - b);
-    p._markerSize = Math.min(MARKER_MAX, Math.max(MARKER_MIN, dims[1] * MARKER_FRACTION));
-  }
-  return p._markerSize;
+// Marker size for the face being shown: a fraction of that face's shorter side, so the patch is
+// always in proportion to the surface it sits on.
+function markerSizeFor(half, axis) {
+  const u = half[(axis + 1) % 3] * 2, v = half[(axis + 2) % 3] * 2;
+  return Math.min(MARKER_MAX, Math.max(MARKER_MIN, Math.min(u, v) * MARKER_FRACTION));
 }
 
 // Part edges: nothing to draw. Roblox's renderer has no outline pass at all — measured directly
@@ -662,8 +665,6 @@ export class RigInstance {
     this.parts.set(def.id, {
       def, mesh, world: CF.IDENTITY.slice(), extras: [], baseEmissive,
       selBox, selBoxSize, marker,
-      // Which surface model updatePartMarkers should use for this part (see there).
-      _round: isLatheHeadPart(def) || def.shape === 'Ball',
     });
 
     // customTexture: an already-decoded data URI captured at FBX/GLB import time (see
@@ -983,9 +984,14 @@ export class RigInstance {
     return this.#solve(pose, originCF, new Map(), unparented);
   }
 
-  // Face every part marker at the camera and park it on the part's surface nearest the viewer, so
-  // it reads as sitting on the limb rather than floating or buried inside it. Called once per
-  // frame from the viewport, which is what owns the camera.
+  // Lay each part's marker flat on whichever of its faces is most turned toward the camera.
+  //
+  // Deliberately NOT a camera-facing billboard: a billboard always presents square-on, so it reads
+  // as a sticker pasted on the screen. Sitting in the part's own face plane means it foreshortens
+  // and tilts with the limb, which is what makes it look like it belongs on the surface — the
+  // difference between this and Moon's markers when they were billboarded.
+  //
+  // Called once per frame from the viewport, which is what owns the camera.
   updatePartMarkers(camera) {
     if (!this.markersVisible) return;
     const camPos = _mkCamPos.setFromMatrixPosition(camera.matrixWorld);
@@ -1001,28 +1007,40 @@ export class RigInstance {
       _mkDir.copy(camPos).sub(_mkCentre);
       if (_mkDir.lengthSq() < 1e-9) continue;
       _mkDir.normalize();
-      // Distance from the centre to the surface along the view direction, in the part's own axes —
-      // the support function of a box, which is what keeps the patch flush on a rotated limb.
+      // View direction in the part's own axes, which is what decides the face being shown.
       //
-      // Measured from the RENDERED geometry, not Part.Size: a classic head is a 2x1x1 Part that
-      // draws as a ~1.2 lathe, so sizing off Part.Size buried its marker inside the head.
-      _mkLocal.copy(_mkDir).applyMatrix4(_mkNormalMat.copy(_mkMat).invert()).normalize();
+      // Rotation ONLY — a direction must never go through the full transform, or the part's world
+      // position leaks into it. That bug put every rotated part's marker on the wrong face: R6's
+      // joints rotate the torso, arms and head but not the legs, so only the legs looked right.
+      //
+      // Extents come from the RENDERED geometry, never Part.Size: a classic head is a 2x1x1 Part
+      // that draws as a ~1.2 lathe, so sizing off Part.Size buried its marker inside the head.
+      _mkRot.setFromMatrix4(_mkMat);
+      _mkRotT.copy(_mkRot).transpose(); // orthonormal, so the transpose is the inverse
+      _mkLocal.copy(_mkDir).applyMatrix3(_mkRotT).normalize();
       const half = partHalfExtents(p);
-      // Where the view ray leaves the part. A body part is either boxy (limbs, torsos, chamfered
-      // R6 parts) or round (the classic head), and using the wrong model shows: treating the head
-      // as a box pushed its marker out to the bounding-box corner — measured 0.864 against a
-      // surface at 0.60, visibly hovering — while treating a limb as an ellipsoid would sink the
-      // patch into it. So each part uses the model that matches how it is actually drawn.
-      const t = p._round
-        ? 1 / Math.hypot(_mkLocal.x / half[0], _mkLocal.y / half[1], _mkLocal.z / half[2])
-        : Math.min(
-          Math.abs(half[0] / (_mkLocal.x || 1e-6)),
-          Math.abs(half[1] / (_mkLocal.y || 1e-6)),
-          Math.abs(half[2] / (_mkLocal.z || 1e-6)),
-        );
-      _mkPos.copy(_mkCentre).addScaledVector(_mkDir, t + 0.012);
-      _mkQuat.setFromRotationMatrix(_mkLook.lookAt(camPos, _mkPos, _mkUp));
-      p.marker.matrix.compose(_mkPos, _mkQuat, _mkScale.setScalar(markerSizeFor(p, half)));
+
+      // The face most turned toward the camera.
+      let axis = 0;
+      for (let k = 1; k < 3; k++) if (Math.abs(_mkLocal.getComponent(k)) > Math.abs(_mkLocal.getComponent(axis))) axis = k;
+      const sign = _mkLocal.getComponent(axis) >= 0 ? 1 : -1;
+
+      // How far out that face sits. Measuring along the FACE normal rather than the view ray also
+      // removes the round-vs-boxy problem entirely: the half-extent is the surface distance for a
+      // flat face and for a sphere alike. Along the view ray it was not — treating the round head
+      // as a box put its marker out at the bounding-box corner, 0.864 against a surface at 0.60.
+      const out = half[axis];
+
+      // Basis: the face normal plus the part's other two axes, so the quad lies IN the face.
+      // (u, v, n) is kept right-handed by swapping the tangents on a negative face.
+      const u = (axis + 1) % 3, v = (axis + 2) % 3;
+      _mkU.set(0, 0, 0).setComponent(sign > 0 ? u : v, 1).applyMatrix3(_mkRot);
+      _mkV.set(0, 0, 0).setComponent(sign > 0 ? v : u, 1).applyMatrix3(_mkRot);
+      _mkN.set(0, 0, 0).setComponent(axis, sign).applyMatrix3(_mkRot);
+      _mkBasis.makeBasis(_mkU.normalize(), _mkV.normalize(), _mkN.normalize());
+      _mkQuat.setFromRotationMatrix(_mkBasis);
+      _mkPos.copy(_mkCentre).addScaledVector(_mkN, out + 0.012);
+      p.marker.matrix.compose(_mkPos, _mkQuat, _mkScale.setScalar(markerSizeFor(half, axis)));
       p.marker.matrixWorldNeedsUpdate = true;
     }
   }
