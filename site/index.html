@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadence Animator — a standalone Roblox animation suite</title>
+<meta name="description" content="Animate Roblox rigs in a real desktop app. Full Moon Animator 2 parity, a 3D viewport with IK and onion skinning, a multi-layer VFX studio, live Roblox Studio sync, and 104 MCP tools so Claude can drive it. Free, MIT-licensed, Windows.">
+<meta name="theme-color" content="#0a0a0e">
+<link rel="canonical" href="https://alycoulibal2-sketch.github.io/Cadence-Animator/">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Cadence Animator — a standalone Roblox animation suite">
+<meta property="og:description" content="Animate Roblox rigs in a real desktop app. Moon Animator 2 parity, IK, onion skinning, a multi-layer VFX studio, and 104 MCP tools so Claude can drive it.">
+<meta property="og:url" content="https://alycoulibal2-sketch.github.io/Cadence-Animator/">
+<meta property="og:image" content="https://alycoulibal2-sketch.github.io/Cadence-Animator/assets/img/hero-animator.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<header class="nav" id="nav">
+  <div class="shell nav-inner">
+    <a class="brand" href="./" aria-label="Cadence Animator — home">
+      <svg viewBox="0 0 28 24" width="26" height="22" fill="none" aria-hidden="true" focusable="false">
+        <path d="M4.6 17.8C9.4 17.8 11.2 6.2 16 6.2C19.3 6.2 21 10.5 23.4 12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+        <path d="M4.6 15L7.4 17.8L4.6 20.6L1.8 17.8Z" fill="currentColor"/>
+        <path d="M16 3.4L18.8 6.2L16 9L13.2 6.2Z" fill="currentColor"/>
+      </svg>
+      Cadence <span class="brand-sub">Animator</span>
+    </a>
+
+    <nav aria-label="Primary">
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#studio">Roblox Studio</a></li>
+        <li><a href="#vfx">VFX Studio</a></li>
+        <li><a href="#claude">Claude</a></li>
+        <li><a href="#compare">vs Moon</a></li>
+        <li><a href="docs.html">Docs</a></li>
+      </ul>
+    </nav>
+
+    <div class="nav-actions">
+      <button class="nav-search" id="cmdkOpen" aria-label="Search the site (Control K)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span aria-hidden="true">Search</span>
+        <kbd aria-hidden="true">Ctrl K</kbd>
+      </button>
+      <a class="btn btn-primary btn-sm" href="#download">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 20h16"/></svg>
+        Download
+      </a>
+      <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ============================================================ hero -->
+<section class="hero">
+  <div class="shell">
+    <div class="hero-copy">
+      <p class="eyebrow">Version <span data-version>0.8.0</span> &middot; Windows</p>
+      <h1>Animate Roblox rigs in a <span class="accent">real desktop app</span>.</h1>
+      <p class="lede">
+        Cadence is a standalone animation suite for Roblox — a proper 3D viewport with
+        inverse kinematics and onion skinning, full Moon&nbsp;Animator&nbsp;2 feature parity,
+        a multi-layer VFX studio, and two-way sync with Roblox Studio. Free and open source.
+      </p>
+
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" href="#download" id="heroDownload">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 20h16"/></svg>
+          Download for Windows
+        </a>
+        <a class="btn btn-ghost btn-lg" href="docs.html">Read the docs</a>
+      </div>
+
+      <p class="hero-meta">
+        <span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m5 13 4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Installer, <span data-size>97.2 MB</span>
+        </span>
+        <span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m5 13 4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          MIT licensed
+        </span>
+        <span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m5 13 4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Updates itself in place
+        </span>
+        <span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m5 13 4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          No account needed
+        </span>
+      </p>
+    </div>
+
+    <figure class="shot reveal">
+      <div class="shot-bar" aria-hidden="true">
+        <i></i><i></i><i></i>
+        <span class="label">Cadence Animator — Sprint Cycle</span>
+      </div>
+      <img src="assets/img/hero-animator.png" width="1920" height="1020"
+           alt="The Cadence Animator window: a scene list on the left, an R15 Roblox rig posed mid-stride in the 3D viewport with a transform gizmo on its right arm, an inspector on the right showing the Right Elbow joint at -11.69 degrees, and a dope-sheet timeline below with keyframes on twelve joint tracks.">
+      <figcaption>An unedited screenshot of Cadence <span data-version>0.8.0</span> — R15 rig, twelve keyframed joint tracks, playhead on frame&nbsp;16.</figcaption>
+    </figure>
+
+    <div class="stats reveal">
+      <div class="stat"><b>52</b><span>easing curves — 13&nbsp;styles &times; 4&nbsp;directions, ported bit-exact from Moon</span></div>
+      <div class="stat"><b>63</b><span>keyboard shortcuts, and a 117-command palette behind <kbd>Ctrl</kbd>&nbsp;<kbd>K</kbd></span></div>
+      <div class="stat"><b>104</b><span>MCP tools, so Claude can drive the app directly</span></div>
+      <div class="stat"><b>396</b><span>particle presets, plus 25 multi-layer effect archetypes</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ features -->
+<section class="section" id="features">
+  <div class="shell">
+    <div class="section-head reveal">
+      <p class="eyebrow">The animator</p>
+      <h2>Everything you need to pose, time and polish.</h2>
+      <p class="lede">
+        Cadence is not a docked plugin panel — it is a real application with a real viewport,
+        resizable panels and its own window. Every feature below is in the shipping build.
+      </p>
+    </div>
+
+    <div class="grid">
+      <article class="card reveal">
+        <div class="card-icon" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>
+        </div>
+        <h3>A true 3D viewport</h3>
+        <p>
+          Move, rotate, scale and trackball gizmos over a three.js scene. Rigs render the way
+          Studio renders them — part shapes, colours, meshes, UGC textures and
+          <code>SurfaceAppearance</code> faces, measured against Studio rather than approximated.
+        </p>
+        <span class="card-tag">4 gizmo modes</span>
+      </article>
+
+      <article class="card reveal">
+        <div class="card-icon" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm10 0a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/></svg>
+        </div>
+        <h3>Inverse kinematics</h3>
+        <p>
+          Drag a hand or a foot and the joints above it follow. A cyclic-coordinate-descent
+          solver works on the rig's own motors, with a configurable chain length, and lands its
+          result in the same auto-key and undo pipeline as manual posing.
+        </p>
+        <span class="card-tag">press T</span>
+      </article>
+
+      <article class="card reveal">
+        <div class="card-icon" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 12h3m10 0h3"/><circle cx="12" cy="12" r="4"/><path d="M12 4v2m0 12v2"/></svg>
+        </div>
+        <h3>Onion skinning</h3>
+        <p>
+          See where the pose came from and where it is going: ghosts of past frames in blue and
+          future frames in orange, drawn from the same geometry as the live rig so they cost
+          nothing extra to show.
+        </p>
+      </article>
+
+      <article class="card reveal">
+        <div class="card-icon" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19c5 0 6-14 11-14 3 0 4 6 7 8"/><circle cx="3" cy="19" r="1.6" fill="currentColor"/><circle cx="14" cy="5" r="1.6" fill="currentColor"/></svg>
+        </div>
+        <h3>Real curve editing</h3>
+        <p>
+          A dope sheet for timing and a bezier curve editor for feel. Thirteen easing styles in
+          four directions each, ported from Moon Animator's own engine and verified bit-exact —
+          including the two quirks Moon has, kept on purpose so animations match.
+        </p>
+        <span class="card-tag">13 styles &times; 4 directions</span>
+      </article>
+
+      <article class="card reveal">
+        <div class="card-icon" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M8 3v6M16 9v6" opacity=".5"/></svg>
+        </div>
+        <h3>Timeline that does the tedious work</h3>
+        <p>
+          Group keyframes so they move together, mirror a pose left-to-right, and fill, repeat,
+          stretch, reverse or offset whole frame ranges. Box-select works correctly even while
+          the timeline auto-scrolls under the drag.
+        </p>
+      </article>
+
+      <article class="card reveal">
+        <div class="card-icon" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="8.5" opacity=".55"/></svg>
+        </div>
+        <h3>World-space tracks</h3>
+        <p>
+          Flag any track as unparented and its keys store world CFrames instead of
+          parent-relative motor transforms — so copying that motion onto a rig with different
+          proportions reproduces the same path through space, not a wobble.
+        </p>
+      </article>
+
+      <article class="card reveal">
+        <div class="card-icon" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17V7m4 13V4m4 16V9m4 11V6m4 14v-7"/></svg>
+        </div>
+        <h3>Animate to sound</h3>
+        <p>
+          Drop in an MP3, WAV or OGG and get a real waveform under the dope sheet, so a hit or
+          a beat lands on the frame you can actually see.
+        </p>
+      </article>
+
+      <article class="card reveal">
+        <div class="card-icon" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"/><path d="M21 4v5h-5"/></svg>
+        </div>
+        <h3>Nothing to lose</h3>
+        <p>
+          There is no "save before you close". Every change is written to disk within a second,
+          the last ten generations are kept as rolling backups, and reopening the app resumes
+          the project you were in with no dialog to dismiss.
+        </p>
+        <span class="card-tag">10 rolling backups</span>
+      </article>
+
+      <article class="card reveal">
+        <div class="card-icon" aria-hidden="true">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H4z"/><path d="M9 20h6M12 16v4"/></svg>
+        </div>
+        <h3>Built for long sessions</h3>
+        <p>
+          Four themes and six accent colours, every panel resizable with its size remembered,
+          and a quality checker that sweeps an animation for rotation pops, dead joints,
+          degenerate transforms and held-pose tails.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ studio -->
+<section class="section" id="studio">
+  <div class="shell">
+    <div class="section-head reveal">
+      <p class="eyebrow">Roblox Studio</p>
+      <h2>Bring rigs in. Send animations back.</h2>
+      <p class="lede">
+        A small companion plugin bridges Cadence and Studio over a local HTTP connection on
+        <code>127.0.0.1:35747</code>. Cadence installs it for you.
+      </p>
+    </div>
+
+    <div class="split split-wide">
+      <div class="reveal">
+        <ol class="steps">
+          <li>
+            <strong>Install the plugin</strong>
+            <span>Click the <em>Studio offline</em> chip in Cadence and it writes
+            <code>CadenceBridge.lua</code> into your Roblox plugins folder. Restart Studio, turn on
+            <em>Allow HTTP Requests</em>, and hit Connect on the new toolbar tab.</span>
+          </li>
+          <li>
+            <strong>Pull in any rig</strong>
+            <span>Your own Roblox avatar by username, whatever is selected in Studio's Explorer at
+            any nesting depth, any model by asset ID, or an <code>.rbxm</code> /
+            <code>.rbxmx</code> file. R6, R15, Rthro and Rthro&nbsp;Slender are built in.</span>
+          </li>
+          <li>
+            <strong>Animate, then export</strong>
+            <span>Cadence writes a <code>KeyframeSequence</code> into
+            <code>&lt;rig&gt;.AnimSaves.&lt;name&gt;</code> — the same convention Roblox's own
+            Animation Editor uses, so it opens there ready to publish.</span>
+          </li>
+        </ol>
+      </div>
+
+      <div class="panel reveal">
+        <h3 style="margin-bottom:14px">Also crosses the bridge</h3>
+        <ul class="checks">
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg>
+            <span><strong>Import an existing animation</strong> by published Roblox animation ID, or
+            straight off a rig's <code>AnimSaves</code> — so Moon exports come in too.</span>
+          </li>
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg>
+            <span><strong>Push from Studio</strong> with a Send&nbsp;Selection button, and re-read a
+            rig's geometry with Sync&nbsp;Pose after editing it natively.</span>
+          </li>
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg>
+            <span><strong>Rigs stay identified by a GUID</strong>, never by name — two rigs called
+            <code>Dummy</code> can never overwrite each other's animations.</span>
+          </li>
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg>
+            <span><strong>Cameras and object properties</strong> export as a self-contained Luau
+            script — one baked row per frame, easing already applied.</span>
+          </li>
+        </ul>
+
+        <div class="note" style="margin-top:22px">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1" stroke-linecap="round"/></svg>
+          <span>One honest limit: no third-party tool can push an animation straight to Roblox's
+          asset servers. Cadence gets it into the Animation Editor; the final
+          <em>Import&nbsp;&rarr;&nbsp;Export</em> click is Roblox's, not ours.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ property tracks -->
+<section class="section">
+  <div class="shell">
+    <div class="panel reveal">
+      <div class="split">
+        <div>
+          <p class="eyebrow">Beyond joints</p>
+          <h2 style="font-size:clamp(1.5rem,2.6vw,2rem)">Animate the whole scene, not just the skeleton.</h2>
+          <p class="lede" style="margin-top:14px;font-size:1rem">
+            Cadence carries Moon Animator's animatable-property registry across in full:
+            <strong>67 Roblox classes'</strong> properties on a timeline, plus
+            <strong>22 one-shot actions</strong> you can fire on a frame. Events get markers with
+            their own Luau, cameras get keyframed field of view, and four screen effects —
+            vignette, letterbox, cover and subtitles — sit on the same timeline as everything else.
+          </p>
+        </div>
+        <dl class="kv">
+          <div><dt>Animatable classes</dt><dd>67</dd></div>
+          <div><dt>One-shot action types</dt><dd>22</dd></div>
+          <div><dt>Value types supported</dt><dd>12</dd></div>
+          <div><dt>Screen effects</dt><dd>4</dd></div>
+          <div><dt>Easing styles &times; directions</dt><dd>13 &times; 4</dd></div>
+          <div><dt>Built-in rig presets</dt><dd>4</dd></div>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ vfx -->
+<section class="section" id="vfx">
+  <div class="shell">
+    <div class="section-head reveal">
+      <p class="eyebrow">VFX Studio</p>
+      <h2>A second window built only for effects.</h2>
+      <p class="lede">
+        Effects in Cadence are multi-layer documents, not one particle emitter with sliders. Every
+        layer is keyframeable, every effect scrubs deterministically — frame 40 looks identical
+        every time you land on it — and the whole thing exports as one self-contained Luau script.
+      </p>
+    </div>
+
+    <div class="split split-wide">
+      <div class="reveal">
+        <div class="layers">
+          <div class="layer-row"><span class="glyph" aria-hidden="true">✨</span><span><b>Emitter</b><small>Particles, with colour and density ramps over their life</small></span><span class="badge">layer</span></div>
+          <div class="layer-row"><span class="glyph" aria-hidden="true">◇</span><span><b>Shape</b><small>15 pure-maths primitives: arcs, ribbons, spirals, lightning</small></span><span class="badge">layer</span></div>
+          <div class="layer-row"><span class="glyph" aria-hidden="true">☀</span><span><b>Light</b><small>Timed illumination that travels with the effect</small></span><span class="badge">layer</span></div>
+          <div class="layer-row"><span class="glyph" aria-hidden="true">▣</span><span><b>Screen</b><small>Full-frame overlays, built into their own ScreenGui on export</small></span><span class="badge">layer</span></div>
+          <div class="layer-row"><span class="glyph" aria-hidden="true">〰</span><span><b>Shake</b><small>Camera shake that never accumulates drift, in-app or in Luau</small></span><span class="badge">layer</span></div>
+          <div class="layer-row"><span class="glyph" aria-hidden="true">♪</span><span><b>Sound</b><small>Audio cued to the effect's own clip window</small></span><span class="badge">layer</span></div>
+        </div>
+        <p class="muted" style="font-size:0.85rem;margin-top:14px">
+          Stack them, clip them, drive any property with a curve or an expression, then layer on
+          eight modifiers — noise, wind, pulse, flicker, orbit, fade, gradient shift, glow boost.
+        </p>
+      </div>
+
+      <div class="reveal">
+        <div class="panel" style="margin-bottom:16px">
+          <h3 style="display:flex;align-items:center;gap:9px">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21s1-5 5-9 9-9 9-9l3 3s-5 5-9 9-9 6-9 6Z"/></svg>
+            Sketch it
+          </h3>
+          <p style="color:var(--text-2);font-size:0.93rem;margin-top:10px">
+            Draw the effect instead of describing it. Paint five layers on one canvas — shape,
+            colour, density, motion and energy — and Cadence composes roughly thirty complete,
+            fully editable effects from low-level primitives. Not thirty presets picked off a
+            shelf: each composition's layer graph is assembled fresh from what you painted.
+          </p>
+        </div>
+
+        <div class="panel">
+          <h3>Or start from the library</h3>
+          <dl class="kv" style="margin-top:12px">
+            <div><dt>Particle presets</dt><dd>396</dd></div>
+            <div><dt>Multi-layer archetypes</dt><dd>25</dd></div>
+            <div><dt>Colour themes &times; scales</dt><dd>6 &times; 3</dd></div>
+            <div><dt>Shape primitives</dt><dd>15</dd></div>
+            <div><dt>Modifier types</dt><dd>8</dd></div>
+          </dl>
+          <p class="muted" style="font-size:0.83rem;margin-top:14px">
+            A visual node editor is in early access alongside the layer inspector, with eight node
+            types covering create, appearance, motion, physics, timing and output.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ claude -->
+<section class="section" id="claude">
+  <div class="shell">
+    <div class="panel reveal" style="border-color:rgba(124,140,255,0.28)">
+      <div class="section-head" style="margin-bottom:28px">
+        <p class="eyebrow">MCP</p>
+        <h2 style="font-size:clamp(1.55rem,3vw,2.2rem)">Let Claude do the animating.</h2>
+        <p class="lede">
+          Cadence ships a Model Context Protocol server with <strong>104 tools</strong> — 74 for
+          the animator, 30 for VFX Studio. Claude can add a rig, set exact keyframes, solve IK,
+          run the quality checker and export to Studio. Crucially it can also
+          <em>look</em>: <code>render_frame</code> screenshots the viewport at any frame and hands
+          the image back, so it checks its own work instead of assuming.
+        </p>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <h3>It sees the result</h3>
+          <p><code>render_frame</code> returns a real image of the viewport at a given frame, and
+          <code>get_pose</code> returns exact world CFrames without disturbing what is on screen.</p>
+        </article>
+        <article class="card">
+          <h3>It checks its own work</h3>
+          <p><code>validate_animation</code> flags rotation and position pops, joints that never
+          move, non-orthonormal transforms and a dead tail after the last keyframe.</p>
+        </article>
+        <article class="card">
+          <h3>One click to connect</h3>
+          <p>Press <em>Claude Control</em> in the title bar and Cadence registers itself with the
+          Claude CLI. Installing from npm registers it automatically.</p>
+        </article>
+      </div>
+
+      <div class="note" style="margin-top:22px">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1" stroke-linecap="round"/></svg>
+        <span>Every write tool answers with a fresh read-back of what changed, so a caller never
+        has to assume a mutation landed. <a href="docs.html#mcp">Setting up MCP &rarr;</a></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ compare -->
+<section class="section" id="compare">
+  <div class="shell">
+    <div class="section-head reveal">
+      <p class="eyebrow">Coming from Moon Animator 2</p>
+      <h2>Everything it does, in a window of its own.</h2>
+      <p class="lede">
+        Moon Animator 2 is very good, and Cadence deliberately matches it — the same easing
+        engine, the same keybinds, the same animatable-property registry, the same
+        <code>AnimSaves</code> convention. What changes is where it runs and what it can reach.
+      </p>
+    </div>
+
+    <div class="table-wrap reveal">
+      <table>
+        <caption class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Feature comparison between Moon Animator 2 and Cadence Animator</caption>
+        <thead>
+          <tr>
+            <th scope="col">&nbsp;</th>
+            <th scope="col">Moon Animator&nbsp;2</th>
+            <th scope="col" class="col-us">Cadence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Runs as</th><td>A Studio plugin, docked in Studio</td><td class="col-us">Its own desktop application</td></tr>
+          <tr><th scope="row">Easing engine</th><td>13 styles &times; 4 directions</td><td class="col-us">The same 13 &times; 4, ported bit-exact — quirks included</td></tr>
+          <tr><th scope="row">Keybinds</th><td>Its own ~50-binding set</td><td class="col-us">The same set, matched deliberately</td></tr>
+          <tr><th scope="row">Property &amp; action tracks</th><td>Yes</td><td class="col-us">Yes — 67 classes, 22 actions</td></tr>
+          <tr><th scope="row">Inverse kinematics</th><td>—</td><td class="col-us">CCD solver on the rig's own motors</td></tr>
+          <tr><th scope="row">Onion skinning</th><td>—</td><td class="col-us">Past and future ghosts</td></tr>
+          <tr><th scope="row">World-space tracks</th><td>—</td><td class="col-us">Any track, convertible without drift</td></tr>
+          <tr><th scope="row">VFX authoring</th><td>—</td><td class="col-us">A separate multi-layer studio, exports Luau</td></tr>
+          <tr><th scope="row">Driven by an AI agent</th><td>—</td><td class="col-us">104 MCP tools, including screenshots back</td></tr>
+          <tr><th scope="row">Phone companion</th><td>—</td><td class="col-us">View and scrub over a temporary tunnel</td></tr>
+          <tr><th scope="row">Marker Luau</th><td>Runs inside Studio</td><td class="col-us">Authored and exported; runs in Studio after export</td></tr>
+          <tr><th scope="row">Live instance manipulation</th><td>Writes to Studio instances as you scrub</td><td class="col-us">Authors and exports; Studio applies</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="font-size:0.84rem;margin-top:14px">
+      A dash means the feature is not present, not that it is bad. The last two rows are places
+      where being a standalone app is a genuine trade-off rather than a win.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ download -->
+<section class="section" id="download">
+  <div class="shell">
+    <div class="section-head reveal">
+      <p class="eyebrow">Download</p>
+      <h2>Get Cadence <span data-version>0.8.0</span>.</h2>
+      <p class="lede">
+        Windows&nbsp;10 or 11, 64-bit. No account, no licence key, no telemetry. Files are served
+        from the project's GitHub release, which is the same place the in-app updater looks.
+      </p>
+    </div>
+
+    <div class="dl-grid reveal">
+      <div class="dl-card featured">
+        <h3>
+          Installer
+          <span class="chip chip-accent">Recommended</span>
+        </h3>
+        <p>
+          Installs to your user folder with Start-menu and desktop shortcuts, and lets you pick the
+          location. This is the build that can update itself in place.
+        </p>
+        <a class="btn btn-primary" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases/download/v0.8.0/Cadence-Animator-Setup-0.8.0.exe" data-dl="installer" download>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 20h16"/></svg>
+          Download installer
+        </a>
+        <dl class="kv">
+          <div><dt>File</dt><dd><code>Cadence-Animator-Setup-0.8.0.exe</code></dd></div>
+          <div><dt>Size</dt><dd data-size-installer>97.2 MB</dd></div>
+          <div><dt>Auto-update</dt><dd>Yes</dd></div>
+        </dl>
+        <details class="hash">
+          <summary>Verify this file (SHA-256)</summary>
+          <code>cc86b364ad980c007c8a9598344584ace46f3b0910df58185058c1e3cd89e2a0</code>
+        </details>
+      </div>
+
+      <div class="dl-card">
+        <h3>Portable</h3>
+        <p>
+          One executable, nothing installed. Good for a locked-down machine or a USB stick — but
+          there is nothing on disk for the updater to replace, so new versions are a manual
+          re-download.
+        </p>
+        <a class="btn btn-ghost" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases/download/v0.8.0/Cadence-Animator-0.8.0.exe" data-dl="portable" download>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 20h16"/></svg>
+          Download portable
+        </a>
+        <dl class="kv">
+          <div><dt>File</dt><dd><code>Cadence-Animator-0.8.0.exe</code></dd></div>
+          <div><dt>Size</dt><dd data-size-portable>97 MB</dd></div>
+          <div><dt>Auto-update</dt><dd>No</dd></div>
+        </dl>
+        <details class="hash">
+          <summary>Verify this file (SHA-256)</summary>
+          <code>d057b2c0355e61954630486b8235c212326f6def78211176a1ec2adfb8ab21a4</code>
+        </details>
+      </div>
+
+      <div class="dl-card">
+        <h3>From source</h3>
+        <p>
+          Clone it, or install straight from GitHub with npm — which also registers the MCP server
+          with the Claude CLI for you.
+        </p>
+        <pre style="margin-top:20px"><code>npm install -g github:alycoulibal2-sketch/Cadence-Animator
+cadence-animator</code></pre>
+        <dl class="kv">
+          <div><dt>Licence</dt><dd>MIT</dd></div>
+          <div><dt>Stack</dt><dd>Electron + three.js</dd></div>
+          <div><dt>Repository</dt><dd><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator">GitHub</a></dd></div>
+        </dl>
+      </div>
+    </div>
+
+    <div class="note note-warn reveal" style="margin-top:20px">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3Zm0 6v6m0 3h.01"/></svg>
+      <span>
+        <strong>Windows may warn you the first time.</strong> The build is not code-signed — a
+        certificate costs money a free project does not have — so SmartScreen shows
+        <em>"Windows protected your PC"</em> for new releases. Choose <em>More info &rarr; Run
+        anyway</em>, or check the SHA-256 above against the file you downloaded first.
+      </span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ faq -->
+<section class="section" id="faq">
+  <div class="shell">
+    <div class="section-head reveal">
+      <p class="eyebrow">Questions</p>
+      <h2>Before you download.</h2>
+    </div>
+
+    <div class="faq reveal">
+      <details>
+        <summary>Do I still need Roblox Studio?</summary>
+        <div class="answer">Yes, for two things: getting rigs out of your game and publishing the
+        finished animation. You can animate entirely in Cadence — the built-in R6, R15, Rthro and
+        Rthro Slender rigs need no Studio at all — but Studio is where the export lands and where
+        Roblox's own Animation Editor turns it into an asset ID.</div>
+      </details>
+      <details>
+        <summary>Is there a macOS or Linux build?</summary>
+        <div class="answer">Not today. The published builds are Windows x64 only. The app is
+        Electron, so nothing about it is fundamentally Windows-bound, but no other platform has
+        been built or tested and it would be wrong to imply otherwise.</div>
+      </details>
+      <details>
+        <summary>Will it overwrite my Moon Animator work?</summary>
+        <div class="answer">No. Cadence reads and writes the same <code>AnimSaves</code> folders
+        Moon and Roblox's Animation Editor use, and identifies rigs by a GUID attribute rather than
+        by name, so it cannot mix up two rigs that share a name. Exports go to a name you choose.</div>
+      </details>
+      <details>
+        <summary>How do updates work?</summary>
+        <div class="answer">The installed build checks the project's GitHub releases a few seconds
+        after launch, and whenever you run <em>Check for updates</em>. If there is a newer version a
+        chip appears in the title bar. Nothing downloads or installs until you click it, and a
+        failed background check stays silent rather than interrupting you.</div>
+      </details>
+      <details>
+        <summary>What actually gets sent anywhere?</summary>
+        <div class="answer">Roblox's own servers, for the things that need them: looking up an
+        avatar, fetching a mesh, texture or model asset, and reading a published animation. The
+        update check hits GitHub. The Studio bridge and the MCP server are both loopback-only. The
+        phone companion is off unless you turn it on, and then it is token-gated. There is no
+        analytics or telemetry of any kind.</div>
+      </details>
+      <details>
+        <summary>Is it finished?</summary>
+        <div class="answer">It is at <span data-version>0.8.0</span> and used in real projects, with
+        a 51-check smoke test run before each release. It is also below 1.0 and moving quickly.
+        The node editor inside VFX Studio is explicitly early. If something breaks, the app keeps a
+        log next to its settings and the repository takes issues.</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ final cta -->
+<section class="section">
+  <div class="shell">
+    <div class="cta-band reveal">
+      <h2>Open it and animate something.</h2>
+      <p class="lede">
+        A rig is two clicks away, and there is no project to set up first.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases/download/v0.8.0/Cadence-Animator-Setup-0.8.0.exe" data-dl="installer" download>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 20h16"/></svg>
+          Download for Windows
+        </a>
+        <a class="btn btn-ghost btn-lg" href="docs.html#first-animation">Your first animation</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="shell">
+    <div class="footer-grid">
+      <div class="footer-about">
+        <a class="brand" href="./" style="margin-right:0">
+          <svg viewBox="0 0 28 24" width="26" height="22" fill="none" aria-hidden="true" focusable="false">
+            <path d="M4.6 17.8C9.4 17.8 11.2 6.2 16 6.2C19.3 6.2 21 10.5 23.4 12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            <path d="M4.6 15L7.4 17.8L4.6 20.6L1.8 17.8Z" fill="currentColor"/>
+            <path d="M16 3.4L18.8 6.2L16 9L13.2 6.2Z" fill="currentColor"/>
+          </svg>
+          Cadence <span class="brand-sub">Animator</span>
+        </a>
+        <p>A standalone Roblox animation suite. Free, MIT-licensed, and built in the open.</p>
+      </div>
+
+      <div>
+        <p class="footer-label">Product</p>
+        <ul>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#studio">Roblox Studio</a></li>
+          <li><a href="#vfx">VFX Studio</a></li>
+          <li><a href="#claude">Claude &amp; MCP</a></li>
+          <li><a href="#compare">Compared to Moon</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <p class="footer-label">Documentation</p>
+        <ul>
+          <li><a href="docs.html#install">Install</a></li>
+          <li><a href="docs.html#studio-setup">Connect Studio</a></li>
+          <li><a href="docs.html#first-animation">First animation</a></li>
+          <li><a href="docs.html#shortcuts">Shortcuts</a></li>
+          <li><a href="docs.html#troubleshooting">Troubleshooting</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <p class="footer-label">Project</p>
+        <ul>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator">Source code</a></li>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases">All releases</a></li>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/issues">Report an issue</a></li>
+          <li><a href="#download">Download</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-base">
+      <span>Cadence Animator <span data-version>0.8.0</span> &middot; MIT licence</span>
+      <span>Not affiliated with Roblox Corporation or Moon Animator.</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ============================================================ command palette -->
+<div class="cmdk" id="cmdk" role="dialog" aria-modal="true" aria-label="Jump to a section">
+  <div class="cmdk-box">
+    <div class="cmdk-input">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
+      <input id="cmdkInput" type="text" placeholder="Jump to anything…" autocomplete="off" spellcheck="false" aria-label="Search sections and documentation">
+    </div>
+    <ul class="cmdk-results" id="cmdkResults"></ul>
+    <div class="cmdk-foot">
+      <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> navigate</span>
+      <span><kbd>&crarr;</kbd> open</span>
+      <span><kbd>Esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/site.js" defer></script>
+</body>
+</html>

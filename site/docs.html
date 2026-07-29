@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation — Cadence Animator</title>
+<meta name="description" content="How to install Cadence Animator, connect Roblox Studio, animate your first rig, export a KeyframeSequence, set up the MCP server for Claude, and every keyboard shortcut.">
+<meta name="theme-color" content="#0a0a0e">
+<link rel="canonical" href="https://alycoulibal2-sketch.github.io/Cadence-Animator/docs.html">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Documentation — Cadence Animator">
+<meta property="og:description" content="Install, connect Studio, animate, export, and drive Cadence from Claude.">
+<meta property="og:url" content="https://alycoulibal2-sketch.github.io/Cadence-Animator/docs.html">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<header class="nav" id="nav">
+  <div class="shell nav-inner">
+    <a class="brand" href="./" aria-label="Cadence Animator — home">
+      <svg viewBox="0 0 28 24" width="26" height="22" fill="none" aria-hidden="true" focusable="false">
+        <path d="M4.6 17.8C9.4 17.8 11.2 6.2 16 6.2C19.3 6.2 21 10.5 23.4 12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+        <path d="M4.6 15L7.4 17.8L4.6 20.6L1.8 17.8Z" fill="currentColor"/>
+        <path d="M16 3.4L18.8 6.2L16 9L13.2 6.2Z" fill="currentColor"/>
+      </svg>
+      Cadence <span class="brand-sub">Animator</span>
+    </a>
+
+    <nav aria-label="Primary">
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html#features">Features</a></li>
+        <li><a href="index.html#studio">Roblox Studio</a></li>
+        <li><a href="index.html#vfx">VFX Studio</a></li>
+        <li><a href="index.html#claude">Claude</a></li>
+        <li><a href="docs.html" aria-current="page">Docs</a></li>
+      </ul>
+    </nav>
+
+    <div class="nav-actions">
+      <button class="nav-search" id="cmdkOpen" aria-label="Search the site (Control K)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span aria-hidden="true">Search</span>
+        <kbd aria-hidden="true">Ctrl K</kbd>
+      </button>
+      <a class="btn btn-primary btn-sm" href="index.html#download">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 20h16"/></svg>
+        Download
+      </a>
+      <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+<div class="shell">
+  <div class="doc-hero">
+    <p class="eyebrow">Documentation</p>
+    <h1>Everything, in the order you need it.</h1>
+    <p class="lede">
+      Install, connect Roblox Studio, animate a rig, export it, and — if you want — hand the whole
+      thing to Claude. Written against Cadence <span data-version>0.8.0</span>.
+    </p>
+  </div>
+
+  <div class="docs-layout">
+
+    <aside class="toc" aria-label="On this page">
+      <p class="toc-label">Getting started</p>
+      <ul>
+        <li><a href="#install">Install</a></li>
+        <li><a href="#requirements">Requirements</a></li>
+        <li><a href="#studio-setup">Connect Studio</a></li>
+        <li><a href="#first-animation">First animation</a></li>
+      </ul>
+
+      <p class="toc-label">Animating</p>
+      <ul>
+        <li><a href="#rigs">Getting rigs in</a></li>
+        <li><a href="#posing">Posing &amp; keyframes</a></li>
+        <li><a href="#ik">Inverse kinematics</a></li>
+        <li><a href="#easing">Easing &amp; curves</a></li>
+        <li><a href="#timeline">Timeline tools</a></li>
+        <li><a href="#properties">Properties &amp; events</a></li>
+        <li><a href="#export">Exporting</a></li>
+      </ul>
+
+      <p class="toc-label">Effects</p>
+      <ul>
+        <li><a href="#vfx-guide">VFX Studio</a></li>
+      </ul>
+
+      <p class="toc-label">Advanced</p>
+      <ul>
+        <li><a href="#mcp">Claude &amp; MCP</a></li>
+        <li><a href="#mobile">Phone companion</a></li>
+        <li><a href="#shortcuts">Shortcuts</a></li>
+      </ul>
+
+      <p class="toc-label">Maintenance</p>
+      <ul>
+        <li><a href="#autosave">Autosave</a></li>
+        <li><a href="#updating">Updating</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#releasing">Cutting a release</a></li>
+      </ul>
+    </aside>
+
+    <div class="doc-body">
+
+      <section id="install">
+        <h2>Install</h2>
+        <p>
+          Download the installer from the <a href="index.html#download">download section</a> and run
+          it. It installs into your user folder — no administrator rights needed — and lets you
+          choose the location, with Start-menu and desktop shortcuts.
+        </p>
+        <div class="note note-warn">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3Zm0 6v6m0 3h.01"/></svg>
+          <span><strong>SmartScreen will probably warn you.</strong> The builds are not code-signed,
+          so Windows shows <em>&ldquo;Windows protected your PC&rdquo;</em> for a release it has not
+          seen before. Click <em>More info</em>, then <em>Run anyway</em>. If you would rather verify
+          first, the SHA-256 of both files is printed on the download page.</span>
+        </div>
+        <p>
+          There is also a <strong>portable</strong> build — a single <code>.exe</code> that installs
+          nothing. It runs identically, but the in-app updater cannot replace a portable executable,
+          so updates mean downloading again.
+        </p>
+
+        <h3>From source</h3>
+        <p>Installing from GitHub with npm also registers the MCP server with the Claude CLI:</p>
+        <pre><code>npm install -g github:alycoulibal2-sketch/Cadence-Animator
+cadence-animator</code></pre>
+        <p>Or clone and run it in place:</p>
+        <pre><code>git clone https://github.com/alycoulibal2-sketch/Cadence-Animator
+cd Cadence-Animator
+npm install
+npm start</code></pre>
+      </section>
+
+      <section id="requirements">
+        <h2>Requirements</h2>
+        <div class="panel">
+          <dl class="kv">
+            <div><dt>Operating system</dt><dd>Windows 10 or 11, 64-bit</dd></div>
+            <div><dt>Graphics</dt><dd>Anything that runs WebGL 2 — the viewport is three.js</dd></div>
+            <div><dt>Disk</dt><dd>About 350&nbsp;MB installed, plus projects and a mesh cache</dd></div>
+            <div><dt>Roblox Studio</dt><dd>Optional, but needed to import your own rigs and to publish</dd></div>
+            <div><dt>Internet</dt><dd>Only for Roblox assets, avatar lookups and update checks</dd></div>
+            <div><dt>Account</dt><dd>None. No sign-in, no telemetry</dd></div>
+          </dl>
+        </div>
+        <p style="margin-top:18px">
+          macOS and Linux builds do not exist today. Nothing in the app is inherently Windows-only —
+          it is Electron — but no other platform has been built or tested, so no claim is made about
+          them.
+        </p>
+      </section>
+
+      <section id="studio-setup">
+        <h2>Connect Roblox Studio</h2>
+        <p>
+          Cadence talks to Studio over a local HTTP bridge on <code>127.0.0.1:35747</code>. Nothing
+          leaves your machine. You only do this once.
+        </p>
+        <ol>
+          <li>In Cadence, click the <strong>Studio offline</strong> chip in the title bar. It writes
+            <code>CadenceBridge.lua</code> into your Roblox plugins folder for you.</li>
+          <li>Restart Roblox Studio.</li>
+          <li>In Studio, open <strong>Game Settings &rarr; Security</strong> and turn on
+            <strong>Allow HTTP Requests</strong>.</li>
+          <li>On the new <strong>Cadence Animator</strong> toolbar tab in Studio, click
+            <strong>Connect</strong>.</li>
+        </ol>
+        <p>
+          The chip in Cadence turns green and shows the name of the open place. If it does not, see
+          <a href="#troubleshooting">troubleshooting</a>.
+        </p>
+        <p>The plugin adds two buttons on the Studio side as well:</p>
+        <ul>
+          <li><strong>Send Selection</strong> — push a rig to Cadence without Cadence asking first.</li>
+          <li><strong>Sync Pose</strong> — re-read a rig's geometry after editing it with Studio's own
+            Move/Rotate tools.</li>
+        </ul>
+        <div class="note">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1" stroke-linecap="round"/></svg>
+          <span>You cannot drag an item out of Studio's Explorer into Cadence's window — Studio is
+          not an OS-level drag source. <strong>Add from Studio selection</strong> is the equivalent:
+          select it in Explorer, one click in Cadence.</span>
+        </div>
+      </section>
+
+      <section id="first-animation">
+        <h2>Your first animation</h2>
+        <p>You do not need Studio for this. Nothing to set up, no project to create.</p>
+        <ol>
+          <li><strong>Add a rig.</strong> Press <kbd>Ctrl</kbd><kbd>K</kbd> and type <em>R15</em>, or
+            use <strong>+ Add</strong> in the title bar. R6, R15, Rthro and Rthro Slender are built
+            in.</li>
+          <li><strong>Turn on auto-key</strong> with <kbd>A</kbd>. Now every part you move records a
+            keyframe at the playhead, instead of you having to remember to key it.</li>
+          <li><strong>Pose it.</strong> Click a joint handle, then <kbd>E</kbd> to rotate or
+            <kbd>W</kbd> to move. Hold <kbd>Shift</kbd> while dragging to snap to the rotation
+            grid.</li>
+          <li><strong>Move the playhead</strong> forward — drag it, or step with <kbd>&rarr;</kbd> —
+            and pose again. That is the whole loop.</li>
+          <li><strong>Watch it.</strong> <kbd>Space</kbd> plays, <kbd>Tab</kbd> toggles looping. Press
+            <kbd>N</kbd> for onion skinning to see the frames around the current one.</li>
+          <li><strong>Polish the timing.</strong> Click <strong>Curves</strong> in the transport bar
+            and drag the bezier handles, or select keyframes and pick an easing style.</li>
+        </ol>
+        <div class="note">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1" stroke-linecap="round"/></svg>
+          <span>You never have to save — see <a href="#autosave">autosave</a>.
+          <kbd>Ctrl</kbd><kbd>S</kbd> exists anyway if you want the reassurance.</span>
+        </div>
+      </section>
+
+      <section id="rigs">
+        <h2>Getting rigs in</h2>
+        <p>Five routes, in rough order of how often you will want them:</p>
+        <ul>
+          <li><strong>Built in</strong> — R6 (7 parts, 6 joints), R15, Rthro and Rthro Slender
+            (16 parts, 15 joints each). No Studio, no network.</li>
+          <li><strong>Your Roblox avatar</strong> — type a username. Cadence builds the real avatar
+            live in Studio and pulls it in, textures and all.</li>
+          <li><strong>Whatever is selected in Studio</strong> — select the rig's Model in Explorer at
+            any nesting depth and click once in Cadence.</li>
+          <li><strong>By asset ID</strong> — any Roblox model asset, inserted through Studio's own
+            InsertService.</li>
+          <li><strong>From a file</strong> — <code>.rbxm</code> or <code>.rbxmx</code>, parsed
+            directly by Cadence with no Studio involved.</li>
+        </ul>
+        <p>
+          UGC textures come across too, including <code>SurfaceAppearance</code> face textures, and
+          R15 shirt/pants clothing is composited the way Roblox composites it.
+        </p>
+        <p>
+          You can also change a rig once it is in. <strong>Rigging tools</strong> in the Inspector
+          creates, converts and deletes <code>Motor6D</code> joints and welds, guarding against joint
+          cycles, a part driven by two motors at once, and driving the root part. New joints derive
+          from the rig's rest pose, never from whatever pose is currently on screen — so adding a
+          joint mid-animation cannot bake today's pose into the rig's geometry.
+        </p>
+      </section>
+
+      <section id="posing">
+        <h2>Posing and keyframes</h2>
+        <h3>The tools</h3>
+        <ul>
+          <li><kbd>W</kbd> move, <kbd>E</kbd> rotate, <kbd>R</kbd> cycles between them.</li>
+          <li><strong>Trackball</strong> for free rotation without picking an axis first.</li>
+          <li><strong>Scale</strong> resizes the whole rig proportionally — one uniform factor from
+            any handle, the way Studio's Model scale behaves.</li>
+          <li><kbd>Y</kbd> switches the gizmo between local and world space. <kbd>C</kbd> toggles
+            rotation-grid snapping, or hold <kbd>Shift</kbd> to snap only while dragging.</li>
+        </ul>
+        <h3>Keying</h3>
+        <p>
+          <kbd>A</kbd> toggles auto-key, which is how most people work. Otherwise <kbd>S</kbd> keys
+          the current pose, <kbd>Numpad +</kbd> keys just the selected track, and <kbd>G</kbd> keys
+          the rest pose on the selected track. Double-clicking a part in the viewport keys that part.
+        </p>
+        <h3>World-space tracks</h3>
+        <p>
+          Any track can be flagged <strong>Unparented (world-space)</strong> in the Inspector. Its
+          keys then store the part's origin-relative CFrame instead of a parent-relative motor
+          transform, so copying those keys onto a rig with different limb lengths reproduces the same
+          path through space rather than a parent-relative wobble. Toggling the flag re-derives every
+          existing key exactly — switch back and forth as much as you like and the pose does not
+          move. On export it is baked back to ordinary transforms, since Roblox's format has no such
+          concept.
+        </p>
+      </section>
+
+      <section id="ik">
+        <h2>Inverse kinematics</h2>
+        <p>
+          Press <kbd>T</kbd>. Dragging the translate gizmo now moves a <em>target</em> that the limb
+          chases, rather than the part itself — grab a hand and the elbow and shoulder follow.
+        </p>
+        <ul>
+          <li>A cyclic-coordinate-descent solver works directly on the rig's own motor joints.</li>
+          <li>The chain walks tip-first up three joints by default. Change it with <strong>IK chain
+            length</strong> in the command palette; the setting is remembered.</li>
+          <li>Each step's rotation is clamped, so a big drag eases toward the target instead of
+            snapping or flipping.</li>
+          <li>Results land in the normal auto-key and undo pipeline — nothing about an IK pose is
+            special once it is keyed.</li>
+        </ul>
+      </section>
+
+      <section id="easing">
+        <h2>Easing and the curve editor</h2>
+        <p>
+          Thirteen styles — Linear, Constant, Sine, Back, Quad, Cubic, Quart, Quint, Sextic,
+          Exponential, Circular, Bounce and Elastic — each in four directions (In, Out, InOut, OutIn).
+          That is the same 52 combinations Moon Animator has, ported from its own engine and verified
+          numerically identical.
+        </p>
+        <p>
+          Two of Moon's quirks are reproduced deliberately, not fixed: Exponential's In and OutIn
+          variants end fractionally short of 1, and Back and Elastic default their parameters the way
+          Moon's constructor does. Animations authored in Moon therefore behave the same here.
+        </p>
+        <p>
+          For anything a Roblox <code>KeyframeSequence</code> cannot express natively, Cadence bakes
+          the curve into explicit per-frame keys on export — so what you see in the editor is what
+          plays in game, rather than Roblox re-interpolating it differently.
+        </p>
+        <p>
+          Open the curve editor from <strong>Curves</strong> in the transport bar, or right-click a
+          keyframe. Drag its handles for a custom bezier on any individual keyframe.
+        </p>
+      </section>
+
+      <section id="timeline">
+        <h2>Timeline tools</h2>
+        <ul>
+          <li><strong>Group</strong> keyframes with <kbd>Ctrl</kbd><kbd>G</kbd> so they always move
+            together; grouped keys get a gold ring.</li>
+          <li><strong>Mirror</strong> a rig's animation left-to-right with <kbd>Ctrl</kbd><kbd>R</kbd>
+            — matching <code>Left*</code>/<code>Right*</code> track names and reflecting the
+            transforms.</li>
+          <li><strong>Fill</strong> (<kbd>Shift</kbd><kbd>K</kbd>) bakes explicit keys across a range,
+            optionally with random wiggle. <strong>Repeat</strong>, <strong>stretch</strong> and
+            <strong>reverse</strong> work on a selection; <strong>offset</strong> shifts every frame
+            in the project.</li>
+          <li><strong>Split</strong> a keyframe (<kbd>M</kbd>) or split at a stride
+            (<kbd>Shift</kbd><kbd>M</kbd>).</li>
+          <li><strong>Play range</strong> confines playback to the section you are working on.</li>
+          <li><strong>Paste into selected item</strong> (<kbd>Shift</kbd><kbd>Ctrl</kbd><kbd>V</kbd>)
+            retargets copied keys onto a different rig by track name.</li>
+          <li><strong>Edit selected keyframes</strong> (<kbd>Numpad 7</kbd>) sets values and easing on
+            every selected keyframe at once.</li>
+        </ul>
+        <p>
+          There is also a quality checker. It sweeps an animation for rotation pops over 35&deg; or
+          position jumps over 3 studs in a single frame, joints that were never animated,
+          non-orthonormal or degenerate transforms, and a held pose after the last keyframe.
+        </p>
+      </section>
+
+      <section id="properties">
+        <h2>Properties, actions and events</h2>
+        <p>
+          Rigs are not the only thing on the timeline. Cadence carries across Moon Animator's
+          animatable-property registry in full: <strong>67 Roblox classes</strong>, 12 value types,
+          and <strong>22 one-shot action types</strong> you fire on a single frame.
+        </p>
+        <ul>
+          <li><strong>Property tracks</strong> — animate a property of any supported instance over
+            time, with the same easing engine as joints. Colour properties get a full colour
+            picker.</li>
+          <li><strong>Action tracks</strong> — a one-shot event at a frame, rather than a value over
+            time.</li>
+          <li><strong>Markers</strong> — named events on the timeline, each able to carry its own
+            <code>codeBegin</code> and <code>codeEnd</code> Luau.</li>
+          <li><strong>Screen effects</strong> — vignette, letterbox, cover and subtitles, keyframeable
+            like everything else.</li>
+          <li><strong>Cameras</strong> — position and field of view on their own tracks.</li>
+          <li><strong>Audio</strong> — MP3, WAV or OGG with a waveform to time against.</li>
+        </ul>
+        <div class="note">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1" stroke-linecap="round"/></svg>
+          <span>Marker Luau is stored and exported but <strong>never executed inside Cadence</strong>
+          — there is no Luau runtime here. It runs in Studio once exported.</span>
+        </div>
+      </section>
+
+      <section id="export">
+        <h2>Exporting</h2>
+
+        <h3>Joint animation &rarr; Studio</h3>
+        <p>
+          <kbd>Numpad 5</kbd>, or <strong>Export &rarr; Straight into Studio</strong>. Cadence writes
+          a <code>KeyframeSequence</code> into <code>&lt;rig&gt;.AnimSaves.&lt;name&gt;</code> — the
+          same convention Roblox's Animation Editor and Moon Animator both use.
+        </p>
+        <p>
+          To turn that into an animation asset ID, open Studio's Animation Editor on the rig and use
+          <strong>Import</strong>, then <strong>Export</strong>. No third-party tool can push
+          directly to Roblox's asset servers; that step is Roblox's by design, not a gap in Cadence.
+        </p>
+
+        <h3>Cameras and properties &rarr; Luau</h3>
+        <p>
+          A <code>KeyframeSequence</code> has nowhere to put a camera move or an arbitrary property,
+          so those export as a generated, self-contained Luau script instead — one baked row per
+          frame with easing already applied, driven by <code>RenderStepped</code> or
+          <code>Heartbeat</code>, with a <code>BindableEvent</code> to trigger it. Save it as
+          <code>.lua</code>, as a droppable <code>.rbxmx</code> LocalScript, or straight to the
+          clipboard.
+        </p>
+
+        <h3>Effects &rarr; Luau</h3>
+        <p>
+          VFX documents export the same way: one self-contained LocalScript with the curves
+          pre-baked. Effects are not written into a <code>KeyframeSequence</code> — that format has
+          no slot for them.
+        </p>
+
+        <h3>Files</h3>
+        <p>
+          Projects are <code>.cadence</code> files. You can import an animation from a
+          <code>KeyframeSequence</code> file, from a published Roblox animation ID, or from a rig's
+          existing <code>AnimSaves</code> folder — which is how you bring Moon Animator work in.
+        </p>
+      </section>
+
+      <section id="vfx-guide">
+        <h2>VFX Studio</h2>
+        <p>
+          A separate window, opened from <strong>VFX Studio</strong> in the title bar. It has its own
+          document, its own undo stack and its own autosave — nothing it does touches the animator's
+          state until you deliberately send an effect over.
+        </p>
+
+        <h3>How an effect is built</h3>
+        <p>
+          An effect is a document of stacked <strong>layers</strong>, each with a clip window on a
+          local timeline. Six layer types: <strong>emitter</strong>, <strong>shape</strong>,
+          <strong>light</strong>, <strong>screen</strong>, <strong>shake</strong> and
+          <strong>sound</strong>. Any property on any layer can be driven by a curve or an expression,
+          and eight <strong>modifiers</strong> — noise, wind, pulse, flicker, orbit, fade in/out,
+          gradient shift and glow boost — layer on top.
+        </p>
+        <p>
+          Sampling is a pure function of the frame number. There is no running simulation to fall out
+          of sync, which is why you can scrub to frame 40 from anywhere and get identical output every
+          time, and why the animator can render any frame on demand.
+        </p>
+
+        <h3>Three ways to start</h3>
+        <ul>
+          <li><strong>Sketch it</strong> — draw the effect. Paint five layers on one canvas (shape,
+            colour, density, motion, energy) and Cadence composes about thirty complete effects from
+            low-level primitives, each fully editable. Compositions are assembled fresh every time
+            rather than picked off a shelf of finished effects.</li>
+          <li><strong>The library</strong> — 25 multi-layer archetypes across 6 colour themes and 3
+            scales, plus 396 single-emitter particle presets to use as ingredients.</li>
+          <li><strong>From scratch</strong> — an empty document and the layer inspector.</li>
+        </ul>
+
+        <h3>Diagnostics</h3>
+        <p>
+          A validation pass with stable identifiers flags problems in an effect, marks which ones are
+          safe to auto-fix, reports performance concerns, and shows per-layer badges for how
+          faithfully each layer survives the trip to Roblox.
+        </p>
+        <p class="muted">
+          The visual node editor alongside the inspector is early: eight node types covering create,
+          appearance, motion, physics, timing and output. The layer inspector is the complete path.
+        </p>
+      </section>
+
+      <section id="mcp">
+        <h2>Claude and MCP</h2>
+        <p>
+          Cadence ships a Model Context Protocol server exposing <strong>104 tools</strong> — 74 for
+          the animator, 30 for VFX Studio. Claude can add rigs, set exact keyframe values, solve IK,
+          edit curves, build effects, run the quality checker and export to Studio.
+        </p>
+
+        <h3>Connecting it</h3>
+        <p>
+          If you installed the packaged app: click <strong>&#10024; Claude Control</strong> in the
+          title bar. Cadence registers itself with the Claude CLI, pointing at its own executable.
+        </p>
+        <p>If you installed from npm, registration already happened. To do it by hand:</p>
+        <pre><code>claude mcp add cadence-animator -- node &lt;install-path&gt;/mcp-server/index.js</code></pre>
+        <p>
+          The MCP server holds no state of its own. Every call is an HTTP request to
+          <code>127.0.0.1:35748</code> on the running app — which is why <strong>Cadence has to be
+          open</strong> for any of it to work.
+        </p>
+
+        <h3>The two tools that matter most</h3>
+        <ul>
+          <li><code>render_frame</code> — scrubs to a frame and returns a real screenshot of the
+            viewport as an image. This is what lets Claude check its own posing instead of assuming
+            the numbers looked right.</li>
+          <li><code>validate_animation</code> — the same quality heuristics the app uses, exposed as a
+            tool, so quality checks happen without a human having to ask for them.</li>
+        </ul>
+        <p>
+          Every write tool returns a fresh read-back of what changed, so a caller never has to assume
+          a mutation landed.
+        </p>
+      </section>
+
+      <section id="mobile">
+        <h2>Phone companion</h2>
+        <p>
+          Click <strong>&#128241; Mobile</strong> and Cadence starts a small local server and a
+          temporary Cloudflare tunnel, then shows a QR code. Open it on your phone and you get a real
+          three.js viewport — the actual rig, not a screenshot stream — that you can orbit and scrub.
+        </p>
+        <ul>
+          <li>Access is gated by a pairing token carried in the URL fragment.</li>
+          <li>There is a view-only toggle, and commands from the phone are limited to a small
+            allowlist.</li>
+          <li>The tunnel is temporary and needs no Cloudflare account. Restarting the app gives a new
+            address; closing it ends access.</li>
+          <li>It is off unless you turn it on.</li>
+        </ul>
+      </section>
+
+      <section id="shortcuts">
+        <h2>Keyboard shortcuts</h2>
+        <p>
+          Cadence matches Moon Animator 2's keybinds deliberately, so muscle memory carries over.
+          Press <kbd>?</kbd> in the app for this same sheet, or <kbd>Ctrl</kbd><kbd>K</kbd> for the
+          command palette — which has all 117 commands, including the ones with no shortcut.
+        </p>
+
+        <div class="keys-search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
+          <input id="keysFilter" type="search" placeholder="Filter 63 shortcuts…" aria-label="Filter keyboard shortcuts" autocomplete="off">
+        </div>
+
+        <!-- SHORTCUTS:BEGIN — generated by site/tools/gen-shortcuts.js, do not hand-edit -->
+        <div class="keys-group">
+          <h3>Playback</h3>
+          <div class="keys-list">
+            <div><span>Play / Pause</span><span class="kbds"><kbd>Space</kbd></span></div>
+            <div><span>Step forward 1 frame</span><span class="kbds"><kbd>→</kbd><span class="muted" style="font-size:0.78rem"> or </span><kbd>Numpad 6</kbd></span></div>
+            <div><span>Step back 1 frame</span><span class="kbds"><kbd>←</kbd><span class="muted" style="font-size:0.78rem"> or </span><kbd>Numpad 4</kbd></span></div>
+            <div><span>Jump to start</span><span class="kbds"><kbd>Home</kbd><span class="muted" style="font-size:0.78rem"> or </span><kbd>Numpad 1</kbd></span></div>
+            <div><span>Jump to end</span><span class="kbds"><kbd>End</kbd></span></div>
+            <div><span>Previous keyframe</span><span class="kbds"><kbd>J</kbd></span></div>
+            <div><span>Next keyframe</span><span class="kbds"><kbd>K</kbd></span></div>
+            <div><span>Toggle looping</span><span class="kbds"><kbd>Tab</kbd></span></div>
+            <div><span>Toggle camera tracks in timeline</span><span class="kbds"><kbd>Ctrl</kbd><kbd>Space</kbd></span></div>
+            <div><span>Display time in seconds</span><span class="kbds"><kbd>Shift</kbd><kbd>T</kbd></span></div>
+          </div>
+        </div>
+
+        <div class="keys-group">
+          <h3>Animating</h3>
+          <div class="keys-list">
+            <div><span>Add keyframe (key current pose)</span><span class="kbds"><kbd>S</kbd></span></div>
+            <div><span>Key selected track only</span><span class="kbds"><kbd>Numpad +</kbd></span></div>
+            <div><span>Key rest pose on selected track</span><span class="kbds"><kbd>G</kbd></span></div>
+            <div><span>Toggle auto-key <span class="muted">— record keys automatically when you move parts</span></span><span class="kbds"><kbd>A</kbd></span></div>
+            <div><span>Cycle tool (move / rotate)</span><span class="kbds"><kbd>R</kbd></span></div>
+            <div><span>Move tool</span><span class="kbds"><kbd>W</kbd></span></div>
+            <div><span>Rotate tool</span><span class="kbds"><kbd>E</kbd></span></div>
+            <div><span>IK tool <span class="muted">— drag a hand/foot and the joints up the chain follow automatically</span></span><span class="kbds"><kbd>T</kbd></span></div>
+            <div><span>Toggle local / world space</span><span class="kbds"><kbd>Y</kbd></span></div>
+            <div><span>Toggle rotation grid snap <span class="muted">— or just hold Shift while dragging to snap on demand</span></span><span class="kbds"><kbd>C</kbd></span></div>
+            <div><span>Edit selected keyframes… <span class="muted">— set values and easing on every selected keyframe at once</span></span><span class="kbds"><kbd>Numpad 7</kbd></span></div>
+            <div><span>Focus selected part</span><span class="kbds"><kbd>F</kbd></span></div>
+            <div><span>Fit animation length to last keyframe</span><span class="kbds"><kbd>Shift</kbd><kbd>F</kbd></span></div>
+            <div><span>Select all keyframes</span><span class="kbds"><kbd>Alt</kbd><kbd>F</kbd></span></div>
+            <div><span>Delete selected keyframes</span><span class="kbds"><kbd>Del</kbd></span></div>
+            <div><span>Cut keyframes</span><span class="kbds"><kbd>Ctrl</kbd><kbd>X</kbd></span></div>
+            <div><span>Copy keyframes</span><span class="kbds"><kbd>Ctrl</kbd><kbd>C</kbd></span></div>
+            <div><span>Paste keyframes at playhead</span><span class="kbds"><kbd>Ctrl</kbd><kbd>V</kbd></span></div>
+            <div><span>Paste into selected item <span class="muted">— retarget copied keys onto a different rig by track name</span></span><span class="kbds"><kbd>Shift</kbd><kbd>Ctrl</kbd><kbd>V</kbd></span></div>
+            <div><span>Duplicate keyframes at playhead</span><span class="kbds"><kbd>Ctrl</kbd><kbd>D</kbd></span></div>
+            <div><span>Group selected keyframes <span class="muted">— move them together as one unit</span></span><span class="kbds"><kbd>Ctrl</kbd><kbd>G</kbd></span></div>
+            <div><span>Ungroup keyframes</span><span class="kbds"><kbd>Ctrl</kbd><kbd>U</kbd></span></div>
+            <div><span>Ungroup keyframes instantly</span><span class="kbds"><kbd>Shift</kbd><kbd>Ctrl</kbd><kbd>U</kbd></span></div>
+            <div><span>Split keyframe (smooth)</span><span class="kbds"><kbd>M</kbd></span></div>
+            <div><span>Split at stride…</span><span class="kbds"><kbd>Shift</kbd><kbd>M</kbd></span></div>
+            <div><span>Fill frames… <span class="muted">— bake explicit keys across a range, optionally with random wiggle</span></span><span class="kbds"><kbd>Shift</kbd><kbd>K</kbd></span></div>
+            <div><span>Repeat frames…</span><span class="kbds"><kbd>Shift</kbd><kbd>L</kbd></span></div>
+            <div><span>Stretch frames…</span><span class="kbds"><kbd>Numpad 3</kbd></span></div>
+            <div><span>Reflect rig (mirror left/right)</span><span class="kbds"><kbd>Ctrl</kbd><kbd>R</kbd></span></div>
+          </div>
+        </div>
+
+        <div class="keys-group">
+          <h3>Timeline</h3>
+          <div class="keys-list">
+            <div><span>Toggle selected item’s tracks</span><span class="kbds"><kbd>Shift</kbd><kbd>Space</kbd></span></div>
+            <div><span>Collapse / expand all tracks</span><span class="kbds"><kbd>Numpad 2</kbd></span></div>
+            <div><span>Jump to item…</span><span class="kbds"><kbd>Shift</kbd><kbd>P</kbd></span></div>
+          </div>
+        </div>
+
+        <div class="keys-group">
+          <h3>Onion skin</h3>
+          <div class="keys-list">
+            <div><span>Apply onion skin</span><span class="kbds"><kbd>N</kbd></span></div>
+            <div><span>Toggle onion skin</span><span class="kbds"><kbd>B</kbd></span></div>
+            <div><span>Clear all onion skins</span><span class="kbds"><kbd>Alt</kbd><kbd>B</kbd></span></div>
+            <div><span>Toggle joint handles</span><span class="kbds"><kbd>Ctrl</kbd><kbd>B</kbd></span></div>
+            <div><span>Small handles</span><span class="kbds"><kbd>Shift</kbd><kbd>B</kbd></span></div>
+            <div><span>Hide handles</span><span class="kbds"><kbd>Shift</kbd><kbd>H</kbd></span></div>
+          </div>
+        </div>
+
+        <div class="keys-group">
+          <h3>Add</h3>
+          <div class="keys-list">
+            <div><span>Add items…</span><span class="kbds"><kbd>Numpad 9</kbd></span></div>
+            <div><span>Rotate camera…</span><span class="kbds"><kbd>Shift</kbd><kbd>O</kbd></span></div>
+          </div>
+        </div>
+
+        <div class="keys-group">
+          <h3>Import</h3>
+          <div class="keys-list">
+            <div><span>Import menu…</span><span class="kbds"><kbd>Shift</kbd><kbd>I</kbd></span></div>
+          </div>
+        </div>
+
+        <div class="keys-group">
+          <h3>Export</h3>
+          <div class="keys-list">
+            <div><span>Export to Roblox Studio <span class="muted">— creates the KeyframeSequence directly in Studio</span></span><span class="kbds"><kbd>Numpad 5</kbd></span></div>
+          </div>
+        </div>
+
+        <div class="keys-group">
+          <h3>Project</h3>
+          <div class="keys-list">
+            <div><span>Animation settings…</span><span class="kbds"><kbd>Numpad 8</kbd></span></div>
+            <div><span>New project</span><span class="kbds"><kbd>Ctrl</kbd><kbd>N</kbd></span></div>
+            <div><span>Open project…</span><span class="kbds"><kbd>Ctrl</kbd><kbd>O</kbd></span></div>
+            <div><span>Save project</span><span class="kbds"><kbd>Ctrl</kbd><kbd>S</kbd><span class="muted" style="font-size:0.78rem"> or </span><kbd>Numpad 0</kbd></span></div>
+            <div><span>Save project as…</span><span class="kbds"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>S</kbd></span></div>
+            <div><span>Save and close</span><span class="kbds"><kbd>Numpad /</kbd></span></div>
+            <div><span>Close file</span><span class="kbds"><kbd>Backslash</kbd></span></div>
+            <div><span>Hide UI (focus mode)</span><span class="kbds"><kbd>Ctrl</kbd><kbd>H</kbd></span></div>
+          </div>
+        </div>
+
+        <div class="keys-group">
+          <h3>General</h3>
+          <div class="keys-list">
+            <div><span>Undo</span><span class="kbds"><kbd>Ctrl</kbd><kbd>Z</kbd></span></div>
+            <div><span>Redo</span><span class="kbds"><kbd>Ctrl</kbd><kbd>Y</kbd></span></div>
+            <div><span>Keyboard shortcuts</span><span class="kbds"><kbd>?</kbd></span></div>
+          </div>
+        </div>
+
+        <!-- SHORTCUTS:END -->
+
+        <div class="keys-empty" id="keysEmpty" style="display:none">No shortcut matches that.</div>
+      </section>
+
+      <section id="autosave">
+        <h2>Autosave and recovery</h2>
+        <p>
+          There is no &ldquo;save before you close or you lose your work&rdquo; in Cadence. Every
+          change is written to disk within about a second, and the last ten generations are kept as
+          rolling backups alongside it. Writes are atomic — a crash mid-write cannot leave a
+          half-written project.
+        </p>
+        <ul>
+          <li>Reopening the app <strong>resumes the project you were in</strong>, with no dialog.</li>
+          <li><strong>Restore an autosave&hellip;</strong> in the command palette switches to any past
+            project, and can delete one for good if you want it gone.</li>
+          <li>Closing the window waits for the final write to finish before the process exits.</li>
+        </ul>
+      </section>
+
+      <section id="updating">
+        <h2>Updating</h2>
+        <p>
+          The installed build checks the project's GitHub releases a few seconds after launch, and
+          whenever you run <strong>Check for updates</strong> from the command palette. If a newer
+          version exists a chip appears in the title bar: click it to download, then click again (or
+          confirm the dialog) to install and restart.
+        </p>
+        <ul>
+          <li><strong>Nothing downloads or installs on its own.</strong> Both steps are explicit
+            clicks.</li>
+          <li>A background check that fails stays silent rather than interrupting you with an
+            error.</li>
+          <li>Only the installed build can update in place. The portable <code>.exe</code> has
+            nothing for the updater to replace, so grab a new one from the
+            <a href="index.html#download">download page</a>.</li>
+        </ul>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+
+        <h3>Windows blocked the installer</h3>
+        <p>
+          Expected — the builds are not code-signed. <em>More info &rarr; Run anyway</em>. Verify the
+          SHA-256 from the download page first if you prefer.
+        </p>
+
+        <h3>The Studio chip stays red</h3>
+        <p>Work through these in order:</p>
+        <ul>
+          <li>Is <strong>Allow HTTP Requests</strong> on in <strong>Game Settings &rarr;
+            Security</strong>? It is per-place, so a different place needs it again.</li>
+          <li>Did you restart Studio after the plugin was installed?</li>
+          <li>Did you click <strong>Connect</strong> on the Cadence toolbar tab in Studio?</li>
+          <li>Is another copy of Cadence already running? Only one process can hold port
+            <code>35747</code>. Check the tray and Task Manager.</li>
+        </ul>
+
+        <h3>A part is a plain box, or flat grey</h3>
+        <p>
+          Its mesh or texture failed to fetch and it is showing a placeholder. Cadence raises a
+          notification when this happens. Usually a network hiccup — reload the rig. A few Roblox
+          assets require an authenticated session and cannot be fetched by any third-party tool; for
+          those, Cadence substitutes the closest built-in shape and leaves the real
+          <code>meshId</code> untouched, so exports are unaffected.
+        </p>
+
+        <h3>Claude cannot see Cadence</h3>
+        <p>
+          Cadence must be <strong>running</strong> — the MCP server is a thin client for the live app,
+          not a standalone process. Then check the registration with:
+        </p>
+        <pre><code>claude mcp list</code></pre>
+
+        <h3>Something else is wrong</h3>
+        <p>
+          The app writes a log next to its settings, at
+          <code>%APPDATA%\Cadence Animator\debug.log</code>. Launch with <code>--devtools</code> to
+          open developer tools on start. Issues with that log attached are much easier to fix:
+          <a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/issues">report one here</a>.
+        </p>
+      </section>
+
+      <section id="releasing">
+        <h2>Cutting a release</h2>
+        <p class="muted">For maintainers. Skip this unless you are shipping a build.</p>
+        <ol>
+          <li>Bump <code>version</code> in <code>package.json</code>, then
+            <code>npm install --package-lock-only</code> to re-sync the lockfile. The updater compares
+            against this, so it must go up.</li>
+          <li><code>npm run smoketest</code> — 51 checks. Wipe <code>test-output/userdata</code> and
+            kill stray <code>electron</code> processes first.</li>
+          <li><code>GH_TOKEN="$(gh auth token)" npm run release</code> — builds the installer and
+            portable exe and publishes a GitHub release with them attached.</li>
+          <li><strong>Update this website.</strong> Run <code>node site/tools/gen-shortcuts.js</code>
+            if any keybind changed, refresh the version, sizes and checksums on the download page,
+            and add anything new to the feature list. See
+            <code>site/README.md</code> for the full checklist.</li>
+        </ol>
+        <div class="note">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1" stroke-linecap="round"/></svg>
+          <span>The site's download buttons also read the newest release from the GitHub API at page
+          load, so they self-heal to a new version even before the site is redeployed. The hardcoded
+          links stay as the no-JavaScript fallback — which is exactly why step 4 still matters.</span>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+</main>
+
+<footer class="footer">
+  <div class="shell">
+    <div class="footer-grid">
+      <div class="footer-about">
+        <a class="brand" href="./" style="margin-right:0">
+          <svg viewBox="0 0 28 24" width="26" height="22" fill="none" aria-hidden="true" focusable="false">
+            <path d="M4.6 17.8C9.4 17.8 11.2 6.2 16 6.2C19.3 6.2 21 10.5 23.4 12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            <path d="M4.6 15L7.4 17.8L4.6 20.6L1.8 17.8Z" fill="currentColor"/>
+            <path d="M16 3.4L18.8 6.2L16 9L13.2 6.2Z" fill="currentColor"/>
+          </svg>
+          Cadence <span class="brand-sub">Animator</span>
+        </a>
+        <p>A standalone Roblox animation suite. Free, MIT-licensed, and built in the open.</p>
+      </div>
+
+      <div>
+        <p class="footer-label">Product</p>
+        <ul>
+          <li><a href="index.html#features">Features</a></li>
+          <li><a href="index.html#studio">Roblox Studio</a></li>
+          <li><a href="index.html#vfx">VFX Studio</a></li>
+          <li><a href="index.html#claude">Claude &amp; MCP</a></li>
+          <li><a href="index.html#compare">Compared to Moon</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <p class="footer-label">Documentation</p>
+        <ul>
+          <li><a href="#install">Install</a></li>
+          <li><a href="#studio-setup">Connect Studio</a></li>
+          <li><a href="#first-animation">First animation</a></li>
+          <li><a href="#shortcuts">Shortcuts</a></li>
+          <li><a href="#troubleshooting">Troubleshooting</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <p class="footer-label">Project</p>
+        <ul>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator">Source code</a></li>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases">All releases</a></li>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/issues">Report an issue</a></li>
+          <li><a href="index.html#download">Download</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-base">
+      <span>Cadence Animator <span data-version>0.8.0</span> &middot; MIT licence</span>
+      <span>Not affiliated with Roblox Corporation or Moon Animator.</span>
+    </div>
+  </div>
+</footer>
+
+<div class="cmdk" id="cmdk" role="dialog" aria-modal="true" aria-label="Jump to a section">
+  <div class="cmdk-box">
+    <div class="cmdk-input">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
+      <input id="cmdkInput" type="text" placeholder="Jump to anything…" autocomplete="off" spellcheck="false" aria-label="Search sections and documentation">
+    </div>
+    <ul class="cmdk-results" id="cmdkResults"></ul>
+    <div class="cmdk-foot">
+      <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> navigate</span>
+      <span><kbd>&crarr;</kbd> open</span>
+      <span><kbd>Esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/site.js" defer></script>
+</body>
+</html>
