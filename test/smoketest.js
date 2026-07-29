@@ -35,11 +35,16 @@
   console.error = (...a) => { report.consoleErrors.push(a.map(String).join(' ')); origError(...a); };
 
   async function step(name, fn) {
+    // Logged BEFORE running: a step that hangs never reaches its own result, and the report is
+    // only written at the very end, so without this a stall looks identical to a slow machine and
+    // gives no clue which check is stuck. This has already been needed twice.
+    console.log('[smoketest] > ' + name);
+    const t0 = performance.now();
     try {
       const r = await fn();
-      report.steps.push({ name, ok: true, r });
+      report.steps.push({ name, ok: true, ms: Math.round(performance.now() - t0), r });
     } catch (e) {
-      report.steps.push({ name, ok: false, error: e.message, stack: (e.stack || '').split('\n').slice(0, 4).join(' | ') });
+      report.steps.push({ name, ok: false, ms: Math.round(performance.now() - t0), error: e.message, stack: (e.stack || '').split('\n').slice(0, 4).join(' | ') });
     }
   }
   function assert(cond, msg) { if (!cond) throw new Error('assertion failed: ' + msg); }
@@ -832,6 +837,46 @@
 
     S.removeItem(id);
     return { ok: true };
+  });
+
+  // ---------------------------------------------------------------- part markers
+  await step('every drawable part carries a visible, clickable marker sitting on its surface', async () => {
+    const THREE = await import('../renderer/../node_modules/three/build/three.module.js');
+    const item = await D.addBuiltinRig('r6');
+    await new Promise((r) => setTimeout(r, 1200));
+    D.updateScene();
+    const inst = D.getInstance(item.id);
+
+    for (const [name, p] of inst.parts) {
+      assert(p.marker, `${name} has no marker`);
+      // The invisible HumanoidRootPart must not sprout one.
+      const shouldShow = p.def.transparency < 0.99;
+      assert(p.marker.visible === shouldShow, `${name} marker visibility should be ${shouldShow}`);
+    }
+
+    // Placement is derived from the RENDERED geometry, not Part.Size. A classic head is a 2x1x1
+    // Part that draws as a ~1.2 lathe, so sizing off Part.Size buried its marker inside the head.
+    const head = inst.parts.get('Head');
+    const camera = D.viewport.camera;
+    D.updateScene();
+    const headCentre = new THREE.Vector3(head.world[0], head.world[1], head.world[2]);
+    const markerPos = new THREE.Vector3().setFromMatrixPosition(head.marker.matrix);
+    // The head is ROUND, so the distance must be its radius regardless of view angle. Treating it
+    // as a box put the marker at 0.864 — out where the bounding box corner is, visibly hovering.
+    const out = markerPos.distanceTo(headCentre);
+    assert(out > 0.55 && out < 0.65,
+      `the head marker should sit on the lathe's ~0.6 surface, got ${out.toFixed(3)} from centre`);
+    // and it must be on the camera's side of the part, never buried behind it
+    const toCam = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld).sub(headCentre).normalize();
+    const toMarker = markerPos.clone().sub(headCentre).normalize();
+    assert(toCam.dot(toMarker) > 0.9, 'the marker should face the camera side of the part');
+
+    // Clicking the marker must select that part — it is its own raycast target.
+    assert(head.marker.userData.partId === 'Head' && head.marker.userData.isSelBox,
+      'the marker should identify its part to the picker');
+
+    S.removeItem(item.id);
+    return { parts: inst.parts.size };
   });
 
   // ---------------------------------------------------------------- part multi-select + keying

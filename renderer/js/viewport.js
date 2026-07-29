@@ -404,6 +404,7 @@ export function syncItems() {
       const inst = makeInstance(item);
       inst.setHandlesVisible?.(S.state.handlesVisible);
       inst.setHandleSize?.(S.state.handleSize);
+      inst.setPartMarkersVisible?.(S.state.partMarkersVisible);
       viewport.instances.set(item.id, inst);
     }
   }
@@ -480,6 +481,10 @@ export function updateScene() {
   for (const item of p.items) (item.attachedTo ? attached : unattached).push(item);
   for (const item of unattached) updateOneItem(item, t);
   for (const item of attached) updateOneItem(item, t);
+  // After every part has its world transform for this frame: face the part markers at the camera.
+  if (S.state.partMarkersVisible) {
+    for (const [, inst] of viewport.instances) inst.updatePartMarkers?.(viewport.camera);
+  }
   updateGizmoAnchor();
   updateSelBox();
 }
@@ -805,7 +810,15 @@ function pick(e) {
   // real part meshes + joint-handle spheres, same as before this existed.
   const boxes = [];
   for (const [, inst] of viewport.instances) {
-    if (inst.parts) for (const [, p] of inst.parts) boxes.push(p.selBox);
+    if (inst.parts) {
+      for (const [, p] of inst.parts) {
+        boxes.push(p.selBox);
+        // The visible part marker is a click target in its own right, so the thing the user is
+        // actually aiming at always hits — it sits a hair proud of the surface and can overhang a
+        // thin part's silhouette, where the box alone would miss.
+        if (p.marker && p.marker.visible) boxes.push(p.marker);
+      }
+    }
   }
   const boxHits = boxes.length ? viewport.raycaster.intersectObjects(boxes, false) : [];
   if (boxHits.length) return boxHits[0].object;
@@ -982,6 +995,10 @@ export function debugFrame(target, pos) {
 export function setHandlesVisible(v) {
   S.state.handlesVisible = v;
   for (const [, inst] of viewport.instances) inst.setHandlesVisible?.(v);
+}
+export function setPartMarkersVisible(v) {
+  S.state.partMarkersVisible = v;
+  for (const [, inst] of viewport.instances) inst.setPartMarkersVisible?.(v);
 }
 export function setHandleSize(size) {
   S.state.handleSize = size;

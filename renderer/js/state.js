@@ -77,6 +77,8 @@ export const state = {
   projectPath: null, // where Save writes; autosave is separate & automatic
   // UI/session preferences (not project data — persisted via settings.json like autoKey/snapping)
   handlesVisible: true,
+  // Moon-style pale-blue patch on every part, showing what is selectable and where to click.
+  partMarkersVisible: true,
   handleSize: 'normal', // 'normal' | 'small'
   rotGridSnap: false,
   rotGridDegrees: 15,
