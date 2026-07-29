@@ -1163,15 +1163,19 @@ thead .col-us { background: rgba(124, 140, 255, 0.1); color: var(--accent-bright
 
 /* ---------------------------------------------------------------- reveal */
 
-.reveal {
+/* Scoped to .js deliberately. That class is set by a one-line inline script in
+   each page's <head>, so with JavaScript disabled these rules never apply and
+   everything stays visible. Unscoped, the entire page below the fold — download
+   cards included — would sit at opacity 0 forever. */
+.js .reveal {
   opacity: 0;
   transform: translateY(14px);
   transition: opacity 520ms var(--ease), transform 520ms var(--ease);
   will-change: opacity, transform;
 }
-.reveal.in { opacity: 1; transform: none; }
+.js .reveal.in { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) {
-  .reveal { opacity: 1; transform: none; }
+  .js .reveal { opacity: 1; transform: none; }
 }
 
 /* ---------------------------------------------------------------- responsive */
