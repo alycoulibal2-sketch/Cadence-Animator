@@ -672,6 +672,64 @@
     return { ok: true, playhead: after.playhead };
   });
 
+  await step('PNX: a procedurally-built texture reaches the real renderer', async () => {
+    // The whole point of the Textures family: an effect supplies its own image rather than choosing from
+    // a list. This builds one from noise through the structured API and checks it actually draws.
+    await vfxCall('pnx_new', { name: 'Texture Smoketest', blank: true });
+    const add = async (type, values) => (await vfxCall('pnx_add_node', { type, x: 0, y: 0, values })).nodeId;
+    const link = (a, sa, b, sb) => vfxCall('pnx_connect', { fromNode: a, fromSocket: sa, toNode: b, toSocket: sb });
+
+    const noise = await add('cadence.noise.fbm', { scale: 4, octaves: 4 });
+    const ras = await add('cadence.texture.rasterize', { resolution: 64, extent: 1 });
+    const levels = await add('cadence.texture.levels', { inputBlack: 0.35, inputWhite: 0.65 });
+    const grad = await add('cadence.texture.gradientMap', {
+      gradient: { kind: 'color', stops: [{ u: 0, v: '#000000' }, { u: 0.5, v: '#ff6020' }, { u: 1, v: '#fff0c0' }] },
+    });
+    const glow = await add('cadence.compositing.glow', { threshold: 0.5, radius: 4, intensity: 1 });
+    const mat = await add('cadence.material.surface', { blend: 'additive' });
+    const pts = await add('cadence.geometry.pointGrid', { size: [6, 0, 6], countX: 4, countY: 1, countZ: 4 });
+    const spr = await add('cadence.render.sprite', { size: 1.2 });
+    const out = await add('cadence.render.output', {});
+
+    await link(noise, 'out', ras, 'field');
+    await link(ras, 'out', levels, 'texture');
+    await link(levels, 'out', grad, 'texture');
+    await link(grad, 'out', glow, 'texture');
+    await link(glow, 'out', mat, 'texture');
+    await link(pts, 'out', spr, 'source');
+    await link(mat, 'out', spr, 'material');
+    await link(spr, 'out', out, 'passes');
+
+    // The texture chain must produce a real image, not an empty one.
+    const info = await add('cadence.texture.info', {});
+    await link(glow, 'out', info, 'texture');
+    await vfxCall('pnx_scrub', { frame: 10 });
+    await new Promise((r) => setTimeout(r, 250));
+    const state = await vfxCall('pnx_get_state');
+    assert(state.stats.drawnElements === 16, `expected 16 textured sprites, got ${state.stats.drawnElements}`);
+    assert(state.drawn && state.drawn.sprites === 16, `the backend must draw them: ${JSON.stringify(state.drawn)}`);
+
+    const v = await vfxCall('pnx_verify', { frame: 10 });
+    const errors = v.diagnostics.filter((d) => d.severity === 'error');
+    assert(!errors.length, `a texture chain must not error: ${JSON.stringify(errors)}`);
+    return { ok: true, drawn: state.drawn.sprites };
+  });
+
+  await step('PNX: Texture Info reports a real image rather than an empty one', async () => {
+    const graph = await vfxCall('pnx_get_graph');
+    const info = graph.nodes.find((n) => n.type.startsWith('cadence.texture.info'));
+    assert(info, 'the texture chain should still have its info node');
+    const ins = await vfxCall('pnx_inspect', { nodeId: info.id, frame: 10 });
+    // A range of 0..0 means the chain produced nothing; an average alpha of 0 means it is transparent,
+    // which looks identical to "not drawn" and is a completely different problem.
+    const max = ins.outputs.max.value;
+    const avgA = ins.outputs.averageAlpha.value;
+    assert(max > 0.05, `the texture should have bright pixels, got max ${max}`);
+    assert(avgA > 0.5, `the texture should be opaque, got average alpha ${avgA}`);
+    assert(ins.outputs.width.value === 64, `resolution should be 64, got ${ins.outputs.width.value}`);
+    return { ok: true, max, avgA };
+  });
+
   await step('PNX: switching back to a layer-based effect leaves no procedural objects behind', async () => {
     await vfxCall('pnx_close');
     const after = await vfxCall('pnx_get_state');

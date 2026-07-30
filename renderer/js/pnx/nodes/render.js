@@ -48,6 +48,8 @@ node({
     { key: 'roughness', label: 'Roughness', type: 'field<float>', default: 0.5, min: 0, max: 1 },
     { key: 'metallic', label: 'Metallic', type: 'field<float>', default: 0, min: 0, max: 1 },
     { key: 'normal', label: 'Normal', type: 'field<vector3>', default: [0, 0, 1] },
+    { key: 'texture', label: 'Texture', type: 'texture2d',
+      description: 'An image for the surface, built by the Textures nodes or sampled from one. Multiplies the base colour.' },
     boolIn('doubleSided', 'Double sided', true),
     boolIn('depthWrite', 'Write depth', false, { description: 'Off is right for glows and smoke, which should not hide each other. On is right for solid geometry.' }),
   ],
@@ -63,6 +65,9 @@ node({
     blend: i.blend,
     doubleSided: i.doubleSided,
     depthWrite: i.depthWrite,
+    // The texture rides on the material rather than being one of its channels, because a backend BINDS
+    // a texture (three.js as a map, Roblox as an asset id) rather than evaluating it per element.
+    texture: i.texture || null,
   }),
 });
 

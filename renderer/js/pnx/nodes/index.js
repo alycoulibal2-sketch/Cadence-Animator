@@ -39,5 +39,8 @@ import './particles.js';
 // --- Phase 6: materials, renderers, lights, trails/ribbons/beams
 import './render.js';
 
+// --- Phase 7: textures and the compositing operations that work on them
+import './texture.js';
+
 // --- always available: observability and layout
 import './debug.js';

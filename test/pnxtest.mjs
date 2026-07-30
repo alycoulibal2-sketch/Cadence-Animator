@@ -1236,6 +1236,15 @@ const GEO = await import('../renderer/js/pnx/geometry.js');
 // A test-only source that emits a geometry built by hand, so a sampler can be tested against a shape
 // with known areas rather than against whatever a primitive happens to produce.
 R.registerNode({
+  id: 'test.texture.constant', version: 1, label: 'Constant Texture', category: 'Debug',
+  summary: 'Test fixture: emits a texture supplied directly as an inline value.',
+  exportSupport: 'unsupported',
+  inputs: [{ key: 'texture', label: 'Texture', type: 'texture2d' }],
+  outputs: [{ key: 'out', label: 'Texture', type: 'texture2d' }],
+  evaluate: (api, i) => i.texture,
+});
+
+R.registerNode({
   id: 'test.geometry.constant', version: 1, label: 'Constant Geometry', category: 'Debug',
   summary: 'Test fixture: emits a geometry supplied directly as an inline value.',
   exportSupport: 'unsupported',
@@ -2571,6 +2580,283 @@ check('export: the Luau structure checker actually catches broken output', () =>
   assert.deepEqual(checkLuaStructure('for _, k in ipairs(t) do if k > 1 then print(k) end end'), []);
   assert.deepEqual(checkLuaStructure('local T = {\n  [0] = {1,2,3},\n  [2] = {4,5,6},\n}\nwhile x do y() end'), []);
   assert.deepEqual(checkLuaStructure('local c = RunService.Heartbeat:Connect(function() print("x") end)'), []);
+});
+
+// ================================================================ phase 7: textures
+const TEX = await import('../renderer/js/pnx/texture.js');
+
+check('texture: sampling puts a texel colour at the texel CENTRE', () => {
+  // The half-pixel offset is the detail that is always wrong first time. A 2x2 texture sampled at the
+  // centre of each texel must return that texel exactly; without the offset, every sample is a
+  // quarter-pixel-shifted blur and a gradient comes out subtly wrong everywhere.
+  const t = TEX.newTexture(2, 2, { filter: 'linear', wrap: 'clamp' });
+  TEX.setPixel(t, 0, 0, [1, 0, 0, 1]);
+  TEX.setPixel(t, 1, 0, [0, 1, 0, 1]);
+  TEX.setPixel(t, 0, 1, [0, 0, 1, 1]);
+  TEX.setPixel(t, 1, 1, [1, 1, 0, 1]);
+  nearArr(TEX.sampleTexture(t, 0.25, 0.25), [1, 0, 0, 1], 1e-6);
+  nearArr(TEX.sampleTexture(t, 0.75, 0.25), [0, 1, 0, 1], 1e-6);
+  nearArr(TEX.sampleTexture(t, 0.25, 0.75), [0, 0, 1, 1], 1e-6);
+  // ...and halfway between two texels is their average.
+  nearArr(TEX.sampleTexture(t, 0.5, 0.25), [0.5, 0.5, 0, 1], 1e-6);
+});
+
+check('texture: wrap modes address correctly outside the texture', () => {
+  const build = (wrap) => {
+    const t = TEX.newTexture(4, 1, { wrap, filter: 'nearest' });
+    for (let x = 0; x < 4; x++) TEX.setPixel(t, x, 0, [x / 3, 0, 0, 1]);
+    return t;
+  };
+  const at = (t, x) => TEX.getPixel(t, x, 0)[0];
+  const rep = build('repeat');
+  near(at(rep, 4), at(rep, 0), 1e-6, 'repeat must wrap round');
+  near(at(rep, -1), at(rep, 3), 1e-6, 'and wrap backwards too');
+  const cl = build('clamp');
+  near(at(cl, 9), at(cl, 3), 1e-6, 'clamp must hold the edge');
+  near(at(cl, -5), at(cl, 0), 1e-6);
+  const mi = build('mirror');
+  near(at(mi, 4), at(mi, 3), 1e-6, 'mirror must reflect at the boundary, not jump');
+  near(at(mi, 5), at(mi, 2), 1e-6);
+});
+
+check('texture: rasterizing a field gives each pixel its own uv and a world position', () => {
+  // A field written for 3D space must rasterize sensibly without the user converting coordinates by
+  // hand, so the rasterizer supplies both uv and a position on the z=0 plane.
+  const uvField = F.makeField('color', (c) => [c.uv[0], c.uv[1], 0, 1]);
+  const t = TEX.rasterize(uvField, 4);
+  nearArr(TEX.getPixel(t, 0, 0).slice(0, 2), [0.125, 0.125], 1e-6, 'the first texel is half a texel in');
+  nearArr(TEX.getPixel(t, 3, 3).slice(0, 2), [0.875, 0.875], 1e-6);
+
+  const posField = F.makeField('color', (c) => [c.position[0], c.position[1], 0, 1]);
+  const p = TEX.rasterize(posField, 4, 4, { extent: 2 });
+  // extent 2 means the texture spans -2..2, so the first texel's centre is at -1.5.
+  nearArr(TEX.getPixel(p, 0, 0).slice(0, 2), [-1.5, -1.5], 1e-6);
+  nearArr(TEX.getPixel(p, 3, 3).slice(0, 2), [1.5, 1.5], 1e-6);
+});
+
+check('texture: a rasterized texture round-trips back into a field', () => {
+  const g = G.newGraph('t');
+  const src = G.newNode(g, 'cadence.texture.solid', 0, 0, { id: 'tsolid', values: { color: [0.25, 0.5, 0.75, 1], resolution: 4 } });
+  const smp = G.newNode(g, 'cadence.texture.sample', 200, 0, { id: 'tsamp' });
+  assert.ok(G.connect(g, src.id, 'out', smp.id, 'texture').ok);
+  const f = ev(g, smp.id).value;
+  assert.ok(F.isField(f), 'Sample Texture must produce a field');
+  nearArr(f.sample(F.newSampleContext({ uv: [0.5, 0.5] })), [0.25, 0.5, 0.75, 1], 1e-4);
+});
+
+check('texture: blur is separable and actually softens', () => {
+  // A single bright texel, blurred, must spread into its neighbours and conserve roughly its total
+  // energy. A blur that brightens or darkens overall means the kernel is not normalised.
+  const t = TEX.newTexture(16, 16, { wrap: 'clamp' });
+  TEX.setPixel(t, 8, 8, [1, 1, 1, 1]);
+  const before = sumChannel(t, 0);
+  const blurred = TEX.blurTexture(t, 3);
+  assert.ok(TEX.getPixel(blurred, 8, 8)[0] < 1, 'the bright texel must lose intensity');
+  assert.ok(TEX.getPixel(blurred, 9, 8)[0] > 0, 'and its neighbour must gain some');
+  near(sumChannel(blurred, 0), before, 0.05, 'a normalised kernel conserves total brightness');
+});
+
+function sumChannel(tex, channel) {
+  let s = 0;
+  for (let i = 0; i < tex.width * tex.height; i++) s += tex.data[i * 4 + channel];
+  return s;
+}
+
+check('texture: grow and shrink are inverse in the obvious direction', () => {
+  const t = TEX.newTexture(24, 24, { wrap: 'clamp' });
+  for (let y = 10; y < 14; y++) for (let x = 10; x < 14; x++) TEX.setPixel(t, x, y, [1, 1, 1, 1]);
+  const opaque = (tx) => {
+    let n = 0;
+    for (let i = 0; i < tx.width * tx.height; i++) if (tx.data[i * 4 + 3] > 0.5) n++;
+    return n;
+  };
+  const base = opaque(t);
+  assert.ok(opaque(TEX.morphTexture(t, 2, 1)) > base, 'grow must cover more');
+  assert.ok(opaque(TEX.morphTexture(t, 1, -1)) < base, 'shrink must cover less');
+});
+
+check('texture: edge detect finds a boundary and ignores a flat field', () => {
+  const flat = TEX.solidTexture([0.5, 0.5, 0.5, 1], 16);
+  const flatEdges = TEX.edgeTexture(flat, 1);
+  for (let i = 0; i < 16 * 16; i++) near(flatEdges.data[i * 4], 0, 1e-6, 'a flat texture has no edges');
+
+  const split = TEX.newTexture(16, 16, { wrap: 'clamp' });
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) TEX.setPixel(split, x, y, x < 8 ? [0, 0, 0, 1] : [1, 1, 1, 1]);
+  const edges = TEX.edgeTexture(split, 1);
+  assert.ok(TEX.getPixel(edges, 8, 8)[0] > 0.5, 'the boundary must light up');
+  assert.ok(TEX.getPixel(edges, 2, 8)[0] < 0.1, 'and the flat interior must not');
+});
+
+check('texture: a normal map from flat height is flat, and a slope tilts the right way', () => {
+  const flat = TEX.solidTexture([0.5, 0.5, 0.5, 1], 8);
+  const nrm = TEX.normalFromHeight(flat, 1);
+  // Packed 0..1, so a flat surface is (0.5, 0.5, 1) — straight up in tangent space.
+  nearArr(TEX.getPixel(nrm, 4, 4).slice(0, 3), [0.5, 0.5, 1], 1e-4);
+
+  // A left-to-right ramp must tilt the normal along x, and the sign must be consistent.
+  const ramp = TEX.newTexture(16, 16, { wrap: 'clamp' });
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const h = x / 15; TEX.setPixel(ramp, x, y, [h, h, h, 1]); }
+  const rn = TEX.normalFromHeight(ramp, 4);
+  assert.ok(TEX.getPixel(rn, 8, 8)[0] < 0.5, 'an uphill-to-the-right slope must tilt the normal left');
+});
+
+check('texture: warp reads offsets as signed, so neutral grey does nothing', () => {
+  const base = TEX.newTexture(16, 16, { wrap: 'clamp', filter: 'nearest' });
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) TEX.setPixel(base, x, y, [x / 15, 0, 0, 1]);
+  // 0.5 grey means "no offset". Reading offsets as 0..1 instead would displace everything by half the
+  // amount, which looks like the warp being permanently on.
+  const neutral = TEX.solidTexture([0.5, 0.5, 0.5, 1], 16);
+  const unwarped = TEX.warpTexture(base, neutral, 0.25);
+  for (const x of [2, 8, 14]) near(TEX.getPixel(unwarped, x, 8)[0], TEX.getPixel(base, x, 8)[0], 1e-3,
+    'a neutral offset map must leave the texture alone');
+
+  const pushed = TEX.warpTexture(base, TEX.solidTexture([1, 0.5, 0.5, 1], 16), 0.25);
+  assert.ok(TEX.getPixel(pushed, 8, 8)[0] > TEX.getPixel(base, 8, 8)[0], 'a positive offset must shift the source');
+});
+
+check('texture: levels stretches a narrow range to full contrast', () => {
+  const g = G.newGraph('t');
+  // A texture whose values all sit between 0.4 and 0.6 — the shape raw noise actually has.
+  const narrow = TEX.newTexture(8, 8, { wrap: 'clamp' });
+  for (let i = 0; i < 64; i++) {
+    const v = 0.4 + (i / 63) * 0.2;
+    narrow.data[i * 4] = narrow.data[i * 4 + 1] = narrow.data[i * 4 + 2] = v;
+    narrow.data[i * 4 + 3] = 1;
+  }
+  const src = G.newNode(g, 'test.texture.constant', 0, 0, { id: 'lsrc' });
+  G.setNodeValue(g, src.id, 'texture', narrow);
+  const lv = G.newNode(g, 'cadence.texture.levels', 200, 0, { id: 'llv', values: { inputBlack: 0.4, inputWhite: 0.6 } });
+  assert.ok(G.connect(g, src.id, 'out', lv.id, 'texture').ok);
+  const out = ev(g, lv.id).value;
+  near(TEX.getPixel(out, 0, 0)[0], 0, 1e-5, 'the darkest value must reach 0');
+  near(TEX.getPixel(out, 7, 7)[0], 1, 1e-5, 'and the brightest must reach 1');
+});
+
+check('texture: blend modes composite as they claim', () => {
+  const a = TEX.solidTexture([0.4, 0.4, 0.4, 1], 4);
+  const b = TEX.solidTexture([0.25, 0.25, 0.25, 1], 4);
+  const blend = (m, amount = 1) => {
+    const g = G.newGraph('t');
+    const sa = G.newNode(g, 'test.texture.constant', 0, 0, { id: `ba_${m}` });
+    const sb = G.newNode(g, 'test.texture.constant', 0, 200, { id: `bb_${m}` });
+    G.setNodeValue(g, sa.id, 'texture', a);
+    G.setNodeValue(g, sb.id, 'texture', b);
+    const bl = G.newNode(g, 'cadence.texture.blend', 200, 100, { id: `bl_${m}`, values: { blend: m, amount } });
+    assert.ok(G.connect(g, sa.id, 'out', bl.id, 'a').ok);
+    assert.ok(G.connect(g, sb.id, 'out', bl.id, 'b').ok);
+    return TEX.getPixel(ev(g, bl.id).value, 1, 1)[0];
+  };
+  near(blend('add'), 0.65, 1e-5);
+  near(blend('subtract'), 0.15, 1e-5);
+  near(blend('multiply'), 0.1, 1e-5);
+  near(blend('difference'), 0.15, 1e-5);
+  near(blend('min'), 0.25, 1e-5);
+  near(blend('max'), 0.4, 1e-5);
+  near(blend('mix', 0.5), 0.325, 1e-5);
+  // `over` is real alpha compositing, so an opaque layer fully replaces the base.
+  near(blend('over'), 0.25, 1e-5);
+});
+
+check('texture: a flipbook lays frames out in a grid and advances through them', () => {
+  const g = G.newGraph('t');
+  // A field constant in space and varying only with time, so each cell should be a different uniform
+  // brightness — which makes the layout checkable rather than merely plausible.
+  //
+  // SAMPLE Time, not Effect Time. Effect Time reads the playhead and is one number for the whole
+  // evaluation, so a flipbook driven by it produces a sheet of identical cells: the field is already
+  // collapsed before the flipbook asks for anything. This distinction did not have a node until the
+  // flipbook exposed the gap.
+  const timeField = G.newNode(g, 'cadence.time.sampleTime', 0, 0, { id: 'ftime' });
+  const book = G.newNode(g, 'cadence.texture.flipbook', 200, 0, {
+    id: 'fbook',
+    values: { columns: 2, rows: 2, cellSize: 8, duration: 4 },
+  });
+  assert.ok(G.connect(g, timeField.id, 'out', book.id, 'field').ok);
+
+  const r = ev(g, book.id, 'out');
+  const sheet = r.value;
+  assert.equal(sheet.width, 16, 'two columns of 8px cells');
+  assert.equal(sheet.height, 16);
+  assert.equal(ev(g, book.id, 'frames').value, 4);
+  // Cell 0 covers time 0 and cell 1 covers time 1, so they must differ.
+  const cell0 = TEX.getPixel(sheet, 4, 4)[0];
+  const cell1 = TEX.getPixel(sheet, 12, 4)[0];
+  assert.notEqual(cell0, cell1, 'consecutive flipbook cells must show different moments');
+  near(cell0, 0, 1e-5, 'the first cell is time 0');
+  near(cell1, 1, 1e-5, 'the second cell is time 1 of a 4-second sheet over 4 frames');
+
+  // The trap, asserted rather than merely documented: Effect Time gives identical cells.
+  const g2 = G.newGraph('t');
+  const graphTime = G.newNode(g2, 'cadence.time.effectTime', 0, 0, { id: 'gt' });
+  const book2 = G.newNode(g2, 'cadence.texture.flipbook', 200, 0, {
+    id: 'fbook2', values: { columns: 2, rows: 1, cellSize: 8, duration: 4 },
+  });
+  assert.ok(G.connect(g2, graphTime.id, 'seconds', book2.id, 'field').ok);
+  const flat = ev(g2, book2.id, 'out').value;
+  assert.equal(TEX.getPixel(flat, 4, 4)[0], TEX.getPixel(flat, 12, 4)[0],
+    'Effect Time is one number per evaluation, so it must produce identical cells — this is why Sample Time exists');
+});
+
+check('texture: UV transform rotates and tiles about its pivot', () => {
+  const uv = (values, at) => sampleNode('cadence.texture.uvTransform', values, 'out', { uv: at }, {}, 'uvt');
+  // Identity leaves the coordinate alone.
+  nearArr(uv({}, [0.25, 0.75]), [0.25, 0.75], 1e-6);
+  // Tiling doubles the distance from the pivot, not from the origin.
+  nearArr(uv({ tiling: [2, 2] }, [0.75, 0.5]), [1, 0.5], 1e-6);
+  // A quarter turn about the centre maps right to up.
+  nearArr(uv({ rotation: 90 }, [1, 0.5]), [0.5, 1], 1e-6);
+  // Offset is applied last.
+  nearArr(uv({ offset: [0.1, -0.2] }, [0.5, 0.5]), [0.6, 0.3], 1e-6);
+});
+
+check('texture: glow brightens only what is above the threshold', () => {
+  const g = G.newGraph('t');
+  // Half dark, half bright. The dark half must stay dark: blurring the WHOLE image and adding it back
+  // would wash the dark half out, which reads as fog rather than as glow.
+  const t = TEX.newTexture(32, 32, { wrap: 'clamp' });
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) TEX.setPixel(t, x, y, x < 8 ? [0, 0, 0, 1] : [1, 1, 1, 1]);
+  const src = G.newNode(g, 'test.texture.constant', 0, 0, { id: 'gsrc' });
+  G.setNodeValue(g, src.id, 'texture', t);
+  const glow = G.newNode(g, 'cadence.compositing.glow', 200, 0, { id: 'gglow', values: { threshold: 0.6, radius: 3, intensity: 1 } });
+  assert.ok(G.connect(g, src.id, 'out', glow.id, 'texture').ok);
+  const out = ev(g, glow.id).value;
+  near(TEX.getPixel(out, 0, 16)[0], 0, 1e-3, 'far into the dark half must stay black');
+  assert.ok(TEX.getPixel(out, 6, 16)[0] > 0.01, 'just outside the bright edge must pick up spill');
+  assert.ok(TEX.getPixel(out, 20, 16)[0] > 1, 'the bright interior must be pushed above 1');
+});
+
+check('texture: colour grade adjusts contrast about mid-grey, not about zero', () => {
+  const g = G.newGraph('t');
+  const src = G.newNode(g, 'test.texture.constant', 0, 0, { id: 'csrc' });
+  G.setNodeValue(g, src.id, 'texture', TEX.solidTexture([0.5, 0.5, 0.5, 1], 4));
+  const grade = G.newNode(g, 'cadence.compositing.colorGrade', 200, 0, { id: 'cg', values: { contrast: 2 } });
+  assert.ok(G.connect(g, src.id, 'out', grade.id, 'texture').ok);
+  // Mid-grey is the pivot, so raising contrast must leave it exactly where it was. Pivoting about zero
+  // instead would double it, which darkens or brightens an image as a side effect of adding contrast.
+  near(TEX.getPixel(ev(g, grade.id).value, 1, 1)[0], 0.5, 1e-6);
+
+  // Exposure is in stops.
+  const exp = G.newNode(g, 'cadence.compositing.colorGrade', 200, 200, { id: 'ce', values: { exposure: 1 } });
+  assert.ok(G.connect(g, src.id, 'out', exp.id, 'texture').ok);
+  near(TEX.getPixel(ev(g, exp.id).value, 1, 1)[0], 1, 1e-6, '+1 stop doubles the brightness');
+});
+
+check('texture: an unconnected texture input produces nothing rather than a wrong image', () => {
+  for (const type of ['cadence.texture.blur', 'cadence.texture.levels', 'cadence.texture.edges',
+    'cadence.compositing.glow', 'cadence.compositing.vignette']) {
+    const v = evalNode(type, {}, 'out', {}, `empty_${type}`);
+    assert.equal(v, null, `${type} with no texture must return null, not a blank image`);
+  }
+});
+
+check('texture: float storage keeps values above 1 until they are quantised', () => {
+  // Emission above 1 is normal in VFX, and an intermediate that clamps loses the highlights a glow
+  // needs. The clamp happens at toBytes(), not before.
+  const t = TEX.solidTexture([2.5, 0.5, 0.25, 1], 2);
+  near(TEX.getPixel(t, 0, 0)[0], 2.5, 1e-6, 'the float buffer must hold values above 1');
+  const bytes = TEX.toBytes(t);
+  assert.equal(bytes.data[0], 255, 'and only clamp when quantised to 8-bit');
+  assert.equal(bytes.data[1], 128);
 });
 
 // ================================================================

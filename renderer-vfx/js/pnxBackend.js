@@ -18,6 +18,30 @@
 import * as THREE from '../../node_modules/three/build/three.module.js';
 import { getParticleTexture } from '../../renderer/js/rigbuild.js';
 import * as RENDER from '../../renderer/js/pnx/render.js';
+import * as TEX from '../../renderer/js/pnx/texture.js';
+
+// A PNX texture uploaded as a three.js DataTexture, cached so the same texture object is not re-uploaded
+// every frame. The cache is keyed by the texture OBJECT, not by its contents: texture.js returns a new
+// object from every operation, so object identity is exactly "has this been recomputed?" — and a
+// content hash would cost more than the upload it saved.
+const textureCache = new WeakMap();
+function threeTextureFor(tex) {
+  if (!TEX.isTexture(tex)) return null;
+  const hit = textureCache.get(tex);
+  if (hit) return hit;
+  const bytes = TEX.toBytes(tex);
+  const t = new THREE.DataTexture(bytes.data, bytes.width, bytes.height, THREE.RGBAFormat);
+  t.wrapS = t.wrapT = tex.wrap === 'clamp' ? THREE.ClampToEdgeWrapping
+    : tex.wrap === 'mirror' ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
+  t.magFilter = t.minFilter = tex.filter === 'nearest' ? THREE.NearestFilter : THREE.LinearFilter;
+  // The rasterizer's v runs bottom-up (uv 0 is the first row it wrote); three.js expects top-down. Not
+  // flipping here mirrors every procedural texture vertically, which is invisible on symmetric noise and
+  // obvious the moment a gradient or a flipbook is involved.
+  t.flipY = true;
+  t.needsUpdate = true;
+  textureCache.set(tex, t);
+  return t;
+}
 
 const BLEND = {
   normal: THREE.NormalBlending,
@@ -36,6 +60,9 @@ function signatureOf(draw, index) {
     s.facing || '', s.wireframe ? 1 : 0,
     draw.instanced ? 'inst' : '',
     draw.flipbook ? `fb${draw.flipbook.columns}x${draw.flipbook.rows}` : '',
+    // Whether a custom texture is bound is STRUCTURAL: swapping one in has to rebuild the pooled
+    // materials, since a three.js material's map cannot be changed without a recompile anyway.
+    m.texture ? 'tex' : '',
   ].join('|');
 }
 
@@ -121,12 +148,16 @@ export class PnxBackend {
     this.root.add(group);
     const m = draw.material || RENDER.DEFAULT_MATERIAL;
     const blending = BLEND[m.blend] || THREE.NormalBlending;
+    // A material's own procedural texture wins over the built-in soft-particle sprite. That is the whole
+    // point of the Textures family: an effect can supply its own image rather than choosing from a list.
+    const own = threeTextureFor(m.texture);
     return {
       kind: draw.kind, group, pool: [], blending,
       depthWrite: !!m.depthWrite,
       doubleSided: m.doubleSided !== false,
       wireframe: !!(draw.settings && draw.settings.wireframe),
-      texture: draw.kind === 'sprite' || draw.kind === 'point' ? getParticleTexture('soft') : null,
+      texture: own || (draw.kind === 'sprite' || draw.kind === 'point' ? getParticleTexture('soft') : null),
+      ownTexture: !!own,
     };
   }
 

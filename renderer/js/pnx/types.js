@@ -70,6 +70,10 @@ const TYPES = {
   collider: { label: 'Collider', color: '#c87f7f', implemented: true },
   attributeWrite: { label: 'Attribute write', color: '#9ac86f', implemented: true },
   material: { label: 'Material', color: '#c86f6f', implemented: true },
+  // A 2D raster. Distinct from `field<color>` on purpose: a field is continuous and lazy, a texture
+  // is a fixed grid evaluated once. Blur, edge detect and dilate need NEIGHBOURING pixels, and
+  // "neighbour" has no meaning in a continuous field — which is the whole reason both types exist.
+  texture2d: { label: 'Texture', color: '#6fa8c8', implemented: true },
   renderCommand: { label: 'Render', color: '#e08f5f', implemented: true },
 
   // --- Declared, type-checkable, and NOT yet implemented. registerNode() refuses any node whose
@@ -198,6 +202,7 @@ export function defaultValue(t) {
     case 'geometry': return null;
     case 'instanceSet': return null;
     case 'emitter': case 'collider': case 'attributeWrite': case 'renderCommand': return null;
+    case 'texture2d': return null;
     case 'material': return null;
     case 'any': return null;
     default: return null;

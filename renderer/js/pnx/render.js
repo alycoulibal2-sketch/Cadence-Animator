@@ -52,6 +52,12 @@ export const MATERIAL_CHANNELS = {
 
 export const BLEND_MODES = ['normal', 'additive', 'multiply', 'screen'];
 
+// A material may carry a TEXTURE alongside its channel fields. Kept separate from the channels rather
+// than being one of them because a texture is what a backend binds, not what it evaluates per element:
+// three.js wants it as a map on the material, and Roblox wants an asset id. A channel that happens to
+// sample a texture is still a field and resolves the normal way.
+export const TEXTURE_SLOTS = ['map', 'normalMap', 'emissiveMap'];
+
 // What a backend can actually honour. Kept here rather than in the backend so the export report and
 // the material node's own documentation read from one table (Part 56/57): a channel silently ignored
 // by a backend is the kind of thing that turns into "why is my glass not refracting".

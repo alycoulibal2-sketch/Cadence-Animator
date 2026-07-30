@@ -18,6 +18,32 @@ import { node, n, out, mode } from './_helpers.js';
 const C = 'Time';
 
 // ---------------------------------------------------------------- clocks
+// TWO KINDS OF TIME EXIST IN THIS ENGINE, and confusing them is the one real trap in this family:
+//
+//   GRAPH TIME  is the playhead. `Effect Time` reads it, and it is a single number for the whole
+//               evaluation — so a value derived from it is CONSTANT across every particle and pixel of
+//               that frame. That is what you want almost always.
+//   SAMPLE TIME is the time the thing being evaluated is asking about, and it can differ per sample.
+//               A flipbook bake rasterizes the same field at successive times into successive cells; a
+//               particle cache walks the frame range. Those pass their own time into the sample context.
+//
+// Wiring `Effect Time` into a flipbook therefore produces a sheet of identical cells — the field was
+// already collapsed to one number before the flipbook asked for anything. `Sample Time` is what varies.
+// It exists because the flipbook made the gap visible, and it is a separate node rather than a mode on
+// Effect Time so the difference is legible in a graph at a glance.
+node({
+  id: 'cadence.time.sampleTime', label: 'Sample Time', category: C, subcategory: 'Clocks',
+  aliases: ['bake time', 'flipbook time', 'per sample time', 'local time', 'frame being baked'],
+  summary: 'The time the thing being evaluated is asking about, which can differ from the playhead.',
+  teach: 'Usually the same as Effect Time. It differs when something is baking several moments at once, like a flipbook.',
+  explain: 'Use this instead of Effect Time when a field is being rasterized or baked across a time range. Effect Time is one number for the whole frame, so a flipbook driven by it comes out as a sheet of identical cells; Sample Time is whatever moment each cell is asking about. Outside a bake the two agree, so switching to this costs nothing.',
+  commonUses: ['animating a field that is being baked into a flipbook', 'a field whose motion must survive a particle cache'],
+  exportSupport: 'baked',
+  inputs: [],
+  outputs: [{ key: 'out', label: 'Seconds', type: 'field<float>', unit: 'seconds' }],
+  evaluate: () => F.makeField('float', (ctx) => ctx.time || 0),
+});
+
 node({
   id: 'cadence.time.effectTime', label: 'Effect Time', category: C, subcategory: 'Clocks',
   aliases: ['time', 'clock', 'seconds', 'now', 'playhead', 'frame'],
