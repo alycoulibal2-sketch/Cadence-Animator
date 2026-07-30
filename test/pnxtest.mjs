@@ -3274,6 +3274,77 @@ check('volume: the capabilities node answers the question from inside the graph'
   assert.ok(/cache|blur|spawn/i.test(built), `and it must say what volumes ARE good for: ${built}`);
 });
 
+// ================================================================ Part 75: the engine stress test
+// The specification's own acceptance criterion, kept as a test rather than as a one-off exercise.
+//
+// Part 75 lists representative effects and says: "Do NOT add effect-specific engine nodes to make these
+// tests pass. Use them to discover missing primitives." So this asserts that the PRIMITIVES each effect
+// needs exist — which is Part 80's definition of success ("a professional should not need to ask does
+// Cadence have this effect, but how do I construct this effect"). It deliberately does not claim the
+// results would look good; that is not a question a test can answer, and Part 62 says to keep the two
+// apart.
+//
+// Its real value is as a regression guard on the catalogue: renaming or removing a primitive that one of
+// these compositions depends on breaks this test rather than being discovered by a user.
+check('Part 75: the specification\'s stress-test effects are constructible from primitives', () => {
+  const needs = {
+    'Campfire': ['cadence.particles.emitter', 'cadence.fields.constantDirection', 'cadence.noise.curl', 'cadence.render.sprite', 'cadence.color.sampleGradient'],
+    'Smoke plume': ['cadence.particles.emitter', 'cadence.noise.curl', 'cadence.particles.simulate', 'cadence.render.sprite'],
+    'Explosion': ['cadence.particles.emitter', 'cadence.geometry.disc', 'cadence.render.light', 'cadence.render.mesh'],
+    'Cosmic explosion': ['cadence.sample.pointsInVolume', 'cadence.fields.radial', 'cadence.color.sampleGradient', 'cadence.render.sprite'],
+    'Lightning strike': ['cadence.curveGeometry.line', 'cadence.geometry.setPosition', 'cadence.noise.perlin', 'cadence.render.beam'],
+    'Chain lightning': ['cadence.curveGeometry.fromPoints', 'cadence.sample.nearestPoint', 'cadence.render.beam'],
+    'Electric aura': ['cadence.sample.pointsOnSurface', 'cadence.noise.curl', 'cadence.render.beam'],
+    'Anime aura': ['cadence.sample.pointsOnSurface', 'cadence.fields.constantDirection', 'cadence.texture.gradientMap', 'cadence.render.sprite'],
+    'Sword slash': ['cadence.curveGeometry.arc', 'cadence.render.trail', 'cadence.curve.evaluate'],
+    'Energy beam': ['cadence.geometry.cylinder', 'cadence.render.beam', 'cadence.texture.rasterize'],
+    'Portal': ['cadence.geometry.torus', 'cadence.sdf.torus', 'cadence.noise.curl', 'cadence.fields.vortex', 'cadence.render.mesh'],
+    'Black hole': ['cadence.fields.attract', 'cadence.fields.orbit', 'cadence.sdf.sphere', 'cadence.render.sprite'],
+    'Galaxy': ['cadence.pattern.spiral', 'cadence.sample.pointsInVolume', 'cadence.render.point'],
+    'Nebula': ['cadence.volume.rasterize', 'cadence.volume.blur', 'cadence.sample.pointsInVolume', 'cadence.render.sprite'],
+    'Tornado': ['cadence.fields.vortex', 'cadence.sdf.cone', 'cadence.sdf.twist', 'cadence.particles.simulate'],
+    'Rain': ['cadence.geometry.pointGrid', 'cadence.fields.constantDirection', 'cadence.particles.collider', 'cadence.render.sprite'],
+    'Snow': ['cadence.noise.curl', 'cadence.forces.dragForce', 'cadence.render.sprite'],
+    'Sandstorm': ['cadence.noise.curl', 'cadence.texture.warp', 'cadence.render.sprite'],
+    'Water splash': ['cadence.particles.collider', 'cadence.sdf.plane', 'cadence.render.sprite'],
+    'Magic shield': ['cadence.geometry.sphere', 'cadence.pattern.hexagons', 'cadence.sdf.mask', 'cadence.material.surface'],
+    'Hologram': ['cadence.pattern.grid', 'cadence.texture.edges', 'cadence.material.surface', 'cadence.render.mesh'],
+    'Disintegration': ['cadence.noise.fbm', 'cadence.geometry.deletePoints', 'cadence.math.smoothstep'],
+    'Teleport': ['cadence.sdf.mask', 'cadence.curve.evaluate', 'cadence.render.sprite'],
+    'Meteor impact': ['cadence.particles.emitter', 'cadence.render.light', 'cadence.geometry.disc', 'cadence.particles.collider'],
+    'Debris explosion': ['cadence.instance.onPoints', 'cadence.instance.align', 'cadence.particles.collider', 'cadence.render.mesh'],
+    'Shockwave': ['cadence.geometry.disc', 'cadence.curve.evaluate', 'cadence.material.surface'],
+    'Healing spell': ['cadence.fields.orbit', 'cadence.geometry.pointCircle', 'cadence.render.sprite'],
+    'Poison cloud': ['cadence.volume.rasterize', 'cadence.noise.curl', 'cadence.render.sprite'],
+    'Sci-fi engine exhaust': ['cadence.particles.emitter', 'cadence.render.trail', 'cadence.compositing.glow'],
+    'Rocket plume': ['cadence.geometry.cylinder', 'cadence.noise.curl', 'cadence.render.sprite', 'cadence.render.light'],
+    'Energy vortex': ['cadence.fields.vortex', 'cadence.pattern.spiral', 'cadence.render.trail'],
+    'Dissolve': ['cadence.noise.fbm', 'cadence.math.smoothstep', 'cadence.material.surface'],
+  };
+
+  const gaps = [];
+  for (const [effect, ids] of Object.entries(needs)) {
+    const missing = ids.filter((id) => !R.getNode(id));
+    if (missing.length) gaps.push(`${effect} needs ${missing.join(', ')}`);
+  }
+  assert.deepEqual(gaps, [], `these compositions lost a primitive they depend on:\n  ${gaps.join('\n  ')}`);
+  assert.ok(Object.keys(needs).length >= 30, 'the stress list should stay broad');
+});
+
+check('Part 75: the two effects that are NOT constructible are the ones the spec expects', () => {
+  // Part 75 also lists "Realistic fire" and "Realistic cloud", and Part 32 is explicit that realistic
+  // fire must NOT be faked with a preset plus random particles. Both need subsystems this engine does not
+  // have, and that is recorded here so the gap stays visible and honest rather than being quietly
+  // forgotten — and so this test starts failing the day a solver arrives and the entry should move.
+  const VOLmod = VOL.UNIMPLEMENTED;
+  assert.ok(VOLmod.pyro, 'realistic fire needs the pyro solver, which must be declared as absent');
+  assert.ok(VOLmod.volumeRendering, 'realistic cloud needs volume rendering, which must be declared as absent');
+  // A stylised fire IS constructible, which is the distinction Part 32 draws.
+  for (const id of ['cadence.particles.emitter', 'cadence.noise.curl', 'cadence.color.sampleGradient', 'cadence.render.sprite']) {
+    assert.ok(R.getNode(id), `a stylised fire must remain constructible (${id})`);
+  }
+});
+
 // ================================================================
 console.log(`\nPNX: ${passed} passed, ${failed} failed  (${R.nodeCount()} node types registered)`);
 if (failed) {

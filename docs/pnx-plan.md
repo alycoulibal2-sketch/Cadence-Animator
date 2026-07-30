@@ -361,6 +361,27 @@ Non-negotiables from Part 1, and how each is met:
 5. **Node identity is versioned from day one** (`cadence.math.multiply@1`), with a migration hook
    per node type, so Part 66 is satisfied before there is anything to migrate.
 
+## 5.1 Part 75's stress test, as a standing check
+
+The specification's own acceptance criterion is kept as a test rather than as a one-off exercise
+(`test/pnxtest.mjs`, "Part 75"). It asserts that the PRIMITIVES each listed effect needs still exist, and
+its real value is as a regression guard on the catalogue: renaming or removing a primitive that one of
+these compositions depends on now breaks a test instead of being discovered by a user.
+
+**32 of the 34 listed effects are constructible from existing primitives.** The two that are not are
+exactly the two the specification itself expects to be blocked:
+
+| Effect | Blocked on |
+| --- | --- |
+| Realistic fire | The pyro solver (Parts 31–32). Part 32 is explicit that realistic fire must NOT be faked with a preset plus random particles, so it is absent rather than approximated. A STYLISED fire is constructible, which is the distinction Part 32 draws. |
+| Realistic cloud | Volume rendering (Part 35). A cloud can be baked into a volume and read as a field; it cannot be raymarched. |
+
+Both are recorded in `volume.js`'s `UNIMPLEMENTED` table, which a test reads — so the day a solver
+arrives, that test starts failing and the entry has to move rather than being quietly forgotten.
+
+Part 80's statement of success is the thing this is really measuring: a professional should not need to
+ask "does Cadence have this effect", but "how do I construct this effect". For 32 of 34, they can.
+
 ## 6. Known limitations to state plainly, not paper over
 
 - **Mesh editing (Part 22) is NOT built, and is not stubbed.** Extrude, Inset, Bevel, Subdivide,
