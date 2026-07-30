@@ -37,6 +37,7 @@ export function initClipTimeline() {
   ST.on('effect', rebuild);
   ST.on('selection', draw);
   ST.on('playhead', draw);
+  ST.on('pnx', rebuild);
   rebuild();
 }
 
@@ -80,6 +81,22 @@ const fOf = (x) => Math.round((x - 4) / pxPerFrame());
 
 // ---------------------------------------------------------------- track list (DOM)
 function rebuild() {
+  // A procedural effect has no layers, so the Effect doc's layer rows here would be stale controls for
+  // a document that is not being drawn — draggable clips that change nothing. The ruler and playhead
+  // stay (they are the effect's real time axis, and scrubbing them drives the procedural evaluation);
+  // only the track column is emptied.
+  if (ST.isPnxMode()) {
+    rows = [];
+    listEl.innerHTML = '';
+    listEl.style.paddingTop = RULER_H + 'px';
+    const note = document.createElement('div');
+    note.className = 'vfx-track-header';
+    note.style.cssText = 'display:block;padding:10px 12px;font-size:11px;line-height:1.5;opacity:.6;';
+    note.textContent = 'Procedural effect \u2014 no layers. Time is driven by the graph; scrub the ruler to evaluate a frame.';
+    listEl.appendChild(note);
+    draw();
+    return;
+  }
   buildRows();
   listEl.innerHTML = '';
   listEl.style.paddingTop = RULER_H + 'px';

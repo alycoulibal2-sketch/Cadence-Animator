@@ -105,7 +105,7 @@ node({
     { key: 'value', label: 'Value', type: 'field<T>', default: 0 },
   ],
   generics: { T: { kinds: V.NUMERIC_KINDS } },
-  outputs: [{ key: 'out', label: 'Write', type: 'any' }],
+  outputs: [{ key: 'out', label: 'Write', type: 'attributeWrite' }],
   evaluate: (api, i) => {
     const name = String(i.name || '');
     if (!name) api.warn('This Set Attribute has no name, so nothing will be stored.');
@@ -120,7 +120,7 @@ node({
   explain: 'Deleting is not the same as writing zero: after this, Has Attribute reports false and Read Attribute uses its fallback. Useful for freeing memory on a large particle set once a phase of an effect is finished with a value.',
   exportSupport: 'converted',
   inputs: [nameIn('')],
-  outputs: [{ key: 'out', label: 'Write', type: 'any' }],
+  outputs: [{ key: 'out', label: 'Write', type: 'attributeWrite' }],
   evaluate: (api, i) => ({ [ATTR_WRITE]: true, name: String(i.name || ''), value: undefined, remove: true }),
 });
 
@@ -133,7 +133,7 @@ node({
     { key: 'from', label: 'From', type: 'string', default: '', socket: false },
     { key: 'to', label: 'To', type: 'string', default: '', socket: false },
   ],
-  outputs: [{ key: 'out', label: 'Writes', type: 'array<any>' }],
+  outputs: [{ key: 'out', label: 'Writes', type: 'array<attributeWrite>' }],
   evaluate: (api, i) => {
     const from = String(i.from || ''), to = String(i.to || '');
     if (!from || !to) {
@@ -154,8 +154,8 @@ node({
   summary: 'Bundles several attribute writes into one connection.',
   explain: 'A stage takes one Attributes input; this is how several Set Attribute nodes reach it. Where two writes name the same attribute, the later one wins.',
   exportSupport: 'converted',
-  inputs: [{ key: 'writes', label: 'Writes', type: 'any', multi: true }],
-  outputs: [{ key: 'out', label: 'Writes', type: 'array<any>' }],
+  inputs: [{ key: 'writes', label: 'Writes', type: 'attributeWrite', multi: true }],
+  outputs: [{ key: 'out', label: 'Writes', type: 'array<attributeWrite>' }],
   evaluate: (api, i) => {
     const list = (Array.isArray(i.writes) ? i.writes : [i.writes]).flat().filter(isAttrWrite);
     const seen = new Map();

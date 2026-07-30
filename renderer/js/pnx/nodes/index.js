@@ -36,5 +36,8 @@ import './sampling.js';
 // --- Phase 5: particles, forces, the staged solver, collisions
 import './particles.js';
 
+// --- Phase 6: materials, renderers, lights, trails/ribbons/beams
+import './render.js';
+
 // --- always available: observability and layout
 import './debug.js';

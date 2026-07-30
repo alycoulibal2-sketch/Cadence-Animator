@@ -28,10 +28,12 @@ function initTransport() {
   stopBtn.addEventListener('click', () => { ST.setPlaying(false); ST.setPlayhead(0); });
   ST.on('playing', () => swapIcon(playBtn, ST.state.playing ? 'pause' : 'play', { size: 14 }));
   const updateFrame = () => {
-    frameLabel.textContent = `frame ${Math.floor(ST.state.playhead)} / ${ST.state.doc.duration}`;
+    const base = `frame ${Math.floor(ST.state.playhead)} / ${ST.state.doc.duration}`;
+    frameLabel.textContent = ST.isPnxMode() ? `${base}  \u00b7 procedural` : base;
   };
   ST.on('playhead', updateFrame);
   ST.on('effect', updateFrame);
+  ST.on('pnx', updateFrame);
   updateFrame();
 }
 
@@ -47,6 +49,14 @@ function newEffectFlow() {
 
 // ---------------------------------------------------------------- gate: errors block send/export
 function gateOnErrors(actionLabel) {
+  // In PNX mode `doc` is not what is being drawn (studioState's note on state.pnx), so the Effect-doc
+  // exporter and the Send-to-Animator path would silently ship the WRONG effect — whatever the doc
+  // happened to hold. Blocking with an explanation is the honest answer until the PNX exporter exists
+  // (phase 9). Part 78: no button that pretends to work.
+  if (ST.isPnxMode()) {
+    toast(`${actionLabel} does not support procedural effects yet \u2014 the Roblox exporter for them is not built`, 'error');
+    return false;
+  }
   const report = ST.validateNow('effect');
   if (report.counts.error > 0) {
     toast(`${report.counts.error} error(s) block ${actionLabel} — open the diagnostics chip to fix them`, 'error');
@@ -59,13 +69,22 @@ function gateOnErrors(actionLabel) {
 // ---------------------------------------------------------------- titlebar actions
 function initTitlebar() {
   const nameInput = document.getElementById('vfxNameInput');
+  // In procedural mode the NAME lives on the graph, not on the Effect doc. Showing the doc's name there
+  // would display the wrong title and rename the wrong document when edited.
   const syncName = () => {
-    if (document.activeElement !== nameInput) nameInput.value = ST.state.doc.name;
+    if (document.activeElement === nameInput) return;
+    nameInput.value = ST.isPnxMode() ? ST.state.pnx.name : ST.state.doc.name;
   };
   ST.on('effect', syncName);
+  ST.on('pnx', syncName);
   syncName();
   nameInput.addEventListener('change', () => {
-    ST.mutate((doc) => { doc.name = nameInput.value.trim() || 'Untitled Effect'; });
+    const typed = nameInput.value.trim();
+    if (ST.isPnxMode()) {
+      ST.mutatePnx((g) => { g.name = typed || 'Untitled Procedural Effect'; }, { nodeId: '__name__' });
+    } else {
+      ST.mutate((doc) => { doc.name = typed || 'Untitled Effect'; });
+    }
   });
 
   document.getElementById('newBtn').addEventListener('click', () => newEffectFlow());

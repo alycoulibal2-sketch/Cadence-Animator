@@ -1879,6 +1879,374 @@ check('solver: substeps change accuracy, not appearance', () => {
   assert.ok(Math.abs(fine - 15) < 0.2, `the fine result should approach the analytic 15 studs, got ${fine}`);
 });
 
+// ================================================================ phase 6: rendering
+const RENDER = await import('../renderer/js/pnx/render.js');
+// pnxStudio owns the evaluator lifecycle for the studio window. It is imported here because it must
+// stay free of DOM and three.js — the moment it reaches for either, this test stops loading, which is
+// the same purity gate the pnx modules get.
+const STUDIO = await import('../renderer-vfx/js/pnxStudio.js');
+
+// A points geometry with a known layout, for asserting on resolved buffers.
+function threePoints() {
+  const g = GEO.pointCloud(3);
+  for (let k = 0; k < 3; k++) GEO.writeAttr(g.points, 'position', k, [k, k * 2, 0]);
+  GEO.ensureAttr(g.points, 'life', 1);
+  GEO.writeAttr(g.points, 'life', 0, 0);
+  GEO.writeAttr(g.points, 'life', 1, 0.5);
+  GEO.writeAttr(g.points, 'life', 2, 1);
+  return g;
+}
+
+// Wire source -> renderer -> output and return the evaluated command list.
+function renderGraph(rendererType, rendererValues = {}, materialValues = null, geometry = null) {
+  const g = G.newGraph('r');
+  const src = G.newNode(g, 'test.geometry.constant', 0, 0, { id: 'rsrc' });
+  G.setNodeValue(g, src.id, 'geometry', geometry || threePoints());
+  const ren = G.newNode(g, rendererType, 200, 0, { id: 'rren', values: rendererValues });
+  const out = G.newNode(g, 'cadence.render.output', 400, 0, { id: 'rout' });
+  const srcSocket = rendererType === 'cadence.render.mesh' ? 'source' : 'source';
+  assert.ok(G.connect(g, src.id, 'out', ren.id, srcSocket).ok, 'source must connect to the renderer');
+  assert.ok(G.connect(g, ren.id, 'out', out.id, 'passes').ok, 'renderer must connect to the output');
+  if (materialValues) {
+    const mat = G.newNode(g, 'cadence.material.surface', 200, 300, { id: 'rmat', values: materialValues });
+    assert.ok(G.connect(g, mat.id, 'out', ren.id, 'material').ok);
+  }
+  const e = new E.Evaluator(g, { fps: 30 });
+  const r = e.evaluateSocket(out.id, 'out');
+  return { g, e, out, ren, result: r, commands: RENDER.flattenCommands(r.value) };
+}
+
+check('render: a renderer emits a command, and the output collects passes in order', () => {
+  const { commands, result } = renderGraph('cadence.render.sprite', { size: 0.5 });
+  assert.ok(result.ok, JSON.stringify(result.diagnostics));
+  assert.equal(commands.length, 1);
+  assert.equal(commands[0].kind, 'sprite');
+  assert.ok(RENDER.isRenderCommand(commands[0]));
+
+  // Several passes into one output socket, drawn in connection order.
+  const g = G.newGraph('multi');
+  const src = G.newNode(g, 'test.geometry.constant', 0, 0, { id: 'msrc' });
+  G.setNodeValue(g, src.id, 'geometry', threePoints());
+  const a = G.newNode(g, 'cadence.render.sprite', 200, 0, { id: 'ma' });
+  const b = G.newNode(g, 'cadence.render.point', 200, 200, { id: 'mb' });
+  const out = G.newNode(g, 'cadence.render.output', 400, 100, { id: 'mout' });
+  for (const n of [a, b]) {
+    assert.ok(G.connect(g, src.id, 'out', n.id, 'source').ok);
+    assert.ok(G.connect(g, n.id, 'out', out.id, 'passes').ok);
+  }
+  const list = RENDER.flattenCommands(ev(g, out.id).value);
+  assert.deepEqual(list.map((c) => c.kind), ['sprite', 'point']);
+});
+
+check('render: material channels are evaluated per element, not once', () => {
+  // Base colour driven by Normalized Age: each of the three points has a different life, so each must
+  // resolve to a different colour. Resolving a material once and reusing it is the failure this
+  // catches, and it would look like every particle being the same colour.
+  const g = G.newGraph('m');
+  const src = G.newNode(g, 'test.geometry.constant', 0, 0, { id: 'msrc' });
+  G.setNodeValue(g, src.id, 'geometry', threePoints());
+  const life = G.newNode(g, 'cadence.particles.life', 0, 200, { id: 'mlife' });
+  const grad = G.newNode(g, 'cadence.color.sampleGradient', 200, 200, {
+    id: 'mgrad',
+    values: { gradient: { kind: 'color', stops: [{ u: 0, v: '#000000' }, { u: 1, v: '#ffffff' }] } },
+  });
+  const mat = G.newNode(g, 'cadence.material.surface', 400, 200, { id: 'mmat' });
+  const spr = G.newNode(g, 'cadence.render.sprite', 600, 0, { id: 'mspr' });
+  const out = G.newNode(g, 'cadence.render.output', 800, 0, { id: 'mout2' });
+  assert.ok(G.connect(g, life.id, 'out', grad.id, 'position').ok);
+  assert.ok(G.connect(g, grad.id, 'out', mat.id, 'baseColor').ok);
+  assert.ok(G.connect(g, mat.id, 'out', spr.id, 'material').ok);
+  assert.ok(G.connect(g, src.id, 'out', spr.id, 'source').ok);
+  assert.ok(G.connect(g, spr.id, 'out', out.id, 'passes').ok);
+
+  const scene = RENDER.resolveScene(RENDER.flattenCommands(ev(g, out.id).value), { frame: 0, time: 0 });
+  const d = scene.draws[0];
+  assert.equal(d.count, 3);
+  near(d.colors[0], 0, 1e-6, 'life 0 must be the gradient start');
+  near(d.colors[2 * 4], 1, 1e-6, 'life 1 must be the gradient end');
+  assert.ok(d.colors[1 * 4] > 0.2 && d.colors[1 * 4] < 0.8, 'life 0.5 must be between them');
+});
+
+check('render: an rgb-only colour resolves opaque, not invisible', () => {
+  // A vector3 into a colour channel must give alpha 1. Defaulting it to 0 makes every rgb material
+  // invisible, which is a genuinely baffling failure to debug from the outside.
+  const { commands } = renderGraph('cadence.render.sprite', {}, { baseColor: [1, 0.5, 0.25] });
+  const scene = RENDER.resolveScene(commands, { frame: 0, time: 0 });
+  const d = scene.draws[0];
+  near(d.colors[3], 1, 1e-6, 'alpha must default to opaque');
+  near(d.colors[0], 1, 1e-6);
+  near(d.colors[1], 0.5, 1e-6);
+});
+
+check('render: a channel a material does not carry falls back to its documented default', () => {
+  const { commands } = renderGraph('cadence.render.sprite', {});   // no material wired at all
+  const scene = RENDER.resolveScene(commands, { frame: 0, time: 0 });
+  const d = scene.draws[0];
+  assert.equal(d.count, 3);
+  for (let k = 0; k < 3; k++) {
+    near(d.opacity[k], 1, 1e-6, 'an unwired material must be fully opaque, not invisible');
+    near(d.colors[k * 4], 1, 1e-6, 'and white, so an unwired renderer shows something');
+  }
+});
+
+check('render: sprite size and rotation accept fields', () => {
+  const g = G.newGraph('s');
+  const src = G.newNode(g, 'test.geometry.constant', 0, 0, { id: 'ssrc' });
+  G.setNodeValue(g, src.id, 'geometry', threePoints());
+  const life = G.newNode(g, 'cadence.particles.life', 0, 200, { id: 'slife' });
+  const spr = G.newNode(g, 'cadence.render.sprite', 400, 0, { id: 'sspr' });
+  const out = G.newNode(g, 'cadence.render.output', 600, 0, { id: 'sout' });
+  assert.ok(G.connect(g, life.id, 'out', spr.id, 'size').ok, 'size must accept a field');
+  assert.ok(G.connect(g, src.id, 'out', spr.id, 'source').ok);
+  assert.ok(G.connect(g, spr.id, 'out', out.id, 'passes').ok);
+  const d = RENDER.resolveScene(RENDER.flattenCommands(ev(g, out.id).value), {}).draws[0];
+  near(d.sizes[0], 0, 1e-6);
+  near(d.sizes[1], 0.5, 1e-6);
+  near(d.sizes[2], 1, 1e-6);
+});
+
+check('render: a flipbook advances through its atlas cells', () => {
+  const { commands } = renderGraph('cadence.render.sprite', {
+    flipbookColumns: 4, flipbookRows: 2, flipbookMode: 'life',
+  });
+  const d = RENDER.resolveScene(commands, {}).draws[0];
+  assert.ok(d.flipbook, 'a flipbook layout must reach the backend');
+  assert.equal(d.flipbook.columns, 4);
+  assert.equal(d.flipbook.rows, 2);
+  // life 0 is the first cell; life 1 wraps back to the first, which is what a looping flipbook does.
+  assert.equal(d.flipbook.cells[0], 0);
+  assert.equal(d.flipbook.cells[1], 4, 'life 0.5 of 8 cells is cell 4');
+});
+
+check('render: a mesh pass carries indices and per-vertex colour', () => {
+  const box = evalNode('cadence.geometry.box', { size: [2, 2, 2] }, 'out', {}, 'rbox');
+  const { commands } = renderGraph('cadence.render.mesh', {}, { baseColor: [1, 0, 0, 1] }, box);
+  const d = RENDER.resolveScene(commands, {}).draws[0];
+  assert.equal(d.kind, 'mesh');
+  assert.ok(!d.instanced);
+  assert.equal(d.indices.length, 12 * 3);
+  assert.equal(d.positions.length, 24 * 3);
+  near(d.vertexColors[0], 1, 1e-6);
+  near(d.vertexColors[1], 0, 1e-6);
+});
+
+check('render: a mesh renderer given points warns instead of silently drawing nothing', () => {
+  const { result } = renderGraph('cadence.render.mesh', {});   // threePoints has no faces
+  assert.ok(result.diagnostics.some((d) => d.severity === 'warning' && /no faces/i.test(d.message)),
+    `expected a "no faces" warning, got ${JSON.stringify(result.diagnostics)}`);
+});
+
+check('render: instances resolve to transforms, not to duplicated geometry', () => {
+  const g = G.newGraph('i');
+  const pts = G.newNode(g, 'cadence.geometry.pointCircle', 0, 0, { id: 'ipts', values: { count: 6, radius: 3 } });
+  const box = G.newNode(g, 'cadence.geometry.box', 0, 200, { id: 'ibox', values: { size: [1, 1, 1] } });
+  const inst = G.newNode(g, 'cadence.instance.onPoints', 200, 100, { id: 'iinst' });
+  const ren = G.newNode(g, 'cadence.render.mesh', 400, 100, { id: 'iren' });
+  const out = G.newNode(g, 'cadence.render.output', 600, 100, { id: 'iout' });
+  assert.ok(G.connect(g, pts.id, 'out', inst.id, 'points').ok);
+  assert.ok(G.connect(g, box.id, 'out', inst.id, 'geometry').ok);
+  assert.ok(G.connect(g, inst.id, 'out', ren.id, 'instances').ok);
+  assert.ok(G.connect(g, ren.id, 'out', out.id, 'passes').ok);
+
+  const scene = RENDER.resolveScene(RENDER.flattenCommands(ev(g, out.id).value), {});
+  const d = scene.draws[0];
+  assert.ok(d.instanced, 'an instance set must resolve as instanced');
+  assert.equal(d.count, 6);
+  assert.equal(d.positions.length, 6 * 3, 'six transforms, not six copies of 24 vertices');
+  assert.equal(d.rotations.length, 6 * 4);
+  assert.equal(d.sources.length, 1, 'one shared source geometry');
+  assert.equal(scene.stats.instances, 6);
+});
+
+check('render: strips resolve to polylines with per-vertex width and colour', () => {
+  const g = G.newGraph('t');
+  const helix = G.newNode(g, 'cadence.curveGeometry.helix', 0, 0, {
+    id: 'thelix', values: { radius: 1, endRadius: 1, height: 4, turns: 2, segments: 24 },
+  });
+  const trail = G.newNode(g, 'cadence.render.trail', 200, 0, { id: 'ttrail', values: { width: 0.3 } });
+  const out = G.newNode(g, 'cadence.render.output', 400, 0, { id: 'tout' });
+  assert.ok(G.connect(g, helix.id, 'out', trail.id, 'source').ok);
+  assert.ok(G.connect(g, trail.id, 'out', out.id, 'passes').ok);
+
+  const d = RENDER.resolveScene(RENDER.flattenCommands(ev(g, out.id).value), {}).draws[0];
+  assert.equal(d.strips.length, 1);
+  const strip = d.strips[0];
+  assert.equal(strip.count, 25, '24 segments is 25 points');
+  assert.equal(strip.positions.length, 25 * 3);
+  for (let k = 0; k < strip.count; k++) near(strip.widths[k], 0.3, 1e-6);
+  // `along` must run 0 to 1 by LENGTH, which is what a width curve or a colour gradient is indexed by.
+  near(strip.alongs[0], 0, 1e-9);
+  near(strip.alongs[strip.count - 1], 1, 1e-9);
+  for (let k = 1; k < strip.count; k++) {
+    assert.ok(strip.alongs[k] > strip.alongs[k - 1], 'along must increase monotonically');
+  }
+});
+
+check('render: a strip renderer given points warns rather than drawing nothing', () => {
+  const { result } = renderGraph('cadence.render.trail', {});
+  assert.ok(result.diagnostics.some((d) => /needs a curve/i.test(d.message)),
+    `expected a "needs a curve" warning, got ${JSON.stringify(result.diagnostics)}`);
+});
+
+check('render: lights resolve per point, and a single light needs no geometry', () => {
+  const { commands } = renderGraph('cadence.render.light', { intensity: 3, range: 12 });
+  const d = RENDER.resolveScene(commands, {}).draws[0];
+  assert.equal(d.count, 3);
+  near(d.intensities[0], 3, 1e-6);
+  near(d.ranges[0], 12, 1e-6);
+
+  // No geometry: one light at the node's own position.
+  const solo = evalNode('cadence.render.light', { position: [1, 2, 3], intensity: 5 }, 'out', {}, 'lsolo');
+  const sd = RENDER.resolveScene([solo], {}).draws[0];
+  assert.equal(sd.count, 1);
+  nearArr(Array.from(sd.positions), [1, 2, 3], 1e-6);
+});
+
+check('render: an unconnected output warns rather than failing silently', () => {
+  const g = G.newGraph('e');
+  const out = G.newNode(g, 'cadence.render.output', 0, 0, { id: 'eout' });
+  const r = ev(g, out.id);
+  assert.ok(r.diagnostics.some((d) => /nothing is connected/i.test(d.message)),
+    'an empty output must say so — this is the commonest reason a correct graph draws nothing');
+});
+
+check('render: the backend report names what a target cannot reproduce', () => {
+  // Transmission is unsupported everywhere today, so it must be REPORTED, not quietly dropped.
+  const g = G.newGraph('c');
+  const src = G.newNode(g, 'test.geometry.constant', 0, 0, { id: 'csrc' });
+  G.setNodeValue(g, src.id, 'geometry', threePoints());
+  const mat = G.newNode(g, 'cadence.material.surface', 200, 200, { id: 'cmat' });
+  const phys = G.newNode(g, 'cadence.material.physical', 400, 200, { id: 'cphys', values: { transmission: 0.9 } });
+  const spr = G.newNode(g, 'cadence.render.sprite', 600, 0, { id: 'cspr' });
+  const out = G.newNode(g, 'cadence.render.output', 800, 0, { id: 'cout' });
+  assert.ok(G.connect(g, mat.id, 'out', phys.id, 'material').ok);
+  assert.ok(G.connect(g, phys.id, 'out', spr.id, 'material').ok);
+  assert.ok(G.connect(g, src.id, 'out', spr.id, 'source').ok);
+  assert.ok(G.connect(g, spr.id, 'out', out.id, 'passes').ok);
+
+  const commands = RENDER.flattenCommands(ev(g, out.id).value);
+  const preview = RENDER.backendReport(commands, 'preview');
+  assert.ok(preview.rows[0].droppedChannels.includes('transmission'),
+    'the preview cannot refract, so transmission must be reported as dropped');
+  assert.ok(!preview.ok, 'a report with dropped channels is not "fully supported"');
+
+  // A ribbon is unsupported on Roblox and must be classified so.
+  const rib = RENDER.backendReport([RENDER.newRenderCommand('ribbon', null, RENDER.DEFAULT_MATERIAL)], 'roblox');
+  assert.equal(rib.rows[0].level, 'unsupported');
+  // ...while a sprite is the one thing Roblox does natively.
+  const sp = RENDER.backendReport([RENDER.newRenderCommand('sprite', null, RENDER.DEFAULT_MATERIAL)], 'roblox');
+  assert.equal(sp.rows[0].level, 'native');
+});
+
+// ================================================================ the studio session
+check('studio: a session survives playhead moves and drops on structural change', () => {
+  const g = STUDIO.newStarterGraph('t');
+  STUDIO.openSession(g, { fps: 30, duration: 60 });
+  try {
+    const first = STUDIO.evaluateFrame(10);
+    assert.ok(first, 'a frame must resolve');
+    assert.ok(first.stats.sprites > 0, `the starter graph must draw something, got ${JSON.stringify(first.stats)}`);
+
+    // The simulation must persist across frames. If it restarted every frame the count would not grow.
+    const later = STUDIO.evaluateFrame(30);
+    assert.ok(later.stats.sprites > first.stats.sprites,
+      `particles should accumulate (frame 10: ${first.stats.sprites}, frame 30: ${later.stats.sprites})`);
+
+    const rep = STUDIO.report();
+    assert.ok(rep.active);
+    assert.equal(rep.stats.simulations, 1, 'exactly one simulation should be held');
+    assert.ok(rep.stats.drawnElements > 0);
+    assert.ok(rep.ok, `the starter graph must be technically valid: ${JSON.stringify(rep.diagnostics)}`);
+  } finally {
+    STUDIO.closeSession();
+  }
+});
+
+check('studio: the starter graph is deterministic across a scrub', () => {
+  const g = STUDIO.newStarterGraph('t');
+  STUDIO.openSession(g, { fps: 30, duration: 60 });
+  try {
+    const snapshot = (scene) => {
+      const d = scene.draws[0];
+      const rows = [];
+      for (let k = 0; k < d.count; k++) {
+        rows.push([...Array.from(d.positions.slice(k * 3, k * 3 + 3)), d.sizes[k]]
+          .map((v) => Math.round(v * 1e5) / 1e5));
+      }
+      return JSON.stringify(rows);
+    };
+    const forwards = snapshot(STUDIO.evaluateFrame(35));
+    STUDIO.evaluateFrame(70);
+    for (const f of [5, 60, 12, 48]) STUDIO.evaluateFrame(f);
+    assert.equal(snapshot(STUDIO.evaluateFrame(35)), forwards,
+      'a scrubbed procedural frame must match the frame reached by playing forwards');
+  } finally {
+    STUDIO.closeSession();
+  }
+});
+
+check('studio: an empty graph reports why nothing is drawn instead of just being empty', () => {
+  STUDIO.openSession(G.newGraph('empty'), { fps: 30 });
+  try {
+    const scene = STUDIO.evaluateFrame(0);
+    assert.equal(scene.draws.length, 0);
+    const rep = STUDIO.report();
+    assert.ok(rep.diagnostics.some((d) => d.code === 'noOutput'),
+      'an empty graph must say that nothing is connected to an output');
+  } finally {
+    STUDIO.closeSession();
+  }
+});
+
+check('studio: a graph with a renderer but no output node still previews', () => {
+  // "Add a sprite renderer and see nothing until you also add an output node" is a discouraging first
+  // experience, so the session falls back to the newest render command.
+  const g = G.newGraph('noout');
+  const pts = PGRAPH_newNode(g, 'cadence.geometry.pointGrid', { countX: 2, countY: 1, countZ: 2 });
+  const spr = PGRAPH_newNode(g, 'cadence.render.sprite', {});
+  assert.ok(G.connect(g, pts.id, 'out', spr.id, 'source').ok);
+  STUDIO.openSession(g, { fps: 30 });
+  try {
+    const scene = STUDIO.evaluateFrame(0);
+    assert.equal(scene.stats.sprites, 4, 'the renderer alone should still preview');
+  } finally {
+    STUDIO.closeSession();
+  }
+});
+function PGRAPH_newNode(g, type, values) {
+  return G.newNode(g, type, 0, 0, { values });
+}
+
+check('studio: compatibility reporting reaches the session', () => {
+  const g = STUDIO.newStarterGraph('t');
+  STUDIO.openSession(g, { fps: 30 });
+  try {
+    STUDIO.evaluateFrame(20);
+    const compat = STUDIO.compatibility('roblox');
+    assert.ok(compat, 'the session must be able to report backend compatibility');
+    assert.equal(compat.rows.length, 1);
+    assert.equal(compat.rows[0].level, 'native', 'a sprite pass is native on Roblox');
+  } finally {
+    STUDIO.closeSession();
+  }
+});
+
+check('studio: profiling attributes cost to nodes', () => {
+  const g = STUDIO.newStarterGraph('t');
+  STUDIO.openSession(g, { fps: 30 });
+  try {
+    STUDIO.evaluateFrame(30);
+    const prof = STUDIO.profile(30);
+    assert.ok(prof.nodes.length > 3, 'every evaluated node should appear');
+    assert.ok(prof.nodes.every((n) => Number.isFinite(n.totalMs)));
+    // The simulation is the expensive node in this graph; it should not be reported as free.
+    const sim = prof.nodes.find((n) => (n.type || '').includes('simulate'));
+    assert.ok(sim, 'the simulation node must be profiled');
+  } finally {
+    STUDIO.closeSession();
+  }
+});
+
 // ================================================================
 console.log(`\nPNX: ${passed} passed, ${failed} failed  (${R.nodeCount()} node types registered)`);
 if (failed) {

@@ -62,10 +62,25 @@ const TYPES = {
   geometry: { label: 'Geometry', color: '#6fc87f', implemented: true },
   instanceSet: { label: 'Instances', color: '#c8906f', implemented: true },
 
-  // --- Phase 5+ types: nameable and type-checkable now, no values yet.
+  // --- Phase 5/6 handoff values. Each is a small description that one node builds and another
+  // consumes. They are typed rather than passed as `any` for one concrete reason: an `any` socket
+  // would happily accept a Collider where an Emitter belongs, and the failure would surface as "my
+  // particles do not spawn" rather than as a refused wire.
+  emitter: { label: 'Emitter', color: '#c8a06f', implemented: true },
+  collider: { label: 'Collider', color: '#c87f7f', implemented: true },
+  attributeWrite: { label: 'Attribute write', color: '#9ac86f', implemented: true },
+  material: { label: 'Material', color: '#c86f6f', implemented: true },
+  renderCommand: { label: 'Render', color: '#e08f5f', implemented: true },
+
+  // --- Declared, type-checkable, and NOT yet implemented. registerNode() refuses any node whose
+  // socket names one of these, which is how Part 78 is enforced mechanically rather than by memory.
+  //
+  // `light` and `camera` are worth a word: this engine renders a light by emitting a render command
+  // (Part 36 lists Light Renderer among the renderers), so there is no Light *value* to pass through
+  // non-rendering nodes yet. The type stays declared for the day one is needed — a light you can
+  // transform, parent and query before drawing.
   particleSet: { label: 'Particles', color: '#c8a06f', implemented: false, phase: 5 },
   volume: { label: 'Volume', color: '#9a6fc8', implemented: false, phase: 8 },
-  material: { label: 'Material', color: '#c86f6f', implemented: false, phase: 6 },
   shader: { label: 'Shader', color: '#c87f6f', implemented: false, phase: 7 },
   light: { label: 'Light', color: '#e0d060', implemented: false, phase: 6 },
   camera: { label: 'Camera', color: '#6fc8b0', implemented: false, phase: 6 },
@@ -182,6 +197,8 @@ export function defaultValue(t) {
     // geometry.js already depends on this one — the import would be circular.
     case 'geometry': return null;
     case 'instanceSet': return null;
+    case 'emitter': case 'collider': case 'attributeWrite': case 'renderCommand': return null;
+    case 'material': return null;
     case 'any': return null;
     default: return null;
   }

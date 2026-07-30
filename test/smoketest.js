@@ -34,17 +34,30 @@
   const origError = console.error;
   console.error = (...a) => { report.consoleErrors.push(a.map(String).join(' ')); origError(...a); };
 
+  // A step that waits on requestAnimationFrame never resolves if Chromium decides to throttle the
+  // window (which it does whenever another app covers it — the run then stalls forever with no
+  // report, looking exactly like a code hang; it cost real debugging time). npm run smoketest
+  // passes --disable-backgrounding-occluded-windows so that cannot happen, but this bounds the
+  // damage for any run launched without those switches: a stuck step fails loudly and the
+  // remaining checks still run.
+  const STEP_TIMEOUT_MS = 30000;
   async function step(name, fn) {
     // Logged BEFORE running: a step that hangs never reaches its own result, and the report is
     // only written at the very end, so without this a stall looks identical to a slow machine and
     // gives no clue which check is stuck. This has already been needed twice.
     console.log('[smoketest] > ' + name);
     const t0 = performance.now();
+    let timer = null;
     try {
-      const r = await fn();
+      const r = await Promise.race([
+        fn(),
+        new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(`step timed out after ${STEP_TIMEOUT_MS}ms`)), STEP_TIMEOUT_MS); }),
+      ]);
       report.steps.push({ name, ok: true, ms: Math.round(performance.now() - t0), r });
     } catch (e) {
       report.steps.push({ name, ok: false, ms: Math.round(performance.now() - t0), error: e.message, stack: (e.stack || '').split('\n').slice(0, 4).join(' | ') });
+    } finally {
+      clearTimeout(timer);
     }
   }
   function assert(cond, msg) { if (!cond) throw new Error('assertion failed: ' + msg); }
@@ -483,6 +496,123 @@
     assert(typeof shot.image === 'string' && shot.image.length > 5000, 'render_frame image looks too small/missing');
     assert(shot.mimeType === 'image/png', 'render_frame should return a PNG');
     return { ok: true, imageBytes: shot.image.length };
+  });
+
+  // ---------------------------------------------------------------- PNX procedural engine
+  // The in-app integration pass for the procedural engine. test/pnxtest.mjs covers the engine itself
+  // in plain Node; these steps are the part that can only be checked in the real app: that the studio
+  // window actually renders a procedural graph through three.js, that scrubbing it stays deterministic
+  // with a live WebGL context, and that switching document modes does not leave the previous effect's
+  // objects in the scene.
+  await step('PNX: a new procedural effect draws through the real renderer', async () => {
+    const created = await vfxCall('pnx_new', { name: 'Smoketest Procedural' });
+    assert(created.ok, `pnx_new reported not-ok: ${JSON.stringify(created.diagnostics)}`);
+
+    const state = await vfxCall('pnx_get_state');
+    assert(state.active, 'the studio should be in procedural mode after pnx_new');
+    assert(state.stats.nodes >= 8, `the starter graph should have nodes, got ${state.stats.nodes}`);
+
+    // Let the render loop actually paint, then check what the BACKEND put on screen — not merely what
+    // the graph computed. This is the assertion that proves the wiring, rather than the engine.
+    await vfxCall('pnx_scrub', { frame: 25 });
+    await new Promise((r) => setTimeout(r, 250));
+    const drawn = await vfxCall('pnx_get_state');
+    assert(drawn.stats.drawnElements > 0, `the graph resolved nothing to draw at frame 25: ${JSON.stringify(drawn.stats)}`);
+    assert(drawn.drawn && drawn.drawn.sprites > 0,
+      `the three.js backend drew no sprites: ${JSON.stringify(drawn.drawn)}`);
+    return { ok: true, nodes: drawn.stats.nodes, sprites: drawn.drawn.sprites };
+  });
+
+  await step('PNX: verification reports technical validity and finds no errors in the starter graph', async () => {
+    const v = await vfxCall('pnx_verify', { frame: 30 });
+    const errors = v.diagnostics.filter((d) => d.severity === 'error');
+    assert(!errors.length, `starter graph has errors: ${JSON.stringify(errors)}`);
+    assert(v.technicallyValid, `starter graph is not technically valid: ${JSON.stringify(v)}`);
+
+    // Across a range, so an effect that is valid at one frame and empty everywhere else cannot pass.
+    const range = await vfxCall('pnx_verify_range', { from: 5, to: 55, samples: 6 });
+    assert(range.drewSomething, 'nothing drew at any sampled frame');
+    assert(range.drewEverywhere, `some frames drew nothing: ${JSON.stringify(range.emptyFrames)}`);
+    return { ok: true, frames: range.frames.length };
+  });
+
+  await step('PNX: scrubbing is deterministic in the live app, not only in the pure engine', async () => {
+    const at = async (frame) => {
+      const r = await vfxCall('pnx_scrub', { frame });
+      return r.stats.drawnElements;
+    };
+    const forwards = await at(40);
+    await at(75);
+    for (const f of [8, 62, 20]) await at(f);
+    const scrubbed = await at(40);
+    assert(scrubbed === forwards,
+      `frame 40 drew ${forwards} elements played forwards but ${scrubbed} after scrubbing — the replay is not deterministic`);
+    return { ok: true, elements: forwards };
+  });
+
+  await step('PNX: graph editing through MCP reaches the renderer', async () => {
+    const graph = await vfxCall('pnx_get_graph');
+    const sprite = graph.nodes.find((n) => n.type.startsWith('cadence.render.sprite'));
+    assert(sprite, 'the starter graph should contain a sprite renderer');
+
+    // Muting the renderer must empty the scene; unmuting must restore it. This is the round trip that
+    // proves an MCP edit invalidates the evaluator and repaints, rather than only changing a document.
+    await vfxCall('pnx_set_node_flags', { nodeId: sprite.id, muted: true });
+    await vfxCall('pnx_scrub', { frame: 30 });
+    const muted = await vfxCall('pnx_get_state');
+    assert(muted.stats.drawnElements === 0, `muting the renderer still drew ${muted.stats.drawnElements} elements`);
+
+    await vfxCall('pnx_set_node_flags', { nodeId: sprite.id, muted: false });
+    await vfxCall('pnx_scrub', { frame: 30 });
+    const restored = await vfxCall('pnx_get_state');
+    assert(restored.stats.drawnElements > 0, 'unmuting the renderer did not bring the effect back');
+    return { ok: true };
+  });
+
+  await step('PNX: introspection serves the real registry, and inspect probes a field', async () => {
+    const cat = await vfxCall('pnx_catalogue');
+    assert(cat.count > 250, `expected a large node catalogue, got ${cat.count}`);
+
+    // Part 48's own acceptance example.
+    const swirl = await vfxCall('pnx_search_nodes', { query: 'swirl', limit: 6 });
+    const labels = swirl.results.map((r) => r.label);
+    assert(labels.some((l) => /curl/i.test(l)), `"swirl" should reach Curl Noise, got ${labels.join(', ')}`);
+
+    const desc = await vfxCall('pnx_describe_node', { type: 'cadence.particles.simulate' });
+    assert(desc.inputs.some((i) => i.key === 'force'), 'Simulate Particles should document a force input');
+    assert(desc.exportSupport, 'every node must declare its export support');
+
+    // A field output must come back as probed samples, not as an opaque object.
+    const graph = await vfxCall('pnx_get_graph');
+    const lifeNode = graph.nodes.find((n) => n.type.startsWith('cadence.particles.life'));
+    if (lifeNode) {
+      const ins = await vfxCall('pnx_inspect', { nodeId: lifeNode.id, frame: 20 });
+      assert(ins.outputs.out.kind === 'field', `expected a field, got ${JSON.stringify(ins.outputs.out)}`);
+      assert(Array.isArray(ins.outputs.out.samples) && ins.outputs.out.samples.length > 1,
+        'a field must be reported as probed samples');
+    }
+    return { ok: true, nodeTypes: cat.count };
+  });
+
+  await step('PNX: export compatibility is honest about what Roblox cannot do', async () => {
+    const compat = await vfxCall('pnx_export_compatibility', { backend: 'roblox' });
+    assert(Array.isArray(compat.rows) && compat.rows.length, 'compatibility should classify the passes');
+    assert(compat.note && /no Roblox exporter/i.test(compat.note),
+      'the report must say plainly that procedural export is not built yet');
+    return { ok: true, counts: compat.counts };
+  });
+
+  await step('PNX: switching back to a layer-based effect leaves no procedural objects behind', async () => {
+    await vfxCall('pnx_close');
+    const after = await vfxCall('pnx_get_state');
+    assert(!after.active, 'pnx_close should leave procedural mode');
+
+    // The layer-based path must still work afterwards — this is the regression that would show up as
+    // the old effect being invisible, or the procedural sprites being stuck on screen.
+    await vfxCall('vfx_new_effect', { name: 'Back To Layers', duration: 60, fps: 30 });
+    const shot = await vfxCall('vfx_render_frame', { frame: 5 });
+    assert(typeof shot.image === 'string' && shot.image.length > 5000, 'the layer-based renderer stopped working after PNX');
+    return { ok: true };
   });
 
   // ---------------------------------------------------------------- effect items in the animator

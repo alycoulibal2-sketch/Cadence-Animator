@@ -511,32 +511,67 @@ ipcMain.handle('shell:openExternal', (_e, url) => shell.openExternal(url));
 ipcMain.handle('shell:copyText', (_e, text) => { clipboard.writeText(text); return true; });
 
 // ---------------------------------------------------------------- IPC: autosave (data-loss protection)
-ipcMain.handle('autosave:write', (_e, projectId, data) => {
+// Sidecar index of what each autosave CONTAINS (name + item count), so the recovery picker can be
+// built from one small file. The renderer used to read and JSON.parse every candidate autosave in
+// full just to label it — with mesh-imported projects on disk that was gigabytes of I/O and many
+// seconds of parsing before the window became usable. The renderer supplies this metadata on
+// write (it already has the live project), so keeping it current costs nothing.
+const autosaveIndexPath = () => path.join(autosaveDir(), '_index.json');
+function readAutosaveIndex() {
+  try { return JSON.parse(fs.readFileSync(autosaveIndexPath(), 'utf8')); } catch (_) { return {}; }
+}
+function writeAutosaveIndex(idx) {
+  try { fs.writeFileSync(autosaveIndexPath(), JSON.stringify(idx)); } catch (_) { /* best-effort */ }
+}
+
+ipcMain.handle('autosave:write', (_e, projectId, data, meta) => {
   const dir = autosaveDir();
   const file = path.join(dir, `${projectId}.cadence`);
-  // rotate: keep last 10 generations, snapshot every write
-  try {
-    if (fs.existsSync(file)) {
-      for (let i = 9; i >= 1; i--) {
-        const from = path.join(dir, `${projectId}.bak${i}`);
-        const to = path.join(dir, `${projectId}.bak${i + 1}`);
-        if (fs.existsSync(from)) fs.renameSync(from, to);
-      }
-      fs.copyFileSync(file, path.join(dir, `${projectId}.bak1`));
-    }
-  } catch (_) { /* rotation is best-effort */ }
+  // Rotate: keep the last 10 generations. The previous generation is HARD LINKED into .bak1
+  // rather than copied. A hard link is a second directory entry onto the same data, so it costs
+  // a syscall instead of duplicating the whole file — this used to copyFileSync the entire
+  // project every 600ms while editing, measured at 81MB per autosave on a mesh-imported rig.
+  //
+  // Linking (rather than renaming `file` out of the way) also means there is never an instant
+  // where no .cadence file exists: `file` keeps pointing at the old data until the rename below
+  // atomically swaps in the new contents, and .bak1 stays pinned to the old data afterwards
+  // because that rename replaces the directory entry rather than writing through it.
+  //
+  // linkSync can legitimately fail on a filesystem without hard links (a FAT32/exFAT stick),
+  // so fall back to the copy this replaced rather than skipping the backup.
   const tmp = file + '.tmp';
   fs.writeFileSync(tmp, data);
+  try {
+    for (let i = 9; i >= 1; i--) {
+      const from = path.join(dir, `${projectId}.bak${i}`);
+      const to = path.join(dir, `${projectId}.bak${i + 1}`);
+      if (fs.existsSync(from)) fs.renameSync(from, to);
+    }
+    if (fs.existsSync(file)) {
+      const bak1 = path.join(dir, `${projectId}.bak1`);
+      try { fs.linkSync(file, bak1); } catch (_) { fs.copyFileSync(file, bak1); }
+    }
+  } catch (_) { /* rotation is best-effort */ }
   fs.renameSync(tmp, file); // atomic replace: a crash mid-write can never corrupt the autosave
+  if (meta) {
+    const idx = readAutosaveIndex();
+    idx[projectId] = { name: meta.name, itemCount: meta.itemCount, hasAudio: !!meta.hasAudio };
+    writeAutosaveIndex(idx);
+  }
   return file;
 });
 ipcMain.handle('autosave:list', () => {
   const dir = autosaveDir();
+  const idx = readAutosaveIndex();
   return fs.readdirSync(dir)
     .filter((f) => f.endsWith('.cadence'))
     .map((f) => {
       const st = fs.statSync(path.join(dir, f));
-      return { id: f.replace(/\.cadence$/, ''), mtime: st.mtimeMs, size: st.size, path: path.join(dir, f) };
+      const id = f.replace(/\.cadence$/, '');
+      const m = idx[id];
+      // `meta: null` for an autosave written before this index existed — the renderer falls back
+      // to reading that one file, rather than every file.
+      return { id, mtime: st.mtimeMs, size: st.size, path: path.join(dir, f), meta: m || null };
     })
     .sort((a, b) => b.mtime - a.mtime);
 });
@@ -983,7 +1018,21 @@ async function handleMcpCommand(type, payload) {
     const img = await vfxWin.webContents.capturePage();
     return { frame: settled.frame, image: img.toPNG().toString('base64'), mimeType: 'image/png' };
   }
-  if (type.startsWith('vfx_')) {
+  // pnx_render_frame is the procedural engine's screenshot, and it needs the same paint-race
+  // treatment as vfx_render_frame: capturePage racing three.js's paint was a real observed bug in
+  // the animator, and a procedural frame is if anything slower to settle because a simulation may
+  // have to replay to reach it.
+  if (type === 'pnx_render_frame') {
+    await ensureVfxStudioReady();
+    const settled = await sendToVfxRenderer('pnx_scrub', { frame: payload.frame ?? 0 });
+    await sendToVfxRenderer('vfx_scrub_settle', { frame: payload.frame ?? 0 });
+    await new Promise((r) => setTimeout(r, 60));
+    const img = await vfxWin.webContents.capturePage();
+    return { frame: settled.frame, stats: settled.stats, image: img.toPNG().toString('base64'), mimeType: 'image/png' };
+  }
+  // Both families live in the studio window: vfx_* edits the layer-based Effect doc, pnx_* the
+  // procedural graph. They are separate documents but one renderer, so they share this route.
+  if (type.startsWith('vfx_') || type.startsWith('pnx_')) {
     await ensureVfxStudioReady();
     return sendToVfxRenderer(type, payload);
   }
@@ -1056,6 +1105,11 @@ const mobileServerInst = createMobileServer({
   sendToRenderer,
   robloxAssets,
   notifyClientConnected: () => safeSend('mobile:clientConnected', {}),
+  // Lets the renderer skip building a broadcast payload at all when nobody is listening. The
+  // payload is the whole project, and shipping it over IPC structured-clones every byte on the
+  // renderer thread — measured at ~700ms per send on an 85MB project, fired up to 15x/second
+  // during playback, whether or not a phone was ever connected. See initMobileBroadcast().
+  notifyClientCount: (n) => safeSend('mobile:clientCount', n),
 });
 const mobileTunnelInst = createMobileTunnel();
 

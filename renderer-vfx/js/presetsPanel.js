@@ -35,6 +35,21 @@ export function openPresetBrowser({ blankState = false } = {}) {
   });
   wrap.appendChild(nodeCta);
 
+  // The procedural engine's entry point (PNX). Deliberately a THIRD peer choice rather than a
+  // replacement for either of the others: the preset library and the v1 node graph keep working
+  // unchanged, and nothing here converts the currently-open document. The starter graph is the
+  // smallest one that actually draws, so this lands on a working effect that can be taken apart
+  // rather than on an empty canvas and a menu of hundreds of nodes.
+  const pnxCta = document.createElement('button');
+  pnxCta.className = 'node-editor-cta';
+  pnxCta.textContent = '\u2728 Start a Procedural Effect (new)';
+  pnxCta.title = 'Build from primitives: geometry, fields, noise, particles, materials, renderers';
+  pnxCta.addEventListener('click', () => {
+    close();
+    ST.newPnxEffect();
+  });
+  wrap.appendChild(pnxCta);
+
   // tabs
   const tabs = document.createElement('div');
   tabs.className = 'vfx-preset-tabs';

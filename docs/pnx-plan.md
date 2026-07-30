@@ -158,21 +158,21 @@ Part 78 (no fake features).
 | 3 | Attributes, fields, noise, patterns, SDFs | **done** |
 | 4 | Geometry, curve geometry, sampling, instancing | **done except Part 22 mesh editing** — see §6 |
 | 5 | Particles, forces, the staged solver, collisions | **done except sub-emission** — the analytic sampler is superseded (§2a). Part 12's event graph is a documented seam, not a feature; see §6 |
-| 6 | Renderers, materials, lights, trails/ribbons/beams | not started |
+| 6 | Renderers, materials, lights, trails/ribbons/beams | **done** — plus the three.js backend and the studio wiring |
 | 7 | Textures, shader graph, compositing | not started |
 | 8 | Volumes, fluid foundation, pyro | not started. **Interface + architecture only when it is.** A CPU grid solver at useful resolutions is not viable in this renderer; the backend gets defined and left explicitly unimplemented rather than faked |
 | 9 | Baking, Roblox exporter, compatibility analyser | not started — will reuse the existing `exportMode` contract |
-| 10 | MCP control, verification, profiling, documentation | not started |
+| 10 | MCP control, verification, profiling, documentation | **done** — 22 `pnx_*` tools; docs are per-node and served from the registry |
 | 11 | Node library, node groups, examples, education hooks | not started |
 
 ### 4.1 What is actually built, as of the end of Phase 4
 
-**314 node types across 16 modules, 146 Node-level tests** (`node test/pnxtest.mjs`, ~2s, no Electron).
+**326 node types across 17 modules, 166 Node-level tests** (`node test/pnxtest.mjs`, ~3s, no Electron), plus **7 in-app integration steps** in `test/smoketest.js`.
 
-PNX is **not yet wired into the app**: nothing in `renderer/js/app.js`, `renderer-vfx/` or `src/`
-imports it. That is deliberate for Phases 1–4 (§5.1) and is what Phases 6 and 10 change. Consequently
-nothing a user can currently click has changed, and no existing project, preset or export path has
-been touched.
+PNX **is wired into the app**. A procedural effect is a third document mode in the VFX studio,
+exclusive with the two that existed (hand-edited layers, and the v1 node graph) — reachable from the
+preset browser's "✨ Start a Procedural Effect", and from `pnx_new` over MCP. It renders through its own
+three.js backend, and no existing project, preset or export path was modified to make that work.
 
 | Module | Contents |
 | --- | --- |
@@ -183,6 +183,10 @@ been touched.
 | `nodes/noise` `pattern` `sdf` `fields` `attribute` | Phase 3 |
 | `nodes/geometry` `sampling` | Phase 4 |
 | `solver.js` `nodes/particles` | Phase 5 |
+| `render.js` `nodes/render` | Phase 6 — materials, render commands, the resolve pass |
+| `renderer-vfx/js/pnxBackend.js` | Phase 6 — the ONLY file in the engine that knows three.js exists |
+| `renderer-vfx/js/pnxStudio.js` | the studio session: one long-lived evaluator, the frame→draw-list pipeline, reporting |
+| `renderer-vfx/js/pnxMcp.js` | Phase 10 — 22 structured graph/introspection/verification handlers |
 | `nodes/debug` | Part 52 observability — always available, always pass-through |
 
 Three mechanisms carried that node count without copy-paste (Part 79): generic type variables,
@@ -232,6 +236,42 @@ Curl noise dominates because each sample is six FBM evaluations. It declares
 `performance: 'expensive'` so the profiler and the docs say so before a user finds out. State is
 `Float32Array` (48 bytes per particle across the eight core attributes); 20 000 particles with
 checkpoints is about 3.7 MB.
+
+### 4.4 Rendering, and what the wiring actually required
+
+**Part 36's separation is the design.** A renderer node draws nothing; it emits a *render command*
+(what to draw, how, with which material). `render.js`'s resolve pass turns commands into flat
+Float32Arrays with no API calls in them, and a backend consumes those. So the same particles render as
+sprites, meshes, trails, ribbons, beams or lights by swapping one node, and a Roblox exporter or a bake
+will consume the identical draw list without reimplementing any evaluation. `pnxBackend.js` is the only
+file in the whole engine that imports three.js.
+
+**Materials are channel bags, not fixed properties.** Part 34 lists eighteen inputs; each is a
+`field<...>`, and a backend honours the subset it can and *reports* the rest (Part 57). Defining the
+material by the poorest backend's abilities would make Cadence's authoring ceiling equal to Roblox's,
+which Part 2 forbids. `Advanced Material Channels` exists as a separate node precisely because no
+backend honours transmission/refraction/IOR yet — it carries them and says so, rather than silently
+doing nothing.
+
+**There is no "over lifetime" property anywhere.** Normalized Age → Gradient → Base Colour is the
+pattern, and the same three nodes give size over lifetime, opacity over distance or emission over
+speed. The starter graph demonstrates it rather than describing it.
+
+**What wiring turned out to require, beyond drawing:**
+
+- **A third document mode, not a conversion.** A PNX effect does not compile to an Effect doc (§2c), so
+  `state.pnx` is exclusive with `state.doc`-authoring and `state.graph`. Save format gained a
+  discriminated `cadenceStudioSave: 2`; v1 graphs and bare Effect docs still load byte-identically.
+- **One long-lived evaluator per graph.** A simulation's state lives in the evaluator, so constructing
+  a fresh one per frame would restart every particle system on every frame. The invalidation contract
+  is the load-bearing part: a playhead move calls `setTime()` (time-dependent cache only, simulations
+  survive); a graph edit calls `invalidateNode()`; replacing the graph object clears everything.
+- **The UI must not lie about which document is in charge.** The inspector, the timeline track column
+  and the name field all read the Effect doc. Left alone in procedural mode they showed a
+  "Spawn Particles" layer with editable Rate/Lifetime/Gravity fields that changed nothing — controls
+  that pretend to work, which Part 78 forbids as squarely as a fake feature does. Each now shows what
+  is really in charge. The Lua export and Send-to-Animator paths are blocked with an explanation for
+  the same reason: `doc` is not what is being drawn, so exporting it would ship the wrong effect.
 
 ### 4.2 Decisions taken during implementation that the audit did not anticipate
 
@@ -289,6 +329,17 @@ Non-negotiables from Part 1, and how each is met:
   What *is* built is Part 42's deformation family, which needs no connectivity because it only moves
   points — and it is one node (`Set Position` driven by a field), not fifteen, because bend, twist,
   taper, bulge, wave, ripple, melt and noise-displace are all "move each point by a field".
+- **There is no Roblox exporter for a procedural effect (Parts 56-58).** Phase 9. `pnx_export_compatibility`
+  and the Render Report classify what WOULD be native, converted, approximated or lost, and the Lua
+  export / Send-to-Animator buttons refuse with an explanation rather than shipping the Effect doc that
+  happens to be in `state.doc`.
+- **Volume rendering is absent (Part 35), and cannot be registered by accident.** The `volume` type is
+  declared `implemented: false`, so `registerNode()` refuses any node using it — a Volume Renderer
+  button cannot exist until the raymarching backend does. Decal is absent for the same reason.
+- **The node editor does not yet edit PNX graphs.** `nodeEditor.js` is the v1 canvas; the procedural
+  inspector points at it, but per-node PNX parameter editing on the canvas is not built. Everything is
+  reachable through the 22 `pnx_*` MCP tools, which is what Part 59 asks for; a human editing a
+  procedural graph by hand needs canvas work that is its own piece.
 - **Sub-emission is NOT built (Parts 12, 26).** "Spawn On Death" and "Spawn On Collision" need a
   second simulation driven by the first's events, with its own state, checkpoints and determinism
   argument. `solver.js` collects deaths and contacts as data and hands them to a sink, because that

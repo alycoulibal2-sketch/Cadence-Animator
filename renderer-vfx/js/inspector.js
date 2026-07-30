@@ -6,6 +6,8 @@
 // focus mid-typing (both rules from the design review).
 
 import * as ST from './studioState.js';
+import * as PNX from './pnxStudio.js';
+import { openNodeEditor } from './nodeEditor.js';
 import {
   getLayer, getModifier, setLayerProps, setClip, setCurveKey, clearCurve, addModifier,
   removeModifier, resolveProp, resolveModParam, propMetaFor,
@@ -26,12 +28,17 @@ export function initInspector() {
   ST.on('advanced', rebuild);
   ST.on('effect', onEffectChanged);
   ST.on('playhead', refreshValues);
+  ST.on('pnx', rebuild);
   rebuild();
 }
 
 // Structure signature: when it changes (layer swapped, modifier added, curve created...) the DOM
 // must rebuild; when only VALUES changed, refresh in place.
 function signature() {
+  // One signature for the whole procedural panel: it is rebuilt on every doc change because the
+  // statistics it shows are per-frame, and it is cheap enough that a finer signature would be effort
+  // spent for nothing.
+  if (ST.isPnxMode()) return 'pnx';
   const layer = ST.selectedLayer();
   if (!layer) return `doc|${ST.state.advanced}`;
   return JSON.stringify([
@@ -93,6 +100,11 @@ function rebuild() {
   builtSignature = signature();
   updaters = [];
   body.innerHTML = '';
+  // A procedural effect is NOT driven by the Effect doc's layers, so showing the layer inspector here
+  // would present Rate/Lifetime/Speed/Gravity fields that look editable and change nothing at all.
+  // That is exactly the "control that pretends to work" the specification forbids, so the panel says
+  // what is actually in charge and points at the node graph instead.
+  if (ST.isPnxMode()) { buildPnxPanel(); return; }
   const layer = ST.selectedLayer();
   if (!layer) { buildEffectPanel(); return; }
 
@@ -540,6 +552,97 @@ function modifierBlock(layerId, modId) {
 }
 
 // ---------------------------------------------------------------- effect-level panel
+// What the inspector shows while a procedural effect is open: what the graph is, what it is drawing
+// right now, and the way in. Read-only on purpose — a node's parameters belong in the node editor next
+// to the node, and a duplicate set of fields here would be a second place for the same value to drift.
+function buildPnxPanel() {
+  const head = el('div', 'vfx-insp-head');
+  head.appendChild(el('span', 'vfx-insp-headname', '\u2728 Procedural effect'));
+  const badge = el('span', 'vfx-fid vfx-fid-faithful', 'valid');
+  head.appendChild(badge);
+  body.appendChild(head);
+
+  const sec = section('This effect');
+  // The DOM is built once and the numbers are refreshed in place, for a reason that is easy to get
+  // wrong: the panel is built when the document changes, which is BEFORE the first frame has been
+  // evaluated. Reading the statistics at build time therefore reported zeros and a spurious "the
+  // Effect Output has no render passes connected" for an effect that was visibly drawing — the panel
+  // was describing the moment before the first paint and never revisiting it.
+  const cells = {};
+  const stat = (key, label, title) => {
+    const v = el('span', '', '0');
+    const r = row(label, v);
+    if (title) r.title = title;
+    sec.appendChild(r);
+    cells[key] = { row: r, value: v };
+    return cells[key];
+  };
+  stat('nodes', 'Nodes');
+  stat('links', 'Connections');
+  stat('drawnElements', 'Drawn this frame',
+    'Elements the current frame actually put on screen. Zero with no errors usually means an empty particle system, or nothing wired to the Effect Output.');
+  stat('sprites', 'Sprites');
+  stat('triangles', 'Triangles');
+  stat('lights', 'Lights');
+  stat('simulations', 'Simulations',
+    'Live particle simulations. Each keeps its own state and replays deterministically when you scrub backwards.');
+  body.appendChild(sec);
+
+  const openSec = section('Editing');
+  const openBtn = el('button', 'tb-btn primary', '\ud83d\udd17 Open the node graph');
+  openBtn.title = 'Every parameter of a procedural effect lives on its own node';
+  openBtn.addEventListener('click', () => openNodeEditor());
+  openSec.appendChild(openBtn);
+  body.appendChild(openSec);
+
+  const warnSec = section('Warnings');
+  warnSec.style.display = 'none';
+  body.appendChild(warnSec);
+
+  // Stated plainly here rather than left for the user to discover by pressing Export and being refused.
+  const note = el('div', '', 'Procedural effects cannot be exported to Roblox or sent to the animator yet \u2014 that exporter is still to be built. Everything else works.');
+  note.style.cssText = 'padding:8px 10px;margin:12px 8px;font-size:11px;line-height:1.5;opacity:.6;border-left:2px solid #5a8;';
+  body.appendChild(note);
+
+  const refresh = () => {
+    const rep = PNX.report();
+    const st = rep.stats || {};
+    for (const [key, cell] of Object.entries(cells)) {
+      const raw = st[key];
+      const shown = key === 'triangles' ? Math.round(raw || 0) : (raw || 0);
+      cell.value.textContent = String(shown);
+      // Rows that are always meaningful stay; the per-renderer counts hide when they are zero rather
+      // than filling the panel with noise for an effect that uses none of them.
+      const alwaysShow = key === 'nodes' || key === 'links' || key === 'drawnElements';
+      cell.row.style.display = (alwaysShow || shown) ? '' : 'none';
+    }
+    const errors = rep.diagnostics.filter((d) => d.severity === 'error');
+    badge.textContent = errors.length ? `${errors.length} error${errors.length === 1 ? '' : 's'}` : 'valid';
+    badge.className = `vfx-fid vfx-fid-${errors.length ? 'dropped' : 'faithful'}`;
+    badge.title = errors.length
+      ? errors.map((d) => `\u2022 ${d.message}`).join('\n')
+      : 'The graph evaluates without errors. Whether it LOOKS right is a separate question no check can answer.';
+
+    const warnings = rep.diagnostics.filter((d) => d.severity === 'warning');
+    warnSec.style.display = warnings.length ? '' : 'none';
+    warnSec.innerHTML = '';
+    if (warnings.length) {
+      warnSec.appendChild(el('div', 'insp-title', `Warnings (${warnings.length})`));
+      for (const d of warnings.slice(0, 8)) {
+        const line = el('div', '', d.message);
+        line.style.cssText = 'padding:5px 8px;font-size:11px;line-height:1.45;opacity:.75;';
+        warnSec.appendChild(line);
+      }
+    }
+  };
+
+  // Refreshed on every playhead change (the existing updater channel), and once after the next paint
+  // so the panel is correct immediately rather than only after the user scrubs.
+  updaters.push(refresh);
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (ST.isPnxMode()) refresh(); }));
+  refresh();
+}
+
 function buildEffectPanel() {
   const doc = ST.state.doc;
   const sec = section('Effect');

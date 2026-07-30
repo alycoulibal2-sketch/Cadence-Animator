@@ -50,9 +50,9 @@ node({
     { key: 'lifetime', label: 'Lifetime', type: 'field<float>', default: 2, min: 1e-3, unit: 'seconds' },
     { key: 'velocity', label: 'Initial velocity', type: 'field<vector3>', default: [0, 0, 0], unit: 'studs/second' },
     { key: 'mass', label: 'Mass', type: 'field<float>', default: 1, min: 1e-6 },
-    { key: 'attributes', label: 'Initial attributes', type: 'any', multi: true, description: 'Set Attribute nodes, applied once when each particle is born.' },
+    { key: 'attributes', label: 'Initial attributes', type: 'attributeWrite', multi: true, description: 'Set Attribute nodes, applied once when each particle is born.' },
   ],
-  outputs: [{ key: 'out', label: 'Emitter', type: 'any' }],
+  outputs: [{ key: 'out', label: 'Emitter', type: 'emitter' }],
   evaluate: (api, i) => ({
     __emitter: true,
     shape: GEO.isGeometry(i.shape) ? i.shape : null,
@@ -85,7 +85,7 @@ node({
     n('friction', 'Friction', 0.2, { min: 0, max: 1 }),
     n('thickness', 'Thickness', 0.05, { min: 0, unit: 'studs', description: 'Treat the surface as this much thicker, so fast particles are less likely to pass through it.' }),
   ],
-  outputs: [{ key: 'out', label: 'Collider', type: 'any' }],
+  outputs: [{ key: 'out', label: 'Collider', type: 'collider' }],
   evaluate: (api, i) => ({
     __collider: true,
     shape: i.shape,
@@ -113,11 +113,11 @@ node({
   pure: false,          // owns a simulation across frames; see api.persistent
   timeDependent: true,
   inputs: [
-    { key: 'emitter', label: 'Emitter', type: 'any' },
+    { key: 'emitter', label: 'Emitter', type: 'emitter' },
     { key: 'force', label: 'Force', type: 'field<vector3>', default: [0, 0, 0], unit: 'studs/second²', description: 'Add the vector fields together to combine forces. Divided by each particle\'s mass to get its acceleration.' },
     { key: 'drag', label: 'Drag', type: 'field<float>', default: 0, min: 0, description: 'Slows particles in proportion to how fast they are going. A field, so it can depend on speed, height or age.' },
     { key: 'kill', label: 'Kill when', type: 'field<bool>', default: false, description: 'Remove a particle the moment this becomes true. Age is handled separately.' },
-    { key: 'colliders', label: 'Colliders', type: 'any', multi: true },
+    { key: 'colliders', label: 'Colliders', type: 'collider', multi: true },
     intIn('maxParticles', 'Particle limit', 10000, { min: 1, max: 500000 }),
     intIn('substeps', 'Substeps', 1, { min: 1, max: 16, description: 'Subdivide each frame. Raise it when fast particles pass through colliders — it costs accuracy, not appearance.' }),
     boolIn('killByAge', 'Die of old age', true),
