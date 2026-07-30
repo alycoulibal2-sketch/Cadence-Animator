@@ -1549,6 +1549,336 @@ check('instancing: transforms apply per instance and compose', () => {
   nearArr(b.center, [3, 10, 0], 1e-6, 'scaled about the instance, then moved');
 });
 
+// ================================================================ phase 5: the solver
+const SOLVER = await import('../renderer/js/pnx/solver.js');
+
+// Build a graph with an emitter feeding a simulate node, and hand back both plus the evaluator, so a
+// test can seek frames in any order through ONE evaluator (which is what exercises the replay path —
+// a fresh evaluator per frame would only ever step forwards).
+function simGraph({ emitter = {}, simulate = {}, force = null, gravity = null } = {}) {
+  const g = G.newGraph('sim');
+  const em = G.newNode(g, 'cadence.particles.emitter', 0, 0, {
+    id: 'em', values: { rate: 10, lifetime: 1, velocity: [0, 0, 0], ...emitter },
+  });
+  const sim = G.newNode(g, 'cadence.particles.simulate', 400, 0, {
+    id: 'sim', values: { maxParticles: 1000, ...simulate },
+  });
+  assert.ok(G.connect(g, em.id, 'out', sim.id, 'emitter').ok);
+  if (gravity !== null) sim.values.force = gravity;
+  if (force) {
+    const f = G.newNode(g, force.type, 200, 200, { id: 'force', values: force.values || {} });
+    assert.ok(G.connect(g, f.id, 'out', sim.id, 'force').ok, 'force must connect');
+  }
+  const e = new E.Evaluator(g, { fps: 30 });
+  return { g, em, sim, e };
+}
+
+const seekTo = (e, sim, frame, socket = 'out') => {
+  e.setTime(frame);
+  return e.evaluateSocket(sim.id, socket);
+};
+
+check('solver: a bare emitter spawns at the rate it claims', () => {
+  const { sim, e } = simGraph({ emitter: { rate: 30, lifetime: 100 } });
+  // 30/second at 30fps is one per frame. After 10 frames, 10 particles.
+  assert.equal(seekTo(e, sim, 10, 'count').value, 10);
+  assert.equal(seekTo(e, sim, 20, 'count').value, 20);
+});
+
+check('solver: a fractional spawn rate still emits', () => {
+  // 0.5/second must give one particle every two seconds, not zero forever. Truncating each frame
+  // independently is the classic bug this guards.
+  const { sim, e } = simGraph({ emitter: { rate: 0.5, lifetime: 1000 } });
+  assert.equal(seekTo(e, sim, 30, 'count').value, 0, 'not yet at one second');
+  assert.equal(seekTo(e, sim, 60, 'count').value, 1, 'one particle by two seconds');
+  assert.equal(seekTo(e, sim, 120, 'count').value, 2);
+});
+
+check('solver: a burst fires exactly once', () => {
+  const { sim, e } = simGraph({ emitter: { rate: 0, burstCount: 50, burstTime: 0.5, lifetime: 1000 } });
+  assert.equal(seekTo(e, sim, 10, 'count').value, 0, 'before the burst time');
+  assert.equal(seekTo(e, sim, 20, 'count').value, 50, 'the burst has fired');
+  assert.equal(seekTo(e, sim, 60, 'count').value, 50, 'and must not fire again');
+});
+
+check('solver: particles die of old age', () => {
+  const { sim, e } = simGraph({ emitter: { rate: 30, lifetime: 1 } });
+  // One per frame, each living 30 frames: the population plateaus at 30.
+  assert.equal(seekTo(e, sim, 20, 'count').value, 20);
+  const plateau = seekTo(e, sim, 90, 'count').value;
+  assert.ok(plateau >= 29 && plateau <= 31, `expected a plateau near 30, got ${plateau}`);
+  assert.ok(seekTo(e, sim, 90, 'died').value > 0, 'particles must actually be dying');
+});
+
+check('solver: SCRUBBING IS DETERMINISTIC — the same frame is identical however it is reached', () => {
+  // This is the property the whole checkpoint/replay design exists for. Without it the timeline, onion
+  // skin, render_frame and export baking are all unsound.
+  const snapshot = (r) => {
+    const g = r.value;
+    const rows = [];
+    for (let k = 0; k < GEO.pointCount(g); k++) {
+      rows.push([
+        GEO.readAttr(g.points, 'id', k),
+        ...GEO.readAttr(g.points, 'position', k),
+        ...GEO.readAttr(g.points, 'velocity', k),
+        GEO.readAttr(g.points, 'age', k),
+      ].map((v) => Math.round(v * 1e6) / 1e6));
+    }
+    rows.sort((a, b) => a[0] - b[0]);
+    return JSON.stringify(rows);
+  };
+
+  const setup = () => simGraph({
+    emitter: { rate: 20, lifetime: 1.5, velocity: [2, 6, 0] },
+    simulate: { force: [0, -30, 0], drag: 0.4, substeps: 2 },
+  });
+
+  // Route A: straight forwards to frame 47.
+  const a = setup();
+  const forwards = snapshot(seekTo(a.e, a.sim, 47));
+  assert.ok(forwards.length > 10, 'the simulation must actually produce particles');
+
+  // Route B: past it and back — this forces a restore from a checkpoint plus a replay.
+  const b = setup();
+  seekTo(b.e, b.sim, 90);
+  const backwards = snapshot(seekTo(b.e, b.sim, 47));
+  assert.equal(backwards, forwards, 'scrubbing backwards gave a different frame 47');
+
+  // Route C: a jittery scrub, the way a user actually drags a playhead.
+  const c = setup();
+  for (const f of [5, 60, 12, 88, 30, 71, 2, 47]) seekTo(c.e, c.sim, f);
+  assert.equal(snapshot(seekTo(c.e, c.sim, 47)), forwards, 'a jittery scrub gave a different frame 47');
+
+  // Route D: a fresh simulation reaching it in one hop must agree too.
+  const d = setup();
+  assert.equal(snapshot(seekTo(d.e, d.sim, 47)), forwards);
+});
+
+check('solver: replaying backwards costs steps, replaying forwards does not', () => {
+  const { sim, e } = simGraph({ emitter: { rate: 10, lifetime: 5 } });
+  seekTo(e, sim, 40);
+  const simObj = [...e.persistent.values()][0];
+  assert.ok(simObj instanceof SOLVER.Simulation, 'the simulation must be held as persistent state');
+
+  seekTo(e, sim, 41);
+  assert.equal(simObj.lastSeek.steps, 1, 'one frame forward is one step');
+
+  // Re-asking for the frame we are already on must not advance the state. Called on the simulation
+  // directly, because through the graph the evaluator does not even re-run the node — its cache entry
+  // is still valid, which is cheaper still but tests the cache rather than the seek.
+  const frameBefore = simObj.state.frame;
+  simObj.seek(41);
+  assert.equal(simObj.lastSeek.steps, 0, 'the same frame again must cost nothing');
+  assert.equal(simObj.state.frame, frameBefore, 'and must not advance the state');
+
+  seekTo(e, sim, 20);
+  assert.ok(simObj.lastSeek.steps > 0 && simObj.lastSeek.steps <= 20,
+    `a backward seek should replay from a checkpoint, not from zero (${simObj.lastSeek.steps} steps)`);
+});
+
+check('solver: advancing time keeps the simulation, changing the graph resets it', () => {
+  const { sim, e } = simGraph({ emitter: { rate: 10, lifetime: 100 } });
+  seekTo(e, sim, 30);
+  const first = [...e.persistent.values()][0];
+  seekTo(e, sim, 31);
+  assert.equal([...e.persistent.values()][0], first, 'moving the playhead must not restart the simulation');
+
+  // A structural change must drop it: a history produced by a different graph is not a valid start.
+  e.invalidateNode(sim.id);
+  assert.equal(e.persistent.size, 0, 'a structural change must discard the simulation');
+});
+
+check('solver: gravity accelerates at the rate it is given', () => {
+  const { sim, e } = simGraph({
+    emitter: { rate: 0, burstCount: 1, burstTime: 0, lifetime: 100, velocity: [0, 0, 0] },
+    simulate: { force: [0, -10, 0], substeps: 8 },
+  });
+  const g = seekTo(e, sim, 30).value;   // one second at 30fps
+  assert.equal(GEO.pointCount(g), 1);
+  const p = GEO.readAttr(g.points, 'position', 0);
+  const v = GEO.readAttr(g.points, 'velocity', 0);
+  // v = a*t is exact for semi-implicit Euler under a constant force. The tolerance is set by the
+  // state being stored in Float32Array (deliberately — half the memory of doubles, and what every
+  // particle engine does): 240 float32 additions accumulate a few parts in 10^6, not in 10^16.
+  near(v[1], -10, 1e-4, 'velocity after one second of 10 studs/s^2');
+  // Position lags the analytic -0.5*a*t^2 = -5 by one step's worth; being within a step is the
+  // correctness bar for a first-order integrator, and it must not be wildly off.
+  assert.ok(p[1] < -4.5 && p[1] > -5.5, `expected roughly -5 studs, got ${p[1]}`);
+});
+
+check('solver: drag is stable however hard it is pushed', () => {
+  // Linear damping (v *= 1 - k*dt) goes NEGATIVE and explodes once k*dt > 1, which a user reaches by
+  // dragging a slider. Exponential damping cannot.
+  for (const drag of [0.5, 5, 50, 5000]) {
+    const { sim, e } = simGraph({
+      emitter: { rate: 0, burstCount: 1, burstTime: 0, lifetime: 100, velocity: [100, 0, 0] },
+      simulate: { drag },
+    });
+    const g = seekTo(e, sim, 30).value;
+    const v = GEO.readAttr(g.points, 'velocity', 0);
+    assert.ok(Number.isFinite(v[0]), `drag ${drag} produced ${v[0]}`);
+    assert.ok(v[0] >= 0 && v[0] <= 100, `drag ${drag} must slow the particle, not reverse or amplify it: ${v[0]}`);
+  }
+});
+
+check('solver: a collider stops particles and bounce returns some speed', () => {
+  const mk = (response, restitution) => {
+    const g = G.newGraph('c');
+    const em = G.newNode(g, 'cadence.particles.emitter', 0, 0, {
+      id: 'cem', values: { rate: 0, burstCount: 1, burstTime: 0, lifetime: 100, velocity: [0, -20, 0] },
+    });
+    const plane = G.newNode(g, 'cadence.sdf.plane', 0, 200, { id: 'cpl', values: { point: [0, 0, 0], normal: [0, 1, 0] } });
+    const col = G.newNode(g, 'cadence.particles.collider', 200, 200, {
+      id: 'ccol', values: { response, restitution, friction: 0, thickness: 0.05 },
+    });
+    const sim = G.newNode(g, 'cadence.particles.simulate', 400, 0, {
+      id: 'csim', values: { maxParticles: 10, substeps: 4 },
+    });
+    assert.ok(G.connect(g, plane.id, 'out', col.id, 'shape').ok);
+    assert.ok(G.connect(g, em.id, 'out', sim.id, 'emitter').ok);
+    assert.ok(G.connect(g, col.id, 'out', sim.id, 'colliders').ok);
+    return { sim, e: new E.Evaluator(g, { fps: 30 }) };
+  };
+
+  // Bouncing: the particle must end up on or above the plane, moving upwards.
+  const b = mk('bounce', 0.6);
+  const bg = seekTo(b.e, b.sim, 20).value;
+  assert.equal(GEO.pointCount(bg), 1);
+  assert.ok(GEO.readAttr(bg.points, 'position', 0)[1] >= -1e-3, 'a bounced particle must not be below the plane');
+  assert.ok(GEO.readAttr(bg.points, 'velocity', 0)[1] > 0, 'a bounced particle must be moving up');
+
+  // Sticking: it must stop dead.
+  const s = mk('stick', 0);
+  const sg = seekTo(s.e, s.sim, 20).value;
+  near(V.vLength(GEO.readAttr(sg.points, 'velocity', 0)), 0, 1e-6);
+
+  // Killing: it must be gone.
+  const k = mk('kill', 0);
+  assert.equal(seekTo(k.e, k.sim, 20, 'count').value, 0, 'a killing collider must remove the particle');
+});
+
+check('solver: the kill field removes particles the moment it is true', () => {
+  const g = G.newGraph('k');
+  const em = G.newNode(g, 'cadence.particles.emitter', 0, 0, {
+    id: 'kem', values: { rate: 30, lifetime: 1000, velocity: [0, 10, 0] },
+  });
+  // Kill anything above 3 studs: Position -> Separate -> Greater Than.
+  const pos = G.newNode(g, 'cadence.fields.position', 0, 200, { id: 'kpos' });
+  const sep = G.newNode(g, 'cadence.vector.separate', 200, 200, { id: 'ksep' });
+  const gt = G.newNode(g, 'cadence.math.greaterThan', 400, 200, { id: 'kgt', values: { b: 3 } });
+  const sim = G.newNode(g, 'cadence.particles.simulate', 600, 0, { id: 'ksim', values: { maxParticles: 500 } });
+  assert.ok(G.connect(g, pos.id, 'out', sep.id, 'vector').ok);
+  assert.ok(G.connect(g, sep.id, 'y', gt.id, 'a').ok);
+  assert.ok(G.connect(g, em.id, 'out', sim.id, 'emitter').ok);
+  assert.ok(G.connect(g, gt.id, 'out', sim.id, 'kill').ok);
+
+  const e = new E.Evaluator(g, { fps: 30 });
+  const out = seekTo(e, sim, 60);
+  assert.ok(out.value !== null);
+  for (let k = 0; k < GEO.pointCount(out.value); k++) {
+    assert.ok(GEO.readAttr(out.value.points, 'position', k)[1] <= 3 + 1e-3, 'a particle survived above the kill height');
+  }
+  assert.ok(seekTo(e, sim, 60, 'died').value > 0, 'the kill field must actually be killing');
+});
+
+check('solver: initial attributes are written at birth and travel with the particle', () => {
+  const g = G.newGraph('a');
+  const rnd = G.newNode(g, 'cadence.random.float', 0, 400, { id: 'arnd', values: { min: 100, max: 200 } });
+  const set = G.newNode(g, 'cadence.attribute.write', 200, 400, { id: 'aset', values: { name: 'heat' } });
+  const em = G.newNode(g, 'cadence.particles.emitter', 400, 0, {
+    id: 'aem', values: { rate: 30, lifetime: 1000 },
+  });
+  const sim = G.newNode(g, 'cadence.particles.simulate', 600, 0, { id: 'asim', values: { maxParticles: 500 } });
+  assert.ok(G.connect(g, rnd.id, 'out', set.id, 'value').ok);
+  assert.ok(G.connect(g, set.id, 'out', em.id, 'attributes').ok);
+  assert.ok(G.connect(g, em.id, 'out', sim.id, 'emitter').ok);
+
+  const e = new E.Evaluator(g, { fps: 30 });
+  const out = seekTo(e, sim, 20).value;
+  assert.ok(GEO.pointCount(out) > 5);
+  assert.ok(GEO.hasAttr(out.points, 'heat'), 'the custom attribute must exist on the particles');
+  const values = [];
+  for (let k = 0; k < GEO.pointCount(out); k++) {
+    const h = GEO.readAttr(out.points, 'heat', k);
+    assert.ok(h >= 100 && h <= 200, `heat ${h} is outside the range it was spawned with`);
+    values.push(h);
+  }
+  assert.ok(new Set(values.map((v) => Math.round(v))).size > 1, 'every particle got the same value — the spawn context is not varying per particle');
+});
+
+check('solver: normalized age runs 0 to 1 and drives an over-lifetime curve', () => {
+  const { sim, e } = simGraph({ emitter: { rate: 30, lifetime: 1 } });
+  const out = seekTo(e, sim, 45).value;
+  let sawEarly = false, sawLate = false;
+  for (let k = 0; k < GEO.pointCount(out); k++) {
+    const life = GEO.readAttr(out.points, 'life', k);
+    assert.ok(life >= 0 && life <= 1, `life ${life} is outside 0..1`);
+    if (life < 0.2) sawEarly = true;
+    if (life > 0.8) sawLate = true;
+  }
+  assert.ok(sawEarly && sawLate, 'a steady emitter should hold particles at every stage of life');
+});
+
+check('solver: particles are points, so phase-4 nodes work on them unchanged', () => {
+  const g = G.newGraph('p');
+  const em = G.newNode(g, 'cadence.particles.emitter', 0, 0, {
+    id: 'pem', values: { rate: 30, lifetime: 1000, velocity: [0, 5, 0] },
+  });
+  const sim = G.newNode(g, 'cadence.particles.simulate', 200, 0, { id: 'psim', values: { maxParticles: 500 } });
+  const box = G.newNode(g, 'cadence.geometry.box', 0, 400, { id: 'pbox', values: { size: [1, 1, 1] } });
+  const inst = G.newNode(g, 'cadence.instance.onPoints', 400, 200, { id: 'pinst' });
+  const info = G.newNode(g, 'cadence.instance.info', 600, 200, { id: 'pinfo' });
+  assert.ok(G.connect(g, em.id, 'out', sim.id, 'emitter').ok);
+  assert.ok(G.connect(g, sim.id, 'out', inst.id, 'points').ok, 'particles must connect straight into instancing');
+  assert.ok(G.connect(g, box.id, 'out', inst.id, 'geometry').ok);
+  assert.ok(G.connect(g, inst.id, 'out', info.id, 'instances').ok);
+
+  const e = new E.Evaluator(g, { fps: 30 });
+  e.setTime(15);
+  const alive = e.evaluateSocket(sim.id, 'count').value;
+  assert.ok(alive > 5, `expected particles, got ${alive}`);
+  assert.equal(e.evaluateSocket(info.id, 'count').value, alive, 'one instance per particle');
+  assert.equal(e.evaluateSocket(info.id, 'pointsIfRealized').value, alive * 24);
+});
+
+check('solver: the particle limit is respected and reported, not silently exceeded', () => {
+  const { sim, e } = simGraph({
+    emitter: { rate: 1000, lifetime: 1000 },
+    simulate: { maxParticles: 25 },
+  });
+  assert.equal(seekTo(e, sim, 60, 'count').value, 25);
+  const simObj = [...e.persistent.values()][0];
+  const report = SOLVER.diagnoseSimulation(simObj);
+  assert.ok(report.diagnostics.some((d) => d.code === 'atLimit'), 'hitting the limit must be reported');
+});
+
+check('solver: the report names an exploding simulation rather than shrugging', () => {
+  const { sim, e } = simGraph({
+    emitter: { rate: 0, burstCount: 5, burstTime: 0, lifetime: 1000, velocity: [1e6, 0, 0] },
+  });
+  seekTo(e, sim, 30);
+  const report = SOLVER.diagnoseSimulation([...e.persistent.values()][0]);
+  assert.ok(report.diagnostics.some((d) => d.code === 'exploding' || d.code === 'fastParticles'),
+    `expected an explosion warning, got ${JSON.stringify(report.diagnostics)}`);
+  assert.ok(report.stats.particles === 5 && report.stats.maxSpeed > 1e5);
+});
+
+check('solver: substeps change accuracy, not appearance', () => {
+  // The same setup at 1 and at 8 substeps must agree closely. If it does not, the step is not
+  // subdividing time properly and raising substeps would change the look of the effect rather than
+  // just its accuracy — which would make it a creative control by accident.
+  const height = (substeps) => {
+    const { sim, e } = simGraph({
+      emitter: { rate: 0, burstCount: 1, burstTime: 0, lifetime: 100, velocity: [0, 20, 0] },
+      simulate: { force: [0, -10, 0], substeps },
+    });
+    return GEO.readAttr(seekTo(e, sim, 30).value.points, 'position', 0)[1];
+  };
+  const coarse = height(1), fine = height(8);
+  assert.ok(Math.abs(coarse - fine) < 0.5, `1 substep gave ${coarse}, 8 gave ${fine} — too far apart`);
+  assert.ok(Math.abs(fine - 15) < 0.2, `the fine result should approach the analytic 15 studs, got ${fine}`);
+});
+
 // ================================================================
 console.log(`\nPNX: ${passed} passed, ${failed} failed  (${R.nodeCount()} node types registered)`);
 if (failed) {

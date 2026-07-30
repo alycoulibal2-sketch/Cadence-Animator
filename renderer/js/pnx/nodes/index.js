@@ -33,5 +33,8 @@ import './attribute.js';
 import './geometry.js';
 import './sampling.js';
 
+// --- Phase 5: particles, forces, the staged solver, collisions
+import './particles.js';
+
 // --- always available: observability and layout
 import './debug.js';

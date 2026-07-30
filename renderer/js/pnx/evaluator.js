@@ -45,6 +45,11 @@ export class Evaluator {
   constructor(graph, options = {}) {
     this.graph = graph;
     this.cache = new Map();        // 'path|socket' -> { value, type, timeDependent }
+    // Per-node-path persistent state, for the nodes that genuinely have some (simulations). Keyed by
+    // path rather than by node id so a group used twice keeps two independent simulations — sharing
+    // one would make the second instance's history depend on the first's, which is the same class of
+    // bug the cache namespacing avoids.
+    this.persistent = new Map();   // path -> arbitrary object owned by the node
     this.diagnostics = [];         // errors/warnings raised during the last evaluation pass
     this.profile = new Map();      // nodeId -> { calls, totalMs, cacheHits }
     this.options = {
@@ -78,8 +83,14 @@ export class Evaluator {
 
   invalidateAll() {
     this.cache.clear();
+    this.persistent.clear();
   }
 
+  // Advancing the playhead invalidates time-dependent cache entries but MUST NOT touch persistent
+  // state. A simulation's whole purpose is to survive from one frame to the next; dropping it here
+  // would restart every particle system on every frame of playback. Structural changes — a different
+  // force, a new wire — go through invalidateNode/invalidateAll instead, which do drop it, because a
+  // simulation's history is only meaningful for the graph that produced it.
   invalidateTimeDependent() {
     for (const [k, e] of this.cache) if (e.timeDependent) this.cache.delete(k);
   }
@@ -101,6 +112,9 @@ export class Evaluator {
       const bar = k.lastIndexOf('|');
       const path = k.slice(0, bar);
       if (path === nodeId || path.endsWith(`/${nodeId}`)) this.cache.delete(k);
+    }
+    for (const path of [...this.persistent.keys()]) {
+      if (path === nodeId || path.endsWith(`/${nodeId}`)) this.persistent.delete(path);
     }
   }
 
@@ -539,6 +553,15 @@ export class Evaluator {
       // Per-element deterministic random. `channel` decorrelates independent uses on the same
       // element, so a random size and a random colour never come out identical.
       random: (element = 0, channel = 0) => F.randomAt(path, V.mixSeeds(seed, this.options.seed), element, channel),
+      // Persistent per-node state, for simulations. `factory` runs once; later calls return the same
+      // object until something structurally invalidates this node. A node using this must declare
+      // pure: false, so the fact that it is not a function of its inputs alone stays visible.
+      persistent: (factory) => {
+        let held = this.persistent.get(path);
+        if (held === undefined) { held = factory(); this.persistent.set(path, held); }
+        return held;
+      },
+      resetPersistent: () => { this.persistent.delete(path); },
       warn: (message) => this._diag('warning', node.id, message),
       error: (message) => this._diag('error', node.id, message),
       note: (message) => this._diag('info', node.id, message),

@@ -157,7 +157,7 @@ Part 78 (no fake features).
 | 2 | Math, vector, transform, colour, curves, time, logic, random | **done** (rides on Phase 1's generics) |
 | 3 | Attributes, fields, noise, patterns, SDFs | **done** |
 | 4 | Geometry, curve geometry, sampling, instancing | **done except Part 22 mesh editing** — see §6 |
-| 5 | Particles, forces, the staged solver, events, collisions | **next** — this is where the analytic sampler is superseded (§2a) |
+| 5 | Particles, forces, the staged solver, collisions | **done except sub-emission** — the analytic sampler is superseded (§2a). Part 12's event graph is a documented seam, not a feature; see §6 |
 | 6 | Renderers, materials, lights, trails/ribbons/beams | not started |
 | 7 | Textures, shader graph, compositing | not started |
 | 8 | Volumes, fluid foundation, pyro | not started. **Interface + architecture only when it is.** A CPU grid solver at useful resolutions is not viable in this renderer; the backend gets defined and left explicitly unimplemented rather than faked |
@@ -167,7 +167,7 @@ Part 78 (no fake features).
 
 ### 4.1 What is actually built, as of the end of Phase 4
 
-**304 node types across 15 modules, 129 Node-level tests** (`node test/pnxtest.mjs`, ~1s, no Electron).
+**314 node types across 16 modules, 146 Node-level tests** (`node test/pnxtest.mjs`, ~2s, no Electron).
 
 PNX is **not yet wired into the app**: nothing in `renderer/js/app.js`, `renderer-vfx/` or `src/`
 imports it. That is deliberate for Phases 1–4 (§5.1) and is what Phases 6 and 10 change. Consequently
@@ -182,11 +182,56 @@ been touched.
 | `nodes/math` `vector` `transform` `color` `curve` `time` `logic` `random` | Phase 2 |
 | `nodes/noise` `pattern` `sdf` `fields` `attribute` | Phase 3 |
 | `nodes/geometry` `sampling` | Phase 4 |
+| `solver.js` `nodes/particles` | Phase 5 |
 | `nodes/debug` | Part 52 observability — always available, always pass-through |
 
 Three mechanisms carried that node count without copy-paste (Part 79): generic type variables,
 automatic field lifting, and the `pointwise1/2/3` declaration helpers. `cadence.math.add` is ONE
 implementation serving float/int/vector2/vector3/vector4/colour **and** fields of all six.
+
+### 4.3 The solver, and why phase 5 added so few nodes
+
+A literal reading of Parts 25–30 counts about a hundred nodes: Gravity, Drag, Wind, Turbulence, Curl
+Force, Vortex, Attract, Repel, Orbit, Seek, Follow Field, Follow Curve, plus a collider per shape.
+Phase 5 added **ten**, and that is the design working rather than a shortfall:
+
+- Every **position-dependent force** is already a vector field from Part 19. Gravity is Constant
+  Direction; wind is Constant Direction plus Noise; turbulence is Curl Noise. So `Force` on the
+  Simulate node is one `field<vector3>` input and `Add` combines them.
+- Every **collider shape** is already an SDF from Part 20, and the contact normal is that field's
+  gradient. One Collider node covers plane/sphere/box/capsule and anything composed from them.
+- Every **emitter shape** is already geometry plus the phase-4 samplers. One `geometry` input and a
+  mode covers spawn-from points/surface/volume/curve.
+
+What phase 5 had to add is what genuinely cannot be expressed otherwise: the staged solver itself, and
+the two forces that are functions of a particle's **velocity** rather than of its position (Drag Force,
+Seek) — a field is evaluated at a point in space and cannot see what is passing through it.
+
+**Determinism under scrubbing** is the property the whole design exists for, since the timeline, onion
+skin, `render_frame` and export baking all assume "same frame in, same result out". Stateful
+integration plus checkpoint replay delivers it: every route to frame *f* runs the same steps from the
+same start. The test asserts this across four routes — straight forwards, past-and-back, a jittery
+eight-hop scrub, and a fresh simulation — comparing every particle's id, position, velocity and age.
+
+Three things it rests on, none of them relaxable: fixed timestep from the frame rate; no `Math.random`
+anywhere; and particle ids assigned from a counter that is part of the checkpointed state, so a replay
+hands the same particle the same id and therefore the same seed.
+
+**Frame convention:** frame `startFrame` is the untouched initial state at t=0, so frame N is exactly
+(N − startFrame) steps of dt. Counting from −1 instead runs one extra step per seek — which showed up
+as gravity reading −10.33 studs/s after one second at 10 studs/s².
+
+**Measured cost** (20 000 particles, 30 frames, this machine):
+
+| Force | Per frame | Backward scrub |
+| --- | --- | --- |
+| constant (gravity) | 13.9 ms | ~0 ms from a checkpoint |
+| curl noise | 96 ms | ~1 ms |
+
+Curl noise dominates because each sample is six FBM evaluations. It declares
+`performance: 'expensive'` so the profiler and the docs say so before a user finds out. State is
+`Float32Array` (48 bytes per particle across the eight core attributes); 20 000 particles with
+checkpoints is about 3.7 MB.
 
 ### 4.2 Decisions taken during implementation that the audit did not anticipate
 
@@ -244,6 +289,17 @@ Non-negotiables from Part 1, and how each is met:
   What *is* built is Part 42's deformation family, which needs no connectivity because it only moves
   points — and it is one node (`Set Position` driven by a field), not fifteen, because bend, twist,
   taper, bulge, wave, ripple, melt and noise-displace are all "move each point by a field".
+- **Sub-emission is NOT built (Parts 12, 26).** "Spawn On Death" and "Spawn On Collision" need a
+  second simulation driven by the first's events, with its own state, checkpoints and determinism
+  argument. `solver.js` collects deaths and contacts as data and hands them to a sink, because that
+  information exists only inside the step loop — recovering "which particles died this step" from
+  outside would mean diffing two states and guessing. **Nothing sets that sink yet and no node exposes
+  it**, so nothing in the UI claims it works. The general event bus (Send/Receive/Filter/Sequence/Gate)
+  is likewise absent; the `event` type is declared `implemented: false`, which mechanically prevents a
+  node being registered against it.
+- **Particle interaction is NOT built (Part 27).** Neighbour search, flocking, separation/alignment/
+  cohesion and density estimation all need a spatial acceleration structure. The same structure is what
+  the brute-force queries below want, so it is one piece of work rather than two.
 - **Nearest-point, attribute transfer and raycast are brute force.** They cost O(points) or O(faces)
   *per sample*, which is fine for hundreds and expensive for tens of thousands sampled per particle.
   Part 27's spatial acceleration structures are the fix and belong with the particle-interaction work
