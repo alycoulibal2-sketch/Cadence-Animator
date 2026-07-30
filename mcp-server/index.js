@@ -730,6 +730,24 @@ server.tool(
 );
 
 server.tool(
+  'pnx_export_lua',
+  'Export the procedural effect as a self-contained Roblox LocalScript. Passes Roblox can run natively become real ParticleEmitters/Beams/PointLights; passes it cannot are BAKED into a per-frame recording and replayed; passes with no Roblox equivalent at all are refused with a reason rather than approximated. The result carries the per-pass classification, so you always know what was translated and what was precomputed. Read pnx_export_report first if you only want the classification.',
+  {
+    bakeStride: z.number().optional().describe('bake every Nth frame — raise it to shrink a large baked script (default 1)'),
+    maxBakedParticles: z.number().optional().describe('cap on particles recorded per frame (default 300)'),
+    precision: z.number().optional().describe('decimal places in the baked numbers (default 2)'),
+  },
+  async (args) => { try { return textResult(await vfxCall('pnx_export_lua', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_export_report',
+  'What a Roblox export WOULD do to each pass, without baking anything: native, converted, baked or unsupported, why, and which material channels are lost. Cheap — call it before pnx_export_lua to find out whether an effect will bake to a huge script before producing one.',
+  {},
+  async () => { try { return textResult(await vfxCall('pnx_export_report')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
   'pnx_export_compatibility',
   'What a target platform would keep, change or lose about the current effect: which render passes are native, converted, approximated or unsupported, and which material channels a backend ignores. Procedural effects have no Roblox exporter yet, so this reports what WOULD happen.',
   { backend: z.enum(['preview', 'roblox']).optional() },

@@ -988,7 +988,12 @@ check('noise: white noise is NOT smooth, and voronoi returns a cell id', () => {
 
   const g2 = G.newGraph('t');
   const p2 = G.newNode(g2, 'cadence.fields.position');
-  const vor = G.newNode(g2, 'cadence.noise.voronoi', 200, 0, { values: { scale: 2 } });
+  // Randomness 0 puts every cell centre on the lattice, so which cell a point falls in is a fact about
+  // the coordinates rather than about the seed. With the default randomness the centres are jittered by
+  // the node's structural seed, and since node ids are random per run, two fixed probe points a hundredth
+  // of a stud apart occasionally straddle a boundary — this test failed roughly one run in ten before the
+  // randomness was pinned. The id is pinned too, so a failure is reproducible rather than a coin toss.
+  const vor = G.newNode(g2, 'cadence.noise.voronoi', 200, 0, { id: 'vor', values: { scale: 2, randomness: 0 } });
   G.connect(g2, p2.id, 'out', vor.id, 'position');
   const dist = ev(g2, vor.id, 'distance').value;
   const cell = ev(g2, vor.id, 'cell').value;
@@ -2245,6 +2250,327 @@ check('studio: profiling attributes cost to nodes', () => {
   } finally {
     STUDIO.closeSession();
   }
+});
+
+// ================================================================ phase 9: baking and export
+const BAKE = await import('../renderer/js/pnx/bake.js');
+const RBX = await import('../renderer/js/pnx/targets/roblox.js');
+
+// A structural validator for generated Luau. Not a parser — a parser is a project of its own — but it
+// catches every failure mode a CODE GENERATOR actually has: an unclosed block, unbalanced brackets, a
+// malformed number, an accidentally-emitted `undefined` or `NaN`. Without this, a generator bug ships as
+// a script that fails to compile on paste, and the only way to find out is to paste it.
+function checkLuaStructure(lua) {
+  const problems = [];
+
+  // Strip strings and comments first, or a brace inside a string throws the balance off.
+  let code = lua
+    .replace(/--\[\[[\s\S]*?\]\]/g, ' ')
+    .replace(/--[^\n]*/g, ' ')
+    .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''");
+
+  // Bracket balance.
+  const pairs = { '(': ')', '[': ']', '{': '}' };
+  const stack = [];
+  for (const ch of code) {
+    if (pairs[ch]) stack.push(ch);
+    else if (ch === ')' || ch === ']' || ch === '}') {
+      const open = stack.pop();
+      if (!open || pairs[open] !== ch) { problems.push(`unbalanced bracket near "${ch}"`); break; }
+    }
+  }
+  if (stack.length) problems.push(`${stack.length} unclosed bracket(s): ${stack.join('')}`);
+
+  // Block balance. Only three keywords open a block that `end` closes: `function`, `if`, and `do`.
+  // `for` and `while` are NOT openers — each is always followed by its own `do`, which is what gets
+  // closed. Counting them as openers too double-counts every loop, which is exactly the bug the first
+  // version of this checker had: it reported valid generated code as having unclosed blocks.
+  // `repeat ... until` needs no `end` at all, so neither word counts.
+  const words = code.match(/\b[a-zA-Z_]\w*\b/g) || [];
+  let depth = 0;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (w === 'function' || w === 'if' || w === 'do') depth++;
+    else if (w === 'end') depth--;
+    if (depth < 0) { problems.push(`an "end" with no matching block at word ${i}`); break; }
+  }
+  if (depth > 0) problems.push(`${depth} block(s) never closed with "end"`);
+
+  // Things a generator emits by accident and Luau will not accept.
+  for (const bad of ['undefined', 'NaN', 'Infinity', 'null', '[object Object]']) {
+    // ESCAPED: "[object Object]" contains brackets, and unescaped it becomes a character class that
+    // matches almost any letter — the check then fired on every valid script it was handed.
+    const needle = bad.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`(^|[^\\w"])${needle}([^\\w"]|$)`).test(code)) problems.push(`emitted a JavaScript value: ${bad}`);
+  }
+  // A number like `1.2.3` or a stray `,,`
+  if (/\d+\.\d*\.\d/.test(code)) problems.push('malformed number literal');
+  if (/,\s*,/.test(code)) problems.push('empty element in a table constructor');
+
+  return problems;
+}
+
+check('bake: field probing identifies what a field actually depends on', () => {
+  // This is the technique the whole exporter branches on, so it is worth testing directly: a field is
+  // an opaque closure, and the strategy is decided by sampling it rather than by reading the graph.
+  const strategy = (f) => BAKE.bakeStrategy(f).kind;
+  assert.equal(strategy(3), 'constant', 'a plain number depends on nothing');
+  assert.equal(strategy(F.constantField('float', 5)), 'constant');
+  assert.equal(strategy(F.makeField('float', (c) => c.life * 2)), 'sequence', 'life-only becomes a NumberSequence');
+  assert.equal(strategy(F.makeField('float', (c) => c.age * 2)), 'sequence', 'age is the same axis as life');
+  assert.equal(strategy(F.makeField('float', (c) => (c.index % 7) / 7)), 'range', 'index-only becomes a range');
+  assert.equal(strategy(F.makeField('float', (c) => c.position[0])), 'perFrame', 'spatial has no Roblox equivalent');
+  assert.equal(strategy(F.makeField('float', (c) => c.velocity[1])), 'perFrame');
+  assert.equal(strategy(F.makeField('float', (c) => c.life + c.index)), 'sequenceRange');
+  assert.equal(strategy(F.makeField('float', (c) => c.life + c.position[2])), 'perFrame',
+    'life plus position is still spatial, so it must not be mistaken for a sequence');
+
+  // A field that returns the same value everywhere reads as constant — stated as a known limit of the
+  // probe rather than pretended away. It degrades fidelity, never correctness.
+  assert.equal(strategy(F.makeField('float', () => 1)), 'constant');
+});
+
+check('bake: sequences and ranges sample what they claim', () => {
+  const f = F.makeField('float', (c) => c.life * 10);
+  const pts = BAKE.bakeSequence(f, { samples: 5 });
+  assert.equal(pts.length, 5);
+  near(pts[0].t, 0, 1e-9); near(pts[0].v, 0, 1e-9);
+  near(pts[4].t, 1, 1e-9); near(pts[4].v, 10, 1e-9);
+
+  const r = BAKE.bakeRange(F.makeField('float', (c) => 5 + (c.index % 10)));
+  assert.equal(r.min, 5);
+  assert.equal(r.max, 14);
+});
+
+check('bake: a particle cache records rows keyed by stable particle id', () => {
+  const { sim, e } = simGraph({ emitter: { rate: 30, lifetime: 2, velocity: [0, 5, 0] } });
+  const evaluateFrame = (frame) => {
+    e.setTime(frame);
+    const r = e.evaluateSocket(sim.id, 'out');
+    return RENDER.resolveScene([RENDER.newRenderCommand('sprite', r.value, RENDER.DEFAULT_MATERIAL, { size: 0.4 })], { frame });
+  };
+  const cache = BAKE.bakeParticleCache(evaluateFrame, { from: 0, to: 30, stride: 2, maxParticles: 200 });
+  assert.ok(cache.stats.totalRows > 50, `expected recorded rows, got ${cache.stats.totalRows}`);
+  assert.ok(cache.stats.peakParticles > 5);
+  assert.ok(cache.stats.estimatedBytes > 0);
+
+  // Identity is the part that matters: a cache keyed by array position is worthless because particles
+  // die and the table compacts, so slot 3 is a different particle every frame.
+  const late = cache.frames[cache.frames.length - 1];
+  const ids = late.rows.map((r) => r.id);
+  assert.equal(new Set(ids).size, ids.length, 'ids within a frame must be unique');
+  // More particles have existed than are alive at once, so the highest id seen must exceed the peak
+  // per-frame count. If ids were array positions they could never exceed it, which is the whole point.
+  // Ids come from the solver's own counter, so they keep climbing as particles are born and die.
+  // The highest id seen must therefore exceed the highest id present on the first populated frame,
+  // which array positions could never do.
+  const allIds = cache.frames.flatMap((f) => f.rows.map((r) => r.id));
+  const highestId = Math.max(...allIds);
+  const firstIds = (cache.frames.find((f) => f.rows.length) || { rows: [] }).rows.map((r) => r.id);
+  assert.ok(highestId > Math.max(0, ...firstIds),
+    `ids must climb as particles are born (highest ${highestId}, first frame ${firstIds.join(',')})`);
+
+  // A tracked particle's recorded position must move monotonically upward under an upward velocity.
+  const tracked = ids[0];
+  const path = cache.frames.map((f) => f.rows.find((r) => r.id === tracked)).filter(Boolean);
+  assert.ok(path.length >= 2, 'a particle should appear in several frames');
+  for (let k = 1; k < path.length; k++) {
+    assert.ok(path[k].p[1] >= path[k - 1].p[1] - 1e-6,
+      'a particle launched upward must not move down in the cache — that would mean ids are being confused');
+  }
+});
+
+check('bake: the size budget is measured and refuses honestly', () => {
+  const small = BAKE.describeBudget(10_000);
+  assert.ok(small.ok);
+  assert.equal(small.message, null, 'a small script needs no warning');
+  const big = BAKE.describeBudget(5_000_000);
+  assert.ok(!big.ok);
+  assert.ok(/reduce the frame range|stride|particle count/i.test(big.message), 'a refusal must say what to change');
+});
+
+// ---------------------------------------------------------------- the Roblox exporter
+function exportGraph(g, { fps = 30, duration = 60, bake = {} } = {}) {
+  const e = new E.Evaluator(g, { fps, duration });
+  const out = Object.values(g.nodes).find((nd) => nd.type.startsWith('cadence.render.output'));
+  assert.ok(out, 'the graph needs an Effect Output');
+  e.setTime(Math.floor(duration / 2));
+  const commands = RENDER.flattenCommands(e.evaluateSocket(out.id, 'out').value);
+  const evaluateFrame = (frame) => {
+    e.setTime(frame);
+    return RENDER.resolveScene(RENDER.flattenCommands(e.evaluateSocket(out.id, 'out').value), { frame });
+  };
+  return RBX.buildRobloxExport({ commands, graph: g, evaluator: e, evaluateFrame, name: 'Test', fps, duration, bake });
+}
+
+check('export: a simple sprite effect becomes a real ParticleEmitter', () => {
+  const built = exportGraph(STUDIO.newStarterGraph('t'));
+  assert.equal(built.report.counts.native, 1, `expected a native pass: ${JSON.stringify(built.report.rows.map((r) => [r.level, r.reasons]))}`);
+  assert.ok(built.lua.includes('Instance.new("ParticleEmitter")'));
+  // The gradient and the size curve must survive as real Roblox sequences, not as averages.
+  assert.ok(built.lua.includes('ColorSequence.new({'), 'the colour gradient must become a ColorSequence');
+  assert.ok(built.lua.includes('NumberSequence.new({'), 'the size curve must become a NumberSequence');
+  assert.ok(/Acceleration = Vector3\.new\(0, -6/.test(built.lua), 'constant gravity must become Acceleration');
+  assert.ok(built.bytes < 20000, `a native export should be small, got ${built.bytes} bytes`);
+  assert.deepEqual(checkLuaStructure(built.lua), [], 'the generated Luau must be structurally sound');
+});
+
+check('export: an explicit opacity is not lost behind the colour alpha', () => {
+  // Both the opacity channel and the base colour's alpha land on Roblox's single Transparency property.
+  // Branching on one or the other silently discards whichever lost, which is what an earlier version of
+  // this exporter did with a constant 0.35 opacity.
+  const g = G.newGraph('o');
+  const em = G.newNode(g, 'cadence.particles.emitter', 0, 0, { id: 'oem', values: { rate: 20, lifetime: 1 } });
+  const sim = G.newNode(g, 'cadence.particles.simulate', 200, 0, { id: 'osim' });
+  const mat = G.newNode(g, 'cadence.material.surface', 200, 200, { id: 'omat', values: { opacity: 0.25 } });
+  const spr = G.newNode(g, 'cadence.render.sprite', 400, 0, { id: 'ospr' });
+  const out = G.newNode(g, 'cadence.render.output', 600, 0, { id: 'oout' });
+  assert.ok(G.connect(g, em.id, 'out', sim.id, 'emitter').ok);
+  assert.ok(G.connect(g, sim.id, 'out', spr.id, 'source').ok);
+  assert.ok(G.connect(g, mat.id, 'out', spr.id, 'material').ok);
+  assert.ok(G.connect(g, spr.id, 'out', out.id, 'passes').ok);
+
+  const built = exportGraph(g);
+  // Transparency is 1 - alpha, so 0.25 opacity is 0.75 transparency.
+  assert.ok(/Transparency = NumberSequence\.new\(0\.75\)/.test(built.lua),
+    `expected transparency 0.75 from opacity 0.25, got: ${(/Transparency = [^\n]*/.exec(built.lua) || [])[0]}`);
+  // And LightEmission must appear at most once — writing it twice is a generator slip, not a feature.
+  assert.ok((built.lua.match(/\.LightEmission =/g) || []).length <= 1, 'LightEmission must be written once');
+});
+
+check('export: a colliding, curl-forced effect is BAKED, with both reasons named', () => {
+  const g = G.newGraph('b');
+  const em = G.newNode(g, 'cadence.particles.emitter', 0, 0, { id: 'bem', values: { rate: 40, lifetime: 2, velocity: [0, 6, 0] } });
+  const curl = G.newNode(g, 'cadence.noise.curl', 0, 200, { id: 'bcurl', values: { scale: 0.4 } });
+  const plane = G.newNode(g, 'cadence.sdf.plane', 0, 400, { id: 'bpl' });
+  const col = G.newNode(g, 'cadence.particles.collider', 200, 400, { id: 'bcol' });
+  const sim = G.newNode(g, 'cadence.particles.simulate', 400, 0, { id: 'bsim', values: { maxParticles: 300 } });
+  const spr = G.newNode(g, 'cadence.render.sprite', 600, 0, { id: 'bspr', values: { size: 0.3 } });
+  const out = G.newNode(g, 'cadence.render.output', 800, 0, { id: 'bout' });
+  assert.ok(G.connect(g, em.id, 'out', sim.id, 'emitter').ok);
+  assert.ok(G.connect(g, curl.id, 'out', sim.id, 'force').ok);
+  assert.ok(G.connect(g, plane.id, 'out', col.id, 'shape').ok);
+  assert.ok(G.connect(g, col.id, 'out', sim.id, 'colliders').ok);
+  assert.ok(G.connect(g, sim.id, 'out', spr.id, 'source').ok);
+  assert.ok(G.connect(g, spr.id, 'out', out.id, 'passes').ok);
+
+  const built = exportGraph(g, { duration: 40, bake: { stride: 2, maxParticles: 100 } });
+  const row = built.report.rows[0];
+  assert.equal(row.level, 'baked');
+  const why = row.reasons.join(' | ');
+  assert.ok(/collide/i.test(why), `the collider must be named as a reason: ${why}`);
+  assert.ok(/force varies/i.test(why), `the spatial force must be named as a reason: ${why}`);
+
+  // The bake must contain actual recorded data, and be structurally valid Luau.
+  assert.ok(/_FRAMES = \{/.test(built.lua), 'a baked pass must emit a frame table');
+  assert.ok(built.bytes > 5000, `a bake should contain real data, got ${built.bytes} bytes`);
+  assert.deepEqual(checkLuaStructure(built.lua), [], 'baked Luau must be structurally sound');
+  assert.ok(built.notes.some((nt) => /recording rather than a simulation/i.test(nt)),
+    'the user must be told a bake is a recording, not a simulation');
+});
+
+check('export: a mesh pass is refused with a reason, never faked', () => {
+  const g = G.newGraph('m');
+  const sph = G.newNode(g, 'cadence.geometry.sphere', 0, 0, { id: 'msph', values: { radius: 2 } });
+  const ren = G.newNode(g, 'cadence.render.mesh', 200, 0, { id: 'mren' });
+  const out = G.newNode(g, 'cadence.render.output', 400, 0, { id: 'mout9' });
+  assert.ok(G.connect(g, sph.id, 'out', ren.id, 'source').ok);
+  assert.ok(G.connect(g, ren.id, 'out', out.id, 'passes').ok);
+
+  const built = exportGraph(g);
+  assert.equal(built.report.rows[0].level, 'unsupported');
+  assert.ok(/cannot build a mesh at runtime/i.test(built.report.rows[0].reasons[0]),
+    'the refusal must explain WHY, not merely refuse');
+  // And it must not have quietly emitted several hundred parts instead.
+  assert.ok(!/Instance\.new\("Part"\)[\s\S]*Instance\.new\("Part"\)[\s\S]*Instance\.new\("Part"\)/.test(built.lua)
+    || built.lua.includes('not exported'), 'an unsupported pass must not be silently approximated');
+  assert.deepEqual(checkLuaStructure(built.lua), []);
+});
+
+check('export: a light becomes a PointLight with its values baked per frame', () => {
+  const g = G.newGraph('l');
+  const pt = G.newNode(g, 'cadence.geometry.point', 0, 0, { id: 'lpt', values: { position: [0, 3, 0] } });
+  const life = G.newNode(g, 'cadence.time.effectTime', 0, 200, { id: 'ltime' });
+  const light = G.newNode(g, 'cadence.render.light', 200, 0, { id: 'llight', values: { intensity: 4, range: 15 } });
+  const out = G.newNode(g, 'cadence.render.output', 400, 0, { id: 'lout' });
+  assert.ok(G.connect(g, pt.id, 'out', light.id, 'source').ok);
+  assert.ok(G.connect(g, light.id, 'out', out.id, 'passes').ok);
+
+  const built = exportGraph(g, { duration: 20 });
+  assert.equal(built.report.rows[0].level, 'converted');
+  assert.ok(built.lua.includes('Instance.new("PointLight")'));
+  assert.ok(/Range = math\.clamp/.test(built.lua), 'the range must be clamped to Roblox\'s own limit');
+  assert.deepEqual(checkLuaStructure(built.lua), []);
+});
+
+check('export: a beam becomes a Roblox Beam and says what it lost', () => {
+  const g = G.newGraph('bm');
+  const helix = G.newNode(g, 'cadence.curveGeometry.helix', 0, 0, { id: 'bmh', values: { radius: 1, endRadius: 1, height: 6, turns: 2, segments: 20 } });
+  const beam = G.newNode(g, 'cadence.render.beam', 200, 0, { id: 'bmb', values: { width: 0.4 } });
+  const out = G.newNode(g, 'cadence.render.output', 400, 0, { id: 'bmo' });
+  assert.ok(G.connect(g, helix.id, 'out', beam.id, 'source').ok);
+  assert.ok(G.connect(g, beam.id, 'out', out.id, 'passes').ok);
+
+  const built = exportGraph(g, { duration: 20 });
+  assert.equal(built.report.rows[0].level, 'converted');
+  assert.ok(built.lua.includes('Instance.new("Beam")'));
+  assert.ok(built.notes.some((nt) => /curvature in the original is lost/i.test(nt)),
+    'a 20-segment helix flattened to a 2-point Beam must say so');
+  assert.deepEqual(checkLuaStructure(built.lua), []);
+});
+
+check('export: an empty graph produces a valid script that explains itself', () => {
+  const g = G.newGraph('e');
+  G.newNode(g, 'cadence.render.output', 0, 0, { id: 'eout9' });
+  const built = exportGraph(g);
+  assert.deepEqual(checkLuaStructure(built.lua), [], 'even a nothing-to-export script must be valid Luau');
+  assert.ok(/Nothing in this effect could be exported/.test(built.lua));
+});
+
+check('export: the report classifies every pass and names the level honestly', () => {
+  // Several passes at once: one native, one unsupported. The report must not collapse them.
+  const g = G.newGraph('mix');
+  const em = G.newNode(g, 'cadence.particles.emitter', 0, 0, { id: 'xem', values: { rate: 20, lifetime: 1 } });
+  const sim = G.newNode(g, 'cadence.particles.simulate', 200, 0, { id: 'xsim' });
+  const spr = G.newNode(g, 'cadence.render.sprite', 400, 0, { id: 'xspr' });
+  const sph = G.newNode(g, 'cadence.geometry.sphere', 0, 300, { id: 'xsph' });
+  const mesh = G.newNode(g, 'cadence.render.mesh', 400, 300, { id: 'xmesh' });
+  const out = G.newNode(g, 'cadence.render.output', 600, 0, { id: 'xout' });
+  assert.ok(G.connect(g, em.id, 'out', sim.id, 'emitter').ok);
+  assert.ok(G.connect(g, sim.id, 'out', spr.id, 'source').ok);
+  assert.ok(G.connect(g, sph.id, 'out', mesh.id, 'source').ok);
+  assert.ok(G.connect(g, spr.id, 'out', out.id, 'passes').ok);
+  assert.ok(G.connect(g, mesh.id, 'out', out.id, 'passes').ok);
+
+  const built = exportGraph(g, { duration: 30 });
+  assert.equal(built.report.rows.length, 2, 'both passes must be classified');
+  const levels = built.report.rows.map((r) => r.level).sort();
+  assert.deepEqual(levels, ['native', 'unsupported']);
+  assert.ok(!built.report.lossless, 'an export that loses a pass is not lossless');
+  assert.ok(built.report.exportable, 'but it is still partly exportable');
+  // The header comment must carry the classification, so the script explains itself months later.
+  assert.ok(/pass 1 \(sprite\): NATIVE/.test(built.lua));
+  assert.ok(/pass 2 \(mesh\): UNSUPPORTED/.test(built.lua));
+  assert.deepEqual(checkLuaStructure(built.lua), []);
+});
+
+check('export: the Luau structure checker actually catches broken output', () => {
+  // A validator that never fails is worthless, so it is negative-tested. Each of these is a real
+  // failure mode of a code generator.
+  assert.ok(checkLuaStructure('local function f() return 1').length, 'must catch an unclosed function');
+  assert.ok(checkLuaStructure('local t = {1, 2').length, 'must catch an unclosed table');
+  assert.ok(checkLuaStructure('local x = undefined').length, 'must catch a leaked JavaScript value');
+  assert.ok(checkLuaStructure('local x = NaN').length, 'must catch NaN');
+  assert.ok(checkLuaStructure('local t = {1,,2}').length, 'must catch an empty table element');
+  assert.ok(checkLuaStructure('local x = 1 end').length, 'must catch a stray end');
+  assert.ok(checkLuaStructure('for i=1,3 do print(i)').length, 'must catch an unclosed for loop');
+  // ...and pass on valid code, including the shapes the generator actually emits: nested functions,
+  // numeric and generic for loops, if/else, and a table of tables.
+  assert.deepEqual(checkLuaStructure('local function f(a) if a then return 1 else return 2 end end\nfor i=1,3 do print(i) end'), []);
+  assert.deepEqual(checkLuaStructure('for _, k in ipairs(t) do if k > 1 then print(k) end end'), []);
+  assert.deepEqual(checkLuaStructure('local T = {\n  [0] = {1,2,3},\n  [2] = {4,5,6},\n}\nwhile x do y() end'), []);
+  assert.deepEqual(checkLuaStructure('local c = RunService.Heartbeat:Connect(function() print("x") end)'), []);
 });
 
 // ================================================================

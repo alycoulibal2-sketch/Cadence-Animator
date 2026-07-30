@@ -214,6 +214,12 @@ export function resolveSprites(cmd, opts = {}) {
   if (out.facing === 'velocity' && GEO.hasAttr(geo.points, 'velocity')) {
     out.velocities = geo.points.attrs.velocity.data;
   }
+  // Stable per-element identity, when the source carries one. A live renderer does not need it — it
+  // pools by array position — but a BAKE does: a cache keyed by array position is worthless, because
+  // particles die and the table compacts, so slot 3 is a different particle every frame and replaying
+  // it makes every particle jump between paths. See bake.js.
+  if (GEO.hasAttr(geo.points, 'id')) out.ids = geo.points.attrs.id.data;
+  if (GEO.hasAttr(geo.points, 'life')) out.lives = geo.points.attrs.life.data;
   if (out.facing === 'normal' && GEO.hasAttr(geo.points, 'normal')) {
     out.normals = geo.points.attrs.normal.data;
   }

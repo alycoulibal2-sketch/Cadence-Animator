@@ -602,6 +602,76 @@
     return { ok: true, counts: compat.counts };
   });
 
+  await step('PNX: a simple effect exports as a real ParticleEmitter, and reports how', async () => {
+    await vfxCall('pnx_new', { name: 'Export Smoketest' });
+
+    // The classification first, which is the cheap call a caller should make before baking anything.
+    const rep = await vfxCall('pnx_export_report');
+    assert(rep.rows.length === 1, `expected one pass, got ${rep.rows.length}`);
+    assert(rep.rows[0].level === 'native', `the starter graph should export natively, got ${rep.rows[0].level}: ${JSON.stringify(rep.rows[0].reasons)}`);
+
+    const out = await vfxCall('pnx_export_lua', {});
+    assert(out.lua.includes('Instance.new("ParticleEmitter")'), 'a native export must build a real ParticleEmitter');
+    assert(out.lua.includes('ColorSequence.new({'), 'the colour gradient must survive as a ColorSequence');
+    assert(out.lua.includes('NumberSequence.new({'), 'the size curve must survive as a NumberSequence');
+    assert(out.counts.native === 1, `expected a native pass, got ${JSON.stringify(out.counts)}`);
+    assert(out.withinBudget, `a native export should be small, got ${out.bytes} bytes`);
+    // The classification must travel WITH the script, so a caller cannot report success without it.
+    assert(Array.isArray(out.passes) && out.passes[0].how, 'the export must say what it did to each pass');
+    return { ok: true, bytes: out.bytes, level: out.passes[0].level };
+  });
+
+  await step('PNX: an effect Roblox cannot run is baked, and says so rather than faking it', async () => {
+    // Build a curl-noise-forced, colliding effect through the structured API — the exact case Roblox
+    // has no way to reproduce.
+    await vfxCall('pnx_new', { name: 'Bake Smoketest', blank: true });
+    const add = async (type, values) => (await vfxCall('pnx_add_node', { type, x: 0, y: 0, values })).nodeId;
+    const link = (a, sa, b, sb) => vfxCall('pnx_connect', { fromNode: a, fromSocket: sa, toNode: b, toSocket: sb });
+
+    const em = await add('cadence.particles.emitter', { rate: 40, lifetime: 1.5, velocity: [0, 6, 0] });
+    const curl = await add('cadence.noise.curl', { scale: 0.4 });
+    const plane = await add('cadence.sdf.plane', {});
+    const col = await add('cadence.particles.collider', { response: 'bounce' });
+    const sim = await add('cadence.particles.simulate', { maxParticles: 200 });
+    const spr = await add('cadence.render.sprite', { size: 0.3 });
+    const out = await add('cadence.render.output', {});
+    await link(em, 'out', sim, 'emitter');
+    await link(curl, 'out', sim, 'force');
+    await link(plane, 'out', col, 'shape');
+    await link(col, 'out', sim, 'colliders');
+    await link(sim, 'out', spr, 'source');
+    await link(spr, 'out', out, 'passes');
+
+    const rep = await vfxCall('pnx_export_report');
+    assert(rep.rows[0].level === 'baked', `expected a baked pass, got ${rep.rows[0].level}`);
+    const why = rep.rows[0].reasons.join(' | ');
+    assert(/collide/i.test(why), `the collider must be named: ${why}`);
+    assert(/force varies/i.test(why), `the spatial force must be named: ${why}`);
+
+    const built = await vfxCall('pnx_export_lua', { bakeStride: 3, maxBakedParticles: 80 });
+    assert(built.counts.baked === 1, `expected a baked count, got ${JSON.stringify(built.counts)}`);
+    assert(/_FRAMES = \{/.test(built.lua), 'a baked pass must emit a recorded frame table');
+    assert(built.notes.some((nt) => /recording rather than a simulation/i.test(nt)),
+      'the user must be told a bake is a recording, not a simulation');
+    assert(!built.lossless, 'a baked export is not lossless and must not claim to be');
+    return { ok: true, bytes: built.bytes, notes: built.notes.length };
+  });
+
+  await step('PNX: exporting does not disturb the playhead or the live preview', async () => {
+    // A bake walks the whole frame range through the SAME evaluator the preview uses, so it has to put
+    // the playhead back — otherwise exporting silently scrubs the user's timeline to the last baked frame.
+    await vfxCall('pnx_new', { name: 'Playhead Smoketest' });
+    await vfxCall('pnx_scrub', { frame: 22 });
+    const before = await vfxCall('pnx_get_state');
+    await vfxCall('pnx_export_lua', {});
+    const after = await vfxCall('pnx_get_state');
+    assert(after.playhead === before.playhead,
+      `exporting moved the playhead from ${before.playhead} to ${after.playhead}`);
+    assert(after.stats.drawnElements === before.stats.drawnElements,
+      `exporting changed what the preview draws: ${before.stats.drawnElements} -> ${after.stats.drawnElements}`);
+    return { ok: true, playhead: after.playhead };
+  });
+
   await step('PNX: switching back to a layer-based effect leaves no procedural objects behind', async () => {
     await vfxCall('pnx_close');
     const after = await vfxCall('pnx_get_state');

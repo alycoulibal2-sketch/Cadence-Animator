@@ -295,6 +295,51 @@ export const PNX_HANDLERS = {
     };
   },
 
+  // ---------------------------------------------------------------- export (Parts 56-58)
+  pnx_export_lua({ bakeStride = 1, maxBakedParticles = 300, precision = 2 } = {}) {
+    requirePnx();
+    const built = PNX.exportRoblox({
+      name: ST.state.pnx.name,
+      fps: ST.state.doc.fps || 30,
+      duration: ST.state.doc.duration || 60,
+      bake: { stride: bakeStride, maxParticles: maxBakedParticles, precision },
+    });
+    if (!built) throw new Error('The procedural session is not running, so there is nothing to export.');
+    return {
+      lua: built.lua,
+      bytes: built.bytes,
+      withinBudget: built.withinBudget,
+      // The classification travels WITH the script, so a caller cannot report a successful export
+      // without also having been handed what it cost (Part 61).
+      counts: built.report.counts,
+      lossless: built.report.lossless,
+      passes: built.report.rows.map((r) => ({
+        index: r.index, kind: r.kind, level: r.level, how: r.how,
+        reasons: r.reasons, notes: r.notes,
+        ...(r.droppedChannels ? { droppedChannels: r.droppedChannels } : {}),
+      })),
+      notes: built.notes,
+    };
+  },
+
+  pnx_export_report() {
+    requirePnx();
+    PNX.evaluateFrame(Math.floor(ST.state.playhead));
+    const a = PNX.robloxAnalysis();
+    if (!a) return { rows: [], note: 'Nothing is being drawn, so there is nothing to classify.' };
+    return {
+      counts: a.counts,
+      lossless: a.lossless,
+      exportable: a.exportable,
+      rows: a.rows.map((r) => ({
+        index: r.index, kind: r.kind, level: r.level, how: r.how,
+        reasons: r.reasons, notes: r.notes,
+        ...(r.droppedChannels ? { droppedChannels: r.droppedChannels } : {}),
+      })),
+      note: 'The classification only — nothing is baked. Use pnx_export_lua to produce the script.',
+    };
+  },
+
   pnx_export_compatibility({ backend = 'roblox' } = {}) {
     requirePnx();
     PNX.evaluateFrame(Math.floor(ST.state.playhead));

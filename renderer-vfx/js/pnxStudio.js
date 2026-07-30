@@ -16,6 +16,7 @@ import { Evaluator } from '../../renderer/js/pnx/evaluator.js';
 import * as PGRAPH from '../../renderer/js/pnx/graph.js';
 import * as RENDER from '../../renderer/js/pnx/render.js';
 import { getNode as getNodeType } from '../../renderer/js/pnx/registry.js';
+import { buildRobloxExport, analyseForRoblox } from '../../renderer/js/pnx/targets/roblox.js';
 import '../../renderer/js/pnx/nodes/index.js';
 
 const OUTPUT_TYPE = 'cadence.render.output';
@@ -135,6 +136,42 @@ export function inspectSocket(nodeId, socketKey) {
   if (!session) return null;
   const r = session.evaluator.evaluateSocket(nodeId, socketKey);
   return r.value;
+}
+
+// ---------------------------------------------------------------- export (Parts 56-58)
+// The export takes an `evaluateFrame` that runs through THIS session's evaluator, because a bake has to
+// see the same simulation the preview shows. Handing the exporter a fresh evaluator would bake a
+// simulation restarted from frame 0 at every frame — a recording of nothing but spawn.
+//
+// The playhead is saved and restored around the bake: a bake walks the whole frame range, and leaving the
+// user's playhead wherever the last baked frame happened to be would look like the export moved their
+// timeline.
+export function exportRoblox({ name = 'Procedural Effect', fps = 30, duration = 60, bake = {} } = {}) {
+  if (!session) return null;
+  const { evaluator } = session;
+  const savedFrame = evaluator.options.frame;
+
+  evaluator.setTime(Math.floor(duration / 2));
+  const mid = evaluateFrame(Math.floor(duration / 2));
+  const commands = session.lastCommands || [];
+
+  try {
+    return buildRobloxExport({
+      commands, graph: session.graph, evaluator,
+      evaluateFrame: (frame) => evaluateFrame(frame),
+      name, fps, duration, bake,
+    });
+  } finally {
+    evaluator.setTime(savedFrame);
+    evaluateFrame(savedFrame);
+  }
+}
+
+// The classification without doing the work. Cheap enough to show live in a panel, which is the point:
+// a user should know a pass will be baked before they press Export, not after.
+export function robloxAnalysis() {
+  if (!session) return null;
+  return analyseForRoblox(session.lastCommands || [], { graph: session.graph, evaluator: session.evaluator });
 }
 
 // ---------------------------------------------------------------- reporting (Parts 52, 57, 61-62)
