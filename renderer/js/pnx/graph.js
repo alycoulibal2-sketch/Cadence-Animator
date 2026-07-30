@@ -41,6 +41,10 @@ const uid = (prefix) => `${prefix}${(globalThis.crypto?.randomUUID
 export const GROUP_TYPE_PREFIX = 'group:';
 export const isGroupInstanceType = (type) => typeof type === 'string' && type.startsWith(GROUP_TYPE_PREFIX);
 export const groupIdOfType = (type) => (isGroupInstanceType(type) ? type.slice(GROUP_TYPE_PREFIX.length) : null);
+// The constructor, so no caller has to know the prefix. Only the two readers existed at first, and every
+// caller spelled `'group:' + id` by hand — which is the kind of duplication that survives until the day
+// the prefix changes.
+export const groupInstanceType = (groupId) => `${GROUP_TYPE_PREFIX}${groupId}`;
 
 // The two built-in types that form a group's interior boundary. Their sockets are DYNAMIC —
 // derived from the owning group's declared interface rather than fixed at registration — which is

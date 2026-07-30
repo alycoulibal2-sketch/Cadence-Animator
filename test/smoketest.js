@@ -730,6 +730,100 @@
     return { ok: true, max, avgA };
   });
 
+  await step('PNX: a library recipe builds, draws, and can be taken apart', async () => {
+    // Part 47's philosophy in one check: a recipe is a composition of primitives, so adding one must
+    // produce a group whose interior is ordinary nodes and which actually drives a visible effect.
+    await vfxCall('pnx_new', { name: 'Library Smoketest', blank: true });
+    const listed = await vfxCall('pnx_list_recipes');
+    assert(listed.recipes.length >= 8, `expected a real library, got ${listed.recipes.length}`);
+    assert(listed.recipes.every((r) => r.available), 'every listed recipe must be buildable in this build');
+    assert(listed.unavailable.length >= 1 && listed.unavailable.every((u) => u.why),
+      'what the library cannot build must be named with a reason');
+
+    const added = await vfxCall('pnx_add_recipe', { recipe: 'curlMotion', x: -400, y: 300 });
+    assert(added.groupId && added.nodeId, 'adding a recipe must create a group and an instance');
+    assert(added.teaches, 'a recipe must say what it demonstrates');
+
+    // The group's interior must be inspectable — Part 46's "no black boxes".
+    const inside = await vfxCall('pnx_get_graph', { scope: added.groupId });
+    assert(inside.nodes.length >= 3, `the group interior must be visible, got ${inside.nodes.length} nodes`);
+    assert(inside.nodes.some((n) => n.type.startsWith('cadence.noise.curl')),
+      'Curl Motion must really be built out of Curl Noise');
+
+    // ...and it must drive a real effect.
+    const add = async (type, values) => (await vfxCall('pnx_add_node', { type, x: 0, y: 0, values })).nodeId;
+    const link = (a, sa, b, sb) => vfxCall('pnx_connect', { fromNode: a, fromSocket: sa, toNode: b, toSocket: sb });
+    const em = await add('cadence.particles.emitter', { rate: 60, lifetime: 2 });
+    const sim = await add('cadence.particles.simulate', { maxParticles: 500 });
+    const spr = await add('cadence.render.sprite', { size: 0.3 });
+    const out = await add('cadence.render.output', {});
+    await link(em, 'out', sim, 'emitter');
+    await link(added.nodeId, 'force', sim, 'force');
+    await link(sim, 'out', spr, 'source');
+    await link(spr, 'out', out, 'passes');
+
+    await vfxCall('pnx_scrub', { frame: 25 });
+    await new Promise((r) => setTimeout(r, 200));
+    const state = await vfxCall('pnx_get_state');
+    assert(state.stats.drawnElements > 10, `a recipe-driven effect must draw, got ${state.stats.drawnElements}`);
+    return { ok: true, recipes: listed.recipes.length, drawn: state.stats.drawnElements };
+  });
+
+  await step('PNX: collapsing a selection into a group does not change the result', async () => {
+    // The property that makes grouping safe: it is bookkeeping, so what the graph draws must be identical
+    // before and after.
+    const before = (await vfxCall('pnx_get_state')).stats.drawnElements;
+    const graph = await vfxCall('pnx_get_graph');
+    // ROOT_SCOPE is the empty string, so a top-level node is one with a falsy scope.
+    const em = graph.nodes.find((n) => n.type.startsWith('cadence.particles.emitter') && !n.scope);
+    const sim = graph.nodes.find((n) => n.type.startsWith('cadence.particles.simulate'));
+    assert(em && sim, 'the effect should have an emitter and a simulation at the top level');
+
+    const res = await vfxCall('pnx_collapse_to_group', { nodeIds: [em.id, sim.id], name: 'Swirling Particles' });
+    assert(res.groupId, 'collapsing must create a group');
+    assert(res.enclosed === 2);
+    assert(res.outputs.length >= 1, 'the particles crossing out must become an output');
+
+    await vfxCall('pnx_scrub', { frame: 25 });
+    await new Promise((r) => setTimeout(r, 200));
+    const after = (await vfxCall('pnx_get_state')).stats.drawnElements;
+    assert(after === before, `collapsing changed what is drawn: ${before} -> ${after}`);
+
+    // Export and re-import it, which is how a group travels between projects.
+    const payload = await vfxCall('pnx_export_group', { groupId: res.groupId });
+    assert(payload.nodes >= 2, 'an exported group must carry its interior');
+    const back = await vfxCall('pnx_import_group', { group: payload.group, name: 'Imported Copy' });
+    assert(back.groupId !== res.groupId, 'an imported group must get its own id');
+    return { ok: true, drawn: after };
+  });
+
+  await step('PNX: volume grids cache a field, and say plainly what is not built', async () => {
+    await vfxCall('pnx_new', { name: 'Volume Smoketest', blank: true });
+    const add = async (type, values) => (await vfxCall('pnx_add_node', { type, x: 0, y: 0, values })).nodeId;
+    const link = (a, sa, b, sb) => vfxCall('pnx_connect', { fromNode: a, fromSocket: sa, toNode: b, toSocket: sb });
+
+    const noise = await add('cadence.noise.fbm', { scale: 2, octaves: 3 });
+    const bake = await add('cadence.volume.rasterize', { resolution: 24, size: [4, 4, 4] });
+    const blur = await add('cadence.volume.blur', { radius: 1, passes: 1 });
+    const info = await add('cadence.volume.info', {});
+    await link(noise, 'out', bake, 'field');
+    await link(bake, 'out', blur, 'volume');
+    await link(blur, 'out', info, 'volume');
+
+    const ins = await vfxCall('pnx_inspect', { nodeId: info, frame: 0 });
+    assert(ins.outputs.voxels.value === 24 ** 3, `expected 13824 voxels, got ${ins.outputs.voxels.value}`);
+    assert(ins.outputs.max.value > ins.outputs.min.value, 'a baked noise volume must contain a range of values');
+    assert(ins.outputs.megabytes.value > 0);
+
+    // The honest statement has to be reachable from inside the graph, not only from documentation.
+    const caps = await add('cadence.volume.capabilities', {});
+    const c = await vfxCall('pnx_inspect', { nodeId: caps, frame: 0 });
+    assert(c.outputs.hasFluidSolver.value === false, 'there is no fluid solver and the engine must say so');
+    assert(c.outputs.hasVolumeRendering.value === false);
+    assert(/advection|pressure/i.test(c.outputs.missing.value), 'and it must name what is missing');
+    return { ok: true, voxels: ins.outputs.voxels.value, mb: ins.outputs.megabytes.value };
+  });
+
   await step('PNX: switching back to a layer-based effect leaves no procedural objects behind', async () => {
     await vfxCall('pnx_close');
     const after = await vfxCall('pnx_get_state');

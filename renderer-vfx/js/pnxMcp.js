@@ -23,6 +23,8 @@ import * as ST from './studioState.js';
 import * as PNX from './pnxStudio.js';
 import { pnxDrawStats } from './preview.js';
 import * as PGRAPH from '../../renderer/js/pnx/graph.js';
+import * as PGROUPS from '../../renderer/js/pnx/groups.js';
+import * as PLIB from '../../renderer/js/pnx/library.js';
 import * as REG from '../../renderer/js/pnx/registry.js';
 import * as RENDER from '../../renderer/js/pnx/render.js';
 import { formatType } from '../../renderer/js/pnx/types.js';
@@ -186,6 +188,81 @@ export const PNX_HANDLERS = {
       if (label !== undefined) n.label = label;
     }, { structural: true });
     return writeResult({ nodeId });
+  },
+
+  // ---------------------------------------------------------------- groups (Part 46)
+  pnx_collapse_to_group({ nodeIds, name = 'Group', description = '' }) {
+    requirePnx();
+    if (!Array.isArray(nodeIds) || !nodeIds.length) throw new Error('nodeIds must be a non-empty array.');
+    for (const id of nodeIds) requireNode(id);
+    let res = null;
+    ST.mutatePnx((g) => { res = PGROUPS.collapseToGroup(g, nodeIds, { name, description }); }, { structural: true });
+    if (!res.ok) throw new Error(`Cannot collapse: ${res.reason}`);
+    return writeResult({
+      groupId: res.groupId, instanceId: res.instanceId,
+      inputs: res.inputs, outputs: res.outputs, enclosed: res.enclosed,
+    });
+  },
+
+  pnx_expand_group({ nodeId }) {
+    requireNode(nodeId);
+    let res = null;
+    ST.mutatePnx((g) => { res = PGROUPS.expandGroup(g, nodeId); }, { structural: true });
+    if (!res.ok) throw new Error(`Cannot expand: ${res.reason}`);
+    return writeResult({ expanded: res.expanded, groupId: res.groupId });
+  },
+
+  pnx_instantiate_group({ groupId, x = 0, y = 0, scope = undefined }) {
+    requirePnx();
+    let res = null;
+    ST.mutatePnx((g) => { res = PGROUPS.instantiateGroup(g, groupId, x, y, scope ? { scope } : {}); }, { structural: true });
+    if (!res.ok) throw new Error(res.reason);
+    return writeResult({ nodeId: res.nodeId, groupId });
+  },
+
+  pnx_export_group({ groupId }) {
+    const g = requirePnx();
+    const payload = PGROUPS.exportGroup(g, groupId);
+    if (!payload) throw new Error(`No group with id "${groupId}". Call pnx_get_graph to see the groups.`);
+    return { group: payload, nodes: Object.keys(payload.nodes).length };
+  },
+
+  pnx_import_group({ group, name = null }) {
+    requirePnx();
+    let res = null;
+    ST.mutatePnx((g) => { res = PGROUPS.importGroup(g, group, { name }); }, { structural: true });
+    if (!res.ok) throw new Error(res.reason);
+    return writeResult({ groupId: res.groupId, name: res.name, nodes: res.nodes });
+  },
+
+  // ---------------------------------------------------------------- the library (Part 47)
+  pnx_list_recipes() {
+    return {
+      recipes: PLIB.listRecipes(),
+      unavailable: PLIB.UNAVAILABLE,
+      note: 'Every recipe is a composition of primitives, not an engine capability. Deleting the library would remove convenience and change nothing about what can be built.',
+    };
+  },
+
+  pnx_add_recipe({ recipe, instantiate = true, x = 0, y = 0 }) {
+    requirePnx();
+    let built = null;
+    let instance = null;
+    ST.mutatePnx((g) => {
+      built = PLIB.buildRecipe(g, recipe);
+      if (built.ok && instantiate) instance = PGROUPS.instantiateGroup(g, built.groupId, x, y);
+    }, { structural: true });
+    if (!built.ok) throw new Error(built.reason);
+    const r = PLIB.getRecipe(recipe);
+    return writeResult({
+      groupId: built.groupId, name: built.name,
+      nodeId: instance?.nodeId || null,
+      inputs: r.inputs.map((sk) => sk.key),
+      outputs: r.outputs.map((sk) => sk.key),
+      // Recipes are learning material as much as convenience, so what the composition demonstrates
+      // travels with it (Part 72).
+      teaches: r.teaches,
+    });
   },
 
   // ---------------------------------------------------------------- introspection (Part 60)

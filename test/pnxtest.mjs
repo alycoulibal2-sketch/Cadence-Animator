@@ -2859,6 +2859,421 @@ check('texture: float storage keeps values above 1 until they are quantised', ()
   assert.equal(bytes.data[1], 128);
 });
 
+// ================================================================ phase 11: groups and the library
+const GRP = await import('../renderer/js/pnx/groups.js');
+const LIB = await import('../renderer/js/pnx/library.js');
+
+// A chain of three multiplies with an external source and an external sink, so the boundary of a
+// collapse is unambiguous and checkable.
+function chainForGrouping() {
+  const g = G.newGraph('t');
+  const src = G.newNode(g, 'cadence.math.pi', 0, 0, { id: 'src' });
+  const a = G.newNode(g, 'cadence.math.multiply', 200, 0, { id: 'a', values: { b: 2 } });
+  const b = G.newNode(g, 'cadence.math.multiply', 400, 0, { id: 'b', values: { b: 3 } });
+  const sink = G.newNode(g, 'cadence.math.add', 600, 0, { id: 'sink', values: { b: 1 } });
+  assert.ok(G.connect(g, src.id, 'out', a.id, 'a').ok);
+  assert.ok(G.connect(g, a.id, 'out', b.id, 'a').ok);
+  assert.ok(G.connect(g, b.id, 'out', sink.id, 'a').ok);
+  return { g, src, a, b, sink };
+}
+
+check('groups: collapsing a selection preserves what the graph computes', () => {
+  // The property that matters: a collapse is bookkeeping, so the value at the sink must be identical
+  // before and after. pi * 2 * 3 + 1.
+  const { g, a, b, sink } = chainForGrouping();
+  const before = ev(g, sink.id).value;
+  near(before, Math.PI * 6 + 1, 1e-9);
+
+  const res = GRP.collapseToGroup(g, [a.id, b.id], { name: 'Scale' });
+  assert.ok(res.ok, res.reason);
+  assert.equal(res.enclosed, 2);
+  assert.equal(res.inputs.length, 1, 'one external source crosses in, so one input');
+  assert.equal(res.outputs.length, 1, 'one internal value crosses out, so one output');
+  near(ev(g, sink.id).value, before, 1e-9, 'collapsing must not change the result');
+
+  // And the nodes really moved into the group's scope — a group is a scope of ordinary nodes, not a
+  // new kind of node with hidden behaviour (Part 46: no black boxes).
+  assert.equal(g.nodes[a.id].scope, res.groupId);
+  assert.equal(g.nodes[b.id].scope, res.groupId);
+  const interior = G.nodesInScope(g, res.groupId);
+  assert.equal(interior.length, 4, 'two enclosed nodes plus the two boundary nodes');
+  assert.ok(interior.some((nd) => nd.type === G.GROUP_INPUT_TYPE));
+  assert.ok(interior.some((nd) => nd.type === G.GROUP_OUTPUT_TYPE));
+});
+
+check('groups: one external source feeding several inner sockets makes ONE shared input', () => {
+  // Keyed by the external source rather than by the internal target. Getting this backwards produces a
+  // group with four identical inputs where one belongs, which is the classic collapse bug.
+  const g = G.newGraph('t');
+  const src = G.newNode(g, 'cadence.math.pi', 0, 0, { id: 'psrc' });
+  const m1 = G.newNode(g, 'cadence.math.multiply', 200, 0, { id: 'pm1' });
+  const m2 = G.newNode(g, 'cadence.math.multiply', 200, 200, { id: 'pm2' });
+  const add = G.newNode(g, 'cadence.math.add', 400, 100, { id: 'padd' });
+  assert.ok(G.connect(g, src.id, 'out', m1.id, 'a').ok);
+  assert.ok(G.connect(g, src.id, 'out', m2.id, 'a').ok);
+  assert.ok(G.connect(g, m1.id, 'out', add.id, 'a').ok);
+  assert.ok(G.connect(g, m2.id, 'out', add.id, 'b').ok);
+
+  const res = GRP.collapseToGroup(g, [m1.id, m2.id, add.id], { name: 'Twice' });
+  assert.ok(res.ok, res.reason);
+  assert.equal(res.inputs.length, 1, `one source, so one input — got ${res.inputs.length}`);
+  assert.equal(res.outputs.length, 0, 'nothing crosses out, so no outputs');
+});
+
+check('groups: one inner output feeding several external sockets makes ONE shared output', () => {
+  const g = G.newGraph('t');
+  const inner = G.newNode(g, 'cadence.math.pi', 0, 0, { id: 'qi' });
+  const s1 = G.newNode(g, 'cadence.math.multiply', 200, 0, { id: 'qs1' });
+  const s2 = G.newNode(g, 'cadence.math.multiply', 200, 200, { id: 'qs2' });
+  assert.ok(G.connect(g, inner.id, 'out', s1.id, 'a').ok);
+  assert.ok(G.connect(g, inner.id, 'out', s2.id, 'a').ok);
+
+  const res = GRP.collapseToGroup(g, [inner.id], { name: 'Source' });
+  assert.ok(res.ok, res.reason);
+  assert.equal(res.outputs.length, 1, `one inner source, so one output — got ${res.outputs.length}`);
+  // Both external consumers must still be fed.
+  const fedBy = Object.values(g.links).filter((l) => l.fromNode === res.instanceId);
+  assert.equal(fedBy.length, 2, 'both external consumers must be reconnected to the instance');
+});
+
+check('groups: collapse refuses the cases that have no meaning', () => {
+  const { g, a, b } = chainForGrouping();
+  assert.ok(!GRP.collapseToGroup(g, []).ok, 'an empty selection must be refused');
+
+  const res = GRP.collapseToGroup(g, [a.id, b.id], { name: 'G' });
+  assert.ok(res.ok);
+  const interior = G.nodesInScope(g, res.groupId);
+  const gIn = interior.find((nd) => nd.type === G.GROUP_INPUT_TYPE);
+  // A group's own boundary node cannot be enclosed by another group — the interior would then have two
+  // conflicting notions of where the boundary is.
+  assert.ok(!GRP.collapseToGroup(g, [gIn.id, interior[0].id]).ok, 'a boundary node must not be enclosable');
+
+  // Nodes from two different scopes cannot be one group.
+  const outside = G.newNode(g, 'cadence.math.pi', 900, 0, { id: 'ox' });
+  assert.ok(!GRP.collapseToGroup(g, [outside.id, a.id]).ok, 'nodes in different scopes must be refused');
+});
+
+check('groups: a group used twice keeps two independent evaluations', () => {
+  // The cache is namespaced by instance path, so two instances with different inputs must not share
+  // cached values. This is what makes a reusable group actually reusable.
+  const g = G.newGraph('t');
+  const m = G.newNode(g, 'cadence.math.multiply', 0, 0, { id: 'gm', values: { b: 10 } });
+  const res = GRP.collapseToGroup(g, [m.id], { name: 'TimesTen' });
+  assert.ok(res.ok, res.reason);
+  // The collapse produced no boundary at all (nothing crossed), so wire the group up by hand.
+  const interior = G.nodesInScope(g, res.groupId);
+  const gIn = interior.find((nd) => nd.type === G.GROUP_INPUT_TYPE);
+  const gOut = interior.find((nd) => nd.type === G.GROUP_OUTPUT_TYPE);
+  g.groups[res.groupId].inputs = [{ key: 'v', label: 'Value', type: 'float', default: 0 }];
+  g.groups[res.groupId].outputs = [{ key: 'r', label: 'Result', type: 'float' }];
+  assert.ok(G.connect(g, gIn.id, 'v', m.id, 'a').ok);
+  assert.ok(G.connect(g, m.id, 'out', gOut.id, 'r').ok);
+
+  const i2 = GRP.instantiateGroup(g, res.groupId, 400, 200);
+  assert.ok(i2.ok);
+  G.setNodeValue(g, res.instanceId, 'v', 3);
+  G.setNodeValue(g, i2.nodeId, 'v', 7);
+
+  const e = new E.Evaluator(g, {});
+  near(e.evaluateSocket(res.instanceId, 'r').value, 30, 1e-9);
+  near(e.evaluateSocket(i2.nodeId, 'r').value, 70, 1e-9, 'the second instance must not reuse the first\'s cached value');
+});
+
+check('groups: a group cannot be made to contain itself', () => {
+  const g = G.newGraph('t');
+  const grp = G.newGroupDef(g, 'Outer', { inputs: [], outputs: [] });
+  const inside = GRP.instantiateGroup(g, grp.id, 0, 0, { scope: grp.id });
+  assert.ok(!inside.ok, 'placing a group inside itself must be refused, or evaluation is infinite');
+  assert.ok(/contain itself/i.test(inside.reason));
+});
+
+check('groups: expanding restores the interior and keeps the result', () => {
+  const { g, a, b, sink } = chainForGrouping();
+  const before = ev(g, sink.id).value;
+  const res = GRP.collapseToGroup(g, [a.id, b.id], { name: 'Scale' });
+  assert.ok(res.ok);
+  near(ev(g, sink.id).value, before, 1e-9);
+
+  const exp = GRP.expandGroup(g, res.instanceId);
+  assert.ok(exp.ok, exp.reason);
+  assert.equal(exp.expanded, 2, 'both enclosed nodes must come back');
+  assert.equal(g.nodes[res.instanceId], undefined, 'the instance must be gone');
+  near(ev(g, sink.id).value, before, 1e-9, 'expanding must not change the result either');
+});
+
+check('groups: expanding one instance does not break the others', () => {
+  // Expanding COPIES the interior rather than moving it. Moving it would empty the group and break every
+  // other instance — the sort of thing that only surfaces once a group has been used twice.
+  const g = G.newGraph('t');
+  const m = G.newNode(g, 'cadence.math.multiply', 0, 0, { id: 'em', values: { a: 4, b: 5 } });
+  const res = GRP.collapseToGroup(g, [m.id], { name: 'Twenty' });
+  assert.ok(res.ok);
+  g.groups[res.groupId].outputs = [{ key: 'r', label: 'Result', type: 'float' }];
+  const gOut = G.nodesInScope(g, res.groupId).find((nd) => nd.type === G.GROUP_OUTPUT_TYPE);
+  assert.ok(G.connect(g, m.id, 'out', gOut.id, 'r').ok);
+
+  const second = GRP.instantiateGroup(g, res.groupId, 400, 200);
+  assert.ok(second.ok);
+  assert.ok(GRP.expandGroup(g, res.instanceId).ok);
+  // The surviving instance must still evaluate.
+  near(ev(g, second.nodeId, 'r').value, 20, 1e-9, 'the other instance must still work after one was expanded');
+});
+
+check('groups: export and import round-trip through a different graph', () => {
+  const { g, a, b } = chainForGrouping();
+  const res = GRP.collapseToGroup(g, [a.id, b.id], { name: 'Scale by six' });
+  assert.ok(res.ok);
+
+  const payload = GRP.exportGroup(g, res.groupId);
+  assert.ok(payload, 'a group must be exportable');
+  assert.equal(payload.cadenceNodeGroup, 1);
+  assert.equal(payload.name, 'Scale by six');
+
+  // Into a FRESH graph, which is the case that matters — the same-graph case can accidentally work by
+  // reusing ids that already happen to exist.
+  const g2 = G.newGraph('other');
+  const imported = GRP.importGroup(g2, JSON.parse(JSON.stringify(payload)));
+  assert.ok(imported.ok, imported.reason);
+  assert.equal(imported.name, 'Scale by six');
+  assert.ok(imported.nodes >= 2);
+
+  // The imported group must evaluate to the same thing the original did.
+  const inst = GRP.instantiateGroup(g2, imported.groupId, 0, 0);
+  assert.ok(inst.ok);
+  const src = G.newNode(g2, 'cadence.math.pi', -200, 0, { id: 'isrc' });
+  const inKey = g2.groups[imported.groupId].inputs[0].key;
+  const outKey = g2.groups[imported.groupId].outputs[0].key;
+  assert.ok(G.connect(g2, src.id, 'out', inst.nodeId, inKey).ok);
+  near(ev(g2, inst.nodeId, outKey).value, Math.PI * 6, 1e-9);
+});
+
+check('groups: importing twice does not collide', () => {
+  const { g, a, b } = chainForGrouping();
+  const res = GRP.collapseToGroup(g, [a.id, b.id], { name: 'Scale' });
+  const payload = GRP.exportGroup(g, res.groupId);
+  const g2 = G.newGraph('other');
+  const one = GRP.importGroup(g2, JSON.parse(JSON.stringify(payload)));
+  const two = GRP.importGroup(g2, JSON.parse(JSON.stringify(payload)));
+  assert.ok(one.ok && two.ok);
+  assert.notEqual(one.groupId, two.groupId, 'ids must be remapped, not reused');
+  assert.equal(Object.keys(g2.groups).length, 2);
+});
+
+check('groups: an imported group serializes and reloads', () => {
+  const { g, a, b } = chainForGrouping();
+  const res = GRP.collapseToGroup(g, [a.id, b.id], { name: 'Scale' });
+  assert.ok(res.ok);
+  const parsed = G.parseGraph(JSON.parse(G.serializeGraph(g)));
+  assert.ok(parsed.ok, parsed.error);
+  assert.ok(parsed.graph.groups[res.groupId], 'the group definition must survive a save/load');
+  assert.equal(G.nodesInScope(parsed.graph, res.groupId).length, 4);
+  near(ev(parsed.graph, 'sink').value, Math.PI * 6 + 1, 1e-9, 'and still evaluate the same');
+});
+
+// ---------------------------------------------------------------- the library (Part 47)
+check('library: every recipe builds, wires cleanly, and evaluates to its declared type', () => {
+  // Part 47's own acceptance test is that the library is composition, not capability — so each entry has
+  // to be buildable from primitives that already exist, and every wire in it has to take. A recipe with
+  // a failed connection would produce a half-wired group that looks like the user's mistake.
+  const recipes = LIB.listRecipes();
+  assert.ok(recipes.length >= 8, `expected a real library, got ${recipes.length} recipes`);
+
+  for (const r of recipes) {
+    assert.ok(r.available, `${r.id} names a node type this build does not have`);
+    assert.ok(r.description && r.teaches, `${r.id} must explain itself and what it teaches`);
+
+    const g = G.newGraph('t');
+    const built = LIB.buildRecipe(g, r.id);
+    assert.ok(built.ok, `${r.id}: ${built.reason}`);
+    assert.deepEqual(built.failures, [], `${r.id} had connections that did not take`);
+
+    // Instantiate and evaluate the first output, to prove the group actually produces something of the
+    // type it claims rather than merely being wired.
+    const inst = GRP.instantiateGroup(g, built.groupId, 600, 0);
+    assert.ok(inst.ok, `${r.id}: ${inst.reason}`);
+    const outKey = r.outputs[0];
+    const res = ev(g, inst.nodeId, outKey);
+    const errors = res.diagnostics.filter((d) => d.severity === 'error');
+    assert.deepEqual(errors, [], `${r.id} evaluated with errors: ${JSON.stringify(errors)}`);
+    assert.ok(res.value !== null && res.value !== undefined, `${r.id} produced nothing on "${outKey}"`);
+  }
+});
+
+check('library: the engine does not depend on the library existing', () => {
+  // Part 47's stated test: "A user should be able to delete the entire complete-effect library and still
+  // build new effects." Asserted structurally — the library must define no node types and nothing in the
+  // engine may import it, so removing the file changes what is convenient and not what is possible.
+  const before = R.nodeCount();
+  LIB.listRecipes();
+  for (const r of LIB.listRecipes()) LIB.buildRecipe(G.newGraph('t'), r.id);
+  assert.equal(R.nodeCount(), before, 'the library must not register any node types');
+});
+
+check('library: what it cannot build yet is named, not silently missing', () => {
+  // Part 47 lists Impact Camera and Smoke Advection; this engine has neither the camera nodes nor the
+  // volume solver. Saying so beats letting a user conclude the library is arbitrarily incomplete.
+  assert.ok(LIB.UNAVAILABLE.length >= 2);
+  for (const u of LIB.UNAVAILABLE) {
+    assert.ok(u.name && u.why, 'each unavailable entry must say why');
+    assert.ok(/not built|Part \d/i.test(u.why), `"${u.name}" should point at what is missing: ${u.why}`);
+  }
+});
+
+check('library: a recipe naming a missing node type fails loudly', () => {
+  // Recipes are re-evaluated against the LIVE registry rather than being frozen documents, which is what
+  // lets them pick up an improved node — and means a removed node must produce a clear refusal instead
+  // of a silently broken subgraph.
+  const res = LIB.buildRecipe(G.newGraph('t'), 'nonexistentRecipe');
+  assert.ok(!res.ok);
+  assert.ok(/no recipe/i.test(res.reason));
+});
+
+// ================================================================ phase 8: volume grids
+const VOL = await import('../renderer/js/pnx/volume.js');
+
+check('volume: a baked grid reproduces the field it came from', () => {
+  // The whole justification for volumes today is that they CACHE an expensive field. That only holds if
+  // sampling the cache agrees with sampling the original, so this is the load-bearing test.
+  const field = F.makeField('float', (c) => c.position[0] + c.position[1] * 0.5);
+  const vol = VOL.rasterizeVolume(field, 32, { center: [0, 0, 0], size: [4, 4, 4] });
+  for (const p of [[0, 0, 0], [1, 1, 0], [-1.5, 0.5, 1], [1.8, -1.8, -1.8]]) {
+    near(VOL.sampleVolume(vol, p), p[0] + p[1] * 0.5, 0.08,
+      `the cache must agree with the field at ${p}`);
+  }
+});
+
+check('volume: sampling holds the edge value outside the box rather than wrapping', () => {
+  // A density field has a boundary. Wrapping would make smoke re-enter on the far side, which reads as
+  // a bug in the effect rather than in the sampler.
+  const vol = VOL.rasterizeVolume(F.makeField('float', (c) => c.position[0]), 16, { size: [4, 4, 4] });
+  const atEdge = VOL.sampleVolume(vol, [1.9, 0, 0]);
+  const wayOut = VOL.sampleVolume(vol, [50, 0, 0]);
+  near(wayOut, atEdge, 0.2, 'far outside must hold the edge, not wrap round to the other side');
+});
+
+check('volume: a volume reads back as a field, so particles can use it', () => {
+  const g = G.newGraph('t');
+  const noise = G.newNode(g, 'cadence.noise.fbm', 0, 0, { id: 'vnoise', values: { scale: 2 } });
+  const bake = G.newNode(g, 'cadence.volume.rasterize', 200, 0, { id: 'vbake', values: { resolution: 16, size: [4, 4, 4] } });
+  const smp = G.newNode(g, 'cadence.volume.sample', 400, 0, { id: 'vsamp' });
+  assert.ok(G.connect(g, noise.id, 'out', bake.id, 'field').ok);
+  assert.ok(G.connect(g, bake.id, 'out', smp.id, 'volume').ok);
+
+  const f = ev(g, smp.id).value;
+  assert.ok(F.isField(f), 'Sample Volume must produce a field');
+  const a = f.sample(F.newSampleContext({ position: [0.5, 0.5, 0.5] }));
+  const b = f.sample(F.newSampleContext({ position: [-1, 1, 0] }));
+  assert.ok(Number.isFinite(a) && Number.isFinite(b));
+  assert.notEqual(a, b, 'a baked noise volume must vary through space');
+});
+
+check('volume: 3D blur smooths and conserves the average', () => {
+  // A single hot voxel spread over its neighbours. A blur that changes the total is not normalised.
+  const vol = VOL.newVolume(16, { size: [4, 4, 4] });
+  VOL.setVoxel(vol, 8, 8, 8, 100);
+  const before = VOL.describeVolume(vol);
+  const blurred = VOL.blurVolume(vol, 2, 1);
+  const after = VOL.describeVolume(blurred);
+  near(after.average, before.average, before.average * 0.05, 'a box blur must conserve the average');
+  assert.ok(after.range.max < before.range.max, 'the peak must come down');
+  assert.ok(after.occupancy > before.occupancy, 'and the density must spread to more voxels');
+});
+
+check('volume: setVoxel writes where it says, and rejects out of range', () => {
+  // The index arithmetic is the easiest thing here to get wrong, and a transposed axis is invisible on
+  // symmetric data — so each axis is written and read back separately.
+  const vol = VOL.newVolume(8, { size: [8, 8, 8], center: [0, 0, 0] });
+  VOL.setVoxel(vol, 1, 0, 0, 11);
+  VOL.setVoxel(vol, 0, 2, 0, 22);
+  VOL.setVoxel(vol, 0, 0, 3, 33);
+  assert.equal(VOL.getVoxel(vol, 1, 0, 0), 11);
+  assert.equal(VOL.getVoxel(vol, 0, 2, 0), 22, 'the y axis must not be transposed with x');
+  assert.equal(VOL.getVoxel(vol, 0, 0, 3), 33, 'nor z');
+  assert.equal(VOL.getVoxel(vol, 0, 1, 0), 0, 'and nothing must leak into a neighbour');
+
+  VOL.setVoxel(vol, -1, 0, 0, 99);
+  VOL.setVoxel(vol, 8, 0, 0, 99);
+  let total = 0;
+  for (let i = 0; i < vol.data.length; i++) total += vol.data[i];
+  assert.equal(total, 66, 'an out-of-range write must be dropped, not wrap into a valid voxel');
+});
+
+check('volume: world and voxel coordinates round-trip', () => {
+  const vol = VOL.newVolume(8, { center: [10, 0, -5], size: [4, 4, 4] });
+  // The centre voxel of an even grid straddles the middle, so check the corners, where the mapping is
+  // unambiguous: the first voxel centre is half a voxel in from the low corner.
+  const low = VOL.worldOfVoxel(vol, 0, 0, 0);
+  nearArr(low, [10 - 2 + 0.25, -2 + 0.25, -5 - 2 + 0.25], 1e-6);
+  const high = VOL.worldOfVoxel(vol, 7, 7, 7);
+  nearArr(high, [10 + 2 - 0.25, 2 - 0.25, -5 + 2 - 0.25], 1e-6);
+});
+
+check('volume: combining samples the layer at the base grid, not the other way round', () => {
+  // A fine detail volume combined into a coarse base must not upscale the base.
+  const coarse = VOL.rasterizeVolume(F.constantField('float', 1), 8, { size: [4, 4, 4] });
+  const fine = VOL.rasterizeVolume(F.constantField('float', 0.5), 32, { size: [4, 4, 4] });
+  const sum = VOL.zipVolumes(coarse, fine, (a, b) => a + b);
+  assert.equal(sum.resolution, 8, 'the result keeps the BASE resolution');
+  near(VOL.sampleVolume(sum, [0, 0, 0]), 1.5, 1e-5);
+});
+
+check('volume: moving a volume changes its box without touching its data', () => {
+  const vol = VOL.rasterizeVolume(F.makeField('float', (c) => c.position[0]), 16, { size: [4, 4, 4] });
+  const moved = VOL.transformVolume(vol, { center: [10, 0, 0] });
+  // The same data, addressed at the new location. Resampling instead would blur it for no reason.
+  assert.deepEqual(Array.from(moved.data.slice(0, 8)), Array.from(vol.data.slice(0, 8)));
+  near(VOL.sampleVolume(moved, [10, 0, 0]), VOL.sampleVolume(vol, [0, 0, 0]), 1e-5);
+});
+
+check('volume: occupancy reports how much of the box is actually used', () => {
+  // The number that explains a sparse-looking volume effect: a box far bigger than its content.
+  const tiny = VOL.rasterizeVolume(
+    F.makeField('float', (c) => (V.vLength(c.position) < 0.3 ? 1 : 0)),
+    24, { size: [8, 8, 8] },
+  );
+  const d = VOL.describeVolume(tiny);
+  assert.ok(d.occupancy < 0.05, `a small blob in a big box must report low occupancy, got ${d.occupancy}`);
+  const full = VOL.rasterizeVolume(F.constantField('float', 1), 8, { size: [4, 4, 4] });
+  near(VOL.describeVolume(full).occupancy, 1, 1e-6);
+});
+
+check('volume: the unimplemented backends are declared, and no node can use them', () => {
+  // Part 78 enforced mechanically rather than by memory: `volume` is declared but unimplemented, so the
+  // registry REFUSES any node whose socket names it. A Pyro or Volume Renderer button cannot be created
+  // by accident, which is a stronger guarantee than a comment.
+  assert.ok(!T.isImplementedType(T.parseType('volume')), 'the simulated volume type must stay unimplemented');
+  assert.ok(T.isImplementedType(T.parseType('volumeGrid')), 'the grid type that IS built must be usable');
+
+  assert.throws(() => R.registerNode({
+    id: 'test.volume.pyro', version: 1, label: 'Pyro', category: 'Pyro',
+    summary: 'Would need the fluid solver.',
+    exportSupport: 'unsupported',
+    inputs: [{ key: 'v', label: 'Volume', type: 'volume' }],
+    outputs: [{ key: 'out', label: 'Out', type: 'volume' }],
+    evaluate: () => null,
+  }), /not yet implemented/, 'registering against an unimplemented type must be refused');
+
+  // ...and each absent backend must say what it is, why, and what it would take.
+  for (const [key, u] of Object.entries(VOL.UNIMPLEMENTED)) {
+    assert.ok(u.what && u.why && u.needs, `${key} must state what, why and what it needs`);
+    assert.ok(Array.isArray(u.parts) && u.parts.length, `${key} must cite the spec part it comes from`);
+  }
+});
+
+check('volume: the capabilities node answers the question from inside the graph', () => {
+  // The answer to "can this engine simulate smoke" has to be available to an MCP caller, not only in a
+  // comment — so it is a node, reading the engine's own record rather than a duplicated string.
+  const g = G.newGraph('t');
+  const caps = G.newNode(g, 'cadence.volume.capabilities', 0, 0, { id: 'caps' });
+  assert.equal(ev(g, caps.id, 'hasFluidSolver').value, false);
+  assert.equal(ev(g, caps.id, 'hasVolumeRendering').value, false);
+  const missing = ev(g, caps.id, 'missing').value;
+  assert.ok(/advection|pressure/i.test(missing), `the missing list must name the solver: ${missing}`);
+  assert.ok(/raymarch/i.test(missing), 'and the renderer');
+  const built = ev(g, caps.id, 'built').value;
+  assert.ok(/cache|blur|spawn/i.test(built), `and it must say what volumes ARE good for: ${built}`);
+});
+
 // ================================================================
 console.log(`\nPNX: ${passed} passed, ${failed} failed  (${R.nodeCount()} node types registered)`);
 if (failed) {

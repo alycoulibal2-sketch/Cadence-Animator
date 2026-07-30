@@ -42,5 +42,9 @@ import './render.js';
 // --- Phase 7: textures and the compositing operations that work on them
 import './texture.js';
 
+// --- Phase 8: volume GRIDS only. The fluid solver, pyro and volume rendering are not built; see
+// volume.js's UNIMPLEMENTED table and the Volume Capabilities node, which reads it out loud.
+import './volume.js';
+
 // --- always available: observability and layout
 import './debug.js';

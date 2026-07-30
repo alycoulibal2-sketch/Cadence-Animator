@@ -273,6 +273,49 @@ speed. The starter graph demonstrates it rather than describing it.
   is really in charge. The Lua export and Send-to-Animator paths are blocked with an explanation for
   the same reason: `doc` is not what is being drawn, so exporting it would ship the wrong effect.
 
+### 4.5 Phases 7-11: the decisions worth recording
+
+**Field probing (phase 9) is the technique the exporter rests on.** A field is an opaque closure, so
+nothing can be read off it — yet the export strategy depends entirely on what a value varies WITH. A
+size that varies over a particle's life becomes a Roblox NumberSequence and is exact; one that varies
+with position has no Roblox equivalent and forces the whole pass to be baked. `bake.js` answers that by
+SAMPLING: vary one input, hold the rest, see whether the output moves. The probe points are deliberately
+awkward rather than round, because round numbers are exactly where a periodic or lattice-based field
+aliases into looking constant. It is a heuristic and says so; a wrong answer degrades fidelity rather
+than correctness, since the fallback is always to bake more than necessary.
+
+**Three types exist where one might seem to do, and the reason is the same each time.** A `field<T>` is
+continuous and lazy; a `texture2d` and a `volumeGrid` are discrete and eager. Blur, edge detect, dilate
+and 3D diffusion all need NEIGHBOURS, and "neighbour" has no meaning in a continuous field. So
+`Rasterize` and `Bake To Volume` are explicit nodes rather than implicit conversions — a user can see
+where the resolution was fixed instead of discovering that a chain silently rasterised at 64x64 somewhere
+in the middle.
+
+**`volumeGrid` is deliberately NOT `volume`.** The simulated kind stays declared and
+`implemented: false`, so `registerNode()` refuses any node whose socket names it. A Pyro or Volume
+Renderer button cannot be created by accident — which is a stronger guarantee than a comment, and it is
+asserted in a test that tries to register one and expects the refusal.
+
+**Node groups are scopes, not compiled units.** Part 46 requires that a user can enter a group and
+inspect every node, so `groups.js` performs bookkeeping on the graph document and nothing else — no
+flattening, no specialisation. The intricate part is entirely the boundary: keying group inputs by the
+EXTERNAL source (not the internal target) is what makes one external value feeding four inner sockets
+produce one shared input rather than four identical ones. Expanding COPIES the interior rather than
+moving it, because moving it would empty the group and break every other instance.
+
+**The library registers no node types, and that is the test.** Part 47 states it: a user should be able
+to delete the entire library and still build new effects. Each entry is a RECIPE — a list of primitive
+node types and the wires between them — re-evaluated against the live registry rather than frozen as a
+document, so a group built on `cadence.noise.curl` picks up an improved curl noise and fails loudly if a
+node it needs is gone. A test asserts the node count is unchanged after building every recipe.
+
+**A new time primitive fell out of the flipbook.** There are two kinds of time: GRAPH time is the
+playhead and is one number for the whole evaluation; SAMPLE time is what the thing being evaluated is
+asking about, and a flipbook bake rasterises the same field at successive times. Wiring `Effect Time`
+into a flipbook therefore produced a sheet of identical cells, because the field was collapsed before the
+flipbook asked for anything. `Sample Time` now exists as a separate node so the distinction is legible
+at a glance, and the trap is asserted in a test rather than only documented.
+
 ### 4.2 Decisions taken during implementation that the audit did not anticipate
 
 - **One `geometry` type, not four.** The spec lists Mesh, CurveGeometry and PointCloud separately. As
@@ -329,10 +372,15 @@ Non-negotiables from Part 1, and how each is met:
   What *is* built is Part 42's deformation family, which needs no connectivity because it only moves
   points — and it is one node (`Set Position` driven by a field), not fifteen, because bend, twist,
   taper, bulge, wave, ripple, melt and noise-displace are all "move each point by a field".
-- **There is no Roblox exporter for a procedural effect (Parts 56-58).** Phase 9. `pnx_export_compatibility`
-  and the Render Report classify what WOULD be native, converted, approximated or lost, and the Lua
-  export / Send-to-Animator buttons refuse with an explanation rather than shipping the Effect doc that
-  happens to be in `state.doc`.
+- **Screen-space compositing is NOT built (Part 41).** Bloom over the final render, motion blur, depth of
+  field, chromatic aberration and lens distortion are screen-space passes: they need a render target and a
+  post-process chain that reads back the renderer's own output, which the sprite/mesh preview backend
+  cannot do. What IS built operates on a texture the graph made — real and useful, and named `Glow`
+  rather than `Bloom` to keep the distinction visible.
+- **Send-to-Animator still refuses a procedural effect.** The animator's timeline holds Effect docs and a
+  procedural graph is not one. Lua export works (phase 9).
+- **A baked export is a recording, not a simulation.** It plays back identically every time, and the note
+  the exporter emits says so. That is inherent to baking rather than a shortcoming of this one.
 - **Volume rendering is absent (Part 35), and cannot be registered by accident.** The `volume` type is
   declared `implemented: false`, so `registerNode()` refuses any node using it — a Volume Renderer
   button cannot exist until the raymarching backend does. Decal is absent for the same reason.

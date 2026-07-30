@@ -74,6 +74,11 @@ const TYPES = {
   // is a fixed grid evaluated once. Blur, edge detect and dilate need NEIGHBOURING pixels, and
   // "neighbour" has no meaning in a continuous field — which is the whole reason both types exist.
   texture2d: { label: 'Texture', color: '#6fa8c8', implemented: true },
+  // A 3D grid, and the counterpart to texture2d for the same reason: blurring in three dimensions needs
+  // neighbouring voxels. DISTINCT from `volume` below, which stays unimplemented — `volumeGrid` is what
+  // is actually built (a cache, a 3D blur, a spawn region), while `volume` is reserved for the simulated
+  // kind that needs the fluid solver. Keeping them apart is what stops a Pyro node being registrable.
+  volumeGrid: { label: 'Volume grid', color: '#8f7fc8', implemented: true },
   renderCommand: { label: 'Render', color: '#e08f5f', implemented: true },
 
   // --- Declared, type-checkable, and NOT yet implemented. registerNode() refuses any node whose
@@ -203,6 +208,7 @@ export function defaultValue(t) {
     case 'instanceSet': return null;
     case 'emitter': case 'collider': case 'attributeWrite': case 'renderCommand': return null;
     case 'texture2d': return null;
+    case 'volumeGrid': return null;
     case 'material': return null;
     case 'any': return null;
     default: return null;

@@ -626,6 +626,63 @@ server.tool(
 );
 
 server.tool(
+  'pnx_collapse_to_group',
+  'Collapse a set of nodes into a reusable node group. Links crossing the boundary become the group\'s inputs and outputs automatically. The group is a SCOPE of ordinary nodes, not a black box — pnx_get_graph with its scope shows every node inside, and the result the graph computes is unchanged by collapsing.',
+  {
+    nodeIds: z.array(z.string()).describe('the nodes to enclose; they must all be in the same scope'),
+    name: z.string().optional(),
+    description: z.string().optional(),
+  },
+  async (args) => { try { return textResult(await vfxCall('pnx_collapse_to_group', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_expand_group',
+  'Dissolve a group instance back into its parent scope. The interior is COPIED rather than moved, so every other instance of the same group keeps working.',
+  { nodeId: z.string().describe('a group instance node') },
+  async (args) => { try { return textResult(await vfxCall('pnx_expand_group', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_instantiate_group',
+  'Place another instance of an existing group. Each instance evaluates independently, so the same group can be used several times with different inputs.',
+  { groupId: z.string(), x: z.number().optional(), y: z.number().optional(), scope: z.string().optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_instantiate_group', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_export_group',
+  'Export a node group as a portable document, carrying its nested groups so it drops into another project without dangling references.',
+  { groupId: z.string() },
+  async (args) => { try { return textResult(await vfxCall('pnx_export_group', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_import_group',
+  'Import a node group exported by pnx_export_group. Ids are remapped, so importing the same group twice does not collide.',
+  { group: z.any().describe('the payload pnx_export_group returned'), name: z.string().optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_import_group', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_list_recipes',
+  'The node-group library: reusable compositions like Curl Motion, Fire Turbulence, Soft Glow, Radial Burst and Dissolve. Every one is built from primitives rather than being an engine capability, and each says what it demonstrates — so they are worth reading as examples of how to build something, not only as shortcuts. Also lists what the library cannot build yet, and why.',
+  {},
+  async () => { try { return textResult(await vfxCall('pnx_list_recipes')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_add_recipe',
+  'Build a library recipe into the graph as a node group and place an instance of it. Faster than wiring the composition by hand, and the group can be opened and taken apart — every node inside is a primitive.',
+  {
+    recipe: z.string().describe('a recipe id from pnx_list_recipes, e.g. curlMotion'),
+    instantiate: z.boolean().optional().describe('also place an instance (default true)'),
+    x: z.number().optional(), y: z.number().optional(),
+  },
+  async (args) => { try { return textResult(await vfxCall('pnx_add_recipe', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
   'pnx_catalogue',
   'Every available node type as one compact line each: id, label, category, summary, socket types, Roblox export support. Read this (or pnx_search_nodes) before constructing a graph — it is what stops you inventing node types and parameters that do not exist.',
   { category: z.string().optional().describe('e.g. Math, Fields, SDF, Particles, Renderers') },
