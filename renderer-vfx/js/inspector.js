@@ -7,7 +7,6 @@
 
 import * as ST from './studioState.js';
 import * as PNX from './pnxStudio.js';
-import { openNodeEditor } from './nodeEditor.js';
 import {
   getLayer, getModifier, setLayerProps, setClip, setCurveKey, clearCurve, addModifier,
   removeModifier, resolveProp, resolveModParam, propMetaFor,
@@ -103,7 +102,7 @@ function rebuild() {
   // A procedural effect is NOT driven by the Effect doc's layers, so showing the layer inspector here
   // would present Rate/Lifetime/Speed/Gravity fields that look editable and change nothing at all.
   // That is exactly the "control that pretends to work" the specification forbids, so the panel says
-  // what is actually in charge and points at the node graph instead.
+  // what is actually driving the effect instead.
   if (ST.isPnxMode()) { buildPnxPanel(); return; }
   const layer = ST.selectedLayer();
   if (!layer) { buildEffectPanel(); return; }
@@ -588,11 +587,18 @@ function buildPnxPanel() {
     'Live particle simulations. Each keeps its own state and replays deterministically when you scrub backwards.');
   body.appendChild(sec);
 
+  // NO "open the node graph" BUTTON HERE, deliberately. The canvas in nodeEditor.js edits the V1
+  // graph, and in procedural mode state.graph is null \u2014 so a button pointing at it answered with
+  // "this effect wasn't made with the node editor", contradicting the panel it sat on. A control that
+  // promises something and then argues with you is worse than no control at all, so this states what
+  // is actually true until a procedural canvas exists.
   const openSec = section('Editing');
-  const openBtn = el('button', 'tb-btn primary', '\ud83d\udd17 Open the node graph');
-  openBtn.title = 'Every parameter of a procedural effect lives on its own node';
-  openBtn.addEventListener('click', () => openNodeEditor());
-  openSec.appendChild(openBtn);
+  const how = el('div', '', 'A procedural effect is edited through its graph, and there is no canvas for it yet. Ask Claude to build or change it \u2014 it has full structured access to every node.');
+  how.style.cssText = 'padding:2px 2px 8px;font-size:11.5px;line-height:1.5;color:var(--text-2);';
+  openSec.appendChild(how);
+  const recipes = el('div', '', 'It can also list the built-in node groups \u2014 Curl Motion, Fire Turbulence, Soft Glow, Radial Burst, Dissolve \u2014 add one, and wire it in.');
+  recipes.style.cssText = 'padding:2px;font-size:11px;line-height:1.5;opacity:.6;';
+  openSec.appendChild(recipes);
   body.appendChild(openSec);
 
   const warnSec = section('Warnings');
