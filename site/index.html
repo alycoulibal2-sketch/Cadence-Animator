@@ -43,6 +43,7 @@
         <li><a href="#features">Features</a></li>
         <li><a href="#studio">Roblox Studio</a></li>
         <li><a href="#vfx">VFX Studio</a></li>
+        <li><a href="#procedural">Procedural</a></li>
         <li><a href="#claude">Claude</a></li>
         <li><a href="#compare">vs Moon</a></li>
         <li><a href="docs.html">Docs</a></li>
@@ -72,7 +73,7 @@
 <section class="hero">
   <div class="shell">
     <div class="hero-copy">
-      <p class="eyebrow">Version <span data-version>0.8.0</span> &middot; Windows</p>
+      <p class="eyebrow">Version <span data-version>0.9.0</span> &middot; Windows</p>
       <h1>Animate Roblox rigs in a <span class="accent">real desktop app</span>.</h1>
       <p class="lede">
         Cadence is a standalone animation suite for Roblox — a proper 3D viewport with
@@ -91,7 +92,7 @@
       <p class="hero-meta">
         <span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m5 13 4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Installer, <span data-size>97.2 MB</span>
+          Installer, <span data-size>97.4 MB</span>
         </span>
         <span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m5 13 4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -115,7 +116,7 @@
       </div>
       <img src="assets/img/hero-animator.png" width="1920" height="1020"
            alt="The Cadence Animator window: a scene list on the left, an R15 Roblox rig posed mid-stride in the 3D viewport with a transform gizmo on its right arm, an inspector on the right showing the Right Elbow joint at -11.69 degrees, and a dope-sheet timeline below with keyframes on twelve joint tracks.">
-      <figcaption>An unedited screenshot of Cadence <span data-version>0.8.0</span> — R15 rig, twelve keyframed joint tracks, playhead on frame&nbsp;16.</figcaption>
+      <figcaption>An unedited screenshot of Cadence <span data-version>0.9.0</span> — R15 rig, twelve keyframed joint tracks, playhead on frame&nbsp;16.</figcaption>
     </figure>
 
     <div class="stats reveal">
@@ -409,10 +410,104 @@
           </dl>
           <p class="muted" style="font-size:0.83rem;margin-top:14px">
             A visual node editor is in early access alongside the layer inspector, with eight node
-            types covering create, appearance, motion, physics, timing and output.
+            types covering create, appearance, motion, physics, timing and output. For effects the
+            layer model cannot express, the procedural engine below is a separate mode.
           </p>
         </div>
       </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ procedural -->
+<section class="section" id="procedural">
+  <div class="shell">
+    <div class="section-head reveal">
+      <p class="eyebrow">Procedural engine</p>
+      <h2>Build the effect nobody wrote a preset for.</h2>
+      <p class="lede">
+        A second way to author effects, next to the layer model rather than replacing it. Instead of
+        choosing an effect and adjusting its properties, you compose one from primitives &mdash;
+        maths, fields, noise, distance fields, geometry, particles, materials, renderers. The library
+        accelerates that. It does not define what is possible.
+      </p>
+    </div>
+
+    <div class="split split-wide">
+      <div class="reveal">
+        <div class="layers">
+          <div class="layer-row"><span class="glyph" aria-hidden="true">&fnof;</span><span><b>Fields</b><small>A value that varies over space, time, a surface or a particle</small></span><span class="badge">22 nodes</span></div>
+          <div class="layer-row"><span class="glyph" aria-hidden="true">&#9671;</span><span><b>Distance fields</b><small>Shapes you can combine, round, hollow, repeat and twist</small></span><span class="badge">28 nodes</span></div>
+          <div class="layer-row"><span class="glyph" aria-hidden="true">&#9635;</span><span><b>Geometry &amp; curves</b><small>Primitives, sampling, instancing &mdash; spawn from any shape you can build</small></span><span class="badge">42 nodes</span></div>
+          <div class="layer-row"><span class="glyph" aria-hidden="true">&#10022;</span><span><b>Particles</b><small>A real solver: forces, drag, collisions, per-particle attributes</small></span><span class="badge">10 nodes</span></div>
+          <div class="layer-row"><span class="glyph" aria-hidden="true">&#9680;</span><span><b>Textures</b><small>Build an image from noise, then blur, warp, threshold, bake a flipbook</small></span><span class="badge">19 nodes</span></div>
+          <div class="layer-row"><span class="glyph" aria-hidden="true">&#9788;</span><span><b>Renderers</b><small>Sprites, meshes, trails, ribbons, beams, lights &mdash; swap one node</small></span><span class="badge">9 nodes</span></div>
+        </div>
+        <p class="muted" style="font-size:0.85rem;margin-top:14px">
+          354 node types across 27 categories. Every one documents its own units, ranges, common uses
+          and exactly what Roblox does with it.
+        </p>
+      </div>
+
+      <div class="reveal">
+        <div class="panel" style="margin-bottom:16px">
+          <h3 style="display:flex;align-items:center;gap:9px">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v20M2 12h20"/></svg>
+            Small pieces, arbitrarily combined
+          </h3>
+          <p style="color:var(--text-2);font-size:0.93rem;margin-top:10px">
+            There is no &ldquo;colour over lifetime&rdquo; setting anywhere in the engine. You wire a
+            particle's normalised age into a gradient, and into colour. The same three nodes give you
+            size over lifetime, opacity over distance, or emission over speed &mdash; including the
+            combinations nobody anticipated.
+          </p>
+          <p style="color:var(--text-2);font-size:0.93rem;margin-top:10px">
+            Forces are vector fields, so gravity is a constant direction and turbulence is curl noise.
+            Colliders are distance fields, so one collider node handles a plane, a sphere, a capsule
+            and anything you built by combining them. Emitters take any geometry, so particles can be
+            born from a shape the engine has never seen.
+          </p>
+        </div>
+
+        <div class="panel">
+          <h3>What it does with Roblox</h3>
+          <p style="color:var(--text-2);font-size:0.9rem;margin-top:10px">
+            Roblox decides what runs natively in Roblox. It does not decide what Cadence can author.
+            So the exporter classifies every render pass and tells you which it is:
+          </p>
+          <dl class="kv" style="margin-top:12px">
+            <div><dt>Native</dt><dd>A real ParticleEmitter</dd></div>
+            <div><dt>Converted</dt><dd>Beam, PointLight</dd></div>
+            <div><dt>Baked</dt><dd>Recorded per frame</dd></div>
+            <div><dt>Unsupported</dt><dd>Refused, with the reason</dd></div>
+          </dl>
+          <p class="muted" style="font-size:0.83rem;margin-top:14px">
+            Colour gradients and size curves survive as real ColorSequences and NumberSequences where
+            Roblox can take them. Motion it cannot reproduce &mdash; curl noise, collisions &mdash; is
+            baked into a recording rather than quietly dropped or approximated into something else.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel reveal" style="margin-top:22px;border-color:rgba(124,140,255,0.22)">
+      <h3>What it does not do yet</h3>
+      <p style="color:var(--text-2);font-size:0.9rem;margin-top:10px">
+        Stated here rather than discovered later. There is no fluid or pyro solver and no volumetric
+        rendering, so genuinely simulated fire and raymarched clouds are out of reach &mdash; a
+        stylised fire is not, and is what the engine is good at. Volume grids work as a cache for an
+        expensive field, a 3D blur and a spawn region. Screen-space post-processing (bloom over the
+        finished frame, motion blur, depth of field) needs a render target the preview does not have;
+        the glow that exists works on a texture you built, and is named accordingly. Mesh editing
+        &mdash; extrude, bevel, boolean &mdash; needs connectivity the geometry model does not carry.
+        Procedural effects cannot yet be sent to the animator's timeline, which holds layer-based
+        effects.
+      </p>
+      <p class="muted" style="font-size:0.83rem;margin-top:12px">
+        Where a capability is absent, the node for it is absent too &mdash; the type system refuses to
+        register a node against a subsystem that does not exist, so there is no button that appears to
+        work and does not.
+      </p>
     </div>
   </div>
 </section>
@@ -425,8 +520,9 @@
         <p class="eyebrow">MCP</p>
         <h2 style="font-size:clamp(1.55rem,3vw,2.2rem)">Let Claude do the animating.</h2>
         <p class="lede">
-          Cadence ships a Model Context Protocol server with <strong>104 tools</strong> — 74 for
-          the animator, 30 for VFX Studio. Claude can add a rig, set exact keyframes, solve IK,
+          Cadence ships a Model Context Protocol server with <strong>135 tools</strong> — 74 for
+          the animator, 30 for VFX Studio, 31 for the procedural engine. Claude can add a rig, set
+          exact keyframes, solve IK,
           run the quality checker and export to Studio. Crucially it can also
           <em>look</em>: <code>render_frame</code> screenshots the viewport at any frame and hands
           the image back, so it checks its own work instead of assuming.
@@ -511,7 +607,7 @@
   <div class="shell">
     <div class="section-head reveal">
       <p class="eyebrow">Download</p>
-      <h2>Get Cadence <span data-version>0.8.0</span>.</h2>
+      <h2>Get Cadence <span data-version>0.9.0</span>.</h2>
       <p class="lede">
         Windows&nbsp;10 or 11, 64-bit. No account, no licence key, no telemetry. Files are served
         from the project's GitHub release, which is the same place the in-app updater looks.
@@ -528,18 +624,18 @@
           Installs to your user folder with Start-menu and desktop shortcuts, and lets you pick the
           location. This is the build that can update itself in place.
         </p>
-        <a class="btn btn-primary" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases/download/v0.8.0/Cadence-Animator-Setup-0.8.0.exe" data-dl="installer" download>
+        <a class="btn btn-primary" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases/download/v0.9.0/Cadence-Animator-Setup-0.9.0.exe" data-dl="installer" download>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 20h16"/></svg>
           Download installer
         </a>
         <dl class="kv">
-          <div><dt>File</dt><dd><code>Cadence-Animator-Setup-0.8.0.exe</code></dd></div>
-          <div><dt>Size</dt><dd data-size-installer>97.2 MB</dd></div>
+          <div><dt>File</dt><dd><code>Cadence-Animator-Setup-0.9.0.exe</code></dd></div>
+          <div><dt>Size</dt><dd data-size-installer>97.4 MB</dd></div>
           <div><dt>Auto-update</dt><dd>Yes</dd></div>
         </dl>
         <details class="hash">
           <summary>Verify this file (SHA-256)</summary>
-          <code>cc86b364ad980c007c8a9598344584ace46f3b0910df58185058c1e3cd89e2a0</code>
+          <code>108c1544977f3f0ab1d9fa3611b37e6131bea3f9a02e57e7ce243422ce28617f</code>
         </details>
       </div>
 
@@ -550,18 +646,18 @@
           there is nothing on disk for the updater to replace, so new versions are a manual
           re-download.
         </p>
-        <a class="btn btn-ghost" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases/download/v0.8.0/Cadence-Animator-0.8.0.exe" data-dl="portable" download>
+        <a class="btn btn-ghost" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases/download/v0.9.0/Cadence-Animator-0.9.0.exe" data-dl="portable" download>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 20h16"/></svg>
           Download portable
         </a>
         <dl class="kv">
-          <div><dt>File</dt><dd><code>Cadence-Animator-0.8.0.exe</code></dd></div>
-          <div><dt>Size</dt><dd data-size-portable>97 MB</dd></div>
+          <div><dt>File</dt><dd><code>Cadence-Animator-0.9.0.exe</code></dd></div>
+          <div><dt>Size</dt><dd data-size-portable>97.2 MB</dd></div>
           <div><dt>Auto-update</dt><dd>No</dd></div>
         </dl>
         <details class="hash">
           <summary>Verify this file (SHA-256)</summary>
-          <code>d057b2c0355e61954630486b8235c212326f6def78211176a1ec2adfb8ab21a4</code>
+          <code>b90f1f81445b98ca363cbded0020231793684ae5836feb4c64d9e43bc54f21d3</code>
         </details>
       </div>
 
@@ -638,7 +734,7 @@ cadence-animator</code></pre>
       </details>
       <details>
         <summary>Is it finished?</summary>
-        <div class="answer">It is at <span data-version>0.8.0</span> and used in real projects, with
+        <div class="answer">It is at <span data-version>0.9.0</span> and used in real projects, with
         a 51-check smoke test run before each release. It is also below 1.0 and moving quickly.
         The node editor inside VFX Studio is explicitly early. If something breaks, the app keeps a
         log next to its settings and the repository takes issues.</div>
@@ -656,7 +752,7 @@ cadence-animator</code></pre>
         A rig is two clicks away, and there is no project to set up first.
       </p>
       <div class="hero-cta">
-        <a class="btn btn-primary btn-lg" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases/download/v0.8.0/Cadence-Animator-Setup-0.8.0.exe" data-dl="installer" download>
+        <a class="btn btn-primary btn-lg" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases/download/v0.9.0/Cadence-Animator-Setup-0.9.0.exe" data-dl="installer" download>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 20h16"/></svg>
           Download for Windows
         </a>
@@ -689,6 +785,7 @@ cadence-animator</code></pre>
           <li><a href="#features">Features</a></li>
           <li><a href="#studio">Roblox Studio</a></li>
           <li><a href="#vfx">VFX Studio</a></li>
+          <li><a href="#procedural">Procedural engine</a></li>
           <li><a href="#claude">Claude &amp; MCP</a></li>
           <li><a href="#compare">Compared to Moon</a></li>
         </ul>
@@ -717,7 +814,7 @@ cadence-animator</code></pre>
     </div>
 
     <div class="footer-base">
-      <span>Cadence Animator <span data-version>0.8.0</span> &middot; MIT licence</span>
+      <span>Cadence Animator <span data-version>0.9.0</span> &middot; MIT licence</span>
       <span>Not affiliated with Roblox Corporation or Moon Animator.</span>
     </div>
   </div>
