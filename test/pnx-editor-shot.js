@@ -6,6 +6,14 @@
 //
 // The point is that a passing test says the DOM contains 9 boxes and 58 sockets; it does not say the
 // boxes are legible, positioned sanely, or not stacked on top of each other. Only a look says that.
+//
+// DEV MODE ONLY. resolveProjectPath() resolves against window.location.href, which in a PACKAGED build
+// is a path inside app.asar and is not writable — the first writeFile kills the renderer, and the
+// symptom ("process gone: crashed") is indistinguishable from the app failing to boot. Use
+// test/pnx-editor-check.js against a packaged build; it asserts the same things and writes nothing.
+//
+// Note also that --demo-js-file only runs on a --screenshot run (see isScreenshotRun in src/main.js).
+// Without --screenshot the app just opens and sits there, which also looks like a hang.
 (async () => {
   while (!window.__cadenceDebug) await new Promise((r) => setTimeout(r, 100));
 
