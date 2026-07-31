@@ -840,6 +840,187 @@
     return { ok: true, voxels: ins.outputs.voxels.value, mb: ins.outputs.megabytes.value };
   });
 
+  // ---------------------------------------------------------------- acceptance: one graph, two clients
+  // The architectural claim is that the node editor and MCP are two clients of ONE graph, not two
+  // systems that synchronise. The test alternates between the paths and demands exact agreement at each
+  // step — if a "human graph" and an "AI graph" existed, they would drift on the first alternation.
+  //
+  // pnx_test_human_edit goes through ST.mutatePnx + PGRAPH.*, which is what the canvas's own pointer
+  // handlers call. The canvas itself is checked separately, below.
+  await step('PNX acceptance: human edits and Claude edits are the same graph', async () => {
+    await vfxCall('pnx_new', { name: 'Round Trip', blank: true });
+
+    // --- 1/2. A human adds and wires nodes; Claude must see exactly that.
+    const made = (await vfxCall('pnx_test_human_edit', {
+      ops: [
+        { op: 'add', as: 'em', type: 'cadence.particles.emitter', x: -300, y: 0, values: { rate: 42, lifetime: 1.25 } },
+        { op: 'add', as: 'sim', type: 'cadence.particles.simulate', x: 0, y: 0, values: { maxParticles: 777 } },
+        { op: 'connect', from: 'em', fromSocket: 'out', to: 'sim', toSocket: 'emitter' },
+      ],
+    })).ids;
+
+    const seen = await vfxCall('pnx_get_graph');
+    const em = seen.nodes.find((n) => n.id === made.em);
+    const sim = seen.nodes.find((n) => n.id === made.sim);
+    assert(em && sim, 'MCP must see the nodes a human just created');
+    assert(em.values.rate === 42, `MCP must see the human's value, got ${em.values.rate}`);
+    assert(sim.values.maxParticles === 777, 'and values on the other node');
+    assert(seen.links.some((l) => l.from === `${made.em}.out` && l.to === `${made.sim}.emitter`),
+      `MCP must see the human's connection: ${JSON.stringify(seen.links)}`);
+
+    // --- 3. Claude adds nodes and wires into the human's work.
+    const sprId = (await vfxCall('pnx_add_node', { type: 'cadence.render.sprite', x: 300, y: 0, values: { size: 0.55 } })).nodeId;
+    const outId = (await vfxCall('pnx_add_node', { type: 'cadence.render.output', x: 560, y: 0 })).nodeId;
+    await vfxCall('pnx_connect', { fromNode: made.sim, fromSocket: 'out', toNode: sprId, toSocket: 'source' });
+    await vfxCall('pnx_connect', { fromNode: sprId, fromSocket: 'out', toNode: outId, toSocket: 'passes' });
+
+    // --- 5/6. The human edits Claude's node; Claude reads the modification back.
+    await vfxCall('pnx_test_human_edit', { ops: [{ op: 'setValue', node: sprId, socket: 'size', value: 1.75 }] });
+    const after = await vfxCall('pnx_get_graph');
+    const sprAfter = after.nodes.find((n) => n.id === sprId);
+    assert(sprAfter, 'the node Claude added must still be there after a human edit');
+    assert(sprAfter.values.size === 1.75, `Claude must see the human's edit to its own node, got ${sprAfter.values.size}`);
+
+    // --- 7. And the collaboratively-built graph must actually render.
+    await vfxCall('pnx_scrub', { frame: 20 });
+    await new Promise((r) => setTimeout(r, 250));
+    const drawn = (await vfxCall('pnx_get_state')).stats.drawnElements;
+    assert(drawn > 0, `the graph both sides built must draw something, got ${drawn}`);
+    return { ok: true, nodes: after.nodes.length, drawn };
+  });
+
+  await step('PNX acceptance: save and reload gives both sides the identical graph', async () => {
+    // Step 8. Serialisation is where a two-graph architecture would finally show itself, because only
+    // one of them would be written to disk.
+    const before = await vfxCall('pnx_get_graph');
+    const saved = await vfxCall('pnx_test_save_reload');
+    assert(saved.ok, `the graph must survive a save/reload: ${saved.error || ''}`);
+
+    const after = await vfxCall('pnx_get_graph');
+    const norm = (g) => JSON.stringify({
+      nodes: g.nodes.map((n) => [n.id, n.type, JSON.stringify(n.values || {})]).sort(),
+      links: g.links.map((l) => `${l.from}->${l.to}`).sort(),
+    });
+    assert(after.nodes.length === before.nodes.length,
+      `node count changed across save/reload: ${before.nodes.length} -> ${after.nodes.length}`);
+    assert(norm(before) === norm(after), 'the reloaded graph differs from the saved one');
+
+    await vfxCall('pnx_scrub', { frame: 20 });
+    await new Promise((r) => setTimeout(r, 250));
+    assert((await vfxCall('pnx_get_state')).stats.drawnElements > 0, 'the reloaded graph must still draw');
+    return { ok: true, nodes: after.nodes.length, links: after.links.length };
+  });
+
+  await step('PNX acceptance: no capability is reachable only through Claude', async () => {
+    // The second acceptance test as a structural claim: the palette and the MCP catalogue are served
+    // from the same registry, so there cannot be a node Claude can place that a person cannot find.
+    // Comparing the two lists IS the test — a divergence means someone introduced a second list.
+    const parity = await vfxCall('pnx_test_registry_parity');
+    assert(parity.same, `the palette and the MCP catalogue must be one list: ${parity.detail}`);
+    assert(parity.count > 300, `expected the full catalogue, got ${parity.count}`);
+    assert(parity.missingMetadata === 0,
+      `${parity.missingMetadata} node types lack the metadata the editor builds controls from`);
+
+    // The spec's own search examples, run against the registry the palette uses.
+    assert(parity.swirlFindsCurl, `a human searching "swirl" must find Curl Noise, got ${parity.swirl}`);
+    assert(parity.fadeFindsFading, `"fade" must surface fading tools, got ${parity.fade}`);
+    return { ok: true, nodeTypes: parity.count };
+  });
+
+  await step('PNX acceptance: opening a Claude-built effect shows the real graph, editable', async () => {
+    // The third acceptance test. Claude builds a non-trivial effect; the canvas must then show the
+    // actual nodes that produced it — with typed sockets and working controls — not a placeholder.
+    await vfxCall('pnx_new', { name: 'Claude Built', blank: true });
+    const add = async (type, values) => (await vfxCall('pnx_add_node', { type, x: 0, y: 0, values })).nodeId;
+    const link = (a, sa, b, sb) => vfxCall('pnx_connect', { fromNode: a, fromSocket: sa, toNode: b, toSocket: sb });
+
+    // generation -> fields -> simulation -> material -> renderer, the exact chain the spec asks to trace.
+    const sphere = await add('cadence.geometry.sphere', { radius: 1.2 });
+    const em = await add('cadence.particles.emitter', { emitFrom: 'surface', rate: 80, lifetime: 1.8 });
+    const curl = await add('cadence.noise.curl', { scale: 0.5 });
+    const sim = await add('cadence.particles.simulate', { maxParticles: 2000, drag: 0.5 });
+    const life = await add('cadence.time.normalizedAge', {});
+    const grad = await add('cadence.color.sampleGradient', { gradient: { kind: 'color', stops: [{ u: 0, v: '#ffffff' }, { u: 1, v: '#203080' }] } });
+    const mat = await add('cadence.material.surface', { blend: 'additive' });
+    const spr = await add('cadence.render.sprite', { size: 0.4 });
+    const out = await add('cadence.render.output', {});
+    await link(sphere, 'out', em, 'shape');
+    await link(em, 'out', sim, 'emitter');
+    await link(curl, 'out', sim, 'force');
+    await link(life, 'out', grad, 'position');
+    await link(grad, 'out', mat, 'baseColor');
+    await link(sim, 'out', spr, 'source');
+    await link(mat, 'out', spr, 'material');
+    await link(spr, 'out', out, 'passes');
+
+    const view = await vfxCall('pnx_test_open_editor');
+    assert(view.open, 'the procedural editor should open');
+    assert(view.boxes === 9, `the canvas must draw the real nodes, expected 9 boxes got ${view.boxes}`);
+    // The whole chain must be visible by name — not an "AI Effect" placeholder.
+    const titles = view.titles.join(' | ');
+    for (const expected of ['Sphere', 'Emitter', 'Curl Noise', 'Simulate Particles', 'Material', 'Sprite Renderer', 'Effect Output']) {
+      assert(titles.includes(expected), `the graph must show "${expected}" — got: ${titles}`);
+    }
+    // Typed sockets, colour-coded, with editable controls.
+    assert(view.sockets > 20, `expected many typed sockets, got ${view.sockets}`);
+    assert(view.distinctSocketColours > 2, `sockets must be coloured by type, got ${view.distinctSocketColours}`);
+    assert(view.controls > 5, `nodes must expose editable controls, got ${view.controls}`);
+    assert(view.previews > 0, 'nodes that declare a preview should render one');
+
+    // A human edit made while looking at Claude's graph must reach the render.
+    await vfxCall('pnx_test_human_edit', { ops: [{ op: 'setValue', node: spr, socket: 'size', value: 0.9 }] });
+    const back = await vfxCall('pnx_get_graph');
+    assert(back.nodes.find((n) => n.id === spr).values.size === 0.9, 'the human edit to Claude\'s node must stick');
+
+    await vfxCall('pnx_test_close_editor');
+    return { ok: true, boxes: view.boxes, sockets: view.sockets, controls: view.controls };
+  });
+
+  await step('PNX: the starter graph a new user sees is laid out legibly', async () => {
+    // The first procedural graph anyone opens, checked as a picture rather than as data. Every one of
+    // these failed on the canvas's first real run: the authored coordinates predated the boxes having
+    // one row per socket, so Normalized Age sat on top of Simulate Particles, and at the old node
+    // width "Particle limit" and "Particle lifetime" both rendered as "Particle …".
+    await vfxCall('pnx_new', { name: 'Layout Check' });
+    const v = await vfxCall('pnx_test_open_editor');
+
+    const overlaps = [];
+    for (let i = 0; i < v.rects.length; i++) {
+      for (let j = i + 1; j < v.rects.length; j++) {
+        const a = v.rects[i], b = v.rects[j];
+        if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) {
+          overlaps.push(`${a.title} over ${b.title}`);
+        }
+      }
+    }
+    assert(overlaps.length === 0, `node boxes must not overlap: ${overlaps.join('; ')}`);
+    assert(v.clipped.length === 0, `these socket labels are cut off and unreadable: ${v.clipped.join(', ')}`);
+    assert(v.clippedValues.length === 0, `these values are cut off, so the number on screen is wrong: ${v.clippedValues.join(', ')}`);
+
+    const closed = await vfxCall('pnx_test_close_editor');
+    assert(closed.stale === 0, `closing the editor must remove it from the DOM, ${closed.stale} left`);
+    return { ok: true, nodes: v.rects.length, labelsChecked: v.sockets };
+  });
+
+  await step('PNX acceptance: the add palette searches the real registry', async () => {
+    await vfxCall('pnx_new', { name: 'Palette Check' });
+    const all = await vfxCall('pnx_test_palette', {});
+    assert(all.opened, 'the add palette should open');
+    assert(all.results > 20, `the palette should list the catalogue, got ${all.results}`);
+    assert(all.hasDescriptions, 'every result needs a description');
+    assert(all.hasCategories, 'every result needs its category');
+
+    const swirl = await vfxCall('pnx_test_palette', { query: 'swirl' });
+    assert(swirl.labels.some((l) => /curl|vortex/i.test(l)),
+      `searching "swirl" in the palette must surface swirling motion, got ${swirl.labels.join(', ')}`);
+
+    const bounce = await vfxCall('pnx_test_palette', { query: 'bounce' });
+    assert(bounce.results > 0, 'searching "bounce" should find something');
+
+    await vfxCall('pnx_test_close_editor');
+    return { ok: true, total: all.results, swirl: swirl.labels.slice(0, 3) };
+  });
+
   await step('PNX: switching back to a layer-based effect leaves no procedural objects behind', async () => {
     await vfxCall('pnx_close');
     const after = await vfxCall('pnx_get_state');

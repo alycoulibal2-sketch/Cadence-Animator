@@ -202,10 +202,23 @@ export function report() {
       message: 'The Effect Output has no render passes connected.',
     });
   } else if (!drawn) {
-    diagnostics.push({
-      severity: 'warning', nodeId: session.outputNodeId, code: 'nothingDrawn',
-      message: 'There are render passes but nothing to draw at this frame. Check that the particles or geometry feeding them are not empty.',
-    });
+    // Frame 0 of a particle graph legitimately has nothing in it — the emitter has not stepped yet.
+    // Reporting that as a warning meant every newly-created procedural effect greeted its author with
+    // "1 warning" on a graph that is working perfectly, which teaches people to ignore the count.
+    // Node types are STORED versioned ('cadence.particles.simulate@1' — see graph.js newNode), so
+    // this has to compare the bare id, not the stored string.
+    const simulates = Object.values(session.graph.nodes || {})
+      .some((n) => String(n.type).split('@')[0] === 'cadence.particles.simulate');
+    const atStart = (session.lastFrame ?? 0) <= 0;
+    diagnostics.push(simulates && atStart
+      ? {
+        severity: 'info', nodeId: session.outputNodeId, code: 'nothingDrawnYet',
+        message: 'Nothing is drawn at frame 0 — particles have not been emitted yet. Scrub forward to see the effect.',
+      }
+      : {
+        severity: 'warning', nodeId: session.outputNodeId, code: 'nothingDrawn',
+        message: 'There are render passes but nothing to draw at this frame. Check that the particles or geometry feeding them are not empty.',
+      });
   }
 
   return {
@@ -253,19 +266,25 @@ export function newStarterGraph(name = 'Untitled Procedural Effect') {
   const at = (type, x, y, values) => PGRAPH.newNode(g, type, x, y, values ? { values } : {});
   const wire = (a, sa, b, sb) => PGRAPH.connect(g, a.id, sa, b.id, sb);
 
+  // The coordinates below are laid out against the node editor's REAL box size — 268px wide, and one
+  // 22px row per socket on top of a 26px header. That makes the boxes much taller than they look in a
+  // diagram: Simulate Particles is 13 rows and 316px tall. Positions picked by eye against the old
+  // guess put three nodes on top of each other the first time the canvas actually drew this graph.
+  // Columns are 328px apart (268 + 60), and nodes sharing a column are spaced by their own height.
+
   // A sphere to emit from, a burst emitter, gravity, and a sprite pass coloured by age.
-  const sphere = at('cadence.geometry.sphere', -560, -40, { radius: 0.4, segments: 12, rings: 6 });
-  const emitter = at('cadence.particles.emitter', -320, -40, {
+  const sphere = at('cadence.geometry.sphere', -980, -60, { radius: 0.4, segments: 12, rings: 6 });
+  const emitter = at('cadence.particles.emitter', -652, -160, {
     emitFrom: 'surface', rate: 34, lifetime: 1.6, velocity: [0, 4, 0], burstCount: 0,
   });
-  const gravity = at('cadence.fields.constantDirection', -320, 220, { direction: [0, -1, 0], strength: 6 });
-  const sim = at('cadence.particles.simulate', -60, 40, { maxParticles: 4000, drag: 0.6 });
+  const gravity = at('cadence.fields.constantDirection', -652, 120, { direction: [0, -1, 0], strength: 6 });
+  const sim = at('cadence.particles.simulate', -324, -120, { maxParticles: 4000, drag: 0.6 });
 
   // Colour and size over life, built the way the engine intends: Normalized Age into a gradient and a
   // curve. This is the pattern that replaces every "over lifetime" property in the engine, so the
   // starter graph demonstrates it rather than describing it.
-  const life = at('cadence.particles.life', -60, 320);
-  const grad = at('cadence.color.sampleGradient', 200, 320, {
+  const life = at('cadence.particles.life', -324, 240);
+  const grad = at('cadence.color.sampleGradient', 4, 60, {
     // White-hot to orange to dark red: the standard cooling ramp, and legible enough that dragging a
     // stop shows immediately what a gradient does.
     gradient: {
@@ -273,7 +292,7 @@ export function newStarterGraph(name = 'Untitled Procedural Effect') {
       stops: [{ u: 0, v: '#fff6e0' }, { u: 0.25, v: '#ffb040' }, { u: 0.7, v: '#c02808' }, { u: 1, v: '#200400' }],
     },
   });
-  const size = at('cadence.curve.evaluate', 200, 480, {
+  const size = at('cadence.curve.evaluate', 4, 250, {
     // Grow fast, then shrink away — a shape a linear ramp cannot give, which is the point of it being
     // a curve rather than two numbers.
     curve: { kind: 'float', keys: [{ t: 0, v: 0.05 }, { t: 0.2, v: 0.45 }, { t: 1, v: 0 }] },
@@ -282,9 +301,9 @@ export function newStarterGraph(name = 'Untitled Procedural Effect') {
   // the middle of the plume clips to white and the gradient stops being visible at all. Emission is
   // deliberately NOT wired to the same gradient as base colour: adding them doubles every channel and
   // blows out the highlights, which is what made the first version of this graph a white blob.
-  const mat = at('cadence.material.surface', 440, 220, { blend: 'additive', opacity: 0.35 });
-  const spr = at('cadence.render.sprite', 680, 60);
-  const output = at('cadence.render.output', 920, 60);
+  const mat = at('cadence.material.surface', 332, -20, { blend: 'additive', opacity: 0.35 });
+  const spr = at('cadence.render.sprite', 660, -80);
+  const output = at('cadence.render.output', 988, 10);
 
   wire(sphere, 'out', emitter, 'shape');
   wire(emitter, 'out', sim, 'emitter');

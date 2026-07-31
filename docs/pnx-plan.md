@@ -159,15 +159,16 @@ Part 78 (no fake features).
 | 4 | Geometry, curve geometry, sampling, instancing | **done except Part 22 mesh editing** — see §6 |
 | 5 | Particles, forces, the staged solver, collisions | **done except sub-emission** — the analytic sampler is superseded (§2a). Part 12's event graph is a documented seam, not a feature; see §6 |
 | 6 | Renderers, materials, lights, trails/ribbons/beams | **done** — plus the three.js backend and the studio wiring |
-| 7 | Textures, shader graph, compositing | not started |
+| 7 | Textures, shader graph, compositing | **done** — see §4.5 |
 | 8 | Volumes, fluid foundation, pyro | not started. **Interface + architecture only when it is.** A CPU grid solver at useful resolutions is not viable in this renderer; the backend gets defined and left explicitly unimplemented rather than faked |
-| 9 | Baking, Roblox exporter, compatibility analyser | not started — will reuse the existing `exportMode` contract |
-| 10 | MCP control, verification, profiling, documentation | **done** — 22 `pnx_*` tools; docs are per-node and served from the registry |
-| 11 | Node library, node groups, examples, education hooks | not started |
+| 9 | Baking, Roblox exporter, compatibility analyser | **done** — field probing decides native/converted/baked; see §4.5 |
+| 10 | MCP control, verification, profiling, documentation | **done** — 31 `pnx_*` tools; docs are per-node and served from the registry |
+| 11 | Node library, node groups, examples, education hooks | **done** — the library registers no node types, which is the test; see §4.5 |
+| — | **The human-facing node editor** (not a spec phase; see §4.6) | **done** — `pnxNodeEditor.js`, registry-driven |
 
-### 4.1 What is actually built, as of the end of Phase 4
+### 4.1 What is actually built
 
-**326 node types across 17 modules, 166 Node-level tests** (`node test/pnxtest.mjs`, ~3s, no Electron), plus **7 in-app integration steps** in `test/smoketest.js`.
+**354 node types across 20 node modules and 27 categories, 224 Node-level tests** (`node test/pnxtest.mjs`, ~3s, no Electron — it registers 4 test-only types of its own, hence 358 there and 354 shipped), plus **21 in-app integration steps** in `test/smoketest.js`.
 
 PNX **is wired into the app**. A procedural effect is a third document mode in the VFX studio,
 exclusive with the two that existed (hand-edited layers, and the v1 node graph) — reachable from the
@@ -186,7 +187,8 @@ three.js backend, and no existing project, preset or export path was modified to
 | `render.js` `nodes/render` | Phase 6 — materials, render commands, the resolve pass |
 | `renderer-vfx/js/pnxBackend.js` | Phase 6 — the ONLY file in the engine that knows three.js exists |
 | `renderer-vfx/js/pnxStudio.js` | the studio session: one long-lived evaluator, the frame→draw-list pipeline, reporting |
-| `renderer-vfx/js/pnxMcp.js` | Phase 10 — 22 structured graph/introspection/verification handlers |
+| `renderer-vfx/js/pnxMcp.js` | Phase 10 — 31 structured graph/introspection/verification handlers, plus 6 `pnx_test_*` hooks the smoketest drives (§4.6) |
+| `renderer-vfx/js/pnxNodeEditor.js` | the human-facing canvas — registry-driven, bound to `ST.state.pnx` (§4.6) |
 | `nodes/debug` | Part 52 observability — always available, always pass-through |
 
 Three mechanisms carried that node count without copy-paste (Part 79): generic type variables,
@@ -316,6 +318,41 @@ into a flipbook therefore produced a sheet of identical cells, because the field
 flipbook asked for anything. `Sample Time` now exists as a separate node so the distinction is legible
 at a glance, and the trap is asserted in a test rather than only documented.
 
+### 4.6 The human-facing editor: what the audit found, and why almost no engine code changed
+
+The requirement was that anything Claude can construct through MCP, a person must be able to construct
+by hand on a canvas — one graph, two clients, no "AI graph" and "human graph". The audit asked whether
+that needed a foundational change, and the answer was no:
+
+- **MCP already wrote through the shared model.** Every `pnx_*` write goes through `ST.mutatePnx` and
+  `graph.js`, the same functions a canvas's pointer handlers would call. There was no bypass to remove.
+- **The editor was simply bound to the wrong document.** `nodeEditor.js` referenced `ST.state.graph`
+  ten times and `ST.state.pnx` zero times. It was the v1 canvas, and the procedural inspector pointed a
+  button at it that answered "this effect wasn't made with the node editor" — a control that argued
+  with the panel it sat on.
+- **The registry already held everything a UI needs.** 274 inputs carry a numeric range, 53 an
+  enumeration, 194 a unit, 69 a mode switch, 70 declare a preview, and every type has a colour. Nothing
+  had to be re-declared for the editor's benefit.
+
+So the work was a canvas bound to the registry (`renderer-vfx/js/pnxNodeEditor.js`), not a second
+catalogue. Controls are GENERATED from socket metadata — a dropdown for an enumeration, a slider only
+where the metadata gives a real bounded range, a colour swatch, a curve or gradient dialog — which is
+what stops 354 node types from becoming 354 hand-written panels, and is the mechanism that keeps
+Part 79 satisfied on the UI side as well as the engine side.
+
+**The parity check is structural, not a spot check.** The add palette calls `REG.currentNodes()`; the
+MCP catalogue calls `REG.catalogue()`. A smoketest step compares the two lists and demands they are
+identical, so a capability reachable only through Claude cannot be introduced without failing a test.
+
+**What the passing tests did not catch, and a screenshot did.** The first run against the real canvas
+was green on every assertion while being plainly wrong to look at: authored node coordinates predated
+boxes having one row per socket, so three nodes overlapped; at 210px wide, "Particle limit" and
+"Particle lifetime" both rendered as "Particle …"; and every number box and slider silently lost a
+specificity fight with `renderer/styles.css`'s `.modal-body input.fld { width: 100% }`, falling back to
+the browser's 178px default and hanging outside the node. Each is now asserted from the real DOM —
+box rectangles for overlap, `scrollWidth > clientWidth` for truncation, measured control widths — so
+the class of bug is caught by the suite rather than by whoever next opens the editor.
+
 ### 4.2 Decisions taken during implementation that the audit did not anticipate
 
 - **One `geometry` type, not four.** The spec lists Mesh, CurveGeometry and PointCloud separately. As
@@ -405,10 +442,8 @@ ask "does Cadence have this effect", but "how do I construct this effect". For 3
 - **Volume rendering is absent (Part 35), and cannot be registered by accident.** The `volume` type is
   declared `implemented: false`, so `registerNode()` refuses any node using it — a Volume Renderer
   button cannot exist until the raymarching backend does. Decal is absent for the same reason.
-- **The node editor does not yet edit PNX graphs.** `nodeEditor.js` is the v1 canvas; the procedural
-  inspector points at it, but per-node PNX parameter editing on the canvas is not built. Everything is
-  reachable through the 22 `pnx_*` MCP tools, which is what Part 59 asks for; a human editing a
-  procedural graph by hand needs canvas work that is its own piece.
+- **Sending a procedural effect to the animator's timeline still refuses** (see above) — that is the
+  remaining place where a procedural effect is second-class next to a layer-based one.
 - **Sub-emission is NOT built (Parts 12, 26).** "Spawn On Death" and "Spawn On Collision" need a
   second simulation driven by the first's events, with its own state, checkpoints and determinism
   argument. `solver.js` collects deaths and contacts as data and hands them to a sink, because that

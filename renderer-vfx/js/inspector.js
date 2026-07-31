@@ -7,6 +7,7 @@
 
 import * as ST from './studioState.js';
 import * as PNX from './pnxStudio.js';
+import { openPnxNodeEditor } from './pnxNodeEditor.js';
 import {
   getLayer, getModifier, setLayerProps, setClip, setCurveKey, clearCurve, addModifier,
   removeModifier, resolveProp, resolveModParam, propMetaFor,
@@ -587,18 +588,15 @@ function buildPnxPanel() {
     'Live particle simulations. Each keeps its own state and replays deterministically when you scrub backwards.');
   body.appendChild(sec);
 
-  // NO "open the node graph" BUTTON HERE, deliberately. The canvas in nodeEditor.js edits the V1
-  // graph, and in procedural mode state.graph is null \u2014 so a button pointing at it answered with
-  // "this effect wasn't made with the node editor", contradicting the panel it sat on. A control that
-  // promises something and then argues with you is worse than no control at all, so this states what
-  // is actually true until a procedural canvas exists.
   const openSec = section('Editing');
-  const how = el('div', '', 'A procedural effect is edited through its graph, and there is no canvas for it yet. Ask Claude to build or change it \u2014 it has full structured access to every node.');
-  how.style.cssText = 'padding:2px 2px 8px;font-size:11.5px;line-height:1.5;color:var(--text-2);';
+  const openBtn = el('button', 'tb-btn primary', '\u2728 Open the node graph');
+  openBtn.style.width = '100%';
+  openBtn.title = 'Every part of a procedural effect is a node you can see and edit';
+  openBtn.addEventListener('click', () => openPnxNodeEditor());
+  openSec.appendChild(openBtn);
+  const how = el('div', '', 'The graph is the effect \u2014 every field, force, material and renderer is a node you can rewire. Claude edits the same graph, so anything it builds opens here.');
+  how.style.cssText = 'padding:8px 2px 0;font-size:11px;line-height:1.5;color:var(--text-2);opacity:.75;';
   openSec.appendChild(how);
-  const recipes = el('div', '', 'It can also list the built-in node groups \u2014 Curl Motion, Fire Turbulence, Soft Glow, Radial Burst, Dissolve \u2014 add one, and wire it in.');
-  recipes.style.cssText = 'padding:2px;font-size:11px;line-height:1.5;opacity:.6;';
-  openSec.appendChild(recipes);
   body.appendChild(openSec);
 
   const warnSec = section('Warnings');

@@ -25,6 +25,7 @@ import { pnxDrawStats } from './preview.js';
 import * as PGRAPH from '../../renderer/js/pnx/graph.js';
 import * as PGROUPS from '../../renderer/js/pnx/groups.js';
 import * as PLIB from '../../renderer/js/pnx/library.js';
+import { openPnxNodeEditor, closePnxNodeEditor, isPnxEditorOpen, pnxEditorRoot } from './pnxNodeEditor.js';
 import * as REG from '../../renderer/js/pnx/registry.js';
 import * as RENDER from '../../renderer/js/pnx/render.js';
 import { formatType } from '../../renderer/js/pnx/types.js';
@@ -263,6 +264,171 @@ export const PNX_HANDLERS = {
       // travels with it (Part 72).
       teaches: r.teaches,
     });
+  },
+
+  // ---------------------------------------------------------------- test hooks
+  // Test-only, and named so. These exist because the smoketest runs in the ANIMATOR window while the
+  // editor lives here in the studio window, so a test cannot reach these modules directly. They follow
+  // the precedent set by vfx_graph_test_apply: drive the SAME code path the UI drives, so a passing
+  // test says something about the real thing.
+  //
+  // pnx_test_human_edit deliberately goes through ST.mutatePnx + PGRAPH.* — which is exactly what the
+  // canvas's own pointer handlers call — rather than through the pnx_* handlers above. That is the
+  // point: if the editor and MCP were two systems, these two paths would write to two places.
+  pnx_test_human_edit({ ops }) {
+    requirePnx();
+    const made = {};
+    ST.mutatePnx((g) => {
+      for (const op of ops || []) {
+        if (op.op === 'add') {
+          const n = PGRAPH.newNode(g, op.type, op.x || 0, op.y || 0, { values: op.values || {} });
+          made[op.as] = n.id;
+        } else if (op.op === 'connect') {
+          const r = PGRAPH.connect(g, made[op.from] || op.from, op.fromSocket, made[op.to] || op.to, op.toSocket);
+          if (!r.ok) throw new Error(`human connect failed: ${r.reason}`);
+        } else if (op.op === 'setValue') {
+          PGRAPH.setNodeValue(g, made[op.node] || op.node, op.socket, op.value);
+        } else if (op.op === 'remove') {
+          PGRAPH.removeNode(g, made[op.node] || op.node);
+        }
+      }
+    }, { structural: true });
+    return { ok: true, ids: made };
+  },
+
+  // Opens the real canvas and reports what it actually drew, so the claim "a human can see and edit
+  // this graph" is checked against the DOM rather than asserted.
+  pnx_test_open_editor() {
+    requirePnx();
+    openPnxNodeEditor();
+    // Scoped to THIS editor's root, never to the document: a closing modal lingers for its 220ms
+    // fade, so a document-wide query straight after a close counts the old graph's nodes too and
+    // every box looks like it overlaps every other one.
+    const scope = pnxEditorRoot() || document;
+    const boxes = scope.querySelectorAll('.pnx-node');
+    const sockets = scope.querySelectorAll('.pnx-socket');
+    const controls = scope.querySelectorAll('.pnx-ctrl, .pnx-vec input, .pnx-swatch, .pnx-mini, .pnx-ctrl-check');
+    const socketColours = new Set([...sockets].map((d) => d.style.background).filter(Boolean));
+    const titles = [...boxes].map((b) => b.querySelector('.node-box-title')?.textContent || '');
+
+    // Laid-out geometry, read back off the real boxes rather than recomputed from the constants — a
+    // box's height depends on how many sockets its node has, so authored coordinates that looked fine
+    // in a diagram can stack three nodes on top of each other the moment one gains an input.
+    const rects = [...boxes].map((b) => {
+      const r = b.getBoundingClientRect();
+      return { title: b.querySelector('.node-box-title')?.textContent || '', x: r.left, y: r.top, w: r.width, h: r.height };
+    });
+    // A label that ellipsised has scrollWidth wider than the space it got. Reported as a count so the
+    // test can demand zero rather than eyeballing a screenshot.
+    const labels = [...scope.querySelectorAll('.pnx-row-label')];
+    const clipped = labels.filter((l) => l.scrollWidth > l.clientWidth + 1).map((l) => l.textContent);
+    // Same question for the value boxes, where clipping shows a WRONG number ("0.4" for 0.45).
+    const nums = [...scope.querySelectorAll('.pnx-num .pnx-ctrl, .pnx-vec .fld')];
+    const clippedValues = nums.filter((i) => i.scrollWidth > i.clientWidth + 1).map((i) => i.value);
+
+    return {
+      open: isPnxEditorOpen(),
+      boxes: boxes.length,
+      sockets: sockets.length,
+      controls: controls.length,
+      distinctSocketColours: socketColours.size,
+      previews: scope.querySelectorAll('.pnx-preview').length,
+      titles, rects, clipped, clippedValues,
+      metrics: (() => {
+        // Widths of the controls, so a test can catch a control silently losing a specificity fight
+        // with the base stylesheet (see the note above .pnx-ctrl in styles.css) instead of that
+        // showing up only as sliders hanging outside their node in a screenshot.
+        const box = boxes[0];
+        const wid = (sel) => scope.querySelector(sel)?.offsetWidth ?? null;
+        return {
+          box: box?.offsetWidth,
+          headerH: box?.querySelector('.node-box-header')?.offsetHeight,
+          rowH: scope.querySelector('.pnx-row-in')?.offsetHeight,
+          num: wid('.pnx-num'), slider: wid('.pnx-slider'), vec: wid('.pnx-vec'),
+        };
+      })(),
+    };
+  },
+
+  // The add palette, driven the way a person drives it: type, then look at what comes back.
+  pnx_test_palette({ query = '', keepOpen = false } = {}) {
+    requirePnx();
+    if (!isPnxEditorOpen()) openPnxNodeEditor();
+    const scope = pnxEditorRoot() || document;
+    const btn = [...scope.querySelectorAll('.node-editor-toolbar .tb-btn')].find((b) => /Add node/.test(b.textContent));
+    if (btn) btn.click();
+    const palette = document.querySelector('.pnx-palette');
+    if (!palette) return { opened: false };
+    const input = palette.querySelector('.pnx-palette-search');
+    if (query) {
+      input.value = query;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const rows = [...palette.querySelectorAll('.pnx-palette-row')];
+    const result = {
+      opened: true,
+      results: rows.length,
+      labels: rows.slice(0, 8).map((r) => r.querySelector('.pnx-palette-label')?.textContent || ''),
+      hasDescriptions: rows.every((r) => (r.querySelector('.pnx-palette-desc')?.textContent || '').length > 0),
+      hasCategories: rows.every((r) => (r.querySelector('.pnx-palette-badge')?.textContent || '').length > 0),
+    };
+    if (!keepOpen) palette.remove();
+    return result;
+  },
+
+  // Waits for the modal's fade-out to finish removing it, so the next open starts from a clean DOM.
+  async pnx_test_close_editor() {
+    document.querySelector('.pnx-palette')?.remove();
+    closePnxNodeEditor();
+    await new Promise((r) => setTimeout(r, 300));
+    return { ok: true, open: isPnxEditorOpen(), stale: document.querySelectorAll('.pnx-editor').length };
+  },
+
+  // Round-trips the graph through the REAL on-disk save format, not an in-memory clone: touch() drives
+  // the same debounced autosave a person's edit drives, and restoreAutosave() reads the file back. The
+  // close in between matters — without it a reload that silently did nothing would still "pass",
+  // because the graph would already be sitting in memory.
+  async pnx_test_save_reload() {
+    const before = Object.keys(requirePnx().nodes).length;
+    ST.touch();
+    await new Promise((r) => setTimeout(r, 1200)); // the 800ms debounce plus the write
+    ST.closePnx();
+    if (ST.isPnxMode()) return { ok: false, error: 'closePnx left the graph in memory; the reload would prove nothing' };
+    const restored = await ST.restoreAutosave();
+    if (!restored) return { ok: false, error: 'restoreAutosave() found nothing to restore' };
+    if (!ST.isPnxMode()) return { ok: false, error: 'the file reloaded as a layer document — the procedural graph was not saved' };
+    return { ok: true, before, after: Object.keys(ST.state.pnx.nodes).length };
+  },
+
+  // The palette and the MCP catalogue, compared as lists. The palette calls REG.currentNodes() and
+  // pnx_catalogue calls REG.catalogue(); both read the one registry, so this passes structurally and
+  // fails the moment anyone introduces a second list for either client.
+  pnx_test_registry_parity() {
+    const human = REG.currentNodes().map((n) => n.id).sort();
+    const claude = REG.catalogue().map((n) => n.id).sort();
+    const onlyHuman = human.filter((id) => !claude.includes(id));
+    const onlyClaude = claude.filter((id) => !human.includes(id));
+
+    // Every node the palette can place must carry what the canvas builds its controls from.
+    let missingMetadata = 0;
+    for (const id of human) {
+      const d = REG.describeNode(id);
+      if (!d || !d.label || !d.summary || !d.category || !Array.isArray(d.inputs) || !Array.isArray(d.outputs)) missingMetadata++;
+    }
+
+    const swirl = REG.searchNodes('swirl', { limit: 8 }).map((n) => n.label);
+    const fade = REG.searchNodes('fade', { limit: 8 }).map((n) => n.label);
+    return {
+      same: onlyHuman.length === 0 && onlyClaude.length === 0,
+      detail: onlyHuman.length || onlyClaude.length
+        ? `only in the palette: ${onlyHuman.slice(0, 5).join(', ')}; only in the catalogue: ${onlyClaude.slice(0, 5).join(', ')}`
+        : 'identical',
+      count: human.length,
+      missingMetadata,
+      swirl, fade,
+      swirlFindsCurl: swirl.some((l) => /curl|vortex|turbulen/i.test(l)),
+      fadeFindsFading: fade.some((l) => /fade|map range|gradient|lerp|age|alpha|opacity/i.test(l)),
+    };
   },
 
   // ---------------------------------------------------------------- introspection (Part 60)

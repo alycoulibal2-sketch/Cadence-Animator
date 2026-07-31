@@ -17,6 +17,7 @@ import { buildEffectLua } from '../../renderer/js/effectExport.js';
 import { toast, modal } from '../../renderer/js/ui.js';
 import { applyStaticIcons, swapIcon } from '../../renderer/js/icons.js';
 import { isNodeEditorOpen, openNodeEditor } from './nodeEditor.js';
+import { openPnxNodeEditor } from './pnxNodeEditor.js';
 import * as PNX from './pnxStudio.js';
 
 // ---------------------------------------------------------------- transport
@@ -99,7 +100,10 @@ function initTitlebar() {
   // node-authored, starts a fresh graph first — same "replaces the doc as one undo step" contract
   // every other doc-replacing action here already uses (newBlankDoc/Open/apply preset), so
   // Ctrl+Z still restores whatever was open, no separate confirm dialog needed.
+  // One button, two graph kinds: a procedural effect opens the procedural canvas, anything else opens
+  // the v1 one. The user should not have to know which document model they are in to press "Nodes".
   document.getElementById('nodesBtn').addEventListener('click', () => {
+    if (ST.isPnxMode()) { openPnxNodeEditor(); return; }
     if (!ST.state.graph) {
       ST.newBlankGraph();
       toast('Started a new node graph — Ctrl+Z restores what was open');
