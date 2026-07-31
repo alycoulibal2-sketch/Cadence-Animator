@@ -68,7 +68,7 @@
     <h1>Everything, in the order you need it.</h1>
     <p class="lede">
       Install, connect Roblox Studio, animate a rig, export it, and — if you want — hand the whole
-      thing to Claude. Written against Cadence <span data-version>0.9.0</span>.
+      thing to Claude. Written against Cadence <span data-version>0.10.0</span>.
     </p>
   </div>
 
@@ -497,17 +497,21 @@ npm start</code></pre>
 
         <h3>How you edit one</h3>
         <p>
-          Through Claude, for now. There is no canvas for procedural graphs yet &mdash; the node editor
-          in VFX Studio edits the older v1 graph, not this one. Claude has full structured access to
-          every node: it can search the catalogue, read a node's exact sockets and units before using
-          it, add and wire nodes, mute a branch to find what is responsible, inspect what any socket is
-          actually producing at a frame, and verify across a range of frames.
+          On the canvas, in VFX Studio &mdash; press <strong>Nodes</strong>, or
+          <strong>Open the node graph</strong> in the inspector. Every node in the catalogue is in the
+          add palette, which is search-first because a nested menu over 354 types is a worse tool than
+          a text box: type <em>swirl</em> and Curl Noise comes up. Sockets are coloured by type and
+          light up while you drag a wire to show what will accept it, values are edited in place, and
+          a node group opens so you can see what it is made of.
         </p>
         <p>
-          Ask for what you want &mdash; &ldquo;make the smoke swirl more and fade to blue&rdquo; &mdash;
-          rather than for particular nodes. It can also pull in a ready-made node group (Curl Motion,
-          Fire Turbulence, Soft Glow, Radial Burst, Dissolve and others), each of which is a
-          composition of primitives you can open up and take apart.
+          Claude edits the same graph through the same model &mdash; it is a second pair of hands, not a
+          privileged one. Anything it builds opens on the canvas as the actual nodes that produced it,
+          and anything you change there it reads back immediately. Ask for what you want &mdash;
+          &ldquo;make the smoke swirl more and fade to blue&rdquo; &mdash; rather than for particular
+          nodes, and take over by hand whenever you would rather place them yourself. It can also pull
+          in a ready-made node group (Curl Motion, Fire Turbulence, Soft Glow, Radial Burst, Dissolve
+          and others), each of which is a composition of primitives you can open up and take apart.
         </p>
         <p class="muted">
           The inspector shows what the effect is doing while you work: node and connection counts, how
@@ -909,7 +913,7 @@ npm start</code></pre>
     </div>
 
     <div class="footer-base">
-      <span>Cadence Animator <span data-version>0.9.0</span> &middot; MIT licence</span>
+      <span>Cadence Animator <span data-version>0.10.0</span> &middot; MIT licence</span>
       <span>Not affiliated with Roblox Corporation or Moon Animator.</span>
     </div>
   </div>
