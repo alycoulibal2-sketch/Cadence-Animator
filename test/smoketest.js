@@ -61,6 +61,22 @@
     }
   }
   function assert(cond, msg) { if (!cond) throw new Error('assertion failed: ' + msg); }
+  // Wait for a condition instead of guessing how long something takes. A fixed sleep is either too
+  // short on a loaded machine (a false failure that looks like a real one) or wasted time on an idle
+  // one; this is both faster and honest. Times out well inside the per-step timeout so a genuine
+  // hang still reports as this check rather than as the step timing out.
+  async function waitFor(cond, what, { timeoutMs = 20000, everyMs = 100 } = {}) {
+    const t0 = performance.now();
+    for (;;) {
+      let ok = false;
+      try { ok = !!cond(); } catch (_) { ok = false; }
+      if (ok) return performance.now() - t0;
+      if (performance.now() - t0 > timeoutMs) {
+        throw new Error(`timed out after ${Math.round(timeoutMs / 1000)}s waiting for ${what}`);
+      }
+      await new Promise((r) => setTimeout(r, everyMs));
+    }
+  }
   function resolveProjectPath(relFromRoot) {
     const url = new URL('../' + relFromRoot, window.location.href);
     let p = decodeURIComponent(url.pathname);
@@ -1102,7 +1118,12 @@
     const rig = structuredClone(builtins.r6);
     rig.clothing = { shirt: 'rbxassetid://3670737337', pants: 'rbxassetid://129458425' };
     const item = D.addRigItem(rig, 'ClothingCheck');
-    await new Promise((r) => setTimeout(r, 6000));
+    // Poll for the composite rather than sleeping a fixed 6s. Compositing downloads Roblox's own
+    // templates and rasterises several canvases, so on a loaded machine it overruns any fixed wait —
+    // this step failed on timing alone during a release run, which makes the gate untrustworthy
+    // exactly when it is being relied on. Waiting for the CONDITION is also faster when idle.
+    await waitFor(() => D.getInstance(item.id)?.parts.get('Left Arm')?.mesh.material.map?.image,
+      'the R6 clothing composite');
     const inst = D.getInstance(item.id);
     const arm = inst.parts.get('Left Arm');
     const tris = arm.mesh.geometry.index ? arm.mesh.geometry.index.count / 3 : 0;
@@ -1125,13 +1146,21 @@
     const rig15 = structuredClone(builtins.r15);
     rig15.clothing = rig.clothing;
     const item15 = D.addRigItem(rig15, 'ClothingCheck15');
-    await new Promise((r) => setTimeout(r, 8000));
-    const inst15 = D.getInstance(item15.id);
     const expect = {
       UpperTorso: [388, 264], LowerTorso: [388, 264],
       LeftUpperArm: [264, 284], LeftHand: [264, 284],
       RightUpperLeg: [264, 284], RightFoot: [264, 284],
     };
+    // R15 composites one canvas per body GROUP, and the groups finish independently — so the wait has
+    // to cover every part the assertions below touch, not a representative few. Waiting on three of
+    // them let the check run while LeftUpperLeg still had a null map, which reported as a null
+    // dereference rather than as the timing problem it was.
+    const inspected = [...Object.keys(expect), 'LeftUpperLeg'];
+    await waitFor(() => {
+      const i = D.getInstance(item15.id);
+      return i && inspected.every((n) => i.parts.get(n)?.mesh.material.map?.image);
+    }, 'the R15 per-group clothing composites');
+    const inst15 = D.getInstance(item15.id);
     for (const [name, base] of Object.entries(expect)) {
       const size = base.map((v) => v * ATLAS_SCALE);
       const m15 = inst15.parts.get(name).mesh.material.map;
