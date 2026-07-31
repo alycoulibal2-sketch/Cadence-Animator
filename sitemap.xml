@@ -3,12 +3,12 @@
      page is ever added, add it here too. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://alycoulibal2-sketch.github.io/Cadence-Animator/</loc>
+    <loc>https://cadenceanimator.js.org/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://alycoulibal2-sketch.github.io/Cadence-Animator/docs.html</loc>
+    <loc>https://cadenceanimator.js.org/docs.html</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>

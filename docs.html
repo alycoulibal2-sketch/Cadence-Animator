@@ -6,11 +6,11 @@
 <title>Documentation — Cadence Animator</title>
 <meta name="description" content="How to install Cadence Animator, connect Roblox Studio, animate your first rig, export a KeyframeSequence, set up the MCP server for Claude, and every keyboard shortcut.">
 <meta name="theme-color" content="#0a0a0e">
-<link rel="canonical" href="https://alycoulibal2-sketch.github.io/Cadence-Animator/docs.html">
+<link rel="canonical" href="https://cadenceanimator.js.org/docs.html">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Documentation — Cadence Animator">
 <meta property="og:description" content="Install, connect Studio, animate, export, and drive Cadence from Claude.">
-<meta property="og:url" content="https://alycoulibal2-sketch.github.io/Cadence-Animator/docs.html">
+<meta property="og:url" content="https://cadenceanimator.js.org/docs.html">
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/css/site.css">
 <!-- Sets the .js hook before first paint, so the scroll-reveal rules only
@@ -107,12 +107,11 @@
         <li><a href="#shortcuts">Shortcuts</a></li>
       </ul>
 
-      <p class="toc-label">Maintenance</p>
+      <p class="toc-label">Keeping it running</p>
       <ul>
         <li><a href="#autosave">Autosave</a></li>
         <li><a href="#updating">Updating</a></li>
         <li><a href="#troubleshooting">Troubleshooting</a></li>
-        <li><a href="#releasing">Cutting a release</a></li>
       </ul>
     </aside>
 
@@ -855,30 +854,6 @@ npm start</code></pre>
         </p>
       </section>
 
-      <section id="releasing">
-        <h2>Cutting a release</h2>
-        <p class="muted">For maintainers. Skip this unless you are shipping a build.</p>
-        <ol>
-          <li>Bump <code>version</code> in <code>package.json</code>, then
-            <code>npm install --package-lock-only</code> to re-sync the lockfile. The updater compares
-            against this, so it must go up.</li>
-          <li><code>npm run smoketest</code> — 66 checks in the real app. It wipes
-            <code>test-output/userdata</code> itself now; kill stray <code>electron</code> processes
-            first.</li>
-          <li><code>GH_TOKEN="$(gh auth token)" npm run release</code> — builds the installer and
-            portable exe and publishes a GitHub release with them attached.</li>
-          <li><strong>Update this website.</strong> Run <code>node site/tools/gen-shortcuts.js</code>
-            if any keybind changed, refresh the version, sizes and checksums on the download page,
-            and add anything new to the feature list. See
-            <code>site/README.md</code> for the full checklist.</li>
-        </ol>
-        <div class="note">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1" stroke-linecap="round"/></svg>
-          <span>The site's download buttons also read the newest release from the GitHub API at page
-          load, so they self-heal to a new version even before the site is redeployed. The hardcoded
-          links stay as the no-JavaScript fallback — which is exactly why step 4 still matters.</span>
-        </div>
-      </section>
 
     </div>
   </div>
