@@ -125,8 +125,9 @@ function sendJson(req, res, status, obj, cacheable = false) {
   }
 }
 
-// deps: { sendToRenderer(type, payload, timeoutMs) -> Promise, robloxAssets, notifyClientConnected }
-function createMobileServer({ sendToRenderer, robloxAssets, notifyClientConnected }) {
+// deps: { sendToRenderer(type, payload, timeoutMs) -> Promise, robloxAssets, notifyClientConnected,
+//         notifyClientCount(n) }
+function createMobileServer({ sendToRenderer, robloxAssets, notifyClientConnected, notifyClientCount }) {
   let httpServer = null;
   let wss = null;
   let token = null;
@@ -251,10 +252,11 @@ function createMobileServer({ sendToRenderer, robloxAssets, notifyClientConnecte
       wss.handleUpgrade(req, socket, head, (ws) => {
         clients.add(ws);
         ws.on('message', (raw) => handleWsMessage(ws, raw));
-        ws.on('close', () => clients.delete(ws));
+        ws.on('close', () => { clients.delete(ws); notifyClientCount?.(clients.size); });
         // Ask the renderer for a fresh full snapshot right away — otherwise a phone connecting
         // while the desktop is sitting idle (nothing changing, so nothing would otherwise ever
         // broadcast) would see a blank viewer until the next real edit happens.
+        notifyClientCount?.(clients.size);
         notifyClientConnected?.();
       });
     });
@@ -281,6 +283,7 @@ function createMobileServer({ sendToRenderer, robloxAssets, notifyClientConnecte
     if (wss) { wss.close(); wss = null; }
     if (httpServer) { httpServer.close(); httpServer = null; }
     token = null;
+    notifyClientCount?.(0);
   }
 
   return { start, stop, status, broadcastState, setEditingAllowed, MOBILE_PORT };

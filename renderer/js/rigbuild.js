@@ -59,6 +59,45 @@ function configureTexture(tex) {
   return tex;
 }
 
+// ---------------------------------------------------------------- shared customTexture cache
+// One baked atlas usually covers a whole imported rig, so every part carries the SAME data URI.
+// Loading per part decoded and uploaded that image once per part: a real 16-part rig turned one
+// 2048x2048 atlas into 15 separate GPU textures — 330MB of VRAM instead of 22MB, which on shared/
+// integrated graphics spills out of VRAM and drags the whole viewport down.
+//
+// Keyed by the data URI itself. Map compares strings by value, so this dedups whether or not the
+// parts happen to share one string instance (they do after state.js's unpackProject, but a rig
+// built live by importExternalMesh has genuinely distinct strings of identical content).
+// Refcounted because instances are disposed independently — the last one out disposes the texture.
+const sharedTexCache = new Map(); // dataUri -> { promise, tex, refs }
+
+function acquireTexture(uri) {
+  let e = sharedTexCache.get(uri);
+  if (!e) {
+    e = { tex: null, refs: 0, promise: null };
+    e.promise = new Promise((resolve) => {
+      texLoader.load(uri, (tex) => {
+        configureTexture(tex);
+        e.tex = tex;
+        resolve(tex);
+      }, undefined, () => resolve(null));
+    });
+    sharedTexCache.set(uri, e);
+  }
+  e.refs++;
+  return e.promise;
+}
+
+function releaseTexture(uri) {
+  const e = sharedTexCache.get(uri);
+  if (!e) return;
+  if (--e.refs > 0) return;
+  sharedTexCache.delete(uri);
+  // May still be in flight — dispose whenever it lands, so an instance disposed mid-load can't
+  // leak the texture it never got to show.
+  e.promise.then((tex) => tex?.dispose());
+}
+
 function loadRobloxTexture(texId) {
   const id = String(texId).match(/(\d{4,})/)?.[1];
   if (!id) return Promise.resolve(null);
@@ -565,9 +604,11 @@ export class RigInstance {
     this.welds = [];          // rigid attachments
     this.jointByPart1 = new Map();
     this.solveOrder = null;
+    this.solveSteps = null;   // set alongside solveOrder by #computeSolveOrder
     this.tmpM = new THREE.Matrix4();
     this.showRoot = false;
     this.handles = [];        // [{ joint, part0Id, mesh }] — always-visible clickable joint markers
+    this.sharedTextures = []; // customTexture data URIs this instance holds a ref on (see dispose)
 
     const rig = item.rig;
     this.partDefsByName = new Map(rig.parts.map((p) => [p.name, p]));
@@ -671,8 +712,10 @@ export class RigInstance {
     // meshImport.js) — no CDN, no async race with the real-mesh-fetch path below (customMesh
     // parts never have a meshId, so that path is always skipped for these), just load it.
     if (def.customTexture) {
-      texLoader.load(def.customTexture, (tex) => {
-        configureTexture(tex);
+      const uri = def.customTexture;
+      this.sharedTextures.push(uri);
+      acquireTexture(uri).then((tex) => {
+        if (!tex) return;
         material.map = tex;
         material.color.set('#ffffff');
         material.needsUpdate = true;
@@ -917,6 +960,15 @@ export class RigInstance {
       }
     }
     this.solveOrder = order;
+    // Per-joint constants, resolved once instead of per frame. #solve runs for every part of every
+    // item on every rAF tick (and once more per onion-skin ghost frame), and both of these are
+    // fixed by the rig definition — c1 never changes, so inverting it 60 times a second per joint
+    // was pure waste, as was the isMotor identity lookup.
+    this.solveSteps = order.map((j) => ({
+      j,
+      isMotor: this.jointByPart1.get(j.part1) === j,
+      c1Inv: CF.inverse(j.c1),
+    }));
     // parts never reached by a joint keep a rigid offset from the root
     this.staticParts = [];
     const rootDef = this.parts.get(rootId)?.def;
@@ -938,8 +990,8 @@ export class RigInstance {
   #solve(pose, originCF, out, unparented) {
     const rootId = this.item.rig.rootPart;
     out.set(rootId, originCF);
-    for (const j of this.solveOrder) {
-      const isMotor = this.jointByPart1.get(j.part1) === j;
+    for (const step of this.solveSteps) {
+      const { j, isMotor, c1Inv } = step;
       if (isMotor && unparented && unparented.has(j.name) && pose[j.name]) {
         out.set(j.part1, CF.mul(originCF, pose[j.name]));
         continue;
@@ -948,7 +1000,7 @@ export class RigInstance {
       if (!p0World) continue;
       const transform = isMotor ? (pose[j.name] || CF.IDENTITY) : CF.IDENTITY;
       // Part1 = Part0 * C0 * Transform * C1^-1
-      out.set(j.part1, CF.mul(CF.mul(CF.mul(p0World, j.c0), transform), CF.inverse(j.c1)));
+      out.set(j.part1, CF.mul(CF.mul(CF.mul(p0World, j.c0), transform), c1Inv));
     }
     for (const s of this.staticParts) {
       out.set(s.id, CF.mul(originCF, s.rel));
@@ -1153,13 +1205,23 @@ export class RigInstance {
 
   dispose() {
     this.scene.remove(this.group);
+    // Textures from the shared customTexture cache are refcounted and may still be in use by
+    // another instance (two items importing the same model, or a refreshInstance() rebuild) —
+    // hand the ref back instead of disposing, and skip them in the traverse below.
+    const shared = new Set();
+    for (const uri of this.sharedTextures) {
+      const e = sharedTexCache.get(uri);
+      if (e && e.tex) shared.add(e.tex);
+      releaseTexture(uri);
+    }
+    this.sharedTextures.length = 0;
     this.group.traverse((o) => {
       // handle geometries are shared module-level constants — never dispose those, or every
       // OTHER still-live instance loses them too.
       if (o.geometry && o.geometry !== handleGeoNormal && o.geometry !== handleGeoSmall
         && o.geometry !== SEL_BOX_GEO && o.geometry !== PART_MARKER_GEO) o.geometry.dispose();
       if (o.material) {
-        if (o.material.map) o.material.map.dispose();
+        if (o.material.map && !shared.has(o.material.map)) o.material.map.dispose();
         o.material.dispose();
       }
     });

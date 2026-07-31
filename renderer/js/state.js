@@ -122,8 +122,72 @@ export function newProject(name = 'Untitled') {
   scheduleAutosave();
 }
 
+// ---------------------------------------------------------------- texture library (on-disk dedup)
+// An imported mesh rig bakes ONE atlas and every part it covers stores its own copy of that same
+// multi-MB data URI. Measured on a real 16-part rig: the identical 5.1 MB texture appeared 15
+// times, so 77 MB of an 85.6 MB project file — and 22 s of read+parse — was the same bytes over
+// and over. On the wire the project now carries a `textureLib` (key -> data URI) and each part's
+// `customTexture` is a `@texlib:<key>` reference instead.
+//
+// In memory nothing changes: parts always hold the real data URI, exactly as before, so every
+// other module (rigbuild, export, MCP, clothing) is untouched. The one deliberate extra guarantee
+// is that unpack hands every duplicate THE SAME string instance — which is what lets rigbuild's
+// GPU texture cache collapse them to a single upload by identity rather than by content compare.
+const TEX_REF = '@texlib:';
+
+function eachTexturedPart(p, fn) {
+  for (const it of p.items || []) {
+    for (const pt of (it.rig && it.rig.parts) || []) {
+      if (typeof pt.customTexture === 'string') fn(pt);
+    }
+  }
+}
+
+// Bucket by length first, then compare with `===`. Exact (no hash-collision risk of handing a part
+// the wrong atlas) and cheaper than hashing: identical instances short-circuit on pointer equality,
+// and only same-length candidates ever reach a byte compare.
+export function packProject(p) {
+  if (!p || !Array.isArray(p.items)) return p;
+  const lib = Object.create(null);
+  const byLen = new Map();
+  let n = 0, found = false;
+  const refs = new Map(); // part -> ref string
+  eachTexturedPart(p, (pt) => {
+    const uri = pt.customTexture;
+    if (uri.startsWith(TEX_REF)) return;
+    let bucket = byLen.get(uri.length);
+    if (!bucket) { bucket = []; byLen.set(uri.length, bucket); }
+    let key = null;
+    for (const e of bucket) if (e.uri === uri) { key = e.key; break; }
+    if (!key) { key = `t${n++}`; bucket.push({ key, uri }); lib[key] = uri; }
+    refs.set(pt, TEX_REF + key);
+    found = true;
+  });
+  if (!found) return p;
+  // Shallow copies only — the heavy strings move by reference, never cloned.
+  const items = p.items.map((it) => {
+    const parts = it.rig && it.rig.parts;
+    if (!Array.isArray(parts) || !parts.some((pt) => refs.has(pt))) return it;
+    return { ...it, rig: { ...it.rig, parts: parts.map((pt) => (refs.has(pt) ? { ...pt, customTexture: refs.get(pt) } : pt)) } };
+  });
+  return { ...p, items, textureLib: lib };
+}
+
+export function unpackProject(p) {
+  const lib = p && p.textureLib;
+  if (!lib) return p;
+  eachTexturedPart(p, (pt) => {
+    if (!pt.customTexture.startsWith(TEX_REF)) return;
+    const hit = lib[pt.customTexture.slice(TEX_REF.length)];
+    if (hit === undefined) delete pt.customTexture; // dangling ref — a flat colour beats a broken URI
+    else pt.customTexture = hit;                    // same instance for every duplicate, deliberately
+  });
+  delete p.textureLib;
+  return p;
+}
+
 export function loadProject(json, filePath = null) {
-  const p = typeof json === 'string' ? JSON.parse(json) : json;
+  const p = unpackProject(typeof json === 'string' ? JSON.parse(json) : json);
   if (!p || !Array.isArray(p.items)) throw new Error('Not a valid Cadence project file');
   p.id = p.id || crypto.randomUUID();
   p.groups = p.groups || [];
@@ -140,7 +204,7 @@ export function loadProject(json, filePath = null) {
 }
 
 export function serialize() {
-  return JSON.stringify(state.project);
+  return JSON.stringify(packProject(state.project));
 }
 
 // ---------------------------------------------------------------- undo/redo
@@ -251,23 +315,45 @@ export function markDirty() {
   emit('dirty');
   scheduleAutosave();
 }
-function scheduleAutosave() {
+// JSON.stringify is synchronous and blocks the renderer thread, so on a big project the autosave
+// itself is a visible freeze. Rather than pick one interval that is either too slow to be safe on
+// small projects or too aggressive on large ones, the debounce is derived from how long the last
+// serialize actually took: the pause budget stays near 10% of wall-clock either way. Small
+// projects (sub-millisecond serialize) keep the original 600ms; the 85MB mesh rig that used to
+// stall for ~700ms every 600ms backs off instead of spending most of its time serializing.
+const AUTOSAVE_MIN_MS = 600;
+const AUTOSAVE_MAX_MS = 15000;
+let lastSerializeMs = 0;
+function autosaveDelay() {
+  return Math.min(AUTOSAVE_MAX_MS, Math.max(AUTOSAVE_MIN_MS, Math.round(lastSerializeMs * 10)));
+}
+function scheduleAutosave(explicitProject) {
   // Capture *this* project object now, not just "whatever state.project is" — newProject()/
   // loadProject() reassign state.project to a brand-new object rather than mutating the old one
-  // in place, so without this capture a project-switch inside the 600ms debounce window (e.g. a
+  // in place, so without this capture a project-switch inside the debounce window (e.g. a
   // rapid edit immediately followed by Ctrl+N) would cancel the pending write for the outgoing
   // project and silently redirect it onto the incoming blank one, losing the last edit(s) for
   // good. Ongoing edits to the *same* project are unaffected: each edit re-captures the (still
   // current) object reference, and its in-place mutations are naturally visible when the timer
   // fires and serializes it.
-  const project = state.project;
+  const project = explicitProject || state.project;
   clearTimeout(autosaveTimer);
-  autosaveTimer = setTimeout(() => doAutosave(project), 600);
+  autosaveTimer = setTimeout(() => doAutosave(project), autosaveDelay());
+}
+// What the recovery picker needs to label an entry, so it never has to read the file to find out.
+function autosaveMeta(project) {
+  return { name: project.name, itemCount: (project.items || []).length, hasAudio: !!project.audio };
 }
 async function doAutosave(project) {
   if (!project) return;
+  // Never serialize mid-playback: it is the one time a multi-hundred-millisecond block is
+  // guaranteed to be seen as a stutter. The edit is not dropped, just deferred to the next tick.
+  if (state.playing) { scheduleAutosave(project); return; }
   try {
-    await window.cadence.autosaveWrite(project.id, JSON.stringify(project));
+    const t0 = performance.now();
+    const json = JSON.stringify(packProject(project));
+    lastSerializeMs = performance.now() - t0;
+    await window.cadence.autosaveWrite(project.id, json, autosaveMeta(project));
     lastAutosave = Date.now();
     emit('autosaved', lastAutosave);
   } catch (e) {
@@ -280,7 +366,7 @@ async function doAutosave(project) {
 // fired the write and returned immediately with no guarantee it ever finished in time.
 window.cadence.onFlushBeforeClose(async () => {
   if (state.project) {
-    try { await window.cadence.autosaveWrite(state.project.id, serialize()); } catch (_) { }
+    try { await window.cadence.autosaveWrite(state.project.id, serialize(), autosaveMeta(state.project)); } catch (_) { }
   }
   window.cadence.flushComplete();
 });

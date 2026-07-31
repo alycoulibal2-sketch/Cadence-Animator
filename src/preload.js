@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('cadence', {
   copyText: (text) => ipcRenderer.invoke('shell:copyText', text),
 
   // autosave
-  autosaveWrite: (id, data) => ipcRenderer.invoke('autosave:write', id, data),
+  autosaveWrite: (id, data, meta) => ipcRenderer.invoke('autosave:write', id, data, meta),
   autosaveList: () => ipcRenderer.invoke('autosave:list'),
   autosaveRead: (id) => ipcRenderer.invoke('autosave:read', id),
   autosaveDelete: (id) => ipcRenderer.invoke('autosave:delete', id),
@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld('cadence', {
   mobileSetEditingAllowed: (allowed) => ipcRenderer.invoke('mobile:setEditingAllowed', allowed),
   mobileBroadcastState: (payload) => ipcRenderer.send('mobile:broadcastState', payload),
   onMobileClientConnected: (cb) => ipcRenderer.on('mobile:clientConnected', () => cb()),
+  onMobileClientCount: (cb) => ipcRenderer.on('mobile:clientCount', (_e, n) => cb(n)),
 
   // VFX Studio (standalone particle-effect creation window)
   openVfxStudio: () => ipcRenderer.invoke('vfx:openStudio'),

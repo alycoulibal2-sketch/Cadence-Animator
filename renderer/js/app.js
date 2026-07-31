@@ -2233,13 +2233,20 @@ async function offerRecovery(mode = 'boot') {
   const opts = [];
   // Slice generously, not just the last few — the whole point of this fix is that a real
   // project should never fall out of view just because other entries piled up above it.
+  // Metadata only — the file itself is read when one is actually chosen, below. Reading all 20
+  // up front meant gigabytes of I/O and JSON.parse before the app was usable, for information
+  // (a name and an item count) that main.js now keeps in a small sidecar index. Entries written
+  // before that index existed have meta:null and are read individually, as they used to be.
   for (const sv of saves.slice(0, 20)) {
     try {
-      const text = await window.cadence.autosaveRead(sv.id);
-      const proj = JSON.parse(text);
-      if (!always && (!proj.items || proj.items.length === 0) && !proj.audio) continue;
+      let meta = sv.meta;
+      if (!meta) {
+        const proj = JSON.parse(await window.cadence.autosaveRead(sv.id));
+        meta = { name: proj.name, itemCount: proj.items?.length || 0, hasAudio: !!proj.audio };
+      }
+      if (!always && !meta.itemCount && !meta.hasAudio) continue;
       const when = new Date(sv.mtime);
-      opts.push({ id: sv.id, label: proj.name || 'Untitled', desc: `${when.toLocaleString()} · ${proj.items?.length || 0} items`, icon: '🕘', __text: text });
+      opts.push({ id: sv.id, label: meta.name || 'Untitled', desc: `${when.toLocaleString()} · ${meta.itemCount || 0} items`, icon: '🕘' });
     } catch (_) { }
   }
   if (!opts.length) { if (always) toast('No autosaves yet'); return false; }
@@ -2265,8 +2272,7 @@ async function offerRecovery(mode = 'boot') {
     }),
   });
   if (pick && pick !== 'fresh') {
-    const chosen = opts.find((o) => o.id === pick);
-    S.loadProject(chosen.__text);
+    S.loadProject(await window.cadence.autosaveRead(pick));
     await restoreAudio();
     toast(`Restored "${S.state.project.name}"`);
     return true;
@@ -2410,10 +2416,18 @@ function initMobileBroadcast() {
   const THROTTLE_MS = 66;
   let lastSent = 0;
   let pendingTimer = null;
+  // The mobile companion is opt-in and almost always off, but this used to broadcast regardless:
+  // the payload is the ENTIRE project, and handing it to ipcRenderer.send structured-clones every
+  // byte of it synchronously on the renderer thread before main gets a chance to drop it. On a
+  // mesh-imported rig (85MB project) that measured ~700ms per send — fired on every 'playhead'
+  // emit, i.e. up to 15x/second during playback, which is what took a 26fps scene down to 1fps.
+  // main pushes the live client count so nothing is built at all until a phone is really listening.
+  let clientCount = 0;
+  window.cadence.onMobileClientCount?.((n) => { clientCount = n | 0; });
 
   function sendNow() {
     lastSent = performance.now();
-    if (!S.state.project) return;
+    if (!S.state.project || !clientCount) return;
     window.cadence.mobileBroadcastState({
       project: S.state.project,
       playhead: S.state.playhead,
@@ -2421,6 +2435,7 @@ function initMobileBroadcast() {
     });
   }
   function throttledSend() {
+    if (!clientCount) return;
     const elapsed = performance.now() - lastSent;
     if (elapsed >= THROTTLE_MS) { sendNow(); return; }
     if (pendingTimer) return;
@@ -2431,6 +2446,8 @@ function initMobileBroadcast() {
   S.on('playing', throttledSend);
   // A phone just connected while nothing else was changing — send it a snapshot right away
   // instead of leaving it blank until the next real edit happens to trigger a broadcast.
+  // The count message always precedes this one (both are sent from the same upgrade handler),
+  // so the guard in sendNow() is already satisfied by the time this fires.
   window.cadence.onMobileClientConnected(() => sendNow());
 }
 
@@ -3203,7 +3220,10 @@ function resolveItemOrigin(item, frame) {
 }
 
 const MCP_HANDLERS = {
-  get_state: () => JSON.parse(S.serialize()),
+  // Unpacked, so callers still see each part's real customTexture rather than the `@texlib:` refs
+  // serialize() now writes to disk — this tool's output shape is unchanged by that optimization.
+  // Still round-trips through serialize() to get a deep copy the caller cannot mutate us through.
+  get_state: () => S.unpackProject(JSON.parse(S.serialize())),
 
   list_items: () => S.state.project.items.map((i) => ({
     id: i.id, name: i.name, kind: i.kind,

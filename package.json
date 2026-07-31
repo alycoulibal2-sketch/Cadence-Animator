@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "screenshot": "electron . --screenshot",
-    "smoketest": "node -e \"require('fs').mkdirSync('test-output',{recursive:true})\" && electron . --user-data-dir=test-output/userdata --screenshot=test-output/smoketest.png --demo-js-file=test/smoketest.js",
+    "smoketest": "node -e \"require('fs').rmSync('test-output/userdata',{recursive:true,force:true});require('fs').mkdirSync('test-output',{recursive:true})\" && electron . --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-background-timer-throttling --user-data-dir=test-output/userdata --screenshot=test-output/smoketest.png --demo-js-file=test/smoketest.js",
     "dist": "electron-builder --win",
     "prerelease-check": "npm run smoketest && npm run dist",
     "release": "electron-builder --win --publish always",

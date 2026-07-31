@@ -31,13 +31,33 @@ function extractGeometryData(THREE, mesh, bakeMatrix) {
   const nrm = geo.attributes.normal;
   const uv = geo.attributes.uv;
   const idx = geo.index ? geo.index.array : defaultIndices(pos.count);
+  // Typed arrays through the extract and merge stages, converted to plain arrays exactly once at
+  // the end (see plainMesh). Array.from() here used to box every float into a JS array — on a mesh
+  // with hundreds of thousands of vertices that dominated the import, and on a multi-mesh bone it
+  // paid for itself twice, since mergeGeometryData then copied those arrays again.
   return {
-    positions: Array.from(pos.array),
-    normals: Array.from(nrm.array),
-    uvs: uv ? Array.from(uv.array) : new Array(pos.count * 2).fill(0),
-    indices: Array.from(idx),
+    positions: toF32(pos.array),
+    normals: toF32(nrm.array),
+    uvs: uv ? toF32(uv.array) : new Float32Array(pos.count * 2),
+    indices: toU32(idx),
     size: [Math.max(0.02, size.x), Math.max(0.02, size.y), Math.max(0.02, size.z)],
     triCount: idx.length / 3,
+  };
+}
+
+const toF32 = (a) => (a instanceof Float32Array ? a : Float32Array.from(a));
+const toU32 = (a) => (a instanceof Uint32Array ? a : Uint32Array.from(a));
+
+// The typed arrays above are an INTERNAL representation for the extract/merge stages only. A rig
+// definition is JSON-serialized wholesale (project save, autosave, MCP get_state), and a typed
+// array stringifies as {"0":1.2,"1":3.4,…} rather than an array — so every customMesh is converted
+// back to a plain array exactly once, here, at the point the part object is built.
+function plainMesh(d) {
+  return {
+    positions: Array.from(d.positions),
+    normals: Array.from(d.normals),
+    uvs: Array.from(d.uvs),
+    indices: Array.from(d.indices),
   };
 }
 // GLB embeds its textures directly in the binary blob, so GLTFLoader hands back a fully-decoded
@@ -69,7 +89,7 @@ function extractTextureForMesh(mesh) {
 }
 
 function defaultIndices(n) {
-  const a = new Array(n);
+  const a = new Uint32Array(n);
   for (let i = 0; i < n; i++) a[i] = i;
   return a;
 }
@@ -109,7 +129,7 @@ function buildStaticRig(THREE, filename, meshes) {
       id: partIds[i], name: m.name || `Mesh${i}`,
       className: 'MeshPart', size: baked[i].size, cf: CF.IDENTITY.slice(),
       color: '#A3A2A5',
-      customMesh: { positions: baked[i].positions, normals: baked[i].normals, uvs: baked[i].uvs, indices: baked[i].indices },
+      customMesh: plainMesh(baked[i]),
     };
     const tex = extractTextureForMesh(m);
     if (tex) part.customTexture = tex;
@@ -186,7 +206,7 @@ function buildSkeletalRig(THREE, filename, meshes, skeleton) {
       const part = {
         id, name: bone.name || id, className: 'MeshPart', size: merged.size, cf: CF.IDENTITY.slice(),
         color: '#A3A2A5',
-        customMesh: { positions: merged.positions, normals: merged.normals, uvs: merged.uvs, indices: merged.indices },
+        customMesh: plainMesh(merged),
       };
       // Same one-geometry-per-part simplification as the merge above: if several differently-
       // textured meshes land on one bone, only the first's texture is used for the whole part —
@@ -213,22 +233,33 @@ function buildSkeletalRig(THREE, filename, meshes, skeleton) {
   return { name: baseName(filename), rigType: 'Custom', rootPart: boneIds.get(rootBone), parts, joints };
 }
 
+// Preallocate-and-set, not push(...spread). Spreading an array into push passes every element as
+// a separate function argument, which blows the call-argument limit (a RangeError, i.e. a failed
+// import) on any mesh over ~100k floats and is slow well before that.
 function mergeGeometryData(chunks) {
   if (chunks.length === 1) return chunks[0];
-  const positions = [], normals = [], uvs = [], indices = [];
-  let base = 0;
+  let nPos = 0, nUv = 0, nIdx = 0;
+  for (const c of chunks) { nPos += c.positions.length; nUv += c.uvs.length; nIdx += c.indices.length; }
+  const positions = new Float32Array(nPos);
+  const normals = new Float32Array(nPos);
+  const uvs = new Float32Array(nUv);
+  const indices = new Uint32Array(nIdx);
+  let pOff = 0, uOff = 0, iOff = 0, base = 0;
   for (const c of chunks) {
-    positions.push(...c.positions);
-    normals.push(...c.normals);
-    uvs.push(...c.uvs);
-    for (const i of c.indices) indices.push(i + base);
+    positions.set(c.positions, pOff);
+    normals.set(c.normals, pOff);
+    uvs.set(c.uvs, uOff);
+    for (let i = 0; i < c.indices.length; i++) indices[iOff + i] = c.indices[i] + base;
+    pOff += c.positions.length;
+    uOff += c.uvs.length;
+    iOff += c.indices.length;
     base += c.positions.length / 3;
   }
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
   for (let i = 0; i < positions.length; i += 3) {
-    minX = Math.min(minX, positions[i]); maxX = Math.max(maxX, positions[i]);
-    minY = Math.min(minY, positions[i + 1]); maxY = Math.max(maxY, positions[i + 1]);
-    minZ = Math.min(minZ, positions[i + 2]); maxZ = Math.max(maxZ, positions[i + 2]);
+    if (positions[i] < minX) minX = positions[i]; if (positions[i] > maxX) maxX = positions[i];
+    if (positions[i + 1] < minY) minY = positions[i + 1]; if (positions[i + 1] > maxY) maxY = positions[i + 1];
+    if (positions[i + 2] < minZ) minZ = positions[i + 2]; if (positions[i + 2] > maxZ) maxZ = positions[i + 2];
   }
   return { positions, normals, uvs, indices, size: [Math.max(0.02, maxX - minX), Math.max(0.02, maxY - minY), Math.max(0.02, maxZ - minZ)] };
 }
