@@ -68,7 +68,7 @@
     <h1>Everything, in the order you need it.</h1>
     <p class="lede">
       Install, connect Roblox Studio, animate a rig, export it, and — if you want — hand the whole
-      thing to Claude. Written against Cadence <span data-version>0.8.0</span>.
+      thing to Claude. Written against Cadence <span data-version>0.9.0</span>.
     </p>
   </div>
 
@@ -97,6 +97,7 @@
       <p class="toc-label">Effects</p>
       <ul>
         <li><a href="#vfx-guide">VFX Studio</a></li>
+        <li><a href="#procedural-guide">Procedural engine</a></li>
       </ul>
 
       <p class="toc-label">Advanced</p>
@@ -464,12 +465,114 @@ npm start</code></pre>
         </p>
       </section>
 
+      <section id="procedural-guide">
+        <h2>Procedural engine</h2>
+        <p>
+          A third way to author an effect, next to hand-built layers and the v1 node graph. Start one
+          from <strong>Presets &rarr; Start a Procedural Effect</strong>. It opens on a small working
+          effect rather than an empty canvas, and every node in that starting graph is a primitive you
+          can take apart.
+        </p>
+        <p>
+          A procedural effect is its own document. It does not compile down to a layer-based effect,
+          because a layer-based effect can only express its six layer types and eight modifiers &mdash;
+          so the timeline's track column and the layer inspector are empty while one is open, and the
+          panel tells you what is driving the effect instead.
+        </p>
+
+        <h3>The idea</h3>
+        <p>
+          Effects are composed from small operations rather than chosen and adjusted. That is why
+          there is no &ldquo;colour over lifetime&rdquo; control anywhere: you wire a particle's
+          normalised age into a gradient and into colour, and the same three nodes give you size over
+          lifetime, opacity over distance or emission over speed.
+        </p>
+        <p>
+          The pattern repeats. Forces are vector fields, so gravity is a constant direction and
+          turbulence is curl noise, and combining them is an <code>Add</code>. Colliders are distance
+          fields, so one collider node handles a plane, a sphere, a capsule, and anything you built by
+          combining them &mdash; the surface to bounce off is worked out from the field itself.
+          Emitters take any geometry at all, so particles can be born from a shape nobody anticipated.
+        </p>
+
+        <h3>Fields, textures and volumes</h3>
+        <p>
+          A <strong>field</strong> is a value that varies over space, time, a surface or a particle,
+          and it is evaluated wherever it is asked. A <strong>texture</strong> and a
+          <strong>volume grid</strong> are fixed grids, evaluated once. Both exist because blurring,
+          edge detection and dilation need neighbouring values, and a continuous field has no
+          neighbours. <code>Rasterize</code> and <code>Bake To Volume</code> are the visible moments a
+          field becomes pixels or voxels &mdash; separate nodes on purpose, so you can see where the
+          resolution was fixed rather than discovering it partway down a chain.
+        </p>
+        <p class="muted">
+          A volume grid is also a cache: bake an expensive noise chain once, then sample it per
+          particle for a fraction of the cost.
+        </p>
+
+        <h3>Simulation and scrubbing</h3>
+        <p>
+          Particles are simulated rather than computed from a formula, which is what makes forces,
+          drag and collisions possible. Scrubbing stays exact anyway: the solver keeps checkpoints and
+          replays from the nearest one, so a frame looks identical whether you played into it or
+          jumped backwards onto it.
+        </p>
+
+        <h3>Exporting to Roblox</h3>
+        <p>
+          Roblox decides what runs natively inside Roblox. It does not decide what Cadence can author.
+          So the exporter classifies every render pass and says which it is, before you save anything:
+        </p>
+        <ul>
+          <li><strong>Native</strong> &mdash; a real ParticleEmitter. Colour gradients and size curves
+            become genuine ColorSequences and NumberSequences. As with any Roblox emitter this is a
+            statistical match: Roblox rolls its own per-particle randomness, so individual particles
+            differ while the effect reads the same.</li>
+          <li><strong>Converted</strong> &mdash; a Beam or a PointLight, with its values baked per
+            frame.</li>
+          <li><strong>Baked</strong> &mdash; motion Roblox cannot reproduce, such as curl noise or
+            collisions, recorded frame by frame and replayed. Correct, but a recording: it plays back
+            identically every time.</li>
+          <li><strong>Unsupported</strong> &mdash; refused, with the reason. A mesh cannot be built at
+            runtime in Roblox, so exporting one as several hundred Parts would look wrong and run
+            badly; it says so rather than doing it.</li>
+        </ul>
+        <p class="muted">
+          Procedural effects cannot be sent to the animator's timeline yet &mdash; that holds
+          layer-based effects. Lua export works.
+        </p>
+
+        <h3>What is not built</h3>
+        <p>
+          There is no fluid or pyro solver and no volumetric rendering, so genuinely simulated fire and
+          raymarched clouds are out of reach. A stylised fire is not. Screen-space post-processing
+          &mdash; bloom over the finished frame, motion blur, depth of field &mdash; needs a render
+          target the preview does not have; the glow that exists works on a texture you built. Mesh
+          editing such as extrude, bevel and boolean needs connectivity the geometry model does not
+          carry.
+        </p>
+        <p class="muted">
+          Where a capability is missing the node for it is missing too. The type system refuses to
+          register a node against a subsystem that does not exist, so there is no control that appears
+          to work and quietly does nothing.
+        </p>
+      </section>
+
       <section id="mcp">
         <h2>Claude and MCP</h2>
         <p>
-          Cadence ships a Model Context Protocol server exposing <strong>104 tools</strong> — 74 for
-          the animator, 30 for VFX Studio. Claude can add rigs, set exact keyframe values, solve IK,
-          edit curves, build effects, run the quality checker and export to Studio.
+          Cadence ships a Model Context Protocol server exposing <strong>135 tools</strong> — 74 for
+          the animator, 30 for VFX Studio and 31 for the procedural engine. Claude can add rigs, set
+          exact keyframe values, solve IK, edit curves, build effects, run the quality checker and
+          export to Studio.
+        </p>
+        <p>
+          The procedural tools are structured graph APIs rather than UI automation: Claude reads the
+          node catalogue, describes a node's exact sockets and units before using it, wires the graph,
+          then verifies. <code>pnx_verify_range</code> exists because a single-frame check is the
+          commonest false positive there is — an effect can be valid at frame 0 and empty by frame 40.
+          Everything it reports is technical validity; nothing claims to judge whether an effect looks
+          right.
         </p>
 
         <h3>Connecting it</h3>
@@ -739,8 +842,9 @@ npm start</code></pre>
           <li>Bump <code>version</code> in <code>package.json</code>, then
             <code>npm install --package-lock-only</code> to re-sync the lockfile. The updater compares
             against this, so it must go up.</li>
-          <li><code>npm run smoketest</code> — 51 checks. Wipe <code>test-output/userdata</code> and
-            kill stray <code>electron</code> processes first.</li>
+          <li><code>npm run smoketest</code> — 66 checks in the real app. It wipes
+            <code>test-output/userdata</code> itself now; kill stray <code>electron</code> processes
+            first.</li>
           <li><code>GH_TOKEN="$(gh auth token)" npm run release</code> — builds the installer and
             portable exe and publishes a GitHub release with them attached.</li>
           <li><strong>Update this website.</strong> Run <code>node site/tools/gen-shortcuts.js</code>
@@ -810,7 +914,7 @@ npm start</code></pre>
     </div>
 
     <div class="footer-base">
-      <span>Cadence Animator <span data-version>0.8.0</span> &middot; MIT licence</span>
+      <span>Cadence Animator <span data-version>0.9.0</span> &middot; MIT licence</span>
       <span>Not affiliated with Roblox Corporation or Moon Animator.</span>
     </div>
   </div>
