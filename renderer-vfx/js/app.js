@@ -17,6 +17,7 @@ import { buildEffectLua } from '../../renderer/js/effectExport.js';
 import { toast, modal } from '../../renderer/js/ui.js';
 import { applyStaticIcons, swapIcon } from '../../renderer/js/icons.js';
 import { isNodeEditorOpen, openNodeEditor } from './nodeEditor.js';
+import * as PNX from './pnxStudio.js';
 
 // ---------------------------------------------------------------- transport
 function initTransport() {
@@ -28,10 +29,12 @@ function initTransport() {
   stopBtn.addEventListener('click', () => { ST.setPlaying(false); ST.setPlayhead(0); });
   ST.on('playing', () => swapIcon(playBtn, ST.state.playing ? 'pause' : 'play', { size: 14 }));
   const updateFrame = () => {
-    frameLabel.textContent = `frame ${Math.floor(ST.state.playhead)} / ${ST.state.doc.duration}`;
+    const base = `frame ${Math.floor(ST.state.playhead)} / ${ST.state.doc.duration}`;
+    frameLabel.textContent = ST.isPnxMode() ? `${base}  \u00b7 procedural` : base;
   };
   ST.on('playhead', updateFrame);
   ST.on('effect', updateFrame);
+  ST.on('pnx', updateFrame);
   updateFrame();
 }
 
@@ -47,6 +50,17 @@ function newEffectFlow() {
 
 // ---------------------------------------------------------------- gate: errors block send/export
 function gateOnErrors(actionLabel) {
+  // In PNX mode `doc` is not what is being drawn (studioState's note on state.pnx), so anything that
+  // reads `doc` would silently ship the WRONG effect — whatever the doc happened to hold.
+  //
+  // Lua export has its own procedural path now, so it is allowed through. Send-to-Animator is not: the
+  // animator's timeline holds Effect docs, and a procedural graph is not one. Refusing with a reason is
+  // the honest answer (Part 78: no button that pretends to work).
+  if (ST.isPnxMode() && /animator/i.test(actionLabel)) {
+    toast('Procedural effects cannot be sent to the animator yet \u2014 its timeline holds layer-based effects', 'error');
+    return false;
+  }
+  if (ST.isPnxMode()) return true;   // the procedural exporter has its own gate
   const report = ST.validateNow('effect');
   if (report.counts.error > 0) {
     toast(`${report.counts.error} error(s) block ${actionLabel} — open the diagnostics chip to fix them`, 'error');
@@ -59,13 +73,22 @@ function gateOnErrors(actionLabel) {
 // ---------------------------------------------------------------- titlebar actions
 function initTitlebar() {
   const nameInput = document.getElementById('vfxNameInput');
+  // In procedural mode the NAME lives on the graph, not on the Effect doc. Showing the doc's name there
+  // would display the wrong title and rename the wrong document when edited.
   const syncName = () => {
-    if (document.activeElement !== nameInput) nameInput.value = ST.state.doc.name;
+    if (document.activeElement === nameInput) return;
+    nameInput.value = ST.isPnxMode() ? ST.state.pnx.name : ST.state.doc.name;
   };
   ST.on('effect', syncName);
+  ST.on('pnx', syncName);
   syncName();
   nameInput.addEventListener('change', () => {
-    ST.mutate((doc) => { doc.name = nameInput.value.trim() || 'Untitled Effect'; });
+    const typed = nameInput.value.trim();
+    if (ST.isPnxMode()) {
+      ST.mutatePnx((g) => { g.name = typed || 'Untitled Procedural Effect'; }, { nodeId: '__name__' });
+    } else {
+      ST.mutate((doc) => { doc.name = typed || 'Untitled Effect'; });
+    }
   });
 
   document.getElementById('newBtn').addEventListener('click', () => newEffectFlow());
@@ -118,23 +141,69 @@ function initTitlebar() {
 
   document.getElementById('exportLuaBtn').addEventListener('click', async () => {
     if (!gateOnErrors('export')) return;
-    const exportReport = ST.validateNow('export');
-    const { lua, notes } = buildEffectLua(ST.state.doc);
     const body = document.createElement('div');
     body.className = 'vfx-export-summary';
-    const p = document.createElement('div');
-    p.textContent = 'A self-contained LocalScript that rebuilds this effect with real Roblox instances (emitters, beams, lights, UI, shake, sound). Parent it anywhere client-side and it plays on a PlayEffect BindableEvent (or immediately, if you enable autoplay in the script header).';
-    body.appendChild(p);
-    if (exportReport.diagnostics.length) {
+    const line = (text, cls) => {
+      const d = document.createElement('div');
+      if (cls) d.className = cls;
+      d.textContent = text;
+      body.appendChild(d);
+      return d;
+    };
+
+    let lua = '';
+    let notes = [];
+    if (ST.isPnxMode()) {
+      // A procedural export is not a translation — it is a classification plus whatever can be
+      // translated. So the dialogue leads with the classification: which passes became real Roblox
+      // instances, which were recorded frame by frame, and which could not be exported at all. Showing
+      // that BEFORE the save button is the difference between an informed export and a surprise.
+      const built = PNX.exportRoblox({
+        name: ST.state.pnx.name,
+        fps: ST.state.doc.fps || 30,
+        duration: ST.state.doc.duration || 60,
+      });
+      if (!built) { toast('Nothing to export', 'error'); return; }
+      lua = built.lua;
+      notes = built.notes;
+
+      const c = built.report.counts;
+      const parts = [];
+      if (c.native) parts.push(`${c.native} native`);
+      if (c.converted) parts.push(`${c.converted} converted`);
+      if (c.baked) parts.push(`${c.baked} baked`);
+      if (c.unsupported) parts.push(`${c.unsupported} not exportable`);
+      line(`A self-contained LocalScript for this procedural effect. ${parts.join(', ') || 'nothing to export'}.`);
+      line(`Script size: ${Math.round(built.bytes / 1024)} KB.`, built.withinBudget ? '' : 'vfx-diag-causes');
+
       const h = document.createElement('div');
       h.className = 'vfx-export-notes-head';
-      h.textContent = `Export fidelity notes (${exportReport.diagnostics.length}):`;
+      h.textContent = 'What happens to each pass:';
       body.appendChild(h);
-      for (const d of exportReport.diagnostics.slice(0, 12)) {
-        const row = document.createElement('div');
-        row.className = 'vfx-diag-causes';
-        row.textContent = `• ${d.message}`;
-        body.appendChild(row);
+      for (const row of built.report.rows) {
+        line(`• pass ${row.index + 1} (${row.kind}) — ${row.level.toUpperCase()}: ${row.how}`, 'vfx-diag-causes');
+        for (const r of row.reasons) line(`      because ${r}`, 'vfx-diag-causes');
+        if (row.droppedChannels?.length) line(`      dropped: ${row.droppedChannels.join(', ')}`, 'vfx-diag-causes');
+      }
+      if (notes.length) {
+        const h2 = document.createElement('div');
+        h2.className = 'vfx-export-notes-head';
+        h2.textContent = `Notes (${notes.length}):`;
+        body.appendChild(h2);
+        for (const nt of notes) line(`• ${nt}`, 'vfx-diag-causes');
+      }
+    } else {
+      const exportReport = ST.validateNow('export');
+      const built = buildEffectLua(ST.state.doc);
+      lua = built.lua;
+      notes = built.notes;
+      line('A self-contained LocalScript that rebuilds this effect with real Roblox instances (emitters, beams, lights, UI, shake, sound). Parent it anywhere client-side and it plays on a PlayEffect BindableEvent (or immediately, if you enable autoplay in the script header).');
+      if (exportReport.diagnostics.length) {
+        const h = document.createElement('div');
+        h.className = 'vfx-export-notes-head';
+        h.textContent = `Export fidelity notes (${exportReport.diagnostics.length}):`;
+        body.appendChild(h);
+        for (const d of exportReport.diagnostics.slice(0, 12)) line(`• ${d.message}`, 'vfx-diag-causes');
       }
     }
     modal({
@@ -143,7 +212,8 @@ function initTitlebar() {
       actions: [
         {
           label: 'Save .lua file', icon: 'save', run: async () => {
-            const saved = await window.vfxStudio.saveTextFile(lua, `${ST.state.doc.name.replace(/[^\w\- ]+/g, '').trim() || 'effect'}.lua`);
+            const docName = ST.isPnxMode() ? ST.state.pnx.name : ST.state.doc.name;
+            const saved = await window.vfxStudio.saveTextFile(lua, `${docName.replace(/[^\w\- ]+/g, '').trim() || 'effect'}.lua`);
             if (saved) toast(`Saved ${saved}`);
           },
         },

@@ -20,6 +20,7 @@ import { scrubAndSettle, debugCameraPose, debugWaitTicks } from './preview.js';
 import { parseGraph } from '../../renderer/js/nodeGraphModel.js';
 import { compileGraph } from '../../renderer/js/graphCompiler.js';
 import '../../renderer/js/nodeTypes.js'; // side effect: registers the v1 node catalog
+import { PNX_HANDLERS } from './pnxMcp.js';
 
 // The uniform write-result: what changed + whether the doc is still healthy. `diagnostics`
 // carries errors/warnings only (info noise stays out of tool results; vfx_validate returns all).
@@ -332,9 +333,15 @@ const HANDLERS = {
   },
 };
 
+// The procedural handlers live in their own module (pnxMcp.js) and are merged here rather than being
+// written inline, because they speak an entirely different document: PNX_HANDLERS operate on the
+// procedural graph, HANDLERS on the Effect doc. Keeping them apart is what stops a handler quietly
+// reading one and writing the other.
+const ALL_HANDLERS = { ...HANDLERS, ...PNX_HANDLERS };
+
 export function initStudioMcp() {
   window.vfxStudio.onMcpCommand(async ({ id, type, payload }) => {
-    const handler = HANDLERS[type];
+    const handler = ALL_HANDLERS[type];
     try {
       if (!handler) throw new Error(`Unknown VFX Studio command "${type}"`);
       const data = await handler(payload || {});

@@ -10,11 +10,17 @@ import { sampleEffect } from '../../renderer/js/effectEngine.js';
 import { isClosedShape } from '../../renderer/js/effectShapes.js';
 import { buildShapeGeometry } from '../../renderer/js/effectMeshBuilder.js';
 import * as ST from './studioState.js';
+import * as PNX from './pnxStudio.js';
+import { PnxBackend } from './pnxBackend.js';
 
 const ORIGIN = [0, 0.5, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]; // half a stud above the grid
 
 let renderer, scene, camera, controls, canvas, fxCanvas, fxCtx;
 const layerVisuals = new Map(); // layerId -> { kind, ...three objects, signature }
+// The PNX backend, built lazily on first procedural frame. Two draw paths coexist rather than one
+// replacing the other: an Effect-doc effect renders through sampleEffect + layerVisuals exactly as
+// before, a PNX effect renders through resolveScene + PnxBackend, and neither knows about the other.
+let pnxBackend = null;
 
 export function initPreview() {
   canvas = document.getElementById('vfxCanvas');
@@ -37,6 +43,16 @@ export function initPreview() {
   resize();
 
   ST.on('effect', syncLayerVisuals);
+  // Switching document mode has to tear down the OTHER path's scene objects, or the previous
+  // effect's sprites stay in the scene forever — visible, un-owned, and impossible to select.
+  ST.on('pnx', () => {
+    if (ST.state.pnx) {
+      for (const [id, v] of layerVisuals) { disposeVisual(v); layerVisuals.delete(id); }
+    } else if (pnxBackend) {
+      pnxBackend.clear();
+    }
+    syncLayerVisuals();
+  });
   syncLayerVisuals();
   requestAnimationFrame(tick);
 }
@@ -118,6 +134,13 @@ function disposeVisual(v) {
 function syncLayerVisuals() {
   const doc = ST.state.doc;
   const seen = new Set();
+  // In PNX mode the Effect doc is not what is being drawn, so it must not create visuals — `doc`
+  // still holds whatever it held (see studioState's note on state.pnx) and building sprites for it
+  // would draw a second, stale effect on top of the procedural one.
+  if (ST.state.pnx) {
+    for (const [id, v] of layerVisuals) { disposeVisual(v); layerVisuals.delete(id); }
+    return;
+  }
   for (const layer of doc.layers) {
     if (layer.type !== 'emitter' && layer.type !== 'shape' && layer.type !== 'light') continue;
     seen.add(layer.id);
@@ -226,6 +249,25 @@ function drawScreenFx(screenLayers) {
 let lastNow = null;
 let playFrame = 0; // fractional frame accumulator while playing
 
+// Evaluate and draw one procedural frame. Returns nothing to shake with: camera shake is a Part 40
+// feature that arrives with the camera nodes, and faking it from a value PNX does not yet produce
+// would be inventing a feature. The existing Effect-doc path keeps its own shake untouched.
+function renderPnxFrame(frame) {
+  if (!PNX.hasSession()) PNX.openSession(ST.state.pnx, {
+    fps: ST.state.doc.fps || 30,
+    duration: ST.state.doc.duration || 60,
+  });
+  const scene3 = PNX.evaluateFrame(frame);
+  if (!pnxBackend) pnxBackend = new PnxBackend(scene);
+  if (!scene3) { pnxBackend.clear(); return null; }
+  pnxBackend.render(scene3.draws, camera);
+  // The screen-effects overlay belongs to the Effect doc's screen layers; a procedural graph has no
+  // equivalent yet (Part 41 compositing is a later phase), so it is cleared rather than left showing
+  // the previous document's vignette.
+  fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+  return null;
+}
+
 function tick(now) {
   const doc = ST.state.doc;
   if (ST.state.playing) {
@@ -242,11 +284,16 @@ function tick(now) {
   lastNow = ST.state.playing ? now : null;
 
   const frame = Math.floor(ST.state.playhead);
-  const sample = sampleEffect(doc, frame, {
-    origin: ORIGIN,
-    soloIds: ST.state.solo,
-  });
-  const shake = applySample(sample);
+  let shake = null;
+  if (ST.state.pnx) {
+    shake = renderPnxFrame(frame);
+  } else {
+    const sample = sampleEffect(doc, frame, {
+      origin: ORIGIN,
+      soloIds: ST.state.solo,
+    });
+    shake = applySample(sample);
+  }
 
   controls.update();
   // Shake is applied only for this render, then undone immediately after. controls.update()
@@ -279,6 +326,13 @@ export function scrubAndSettle(frame) {
   return new Promise((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve({ frame: Math.floor(ST.state.playhead) })));
   });
+}
+
+// What the diagnostics panel and MCP read about the procedural draw path: what the BACKEND actually
+// put on screen, as distinct from what the graph asked for. The two differing is exactly the kind of
+// thing worth being able to see — a light count capped by the backend, for instance.
+export function pnxDrawStats() {
+  return pnxBackend ? pnxBackend.lastStats : null;
 }
 
 // Test-only: snapshot the live camera transform for the smoketest's shake-while-paused

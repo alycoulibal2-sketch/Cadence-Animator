@@ -589,6 +589,254 @@ server.tool(
   async () => { try { return textResult(await vfxCall('vfx_open_studio')); } catch (e) { return errorResult(e); } },
 );
 
+// ---------------------------------------------------------------------------- PNX procedural engine
+// The procedural node engine's tools (spec Parts 59-62). A procedural effect is a DIFFERENT document
+// from the layer-based Effect doc the vfx_* tools above edit — the two are exclusive, and pnx_get_state
+// says which is open. Structured graph APIs throughout: nothing here drives the UI.
+//
+// The verification tools exist because of Part 61's rule that "Done" is never an acceptable report.
+// Every write returns a read-back, and pnx_verify / pnx_verify_range give the evidence directly.
+
+server.tool(
+  'pnx_new',
+  'Start a new PROCEDURAL effect, replacing whatever is open. Procedural effects are built from primitives (geometry, fields, noise, SDFs, particles, materials, renderers) rather than from preset layers, so they can express effects nobody anticipated. Defaults to a small working starter graph you can take apart; pass blank:true for an empty canvas. NOTE: procedural effects cannot be exported to Roblox yet.',
+  { name: z.string().optional(), blank: z.boolean().optional().describe('true for an empty graph instead of the starter') },
+  async (args) => { try { return textResult(await vfxCall('pnx_new', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_get_state',
+  'Whether a procedural effect is open, and its overall health: playhead, frame rate, node/link counts, how many elements the current frame actually drew, live simulation count, and diagnostic counts. Read this first — it also tells you whether the studio is in procedural or layer-based mode.',
+  {},
+  async () => { try { return textResult(await vfxCall('pnx_get_state')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_get_graph',
+  'The COMPLETE procedural graph: every node with its type, position and inline socket values, every link, and every node group. This is ground truth — read it before editing a node you did not just create.',
+  { scope: z.string().optional().describe('limit to one group id; omit for the whole graph') },
+  async (args) => { try { return textResult(await vfxCall('pnx_get_graph', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_set_graph',
+  'Replace the whole procedural graph with one you supply. Use for bulk construction; prefer pnx_add_node/pnx_connect for edits, which give a per-change read-back.',
+  { graph: z.any().describe('a serialized PNX graph — the shape pnx_get_graph returns') },
+  async (args) => { try { return textResult(await vfxCall('pnx_set_graph', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_collapse_to_group',
+  'Collapse a set of nodes into a reusable node group. Links crossing the boundary become the group\'s inputs and outputs automatically. The group is a SCOPE of ordinary nodes, not a black box — pnx_get_graph with its scope shows every node inside, and the result the graph computes is unchanged by collapsing.',
+  {
+    nodeIds: z.array(z.string()).describe('the nodes to enclose; they must all be in the same scope'),
+    name: z.string().optional(),
+    description: z.string().optional(),
+  },
+  async (args) => { try { return textResult(await vfxCall('pnx_collapse_to_group', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_expand_group',
+  'Dissolve a group instance back into its parent scope. The interior is COPIED rather than moved, so every other instance of the same group keeps working.',
+  { nodeId: z.string().describe('a group instance node') },
+  async (args) => { try { return textResult(await vfxCall('pnx_expand_group', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_instantiate_group',
+  'Place another instance of an existing group. Each instance evaluates independently, so the same group can be used several times with different inputs.',
+  { groupId: z.string(), x: z.number().optional(), y: z.number().optional(), scope: z.string().optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_instantiate_group', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_export_group',
+  'Export a node group as a portable document, carrying its nested groups so it drops into another project without dangling references.',
+  { groupId: z.string() },
+  async (args) => { try { return textResult(await vfxCall('pnx_export_group', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_import_group',
+  'Import a node group exported by pnx_export_group. Ids are remapped, so importing the same group twice does not collide.',
+  { group: z.any().describe('the payload pnx_export_group returned'), name: z.string().optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_import_group', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_list_recipes',
+  'The node-group library: reusable compositions like Curl Motion, Fire Turbulence, Soft Glow, Radial Burst and Dissolve. Every one is built from primitives rather than being an engine capability, and each says what it demonstrates — so they are worth reading as examples of how to build something, not only as shortcuts. Also lists what the library cannot build yet, and why.',
+  {},
+  async () => { try { return textResult(await vfxCall('pnx_list_recipes')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_add_recipe',
+  'Build a library recipe into the graph as a node group and place an instance of it. Faster than wiring the composition by hand, and the group can be opened and taken apart — every node inside is a primitive.',
+  {
+    recipe: z.string().describe('a recipe id from pnx_list_recipes, e.g. curlMotion'),
+    instantiate: z.boolean().optional().describe('also place an instance (default true)'),
+    x: z.number().optional(), y: z.number().optional(),
+  },
+  async (args) => { try { return textResult(await vfxCall('pnx_add_recipe', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_catalogue',
+  'Every available node type as one compact line each: id, label, category, summary, socket types, Roblox export support. Read this (or pnx_search_nodes) before constructing a graph — it is what stops you inventing node types and parameters that do not exist.',
+  { category: z.string().optional().describe('e.g. Math, Fields, SDF, Particles, Renderers') },
+  async (args) => { try { return textResult(await vfxCall('pnx_catalogue', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_describe_node',
+  'Full documentation for one node type: every input and output with its exact type, units, ranges and defaults, plus what it is for, common uses, performance class and Roblox export support. Read this before setting values on a node type you have not used.',
+  { type: z.string().describe('e.g. cadence.noise.curl') },
+  async (args) => { try { return textResult(await vfxCall('pnx_describe_node', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_search_nodes',
+  'Search node types by name, alias, category or description. Understands everyday terms as well as technical ones — "swirl" finds Curl Noise and Vortex Field, "fade" finds Map Range and Normalized Age. Use it when you know what you want the effect to DO but not which primitive does it.',
+  { query: z.string(), category: z.string().optional(), limit: z.number().optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_search_nodes', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_add_node',
+  'Add a node to the procedural graph. Returns the new node id plus a full verification read-back. An unknown type is rejected with the closest matches rather than silently creating nothing.',
+  {
+    type: z.string().describe('node type id, e.g. cadence.particles.simulate'),
+    x: z.number().optional(), y: z.number().optional(),
+    values: z.record(z.any()).optional().describe('inline socket values, keyed by socket key'),
+    scope: z.string().optional().describe('a group id, to place the node inside a group'),
+    id: z.string().optional().describe('an explicit node id, for reproducible construction'),
+  },
+  async (args) => { try { return textResult(await vfxCall('pnx_add_node', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_remove_node',
+  'Delete a node and every link touching it.',
+  { nodeId: z.string() },
+  async (args) => { try { return textResult(await vfxCall('pnx_remove_node', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_move_node',
+  'Move a node on the canvas. Presentation only — it does not re-evaluate anything or disturb a running simulation.',
+  { nodeId: z.string(), x: z.number(), y: z.number() },
+  async (args) => { try { return textResult(await vfxCall('pnx_move_node', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_set_value',
+  'Set one input socket value on a node. Rejects an unknown socket and lists the real ones. Only this node and what depends on it is recomputed.',
+  { nodeId: z.string(), socket: z.string(), value: z.any() },
+  async (args) => { try { return textResult(await vfxCall('pnx_set_value', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_connect',
+  'Wire one node output into another node input. Type-checked: an incompatible wire is refused with the reason. Note that a field output IS accepted by a plain input — the receiving node is evaluated per element and its output becomes a field.',
+  { fromNode: z.string(), fromSocket: z.string(), toNode: z.string(), toSocket: z.string() },
+  async (args) => { try { return textResult(await vfxCall('pnx_connect', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_disconnect',
+  'Remove a link, either by its id or by whatever is plugged into a given node input.',
+  { linkId: z.string().optional(), toNode: z.string().optional(), toSocket: z.string().optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_disconnect', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_set_node_flags',
+  'Mute a node (its outputs become type defaults and its inputs are not evaluated), bypass it (the first compatible input passes straight through), or rename it. Muting is the fastest way to find which part of a graph is responsible for something.',
+  { nodeId: z.string(), muted: z.boolean().optional(), bypassed: z.boolean().optional(), label: z.string().optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_set_node_flags', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_get_dependencies',
+  'What a node depends on and what depends on it. Use it to know what a change will affect before making it.',
+  { nodeId: z.string(), direction: z.enum(['upstream', 'downstream', 'both']).optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_get_dependencies', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_inspect',
+  'What a node actually produces at a frame. A field is a function rather than a value, so it is probed at several standard sample points; a geometry is summarised by its counts and attribute names. This is how you find out WHY a value is wrong instead of guessing.',
+  { nodeId: z.string(), socket: z.string().optional().describe('omit for every output'), frame: z.number().optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_inspect', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_verify',
+  'Verify a procedural effect at one frame: graph validity, every diagnostic, what was actually drawn, and what the backend put on screen. Call this after building or changing an effect — reporting success without it is guesswork. It reports TECHNICAL validity only and never claims the effect looks right.',
+  { frame: z.number().optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_verify', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_verify_range',
+  'Verify across several frames, and list the ones that drew nothing. Prefer this to pnx_verify for a finished effect: an effect that is valid at frame 0 and empty by frame 40 passes a single-frame check, which is the commonest false positive there is.',
+  { from: z.number().optional(), to: z.number().optional(), samples: z.number().optional().describe('default 5, max 30') },
+  async (args) => { try { return textResult(await vfxCall('pnx_verify_range', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_export_lua',
+  'Export the procedural effect as a self-contained Roblox LocalScript. Passes Roblox can run natively become real ParticleEmitters/Beams/PointLights; passes it cannot are BAKED into a per-frame recording and replayed; passes with no Roblox equivalent at all are refused with a reason rather than approximated. The result carries the per-pass classification, so you always know what was translated and what was precomputed. Read pnx_export_report first if you only want the classification.',
+  {
+    bakeStride: z.number().optional().describe('bake every Nth frame — raise it to shrink a large baked script (default 1)'),
+    maxBakedParticles: z.number().optional().describe('cap on particles recorded per frame (default 300)'),
+    precision: z.number().optional().describe('decimal places in the baked numbers (default 2)'),
+  },
+  async (args) => { try { return textResult(await vfxCall('pnx_export_lua', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_export_report',
+  'What a Roblox export WOULD do to each pass, without baking anything: native, converted, baked or unsupported, why, and which material channels are lost. Cheap — call it before pnx_export_lua to find out whether an effect will bake to a huge script before producing one.',
+  {},
+  async () => { try { return textResult(await vfxCall('pnx_export_report')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_export_compatibility',
+  'What a target platform would keep, change or lose about the current effect: which render passes are native, converted, approximated or unsupported, and which material channels a backend ignores. Procedural effects have no Roblox exporter yet, so this reports what WOULD happen.',
+  { backend: z.enum(['preview', 'roblox']).optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_export_compatibility', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_profile',
+  'Per-node evaluation cost at a frame, slowest first. Use it when a procedural effect is slow — the answer is usually one expensive node sampled per particle.',
+  { frame: z.number().optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_profile', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_render_frame',
+  'Screenshot the procedural effect at a frame. This is the one way to see what a procedural effect actually looks like — pnx_verify tells you it is technically valid, this shows you whether it reads the way you intended. Returns a PNG plus the draw statistics for that frame.',
+  { frame: z.number().describe('frame to capture') },
+  async (args) => {
+    try {
+      const r = await vfxCall('pnx_render_frame', args);
+      return { content: [{ type: 'image', data: r.image, mimeType: r.mimeType }, { type: 'text', text: JSON.stringify({ frame: r.frame, stats: r.stats }) }] };
+    } catch (e) { return errorResult(e); }
+  },
+);
+
+server.tool(
+  'pnx_scrub',
+  'Move the playhead of a procedural effect and evaluate that frame. Scrubbing backwards replays a simulation from a checkpoint, so the same frame always looks the same however it was reached.',
+  { frame: z.number() },
+  async (args) => { try { return textResult(await vfxCall('pnx_scrub', args)); } catch (e) { return errorResult(e); } },
+);
+
 server.tool(
   'vfx_get_state',
   'Get the VFX Studio\'s overall state: a compact effect summary (layers, clips, curve/expression key counts — NOT full curve data), playhead, selection, undo depth, diagnostic counts, and the full layer/modifier type catalogs with their applicable-to rules and Roblox export modes. Read this before assuming anything about what\'s open.',

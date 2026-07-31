@@ -16,6 +16,8 @@ import '../../renderer/js/effectValidators.js'; // side effect: registers the sh
 import { newGraph, parseGraph } from '../../renderer/js/nodeGraphModel.js';
 import { compileGraph } from '../../renderer/js/graphCompiler.js';
 import '../../renderer/js/nodeTypes.js'; // side effect: registers the v1 node catalog
+import { newGraph as newPnxGraph, parseGraph as parsePnxGraph, serializeGraph as serializePnxGraph } from '../../renderer/js/pnx/graph.js';
+import * as PNX from './pnxStudio.js';
 
 const listeners = new Map(); // event -> Set<fn>
 export function on(event, fn) {
@@ -38,6 +40,12 @@ export const state = {
                              // other way around; see recompileFromGraph().
   graphErrors: [],          // latest compileGraph() errors (cycles, a node that threw) — an
                              // incomplete/unwired chain is never an error, see graphCompiler.js
+  // The PNX procedural graph — a THIRD document mode, exclusive with the two above rather than
+  // layered on them. A PNX effect does NOT compile down to an Effect doc: an Effect doc can only
+  // express its six layer types and eight modifiers, so compiling a general procedural graph into
+  // one would amputate most of it (docs/pnx-plan.md section 2c). PNX therefore renders its own
+  // output, and `doc` stays as it was so the timeline and inspector have something valid to show.
+  pnx: null,
   selection: { layerId: null },
   playhead: 0,
   playing: false,
@@ -69,6 +77,7 @@ function snapshot() {
   return {
     doc: structuredClone(state.doc),
     graph: state.graph ? structuredClone(state.graph) : null,
+    pnx: state.pnx ? structuredClone(state.pnx) : null,
     selection: { ...state.selection },
   };
 }
@@ -83,6 +92,10 @@ function applySnapshot(s) {
   // snapshotted doc, so undo/redo can never leave doc and graph out of sync with each other.
   if (state.graph) recompileFromGraph();
   else state.doc = structuredClone(s.doc);
+  // Undo replaces the graph OBJECT, so the PNX session is pointed at the new one and everything it
+  // cached is dropped — including simulations, whose history belongs to the graph that produced it.
+  state.pnx = s.pnx ? structuredClone(s.pnx) : null;
+  if (state.pnx) PNX.invalidateAll(state.pnx); else PNX.closeSession();
   state.selection = { ...s.selection };
   if (state.selection.layerId && !getLayer(state.doc, state.selection.layerId)) state.selection = { layerId: null };
   afterDocChange();
@@ -126,6 +139,20 @@ export function mutateGraph(fn, { undoable = true } = {}) {
   return result;
 }
 
+// The PNX twin of mutateGraph(). `nodeId` is the node that changed, which lets the evaluator drop
+// only that node and what depends on it; passing nothing means "the structure moved" and clears
+// everything. Getting that distinction right is what keeps a slider drag interactive on a large graph
+// AND keeps a running simulation alive while its unrelated neighbours are edited.
+export function mutatePnx(fn, { undoable = true, nodeId = null, structural = false } = {}) {
+  if (!state.pnx) return null;
+  if (undoable) pushUndo();
+  const result = fn(state.pnx);
+  if (structural || !nodeId) PNX.invalidateAll(state.pnx);
+  else PNX.invalidateNode(nodeId);
+  afterDocChange();
+  return result;
+}
+
 let gestureActive = false;
 export function beginGesture() {
   if (gestureActive) return;
@@ -142,6 +169,7 @@ export function endGesture() {
 function afterDocChange({ light = false } = {}) {
   state.dirty = true;
   clampPlayhead();
+  if (state.pnx) PNX.setOptions({ fps: state.doc.fps || 30, duration: state.doc.duration || 60 });
   emit('effect', {});
   scheduleAutosave();
   if (!light) scheduleValidation();
@@ -221,6 +249,54 @@ export function setGraph(graph, { select: sel = true } = {}) {
   emit('curveTarget', {});
 }
 
+// Open a PNX procedural effect. Exclusive with the other two modes: a document is authored by exactly
+// one of hand-edited layers, the v1 graph, or PNX, and pretending otherwise leaves two sources of
+// truth fighting over `doc`.
+export function setPnxGraph(graph, { select: sel = true } = {}) {
+  state.pnx = graph;
+  state.graph = null;
+  state.graphErrors = [];
+  PNX.openSession(graph, { fps: state.doc.fps || 30, duration: state.doc.duration || 60 });
+  state.solo.clear();
+  state.expanded.clear();
+  state.curveTarget = null;
+  state.playhead = 0;
+  state.selection = { layerId: sel && state.doc.layers[0] ? state.doc.layers[0].id : null };
+  afterDocChange();
+  emit('selection', {});
+  emit('curveTarget', {});
+  emit('pnx', {});
+}
+
+// Leave PNX mode, back to whatever `doc` holds.
+export function closePnx() {
+  if (!state.pnx) return;
+  pushUndo();
+  state.pnx = null;
+  PNX.closeSession();
+  afterDocChange();
+  emit('pnx', {});
+}
+
+export function isPnxMode() {
+  return !!state.pnx;
+}
+
+// A new procedural effect, starting from the smallest graph that actually draws something (see
+// pnxStudio.newStarterGraph). An empty canvas plus a menu of hundreds of nodes is a discouraging first
+// screen; a small fire that can be taken apart is a better one, and every node in it is a primitive
+// rather than a preset.
+export function newPnxEffect(name = 'Untitled Procedural Effect') {
+  pushUndo();
+  setPnxGraph(PNX.newStarterGraph(name));
+}
+
+// An empty procedural graph, for starting from nothing.
+export function newBlankPnxGraph(name = 'Untitled Procedural Effect') {
+  pushUndo();
+  setPnxGraph(newPnxGraph(name));
+}
+
 // A brand new, genuinely empty graph — no starter node. The node editor's own blank-canvas
 // affordance (search/context-menu "add a node") is the entry point for populating it; a
 // prefilled default graph is a UI/onboarding decision explicitly deferred, not this pass's call.
@@ -238,12 +314,22 @@ export function newBlankGraph() {
 // before — same bare Effect JSON, fully backward-compatible with every autosave written before
 // the node editor existed.
 function serializeStudioSave() {
+  // A PNX effect stores the procedural graph as the source of truth, plus the last Effect doc purely
+  // so a build without PNX support opens the file with SOMETHING in it rather than blank. The doc is
+  // explicitly not a compiled form of the graph — see the note on state.pnx.
+  if (state.pnx) return JSON.stringify({ cadenceStudioSave: 2, pnx: JSON.parse(serializePnxGraph(state.pnx)), doc: state.doc });
   if (state.graph) return JSON.stringify({ cadenceStudioSave: 1, graph: state.graph, doc: state.doc });
   return serializeEffect(state.doc);
 }
 function parseStudioSave(json) {
   let raw;
   try { raw = JSON.parse(json); } catch (e) { return { ok: false, error: e.message }; }
+  if (raw && raw.cadenceStudioSave === 2) {
+    const parsedPnx = parsePnxGraph(raw.pnx);
+    if (!parsedPnx.ok) return { ok: false, error: parsedPnx.error };
+    const parsedDoc = raw.doc ? parseEffect(raw.doc) : null;
+    return { ok: true, pnx: parsedPnx.graph, doc: parsedDoc && parsedDoc.ok ? parsedDoc.doc : null };
+  }
   if (raw && raw.cadenceStudioSave === 1) {
     const parsedGraph = parseGraph(raw.graph);
     if (!parsedGraph.ok) return { ok: false, error: parsedGraph.error };
@@ -255,10 +341,12 @@ function parseStudioSave(json) {
 
 let autosaveTimer = null;
 function scheduleAutosave() {
-  const doc = state.doc, graph = state.graph; // close over the reference AT SCHEDULE TIME
+  const doc = state.doc, graph = state.graph, pnx = state.pnx; // references AT SCHEDULE TIME
   clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => {
-    if (doc !== state.doc || graph !== state.graph) return; // a New/Open landed inside the window — this write is stale
+    // A New/Open landing inside the debounce window must not redirect this pending write onto the
+    // incoming document.
+    if (doc !== state.doc || graph !== state.graph || pnx !== state.pnx) return;
     window.vfxStudio.autosaveEffect(serializeStudioSave()).catch(() => { });
   }, 800);
 }
@@ -269,7 +357,10 @@ export async function restoreAutosave() {
     if (!json) return false;
     const parsed = parseStudioSave(json);
     if (!parsed.ok) return false;
-    if (parsed.graph) setGraph(parsed.graph);
+    if (parsed.pnx) {
+      if (parsed.doc) state.doc = parsed.doc;
+      setPnxGraph(parsed.pnx);
+    } else if (parsed.graph) setGraph(parsed.graph);
     else setDoc(parsed.doc);
     state.dirty = false;
     return true;

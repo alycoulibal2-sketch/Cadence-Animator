@@ -34,17 +34,30 @@
   const origError = console.error;
   console.error = (...a) => { report.consoleErrors.push(a.map(String).join(' ')); origError(...a); };
 
+  // A step that waits on requestAnimationFrame never resolves if Chromium decides to throttle the
+  // window (which it does whenever another app covers it — the run then stalls forever with no
+  // report, looking exactly like a code hang; it cost real debugging time). npm run smoketest
+  // passes --disable-backgrounding-occluded-windows so that cannot happen, but this bounds the
+  // damage for any run launched without those switches: a stuck step fails loudly and the
+  // remaining checks still run.
+  const STEP_TIMEOUT_MS = 30000;
   async function step(name, fn) {
     // Logged BEFORE running: a step that hangs never reaches its own result, and the report is
     // only written at the very end, so without this a stall looks identical to a slow machine and
     // gives no clue which check is stuck. This has already been needed twice.
     console.log('[smoketest] > ' + name);
     const t0 = performance.now();
+    let timer = null;
     try {
-      const r = await fn();
+      const r = await Promise.race([
+        fn(),
+        new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(`step timed out after ${STEP_TIMEOUT_MS}ms`)), STEP_TIMEOUT_MS); }),
+      ]);
       report.steps.push({ name, ok: true, ms: Math.round(performance.now() - t0), r });
     } catch (e) {
       report.steps.push({ name, ok: false, ms: Math.round(performance.now() - t0), error: e.message, stack: (e.stack || '').split('\n').slice(0, 4).join(' | ') });
+    } finally {
+      clearTimeout(timer);
     }
   }
   function assert(cond, msg) { if (!cond) throw new Error('assertion failed: ' + msg); }
@@ -483,6 +496,345 @@
     assert(typeof shot.image === 'string' && shot.image.length > 5000, 'render_frame image looks too small/missing');
     assert(shot.mimeType === 'image/png', 'render_frame should return a PNG');
     return { ok: true, imageBytes: shot.image.length };
+  });
+
+  // ---------------------------------------------------------------- PNX procedural engine
+  // The in-app integration pass for the procedural engine. test/pnxtest.mjs covers the engine itself
+  // in plain Node; these steps are the part that can only be checked in the real app: that the studio
+  // window actually renders a procedural graph through three.js, that scrubbing it stays deterministic
+  // with a live WebGL context, and that switching document modes does not leave the previous effect's
+  // objects in the scene.
+  await step('PNX: a new procedural effect draws through the real renderer', async () => {
+    const created = await vfxCall('pnx_new', { name: 'Smoketest Procedural' });
+    assert(created.ok, `pnx_new reported not-ok: ${JSON.stringify(created.diagnostics)}`);
+
+    const state = await vfxCall('pnx_get_state');
+    assert(state.active, 'the studio should be in procedural mode after pnx_new');
+    assert(state.stats.nodes >= 8, `the starter graph should have nodes, got ${state.stats.nodes}`);
+
+    // Let the render loop actually paint, then check what the BACKEND put on screen — not merely what
+    // the graph computed. This is the assertion that proves the wiring, rather than the engine.
+    await vfxCall('pnx_scrub', { frame: 25 });
+    await new Promise((r) => setTimeout(r, 250));
+    const drawn = await vfxCall('pnx_get_state');
+    assert(drawn.stats.drawnElements > 0, `the graph resolved nothing to draw at frame 25: ${JSON.stringify(drawn.stats)}`);
+    assert(drawn.drawn && drawn.drawn.sprites > 0,
+      `the three.js backend drew no sprites: ${JSON.stringify(drawn.drawn)}`);
+    return { ok: true, nodes: drawn.stats.nodes, sprites: drawn.drawn.sprites };
+  });
+
+  await step('PNX: verification reports technical validity and finds no errors in the starter graph', async () => {
+    const v = await vfxCall('pnx_verify', { frame: 30 });
+    const errors = v.diagnostics.filter((d) => d.severity === 'error');
+    assert(!errors.length, `starter graph has errors: ${JSON.stringify(errors)}`);
+    assert(v.technicallyValid, `starter graph is not technically valid: ${JSON.stringify(v)}`);
+
+    // Across a range, so an effect that is valid at one frame and empty everywhere else cannot pass.
+    const range = await vfxCall('pnx_verify_range', { from: 5, to: 55, samples: 6 });
+    assert(range.drewSomething, 'nothing drew at any sampled frame');
+    assert(range.drewEverywhere, `some frames drew nothing: ${JSON.stringify(range.emptyFrames)}`);
+    return { ok: true, frames: range.frames.length };
+  });
+
+  await step('PNX: scrubbing is deterministic in the live app, not only in the pure engine', async () => {
+    const at = async (frame) => {
+      const r = await vfxCall('pnx_scrub', { frame });
+      return r.stats.drawnElements;
+    };
+    const forwards = await at(40);
+    await at(75);
+    for (const f of [8, 62, 20]) await at(f);
+    const scrubbed = await at(40);
+    assert(scrubbed === forwards,
+      `frame 40 drew ${forwards} elements played forwards but ${scrubbed} after scrubbing — the replay is not deterministic`);
+    return { ok: true, elements: forwards };
+  });
+
+  await step('PNX: graph editing through MCP reaches the renderer', async () => {
+    const graph = await vfxCall('pnx_get_graph');
+    const sprite = graph.nodes.find((n) => n.type.startsWith('cadence.render.sprite'));
+    assert(sprite, 'the starter graph should contain a sprite renderer');
+
+    // Muting the renderer must empty the scene; unmuting must restore it. This is the round trip that
+    // proves an MCP edit invalidates the evaluator and repaints, rather than only changing a document.
+    await vfxCall('pnx_set_node_flags', { nodeId: sprite.id, muted: true });
+    await vfxCall('pnx_scrub', { frame: 30 });
+    const muted = await vfxCall('pnx_get_state');
+    assert(muted.stats.drawnElements === 0, `muting the renderer still drew ${muted.stats.drawnElements} elements`);
+
+    await vfxCall('pnx_set_node_flags', { nodeId: sprite.id, muted: false });
+    await vfxCall('pnx_scrub', { frame: 30 });
+    const restored = await vfxCall('pnx_get_state');
+    assert(restored.stats.drawnElements > 0, 'unmuting the renderer did not bring the effect back');
+    return { ok: true };
+  });
+
+  await step('PNX: introspection serves the real registry, and inspect probes a field', async () => {
+    const cat = await vfxCall('pnx_catalogue');
+    assert(cat.count > 250, `expected a large node catalogue, got ${cat.count}`);
+
+    // Part 48's own acceptance example.
+    const swirl = await vfxCall('pnx_search_nodes', { query: 'swirl', limit: 6 });
+    const labels = swirl.results.map((r) => r.label);
+    assert(labels.some((l) => /curl/i.test(l)), `"swirl" should reach Curl Noise, got ${labels.join(', ')}`);
+
+    const desc = await vfxCall('pnx_describe_node', { type: 'cadence.particles.simulate' });
+    assert(desc.inputs.some((i) => i.key === 'force'), 'Simulate Particles should document a force input');
+    assert(desc.exportSupport, 'every node must declare its export support');
+
+    // A field output must come back as probed samples, not as an opaque object.
+    const graph = await vfxCall('pnx_get_graph');
+    const lifeNode = graph.nodes.find((n) => n.type.startsWith('cadence.particles.life'));
+    if (lifeNode) {
+      const ins = await vfxCall('pnx_inspect', { nodeId: lifeNode.id, frame: 20 });
+      assert(ins.outputs.out.kind === 'field', `expected a field, got ${JSON.stringify(ins.outputs.out)}`);
+      assert(Array.isArray(ins.outputs.out.samples) && ins.outputs.out.samples.length > 1,
+        'a field must be reported as probed samples');
+    }
+    return { ok: true, nodeTypes: cat.count };
+  });
+
+  await step('PNX: export compatibility is honest about what Roblox cannot do', async () => {
+    const compat = await vfxCall('pnx_export_compatibility', { backend: 'roblox' });
+    assert(Array.isArray(compat.rows) && compat.rows.length, 'compatibility should classify the passes');
+    assert(compat.note && /no Roblox exporter/i.test(compat.note),
+      'the report must say plainly that procedural export is not built yet');
+    return { ok: true, counts: compat.counts };
+  });
+
+  await step('PNX: a simple effect exports as a real ParticleEmitter, and reports how', async () => {
+    await vfxCall('pnx_new', { name: 'Export Smoketest' });
+
+    // The classification first, which is the cheap call a caller should make before baking anything.
+    const rep = await vfxCall('pnx_export_report');
+    assert(rep.rows.length === 1, `expected one pass, got ${rep.rows.length}`);
+    assert(rep.rows[0].level === 'native', `the starter graph should export natively, got ${rep.rows[0].level}: ${JSON.stringify(rep.rows[0].reasons)}`);
+
+    const out = await vfxCall('pnx_export_lua', {});
+    assert(out.lua.includes('Instance.new("ParticleEmitter")'), 'a native export must build a real ParticleEmitter');
+    assert(out.lua.includes('ColorSequence.new({'), 'the colour gradient must survive as a ColorSequence');
+    assert(out.lua.includes('NumberSequence.new({'), 'the size curve must survive as a NumberSequence');
+    assert(out.counts.native === 1, `expected a native pass, got ${JSON.stringify(out.counts)}`);
+    assert(out.withinBudget, `a native export should be small, got ${out.bytes} bytes`);
+    // The classification must travel WITH the script, so a caller cannot report success without it.
+    assert(Array.isArray(out.passes) && out.passes[0].how, 'the export must say what it did to each pass');
+    return { ok: true, bytes: out.bytes, level: out.passes[0].level };
+  });
+
+  await step('PNX: an effect Roblox cannot run is baked, and says so rather than faking it', async () => {
+    // Build a curl-noise-forced, colliding effect through the structured API — the exact case Roblox
+    // has no way to reproduce.
+    await vfxCall('pnx_new', { name: 'Bake Smoketest', blank: true });
+    const add = async (type, values) => (await vfxCall('pnx_add_node', { type, x: 0, y: 0, values })).nodeId;
+    const link = (a, sa, b, sb) => vfxCall('pnx_connect', { fromNode: a, fromSocket: sa, toNode: b, toSocket: sb });
+
+    const em = await add('cadence.particles.emitter', { rate: 40, lifetime: 1.5, velocity: [0, 6, 0] });
+    const curl = await add('cadence.noise.curl', { scale: 0.4 });
+    const plane = await add('cadence.sdf.plane', {});
+    const col = await add('cadence.particles.collider', { response: 'bounce' });
+    const sim = await add('cadence.particles.simulate', { maxParticles: 200 });
+    const spr = await add('cadence.render.sprite', { size: 0.3 });
+    const out = await add('cadence.render.output', {});
+    await link(em, 'out', sim, 'emitter');
+    await link(curl, 'out', sim, 'force');
+    await link(plane, 'out', col, 'shape');
+    await link(col, 'out', sim, 'colliders');
+    await link(sim, 'out', spr, 'source');
+    await link(spr, 'out', out, 'passes');
+
+    const rep = await vfxCall('pnx_export_report');
+    assert(rep.rows[0].level === 'baked', `expected a baked pass, got ${rep.rows[0].level}`);
+    const why = rep.rows[0].reasons.join(' | ');
+    assert(/collide/i.test(why), `the collider must be named: ${why}`);
+    assert(/force varies/i.test(why), `the spatial force must be named: ${why}`);
+
+    const built = await vfxCall('pnx_export_lua', { bakeStride: 3, maxBakedParticles: 80 });
+    assert(built.counts.baked === 1, `expected a baked count, got ${JSON.stringify(built.counts)}`);
+    assert(/_FRAMES = \{/.test(built.lua), 'a baked pass must emit a recorded frame table');
+    assert(built.notes.some((nt) => /recording rather than a simulation/i.test(nt)),
+      'the user must be told a bake is a recording, not a simulation');
+    assert(!built.lossless, 'a baked export is not lossless and must not claim to be');
+    return { ok: true, bytes: built.bytes, notes: built.notes.length };
+  });
+
+  await step('PNX: exporting does not disturb the playhead or the live preview', async () => {
+    // A bake walks the whole frame range through the SAME evaluator the preview uses, so it has to put
+    // the playhead back — otherwise exporting silently scrubs the user's timeline to the last baked frame.
+    await vfxCall('pnx_new', { name: 'Playhead Smoketest' });
+    await vfxCall('pnx_scrub', { frame: 22 });
+    const before = await vfxCall('pnx_get_state');
+    await vfxCall('pnx_export_lua', {});
+    const after = await vfxCall('pnx_get_state');
+    assert(after.playhead === before.playhead,
+      `exporting moved the playhead from ${before.playhead} to ${after.playhead}`);
+    assert(after.stats.drawnElements === before.stats.drawnElements,
+      `exporting changed what the preview draws: ${before.stats.drawnElements} -> ${after.stats.drawnElements}`);
+    return { ok: true, playhead: after.playhead };
+  });
+
+  await step('PNX: a procedurally-built texture reaches the real renderer', async () => {
+    // The whole point of the Textures family: an effect supplies its own image rather than choosing from
+    // a list. This builds one from noise through the structured API and checks it actually draws.
+    await vfxCall('pnx_new', { name: 'Texture Smoketest', blank: true });
+    const add = async (type, values) => (await vfxCall('pnx_add_node', { type, x: 0, y: 0, values })).nodeId;
+    const link = (a, sa, b, sb) => vfxCall('pnx_connect', { fromNode: a, fromSocket: sa, toNode: b, toSocket: sb });
+
+    const noise = await add('cadence.noise.fbm', { scale: 4, octaves: 4 });
+    const ras = await add('cadence.texture.rasterize', { resolution: 64, extent: 1 });
+    const levels = await add('cadence.texture.levels', { inputBlack: 0.35, inputWhite: 0.65 });
+    const grad = await add('cadence.texture.gradientMap', {
+      gradient: { kind: 'color', stops: [{ u: 0, v: '#000000' }, { u: 0.5, v: '#ff6020' }, { u: 1, v: '#fff0c0' }] },
+    });
+    const glow = await add('cadence.compositing.glow', { threshold: 0.5, radius: 4, intensity: 1 });
+    const mat = await add('cadence.material.surface', { blend: 'additive' });
+    const pts = await add('cadence.geometry.pointGrid', { size: [6, 0, 6], countX: 4, countY: 1, countZ: 4 });
+    const spr = await add('cadence.render.sprite', { size: 1.2 });
+    const out = await add('cadence.render.output', {});
+
+    await link(noise, 'out', ras, 'field');
+    await link(ras, 'out', levels, 'texture');
+    await link(levels, 'out', grad, 'texture');
+    await link(grad, 'out', glow, 'texture');
+    await link(glow, 'out', mat, 'texture');
+    await link(pts, 'out', spr, 'source');
+    await link(mat, 'out', spr, 'material');
+    await link(spr, 'out', out, 'passes');
+
+    // The texture chain must produce a real image, not an empty one.
+    const info = await add('cadence.texture.info', {});
+    await link(glow, 'out', info, 'texture');
+    await vfxCall('pnx_scrub', { frame: 10 });
+    await new Promise((r) => setTimeout(r, 250));
+    const state = await vfxCall('pnx_get_state');
+    assert(state.stats.drawnElements === 16, `expected 16 textured sprites, got ${state.stats.drawnElements}`);
+    assert(state.drawn && state.drawn.sprites === 16, `the backend must draw them: ${JSON.stringify(state.drawn)}`);
+
+    const v = await vfxCall('pnx_verify', { frame: 10 });
+    const errors = v.diagnostics.filter((d) => d.severity === 'error');
+    assert(!errors.length, `a texture chain must not error: ${JSON.stringify(errors)}`);
+    return { ok: true, drawn: state.drawn.sprites };
+  });
+
+  await step('PNX: Texture Info reports a real image rather than an empty one', async () => {
+    const graph = await vfxCall('pnx_get_graph');
+    const info = graph.nodes.find((n) => n.type.startsWith('cadence.texture.info'));
+    assert(info, 'the texture chain should still have its info node');
+    const ins = await vfxCall('pnx_inspect', { nodeId: info.id, frame: 10 });
+    // A range of 0..0 means the chain produced nothing; an average alpha of 0 means it is transparent,
+    // which looks identical to "not drawn" and is a completely different problem.
+    const max = ins.outputs.max.value;
+    const avgA = ins.outputs.averageAlpha.value;
+    assert(max > 0.05, `the texture should have bright pixels, got max ${max}`);
+    assert(avgA > 0.5, `the texture should be opaque, got average alpha ${avgA}`);
+    assert(ins.outputs.width.value === 64, `resolution should be 64, got ${ins.outputs.width.value}`);
+    return { ok: true, max, avgA };
+  });
+
+  await step('PNX: a library recipe builds, draws, and can be taken apart', async () => {
+    // Part 47's philosophy in one check: a recipe is a composition of primitives, so adding one must
+    // produce a group whose interior is ordinary nodes and which actually drives a visible effect.
+    await vfxCall('pnx_new', { name: 'Library Smoketest', blank: true });
+    const listed = await vfxCall('pnx_list_recipes');
+    assert(listed.recipes.length >= 8, `expected a real library, got ${listed.recipes.length}`);
+    assert(listed.recipes.every((r) => r.available), 'every listed recipe must be buildable in this build');
+    assert(listed.unavailable.length >= 1 && listed.unavailable.every((u) => u.why),
+      'what the library cannot build must be named with a reason');
+
+    const added = await vfxCall('pnx_add_recipe', { recipe: 'curlMotion', x: -400, y: 300 });
+    assert(added.groupId && added.nodeId, 'adding a recipe must create a group and an instance');
+    assert(added.teaches, 'a recipe must say what it demonstrates');
+
+    // The group's interior must be inspectable — Part 46's "no black boxes".
+    const inside = await vfxCall('pnx_get_graph', { scope: added.groupId });
+    assert(inside.nodes.length >= 3, `the group interior must be visible, got ${inside.nodes.length} nodes`);
+    assert(inside.nodes.some((n) => n.type.startsWith('cadence.noise.curl')),
+      'Curl Motion must really be built out of Curl Noise');
+
+    // ...and it must drive a real effect.
+    const add = async (type, values) => (await vfxCall('pnx_add_node', { type, x: 0, y: 0, values })).nodeId;
+    const link = (a, sa, b, sb) => vfxCall('pnx_connect', { fromNode: a, fromSocket: sa, toNode: b, toSocket: sb });
+    const em = await add('cadence.particles.emitter', { rate: 60, lifetime: 2 });
+    const sim = await add('cadence.particles.simulate', { maxParticles: 500 });
+    const spr = await add('cadence.render.sprite', { size: 0.3 });
+    const out = await add('cadence.render.output', {});
+    await link(em, 'out', sim, 'emitter');
+    await link(added.nodeId, 'force', sim, 'force');
+    await link(sim, 'out', spr, 'source');
+    await link(spr, 'out', out, 'passes');
+
+    await vfxCall('pnx_scrub', { frame: 25 });
+    await new Promise((r) => setTimeout(r, 200));
+    const state = await vfxCall('pnx_get_state');
+    assert(state.stats.drawnElements > 10, `a recipe-driven effect must draw, got ${state.stats.drawnElements}`);
+    return { ok: true, recipes: listed.recipes.length, drawn: state.stats.drawnElements };
+  });
+
+  await step('PNX: collapsing a selection into a group does not change the result', async () => {
+    // The property that makes grouping safe: it is bookkeeping, so what the graph draws must be identical
+    // before and after.
+    const before = (await vfxCall('pnx_get_state')).stats.drawnElements;
+    const graph = await vfxCall('pnx_get_graph');
+    // ROOT_SCOPE is the empty string, so a top-level node is one with a falsy scope.
+    const em = graph.nodes.find((n) => n.type.startsWith('cadence.particles.emitter') && !n.scope);
+    const sim = graph.nodes.find((n) => n.type.startsWith('cadence.particles.simulate'));
+    assert(em && sim, 'the effect should have an emitter and a simulation at the top level');
+
+    const res = await vfxCall('pnx_collapse_to_group', { nodeIds: [em.id, sim.id], name: 'Swirling Particles' });
+    assert(res.groupId, 'collapsing must create a group');
+    assert(res.enclosed === 2);
+    assert(res.outputs.length >= 1, 'the particles crossing out must become an output');
+
+    await vfxCall('pnx_scrub', { frame: 25 });
+    await new Promise((r) => setTimeout(r, 200));
+    const after = (await vfxCall('pnx_get_state')).stats.drawnElements;
+    assert(after === before, `collapsing changed what is drawn: ${before} -> ${after}`);
+
+    // Export and re-import it, which is how a group travels between projects.
+    const payload = await vfxCall('pnx_export_group', { groupId: res.groupId });
+    assert(payload.nodes >= 2, 'an exported group must carry its interior');
+    const back = await vfxCall('pnx_import_group', { group: payload.group, name: 'Imported Copy' });
+    assert(back.groupId !== res.groupId, 'an imported group must get its own id');
+    return { ok: true, drawn: after };
+  });
+
+  await step('PNX: volume grids cache a field, and say plainly what is not built', async () => {
+    await vfxCall('pnx_new', { name: 'Volume Smoketest', blank: true });
+    const add = async (type, values) => (await vfxCall('pnx_add_node', { type, x: 0, y: 0, values })).nodeId;
+    const link = (a, sa, b, sb) => vfxCall('pnx_connect', { fromNode: a, fromSocket: sa, toNode: b, toSocket: sb });
+
+    const noise = await add('cadence.noise.fbm', { scale: 2, octaves: 3 });
+    const bake = await add('cadence.volume.rasterize', { resolution: 24, size: [4, 4, 4] });
+    const blur = await add('cadence.volume.blur', { radius: 1, passes: 1 });
+    const info = await add('cadence.volume.info', {});
+    await link(noise, 'out', bake, 'field');
+    await link(bake, 'out', blur, 'volume');
+    await link(blur, 'out', info, 'volume');
+
+    const ins = await vfxCall('pnx_inspect', { nodeId: info, frame: 0 });
+    assert(ins.outputs.voxels.value === 24 ** 3, `expected 13824 voxels, got ${ins.outputs.voxels.value}`);
+    assert(ins.outputs.max.value > ins.outputs.min.value, 'a baked noise volume must contain a range of values');
+    assert(ins.outputs.megabytes.value > 0);
+
+    // The honest statement has to be reachable from inside the graph, not only from documentation.
+    const caps = await add('cadence.volume.capabilities', {});
+    const c = await vfxCall('pnx_inspect', { nodeId: caps, frame: 0 });
+    assert(c.outputs.hasFluidSolver.value === false, 'there is no fluid solver and the engine must say so');
+    assert(c.outputs.hasVolumeRendering.value === false);
+    assert(/advection|pressure/i.test(c.outputs.missing.value), 'and it must name what is missing');
+    return { ok: true, voxels: ins.outputs.voxels.value, mb: ins.outputs.megabytes.value };
+  });
+
+  await step('PNX: switching back to a layer-based effect leaves no procedural objects behind', async () => {
+    await vfxCall('pnx_close');
+    const after = await vfxCall('pnx_get_state');
+    assert(!after.active, 'pnx_close should leave procedural mode');
+
+    // The layer-based path must still work afterwards — this is the regression that would show up as
+    // the old effect being invisible, or the procedural sprites being stuck on screen.
+    await vfxCall('vfx_new_effect', { name: 'Back To Layers', duration: 60, fps: 30 });
+    const shot = await vfxCall('vfx_render_frame', { frame: 5 });
+    assert(typeof shot.image === 'string' && shot.image.length > 5000, 'the layer-based renderer stopped working after PNX');
+    return { ok: true };
   });
 
   // ---------------------------------------------------------------- effect items in the animator
