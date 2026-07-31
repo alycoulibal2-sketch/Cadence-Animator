@@ -446,7 +446,8 @@
         </div>
         <p class="muted" style="font-size:0.85rem;margin-top:14px">
           354 node types across 27 categories. Every one documents its own units, ranges, common uses
-          and exactly what Roblox does with it.
+          and exactly what Roblox does with it &mdash; and every one is in the editor's search palette
+          and in Claude's catalogue, because they are the same list.
         </p>
       </div>
 
@@ -467,6 +468,12 @@
             Colliders are distance fields, so one collider node handles a plane, a sphere, a capsule
             and anything you built by combining them. Emitters take any geometry, so particles can be
             born from a shape the engine has never seen.
+          </p>
+          <p style="color:var(--text-2);font-size:0.93rem;margin-top:10px">
+            You wire all of it on a canvas, with typed sockets that show you what will connect and
+            live previews on the nodes that have something to show. Claude works on the same graph
+            through the same model, so an effect it builds opens as the real nodes and an edit you
+            make by hand is one it reads back &mdash; there is no separate AI version of anything.
           </p>
         </div>
 
@@ -502,8 +509,7 @@
         the glow that exists works on a texture you built, and is named accordingly. Mesh editing
         &mdash; extrude, bevel, boolean &mdash; needs connectivity the geometry model does not carry.
         Procedural effects cannot yet be sent to the animator's timeline, which holds layer-based
-        effects. There is no canvas for procedural graphs either &mdash; you build and change them
-        through Claude, which has structured access to every node.
+        effects.
       </p>
       <p class="muted" style="font-size:0.83rem;margin-top:12px">
         Where a capability is absent, the node for it is absent too &mdash; the type system refuses to
