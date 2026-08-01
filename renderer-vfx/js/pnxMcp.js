@@ -326,6 +326,11 @@ export const PNX_HANDLERS = {
     const nums = [...scope.querySelectorAll('.pnx-num .pnx-ctrl, .pnx-vec .fld')];
     const clippedValues = nums.filter((i) => i.scrollWidth > i.clientWidth + 1).map((i) => i.value);
 
+    // The status line, read from the DOM rather than recomputed. That distinction is the whole point:
+    // asking PNX.report() again would say what the header OUGHT to say, and the bug this exists to
+    // catch was the header saying something else because nothing had told it to update.
+    const statusNode = scope.querySelector('.node-editor-errors');
+
     return {
       open: isPnxEditorOpen(),
       boxes: boxes.length,
@@ -333,6 +338,7 @@ export const PNX_HANDLERS = {
       controls: controls.length,
       distinctSocketColours: socketColours.size,
       previews: scope.querySelectorAll('.pnx-preview').length,
+      status: statusNode ? { text: statusNode.textContent, className: statusNode.className } : null,
       titles, rects, clipped, clippedValues,
       metrics: (() => {
         // Widths of the controls, so a test can catch a control silently losing a specificity fight

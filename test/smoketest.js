@@ -1002,6 +1002,45 @@
     return { ok: true, nodes: v.rects.length, labelsChecked: v.sockets };
   });
 
+  await step('PNX: the editor status line tracks the frame, not just the last edit', async () => {
+    // A brand-new procedural effect is built node-then-wire, so for an instant it is a graph whose
+    // Effect Output has no passes. renderStatus() used to run only inside render() — a full DOM
+    // rebuild — so the warning raised at that instant stayed in the header indefinitely, while the
+    // effect drew hundreds of sprites and pnx_verify reported nothing at all wrong.
+    //
+    // Read from the DOM (pnx_test_open_editor.status), never by asking report() again: the bug was
+    // never that the report was wrong, only that nothing had told the header to ask for it.
+    await vfxCall('pnx_new', { name: 'Status Check' });
+
+    await vfxCall('pnx_scrub', { frame: 0 });
+    const atStart = await vfxCall('pnx_test_open_editor');
+    assert(atStart.status, 'the editor must show a status line');
+    assert(!/has-error/.test(atStart.status.className),
+      `a fresh starter graph must not report an error: "${atStart.status.text}"`);
+
+    // Forward to where the emitter has actually produced particles. The editor stays open, so nothing
+    // rebuilds its DOM — only evaluation happens, which is exactly the path that used to update nothing.
+    await vfxCall('pnx_scrub', { frame: 20 });
+    const drawing = await vfxCall('pnx_test_open_editor');
+
+    assert(drawing.status.text !== atStart.status.text,
+      `the status line is frozen: it still reads "${atStart.status.text}" at frame 20, where the effect is drawing`);
+    assert(!/has-warning|has-error/.test(drawing.status.className),
+      `a working graph must not sit on a warning badge: "${drawing.status.text}" (${drawing.status.className})`);
+    assert(/\d+\s*drawn/.test(drawing.status.text),
+      `the status line should report what was drawn, got "${drawing.status.text}"`);
+
+    // And the header must agree with the engine rather than with its own history.
+    const verdict = await vfxCall('pnx_verify', {});
+    const real = (verdict.diagnostics || []).filter((d) => d.severity !== 'info').length;
+    const badged = /has-warning|has-error/.test(drawing.status.className);
+    assert(real > 0 === badged,
+      `the header and pnx_verify disagree: header "${drawing.status.text}" vs ${real} real diagnostics`);
+
+    await vfxCall('pnx_test_close_editor');
+    return { ok: true, atFrame0: atStart.status.text, atFrame20: drawing.status.text };
+  });
+
   await step('PNX acceptance: the add palette searches the real registry', async () => {
     await vfxCall('pnx_new', { name: 'Palette Check' });
     const all = await vfxCall('pnx_test_palette', {});

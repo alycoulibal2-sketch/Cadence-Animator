@@ -180,9 +180,16 @@ export function openPnxNodeEditor() {
   ST.on('effect', onChange);
   ST.on('pnx', onChange);
 
+  // ...and refresh the status line on every evaluated frame. A document change is not the only thing
+  // that changes what that line should say: scrubbing to a frame where the particles have finally
+  // been emitted changes it too, with no edit involved. Cheap by construction — no revalidation, and
+  // it only writes to the DOM when the text actually differs.
+  const onEvaluated = () => { if (isOpen) renderStatus({ revalidate: false }); };
+  const stopEvaluated = PNX.onEvaluated(onEvaluated);
+
   const m = modal({
     title: '', body: root,
-    onClose: () => { isOpen = false; ST.off('effect', onChange); ST.off('pnx', onChange); },
+    onClose: () => { isOpen = false; ST.off('effect', onChange); ST.off('pnx', onChange); stopEvaluated(); },
   });
   closeModal = m.close;
   applyTransform();
@@ -239,28 +246,46 @@ function renderBreadcrumb() {
 }
 
 // The graph's own diagnostics, surfaced where the work happens rather than only in a panel.
-function renderStatus() {
-  const rep = PNX.report();
+//
+// Called from two places, and the distinction matters. `render()` calls it after a structural change
+// and revalidates. The evaluation subscriber calls it after every frame WITHOUT revalidating, because
+// most of what this line says — the draw count, whether anything reached the screen, the frame-0
+// explanation — is a property of the last evaluated frame, not of the graph's shape.
+//
+// Before that subscription existed this ran only inside `render()`, a full DOM rebuild. A brand-new
+// effect is built node-then-wire, so it is briefly a graph with no render passes; the warning raised
+// at that instant then sat in the header indefinitely while the effect drew hundreds of sprites and
+// `pnx_verify` reported nothing wrong. The status was not incorrect so much as frozen.
+function renderStatus({ revalidate = true } = {}) {
+  const rep = PNX.report({ revalidate });
   const errors = rep.diagnostics.filter((d) => d.severity === 'error');
   const warnings = rep.diagnostics.filter((d) => d.severity === 'warning');
+
+  let text, title, cls;
   if (errors.length) {
-    statusEl.textContent = `✕ ${errors[0].message}`;
-    statusEl.title = errors.map((d) => `• ${d.message}`).join('\n');
-    statusEl.className = 'node-editor-errors has-error';
+    text = `✕ ${errors[0].message}`;
+    title = errors.map((d) => `• ${d.message}`).join('\n');
+    cls = 'node-editor-errors has-error';
   } else if (warnings.length) {
-    statusEl.textContent = `⚠ ${warnings.length} warning${warnings.length === 1 ? '' : 's'}`;
-    statusEl.title = warnings.map((d) => `• ${d.message}`).join('\n');
-    statusEl.className = 'node-editor-errors has-warning';
+    text = `⚠ ${warnings.length} warning${warnings.length === 1 ? '' : 's'}`;
+    title = warnings.map((d) => `• ${d.message}`).join('\n');
+    cls = 'node-editor-errors has-warning';
   } else {
     // An info diagnostic is worth showing where the work happens — the commonest one explains why a
     // brand-new effect draws nothing at frame 0, which is otherwise a puzzle with no message.
     const info = rep.diagnostics.find((d) => d.severity === 'info');
     const st = rep.stats || {};
     const counts = `${st.nodes || 0} nodes · ${st.drawnElements || 0} drawn`;
-    statusEl.textContent = info ? info.message : counts;
-    statusEl.title = info ? `${info.message}\n\n${counts}` : 'The graph evaluates without errors.';
-    statusEl.className = 'node-editor-errors ' + (info ? 'is-info' : 'is-clean');
+    text = info ? info.message : counts;
+    title = info ? `${info.message}\n\n${counts}` : 'The graph evaluates without errors.';
+    cls = 'node-editor-errors ' + (info ? 'is-info' : 'is-clean');
   }
+
+  // Write only on change. This runs once per evaluated frame, and reassigning identical text would
+  // otherwise invalidate layout on every frame of playback for no visible difference.
+  if (statusEl.textContent !== text) statusEl.textContent = text;
+  if (statusEl.title !== title) statusEl.title = title;
+  if (statusEl.className !== cls) statusEl.className = cls;
 }
 
 function renderWires() {

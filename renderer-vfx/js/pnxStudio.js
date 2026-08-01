@@ -39,6 +39,10 @@ export function openSession(graph, { fps = 30, duration = 60, seed = 0 } = {}) {
     lastFrame: -1,
     lastScene: { draws: [], stats: {} },
     lastDiagnostics: [],
+    // The last structural validation, kept so report() can be asked for a cheap refresh — see
+    // `revalidate` there. Structural findings cannot change without a graph edit, and a graph edit
+    // always comes with its own revalidating report.
+    lastGraphCheck: { ok: true, diagnostics: [] },
     outputNodeId: findOutputNode(graph),
   };
   return session;
@@ -46,6 +50,32 @@ export function openSession(graph, { fps = 30, duration = 60, seed = 0 } = {}) {
 
 export function closeSession() {
   session = null;
+}
+
+// ---------------------------------------------------------------- evaluation notifications
+//
+// Anything showing live numbers about the effect — the node editor's status line, an inspector —
+// needs to know when a frame has been evaluated, because that is when the draw counts and the
+// "nothing drawn yet" diagnostics change.
+//
+// This lives here rather than going through studioState's emitter because studioState imports THIS
+// module; announcing our own state change from the module that owns it avoids the cycle.
+const evaluationListeners = new Set();
+
+/** Subscribe to "a frame was evaluated". Returns an unsubscribe function. */
+export function onEvaluated(fn) {
+  evaluationListeners.add(fn);
+  return () => evaluationListeners.delete(fn);
+}
+export function offEvaluated(fn) {
+  evaluationListeners.delete(fn);
+}
+function notifyEvaluated(frame) {
+  for (const fn of evaluationListeners) {
+    // A listener that throws must not take down the frame that triggered it — this runs inside the
+    // preview's draw loop.
+    try { fn(frame); } catch (e) { console.error('[pnx] evaluation listener threw', e); }
+  }
 }
 
 // The node whose value is the scene. An explicit Effect Output if there is one; otherwise the newest
@@ -107,6 +137,8 @@ export function evaluateFrame(frame) {
   if (!session.outputNodeId) {
     session.lastScene = { draws: [], stats: { commands: 0 } };
     session.lastDiagnostics = [];
+    session.lastFrame = frame;
+    notifyEvaluated(frame);
     return session.lastScene;
   }
 
@@ -125,6 +157,7 @@ export function evaluateFrame(frame) {
   session.lastFrame = frame;
   session.lastScene = scene;
   session.lastCommands = commands;
+  notifyEvaluated(frame);
   return scene;
 }
 
@@ -177,10 +210,21 @@ export function robloxAnalysis() {
 // ---------------------------------------------------------------- reporting (Parts 52, 57, 61-62)
 // What the diagnostics panel and the MCP verification tools read. Deliberately structured, and
 // deliberately silent about whether the effect looks good.
-export function report() {
+/**
+ * @param revalidate  Re-run the structural validation (topological order, dangling outputs).
+ *
+ * Defaults to true, which is what every existing caller wants. Pass false for a live refresh driven
+ * by evaluation: `validateGraph()` re-sorts every scope and PULLS every unconsumed output, so running
+ * it once per drawn frame would re-evaluate disconnected subgraphs at the frame rate — and it clears
+ * the evaluator's own `diagnostics` array as it goes, which is not something to be doing underneath a
+ * playing preview. Structural findings cannot change without a graph edit, and every graph edit
+ * already triggers a revalidating report through the editor's ST.on('pnx') handler.
+ */
+export function report({ revalidate = true } = {}) {
   if (!session) return { ok: true, active: false, diagnostics: [], stats: {} };
   const { evaluator, lastScene, lastDiagnostics } = session;
-  const graphCheck = evaluator.validateGraph();
+  const graphCheck = revalidate ? evaluator.validateGraph() : session.lastGraphCheck;
+  if (revalidate) session.lastGraphCheck = graphCheck;
 
   const diagnostics = [
     ...graphCheck.diagnostics,
