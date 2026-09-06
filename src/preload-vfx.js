@@ -22,6 +22,13 @@ contextBridge.exposeInMainWorld('vfxStudio', {
   saveTextFile: (text, suggestedName) => ipcRenderer.invoke('vfx:file:saveText', text, suggestedName),
   saveBinaryFile: (bytes, suggestedName, filterName, ext) => ipcRenderer.invoke('vfx:file:saveBinary', bytes, suggestedName, filterName, ext),
 
+  // Cadence Pro (src/pro.js) and the browser, for the pricing page
+  proStatus: () => ipcRenderer.invoke('pro:status'),
+  proActivate: (email, key) => ipcRenderer.invoke('pro:activate', email, key),
+  proDeactivate: () => ipcRenderer.invoke('pro:deactivate'),
+  onProChanged: (cb) => ipcRenderer.on('pro:changed', (_e, s) => cb(s)),
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+
   // MCP command pipe (main process relays Claude's vfx_* tool calls here)
   onMcpCommand: (cb) => ipcRenderer.on('vfxmcp:command', (_e, msg) => cb(msg)),
   mcpResponse: (msg) => ipcRenderer.send('vfxmcp:response', msg),

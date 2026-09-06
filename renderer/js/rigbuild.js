@@ -522,39 +522,8 @@ const handleGeoSmall = new THREE.SphereGeometry(0.12, 12, 10);
 // shape/texture. Invisible until hovered/selected (see RigInstance#setHighlight).
 const SEL_BOX_GEO = new THREE.BoxGeometry(1, 1, 1);
 
-// Moon Animator draws a small pale-blue patch on every part, so which limbs are selectable — and
-// where to click for each — is visible without hunting. Cadence already had a per-part click box
-// covering the whole part, but it was invisible until hovered, so there was nothing to aim at.
-// These markers are that affordance: one camera-facing quad per part, sitting on the surface
-// nearest the viewer so it reads as painted on the limb from any angle.
-const PART_MARKER_GEO = new THREE.PlaneGeometry(1, 1);
-const MARKER_COLOR = 0x8ed0e8;        // pale blue, matching Moon's
-const MARKER_COLOR_HOVER = 0xd7f2ff;
-const MARKER_COLOR_SELECTED = 0x7c8cff;
-// Fraction of the face's shorter side the patch covers, then clamped — the cap is what stops a
-// big part like the torso getting a slab that swamps it.
-const MARKER_FRACTION = 0.45;
-const MARKER_MIN = 0.18, MARKER_MAX = 0.62;
-// Scratch objects for updatePartMarkers — it runs for every part every frame, so it allocates
-// nothing.
-const _mkCamPos = new THREE.Vector3();
-const _mkCentre = new THREE.Vector3();
-const _mkDir = new THREE.Vector3();
-const _mkLocal = new THREE.Vector3();
-const _mkPos = new THREE.Vector3();
-const _mkScale = new THREE.Vector3();
-const _mkUp = new THREE.Vector3(0, 1, 0);
-const _mkQuat = new THREE.Quaternion();
-const _mkMat = new THREE.Matrix4();
-const _mkNormalMat = new THREE.Matrix4();
-const _mkLook = new THREE.Matrix4();
+// Scratch objects, allocated once.
 const _mkBoxSize = new THREE.Vector3();
-const _mkU = new THREE.Vector3();
-const _mkV = new THREE.Vector3();
-const _mkN = new THREE.Vector3();
-const _mkBasis = new THREE.Matrix4();
-const _mkRot = new THREE.Matrix3();
-const _mkRotT = new THREE.Matrix3();
 
 // Half-extents of what a part actually DRAWS as, cached against the geometry object so a part that
 // swaps its placeholder for a real mesh picks the new bounds up automatically.
@@ -571,13 +540,6 @@ function partHalfExtents(p) {
     p._markerSize = null;
   }
   return p._extents;
-}
-
-// Marker size for the face being shown: a fraction of that face's shorter side, so the patch is
-// always in proportion to the surface it sits on.
-function markerSizeFor(half, axis) {
-  const u = half[(axis + 1) % 3] * 2, v = half[(axis + 2) % 3] * 2;
-  return Math.min(MARKER_MAX, Math.max(MARKER_MIN, Math.min(u, v) * MARKER_FRACTION));
 }
 
 // Part edges: nothing to draw. Roblox's renderer has no outline pass at all — measured directly
@@ -690,22 +652,9 @@ export class RigInstance {
     this.group.add(selBox);
     const selBoxSize = new THREE.Vector3(def.size[0], def.size[1], def.size[2]);
 
-    // The visible part marker. Its own click target rather than relying on selBox alone, so it
-    // stays hittable even where the part's real surface is awkward to hit (a thin hand, a limb
-    // mostly hidden behind the torso).
-    const markerMat = new THREE.MeshBasicMaterial({
-      color: MARKER_COLOR, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide,
-    });
-    const marker = new THREE.Mesh(PART_MARKER_GEO, markerMat);
-    marker.matrixAutoUpdate = false;
-    marker.renderOrder = 6;
-    marker.visible = false; // turned on by setPartMarkersVisible once the scene syncs state
-    marker.userData = { itemId: this.item.id, partId: def.id, partName: def.name, isSelBox: true };
-    this.group.add(marker);
-
     this.parts.set(def.id, {
       def, mesh, world: CF.IDENTITY.slice(), extras: [], baseEmissive,
-      selBox, selBoxSize, marker,
+      selBox, selBoxSize,
     });
 
     // customTexture: an already-decoded data URI captured at FBX/GLB import time (see
@@ -1035,76 +984,6 @@ export class RigInstance {
   solvePoseWorlds(pose, originCF, unparented) {
     return this.#solve(pose, originCF, new Map(), unparented);
   }
-
-  // Lay each part's marker flat on whichever of its faces is most turned toward the camera.
-  //
-  // Deliberately NOT a camera-facing billboard: a billboard always presents square-on, so it reads
-  // as a sticker pasted on the screen. Sitting in the part's own face plane means it foreshortens
-  // and tilts with the limb, which is what makes it look like it belongs on the surface — the
-  // difference between this and Moon's markers when they were billboarded.
-  //
-  // Called once per frame from the viewport, which is what owns the camera.
-  updatePartMarkers(camera) {
-    if (!this.markersVisible) return;
-    const camPos = _mkCamPos.setFromMatrixPosition(camera.matrixWorld);
-    for (const [, p] of this.parts) {
-      if (!p.marker.visible) continue;
-      _mkMat.fromArray([
-        p.world[3], p.world[6], p.world[9], 0,
-        p.world[4], p.world[7], p.world[10], 0,
-        p.world[5], p.world[8], p.world[11], 0,
-        p.world[0], p.world[1], p.world[2], 1,
-      ]);
-      _mkCentre.set(p.world[0], p.world[1], p.world[2]);
-      _mkDir.copy(camPos).sub(_mkCentre);
-      if (_mkDir.lengthSq() < 1e-9) continue;
-      _mkDir.normalize();
-      // View direction in the part's own axes, which is what decides the face being shown.
-      //
-      // Rotation ONLY — a direction must never go through the full transform, or the part's world
-      // position leaks into it. That bug put every rotated part's marker on the wrong face: R6's
-      // joints rotate the torso, arms and head but not the legs, so only the legs looked right.
-      //
-      // Extents come from the RENDERED geometry, never Part.Size: a classic head is a 2x1x1 Part
-      // that draws as a ~1.2 lathe, so sizing off Part.Size buried its marker inside the head.
-      _mkRot.setFromMatrix4(_mkMat);
-      _mkRotT.copy(_mkRot).transpose(); // orthonormal, so the transpose is the inverse
-      _mkLocal.copy(_mkDir).applyMatrix3(_mkRotT).normalize();
-      const half = partHalfExtents(p);
-
-      // The face most turned toward the camera.
-      let axis = 0;
-      for (let k = 1; k < 3; k++) if (Math.abs(_mkLocal.getComponent(k)) > Math.abs(_mkLocal.getComponent(axis))) axis = k;
-      const sign = _mkLocal.getComponent(axis) >= 0 ? 1 : -1;
-
-      // How far out that face sits. Measuring along the FACE normal rather than the view ray also
-      // removes the round-vs-boxy problem entirely: the half-extent is the surface distance for a
-      // flat face and for a sphere alike. Along the view ray it was not — treating the round head
-      // as a box put its marker out at the bounding-box corner, 0.864 against a surface at 0.60.
-      const out = half[axis];
-
-      // Basis: the face normal plus the part's other two axes, so the quad lies IN the face.
-      // (u, v, n) is kept right-handed by swapping the tangents on a negative face.
-      const u = (axis + 1) % 3, v = (axis + 2) % 3;
-      _mkU.set(0, 0, 0).setComponent(sign > 0 ? u : v, 1).applyMatrix3(_mkRot);
-      _mkV.set(0, 0, 0).setComponent(sign > 0 ? v : u, 1).applyMatrix3(_mkRot);
-      _mkN.set(0, 0, 0).setComponent(axis, sign).applyMatrix3(_mkRot);
-      _mkBasis.makeBasis(_mkU.normalize(), _mkV.normalize(), _mkN.normalize());
-      _mkQuat.setFromRotationMatrix(_mkBasis);
-      _mkPos.copy(_mkCentre).addScaledVector(_mkN, out + 0.012);
-      p.marker.matrix.compose(_mkPos, _mkQuat, _mkScale.setScalar(markerSizeFor(half, axis)));
-      p.marker.matrixWorldNeedsUpdate = true;
-    }
-  }
-
-  setPartMarkersVisible(v) {
-    this.markersVisible = !!v;
-    for (const [, p] of this.parts) {
-      // Never on a part that isn't drawn (an invisible HumanoidRootPart shouldn't sprout a marker).
-      p.marker.visible = !!v && p.def.transparency < 0.99;
-    }
-  }
-
   setHandlesVisible(v) {
     for (const h of this.handles) h.mesh.visible = v;
   }
@@ -1182,12 +1061,6 @@ export class RigInstance {
       // Selection box: invisible at rest, a soft fill on hover, a stronger one when selected —
       // the click-target itself gives the same affordance a real cursor-over highlight would.
       p.selBox.material.opacity = isTarget && level === 2 ? 0.32 : isTarget && level === 1 ? 0.16 : 0;
-      // The marker is the thing the eye actually tracks, so it carries the state most visibly.
-      p.marker.material.color.setHex(
-        isTarget && level === 2 ? MARKER_COLOR_SELECTED
-          : isTarget && level === 1 ? MARKER_COLOR_HOVER : MARKER_COLOR,
-      );
-      p.marker.material.opacity = isTarget && level === 2 ? 0.95 : isTarget && level === 1 ? 0.8 : 0.55;
     }
     for (const h of this.handles) {
       const isTarget = isTargetId(h.joint.part1);
@@ -1219,7 +1092,7 @@ export class RigInstance {
       // handle geometries are shared module-level constants — never dispose those, or every
       // OTHER still-live instance loses them too.
       if (o.geometry && o.geometry !== handleGeoNormal && o.geometry !== handleGeoSmall
-        && o.geometry !== SEL_BOX_GEO && o.geometry !== PART_MARKER_GEO) o.geometry.dispose();
+        && o.geometry !== SEL_BOX_GEO) o.geometry.dispose();
       if (o.material) {
         if (o.material.map && !shared.has(o.material.map)) o.material.map.dispose();
         o.material.dispose();
@@ -1254,8 +1127,6 @@ export class NullInstance {
   setHighlight() { }
   setHandlesVisible() { }
   setHandleSize() { }
-  setPartMarkersVisible() { }
-  updatePartMarkers() { }
   setBodyVisible() { }
   setFrustumVisible() { }
   dispose() { }

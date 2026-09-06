@@ -116,6 +116,8 @@ export function registerNode(def) {
     aliases: def.aliases || [],
     performance: def.performance || 'trivial',
     pure: def.pure !== false,
+    // Part of the Cadence Pro simulation pack: the shipped build evaluates it only with a key.
+    pro: def.pro === true,
     searchText: [def.label, baseId, def.category, def.subcategory, def.summary, ...(def.aliases || [])]
       .filter(Boolean).join(' ').toLowerCase(),
   });
@@ -239,6 +241,7 @@ export function describeNode(idOrFullId) {
     inputs: n.inputs.map(socket),
     outputs: n.outputs.map(socket),
     exportSupport: n.exportSupport,
+    pro: !!n.pro,
     exportNote: n.exportNote || null,
     performance: n.performance,
     preview: n.preview || null,
@@ -254,7 +257,7 @@ export function describeNode(idOrFullId) {
 export function catalogue() {
   return currentNodes().map((n) => ({
     id: n.id, version: n.version, label: n.label, category: n.category,
-    summary: n.summary, exportSupport: n.exportSupport,
+    summary: n.summary, exportSupport: n.exportSupport, pro: !!n.pro,
     inputs: n.inputs.map((s) => `${s.key}:${formatType(s.type)}`),
     outputs: n.outputs.map((s) => `${s.key}:${formatType(s.type)}`),
   }));

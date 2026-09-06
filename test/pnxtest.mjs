@@ -4456,6 +4456,29 @@ check('zones: Carry over frames makes a simulation zone — sequential, scrubbab
   assert.equal(at(3), 8, 'after the edit, frame 3 is recomputed from frame 0 with the new step');
 });
 
+// ================================================================ Cadence Pro: the evaluator gate
+check('pro gate: an evaluator without the key yields the default for Pro nodes with a diagnostic, and switches on in place', () => {
+  const proIds = R.catalogue().filter((n) => n.pro).map((n) => n.id.replace(/@\d+$/, ''));
+  for (const id of ['cadence.forces.flock', 'cadence.forces.separation', 'cadence.forces.liquid', 'cadence.particles.events', 'cadence.pyro.simulate', 'cadence.volume.cloud', 'cadence.render.volume']) {
+    assert.ok(proIds.includes(id), `${id} is flagged Pro`);
+  }
+  assert.ok(!proIds.includes('cadence.particles.simulate') && !proIds.includes('cadence.math.add'), 'the free core is not flagged');
+  const g = G.newGraph('t');
+  const cloud = G.newNode(g, 'cadence.volume.cloud', 0, 0, { id: 'cloud', values: { resolution: 8 } });
+  const info = G.newNode(g, 'cadence.volume.info', 0, 0, { id: 'info' });
+  assert.ok(G.connect(g, cloud.id, 'out', info.id, 'volume').ok);
+  const gated = new E.Evaluator(g, { fps: 30, pro: false });
+  const r1 = gated.evaluateSocket(info.id, 'voxels');
+  assert.equal(r1.value, 0, 'without the key the Cloud yields nothing');
+  assert.ok(r1.diagnostics.some((d) => /Cadence Pro/.test(d.message)), `the diagnostic names the gate: ${JSON.stringify(r1.diagnostics)}`);
+  gated.setPro(true);
+  assert.equal(gated.evaluateSocket(info.id, 'voxels').value, 512, 'the key switches it on in place');
+  gated.setPro(false);
+  assert.equal(gated.evaluateSocket(info.id, 'voxels').value, 0, 'and off again');
+  // the default is unrestricted: the engine, not the app, is what tests and source builds get
+  assert.equal(new E.Evaluator(g, { fps: 30 }).evaluateSocket(info.id, 'voxels').value, 512);
+});
+
 // ================================================================
 console.log(`\nPNX: ${passed} passed, ${failed} failed  (${R.nodeCount()} node types registered)`);
 if (failed) {

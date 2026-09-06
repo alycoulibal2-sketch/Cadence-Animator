@@ -535,6 +535,7 @@ function openAddPalette(screenX, screenY, worldPos) {
       const main = el('div', 'pnx-palette-main');
       main.appendChild(el('span', 'pnx-palette-label', n.label));
       main.appendChild(el('span', 'pnx-palette-badge', n.category));
+      if (n.pro) main.appendChild(el('span', 'pnx-palette-badge pnx-badge-pro', 'Pro'));
       row.appendChild(main);
       row.appendChild(el('div', 'pnx-palette-desc', n.summary));
       row.addEventListener('pointerdown', (e) => { e.preventDefault(); addNode(n.id, worldPos); closeAddPalette(); });

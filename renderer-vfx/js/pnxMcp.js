@@ -671,8 +671,10 @@ export const PNX_HANDLERS = {
   },
 
   // ---------------------------------------------------------------- export (Parts 56-58)
-  pnx_export_lua({ bakeStride = 1, maxBakedParticles = 300, precision = 2 } = {}) {
+  async pnx_export_lua({ bakeStride = 1, maxBakedParticles = 300, precision = 2 } = {}) {
     requirePnx();
+    const pro = await window.vfxStudio.proStatus();
+    if (!pro.active) throw new Error('Exporting a procedural effect to Roblox is a Cadence Pro feature. Enter a key (command palette → "Cadence Pro"), or build from source — the code is MIT.');
     const built = PNX.exportRoblox({
       name: ST.state.pnx.name,
       fps: ST.state.doc.fps || 30,

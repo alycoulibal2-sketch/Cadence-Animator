@@ -618,6 +618,35 @@
     return { ok: true, counts: compat.counts };
   });
 
+  await step('Cadence Pro: procedural export and the simulation pack are gated by the key, and the key switches them on', async () => {
+    const before = await window.cadence.proStatus();
+    assert(!before.active, 'a fresh user-data dir has no key');
+    await vfxCall('pnx_new', { name: 'Pro gate' });
+    let refused = null;
+    try { await vfxCall('pnx_export_lua', {}); } catch (e) { refused = e; }
+    assert(refused && /Cadence Pro/.test(String(refused.message || refused)), `export without a key must be refused: ${refused && refused.message}`);
+    // A Pro node yields its type's default without a key and a real value with one. Cloud makes a
+    // volume grid; Volume Info counts its voxels, so the gate is visible as 0 versus 12³.
+    const cloud = await vfxCall('pnx_add_node', { type: 'cadence.volume.cloud', x: 0, y: 0, values: { resolution: 12 } });
+    const info = await vfxCall('pnx_add_node', { type: 'cadence.volume.info', x: 200, y: 0 });
+    await vfxCall('pnx_connect', { fromNode: cloud.nodeId, fromSocket: 'out', toNode: info.nodeId, toSocket: 'volume' });
+    const voxelsGated = (await vfxCall('pnx_inspect', { nodeId: info.nodeId, frame: 0 })).outputs.voxels.value;
+    assert(voxelsGated === 0, `without a key the Cloud node yields nothing, got ${voxelsGated} voxels`);
+    const bad = await window.cadence.proActivate('smoketest@cadence.local', 'AAAA-AAAA-AAAA-AAAA-AAAA');
+    assert(!bad.ok, 'a wrong key does not activate');
+    const r = await window.cadence.proActivate('smoketest@cadence.local', 'TEST-TEST-TEST-TEST-TEST');
+    assert(r.ok && r.status.active, `the test key activates in a smoketest run: ${JSON.stringify(r)}`);
+    await new Promise((res) => setTimeout(res, 200));
+    const st = await window.cadence.proStatus();
+    assert(st.active && st.keyHint === '…TEST', `status reflects the key: ${JSON.stringify(st)}`);
+    const voxelsOpen = (await vfxCall('pnx_inspect', { nodeId: info.nodeId, frame: 0 })).outputs.voxels.value;
+    assert(voxelsOpen === 12 * 12 * 12, `with the key the same node makes a real 12³ volume, got ${voxelsOpen}`);
+    await vfxCall('pnx_remove_node', { nodeId: info.nodeId });
+    await vfxCall('pnx_remove_node', { nodeId: cloud.nodeId });
+    const again = await vfxCall('pnx_export_lua', {});
+    assert(again.lua && again.lua.length > 100, 'with the key, the same export succeeds');
+    return { ok: true, keyHint: r.status.keyHint };
+  });
   await step('PNX: a simple effect exports as a real ParticleEmitter, and reports how', async () => {
     await vfxCall('pnx_new', { name: 'Export Smoketest' });
 
@@ -1547,44 +1576,23 @@
     return { ok: true };
   });
 
-  // ---------------------------------------------------------------- part markers
-  await step('every drawable part carries a visible, clickable marker sitting on its surface', async () => {
-    const THREE = await import('../renderer/../node_modules/three/build/three.module.js');
+  // ---------------------------------------------------------------- no part markers
+  await step('rig parts carry no pale-blue marker; the whole part is the click target', async () => {
+    // The Moon-style patches were removed on 2026-09-06 at the user's request. Selection must still
+    // work through each part's invisible whole-part click box.
     const item = await D.addBuiltinRig('r6');
     await new Promise((r) => setTimeout(r, 1200));
     D.updateScene();
     const inst = D.getInstance(item.id);
-
     for (const [name, p] of inst.parts) {
-      assert(p.marker, `${name} has no marker`);
-      // The invisible HumanoidRootPart must not sprout one.
-      const shouldShow = p.def.transparency < 0.99;
-      assert(p.marker.visible === shouldShow, `${name} marker visibility should be ${shouldShow}`);
+      assert(!p.marker, `${name} still has a marker`);
+      assert(p.selBox && p.selBox.userData.isSelBox && p.selBox.userData.partId === p.def.id, `${name} has no click box`);
     }
-
-    // Placement is derived from the RENDERED geometry, not Part.Size. A classic head is a 2x1x1
-    // Part that draws as a ~1.2 lathe, so sizing off Part.Size buried its marker inside the head.
-    const head = inst.parts.get('Head');
-    const camera = D.viewport.camera;
-    D.updateScene();
-    const headCentre = new THREE.Vector3(head.world[0], head.world[1], head.world[2]);
-    const markerPos = new THREE.Vector3().setFromMatrixPosition(head.marker.matrix);
-    // The head is ROUND, so the distance must be its radius regardless of view angle. Treating it
-    // as a box put the marker at 0.864 — out where the bounding box corner is, visibly hovering.
-    const out = markerPos.distanceTo(headCentre);
-    assert(out > 0.55 && out < 0.65,
-      `the head marker should sit on the lathe's ~0.6 surface, got ${out.toFixed(3)} from centre`);
-    // and it must be on the camera's side of the part, never buried behind it
-    const toCam = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld).sub(headCentre).normalize();
-    const toMarker = markerPos.clone().sub(headCentre).normalize();
-    assert(toCam.dot(toMarker) > 0.9, 'the marker should face the camera side of the part');
-
-    // Clicking the marker must select that part — it is its own raycast target.
-    assert(head.marker.userData.partId === 'Head' && head.marker.userData.isSelBox,
-      'the marker should identify its part to the picker');
-
+    let stray = 0;
+    inst.group.traverse((o) => { if (o.isMesh && o.geometry && o.geometry.type === 'PlaneGeometry' && o.material && o.material.color && o.material.color.getHex() === 0x8ed0e8) stray++; });
+    assert(stray === 0, `${stray} pale-blue quads remain in the rig`);
     S.removeItem(item.id);
-    return { parts: inst.parts.size };
+    return { ok: true, parts: inst.parts.size };
   });
 
   // ---------------------------------------------------------------- part multi-select + keying

@@ -15,6 +15,7 @@ import { initDiagnosticsPanel } from './diagnosticsPanel.js';
 import { serializeEffect, parseEffect } from '../../renderer/js/effectModel.js';
 import { buildEffectLua } from '../../renderer/js/effectExport.js';
 import { toast, modal } from '../../renderer/js/ui.js';
+import { initPro, openProDialog } from '../../renderer/js/proDialog.js';
 import { applyStaticIcons, swapIcon } from '../../renderer/js/icons.js';
 import { isNodeEditorOpen, openNodeEditor } from './nodeEditor.js';
 import { openPnxNodeEditor } from './pnxNodeEditor.js';
@@ -145,6 +146,12 @@ function initTitlebar() {
 
   document.getElementById('exportLuaBtn').addEventListener('click', async () => {
     if (!gateOnErrors('export')) return;
+    // Procedural export is Cadence Pro; the layer-based export stays free. Asked of the main process
+    // at click time, so a key entered a moment ago counts.
+    if (ST.isPnxMode()) {
+      const st = await window.vfxStudio.proStatus();
+      if (!st.active) { openProDialog({ reason: 'export' }); return; }
+    }
     const body = document.createElement('div');
     body.className = 'vfx-export-summary';
     const line = (text, cls) => {
@@ -317,6 +324,7 @@ import { initStudioMcp } from './mcp.js';
 // ---------------------------------------------------------------- boot
 async function boot() {
   applyStaticIcons();
+  initPro(window.vfxStudio);
   initPreview();
   initClipTimeline();
   initInspector();

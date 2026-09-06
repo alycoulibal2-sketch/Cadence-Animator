@@ -358,7 +358,7 @@ node({
 // with cheap self-shadowing, heat glows through a colour table — the two things that make a volume
 // read as fire and smoke rather than as a grey blob.
 node({
-  id: 'cadence.render.volume', label: 'Volume Renderer', category: REN, subcategory: 'Volumes',
+  id: 'cadence.render.volume', pro: true, label: 'Volume Renderer', category: REN, subcategory: 'Volumes',
   aliases: ['draw smoke', 'draw fire', 'raymarch', 'fog', 'cloud renderer', 'volumetric', 'draw volume', 'gas', 'render volume'],
   summary: 'Draws a volume — smoke, fire, a cloud — as real see-through gas with light and shadow.',
   teach: 'Turns a box of density into something you can see. Smoke is lit and shadows itself; heat glows with the fire colours.',

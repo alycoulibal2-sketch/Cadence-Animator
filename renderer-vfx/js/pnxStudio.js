@@ -18,6 +18,7 @@ import * as RENDER from '../../renderer/js/pnx/render.js';
 import { getNode as getNodeType } from '../../renderer/js/pnx/registry.js';
 import { buildRobloxExport, analyseForRoblox } from '../../renderer/js/pnx/targets/roblox.js';
 import '../../renderer/js/pnx/nodes/index.js';
+import { isActive as proActive, onChange as onProChange } from '../../renderer/js/proDialog.js';
 
 const OUTPUT_TYPE = 'cadence.render.output';
 
@@ -35,7 +36,7 @@ export function currentGraph() {
 export function openSession(graph, { fps = 30, duration = 60, seed = 0 } = {}) {
   session = {
     graph,
-    evaluator: new Evaluator(graph, { fps, duration, seed, profiling: false }),
+    evaluator: new Evaluator(graph, { fps, duration, seed, profiling: false, pro: proActive() }),
     lastFrame: -1,
     lastScene: { draws: [], stats: {} },
     lastDiagnostics: [],
@@ -361,3 +362,11 @@ export function newStarterGraph(name = 'Untitled Procedural Effect') {
   wire(spr, 'out', output, 'passes');
   return g;
 }
+
+// A key entered while a session is open switches the simulation pack on without reopening the
+// effect: the evaluator drops its cache and the next frame evaluates the Pro nodes for real.
+onProChange(() => {
+  if (!session) return;
+  session.evaluator.setPro(proActive());
+  session.lastFrame = -1;
+});

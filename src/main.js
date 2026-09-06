@@ -10,9 +10,18 @@ const robloxAssets = require('./lib/robloxAssets');
 const { createMobileServer, MOBILE_PORT } = require('./mobileServer');
 const { createMobileTunnel } = require('./mobileTunnel');
 const QRCode = require('qrcode');
+const pro = require('./pro');
 
 const BRIDGE_PORT = 35747;
 const MCP_PORT = 35748;
+// The window icon only matters in dev (npm start runs electron.exe, whose own logo would sit in
+// the taskbar otherwise). A packaged build carries brand/icon.ico inside the exe and Windows uses
+// that automatically, so the file is simply absent there and this stays undefined.
+const APP_ICON_PATH = path.join(__dirname, '..', 'brand', 'icon.ico');
+const APP_ICON = fs.existsSync(APP_ICON_PATH) ? APP_ICON_PATH : undefined;
+// Same identity as build.appId in package.json, so the taskbar groups and pins the window with
+// the installed shortcut instead of with a generic Electron entry.
+if (process.platform === 'win32') app.setAppUserModelId('com.alyco.cadenceanimator');
 const isScreenshotRun = process.argv.some((a) => a.startsWith('--screenshot'));
 
 let win = null;
@@ -86,14 +95,28 @@ function writeSettings(s) {
   fs.writeFileSync(settingsPath(), JSON.stringify(s, null, 2));
 }
 
+// Cadence Pro: the licence lives here (src/pro.js); both windows read it over IPC and hear changes.
+// A smoketest run accepts one fixed test key so the gate itself can be exercised without a server.
+const isSmoketestRun = process.argv.some((a) => a.startsWith('--demo-js-file=') && /smoketest/.test(a));
+const PRO = pro.install({
+  ipcMain, readSettings, writeSettings, testMode: isSmoketestRun,
+  onChange: (st) => { for (const w of [win, vfxWin]) if (w && !w.isDestroyed()) w.webContents.send('pro:changed', st); },
+});
+
 // ---------------------------------------------------------------- window
 function createWindow() {
   nativeTheme.themeSource = 'dark';
+  // A screenshot run may pin the page size, e.g. --window-size=1920x1020 reproduces the site hero at
+  // its documented dimensions on any display (pair it with --force-device-scale-factor=1).
+  const sizeArg = isScreenshotRun ? process.argv.find((a) => a.startsWith('--window-size=')) : null;
+  const shotSize = sizeArg ? sizeArg.slice('--window-size='.length).split('x').map(Number) : null;
   win = new BrowserWindow({
-    width: 1520,
-    height: 920,
-    minWidth: 980,
-    minHeight: 600,
+    width: shotSize ? shotSize[0] : 1520,
+    height: shotSize ? shotSize[1] : 920,
+    useContentSize: !!shotSize,
+    minWidth: shotSize ? Math.min(980, shotSize[0]) : 980,
+    minHeight: shotSize ? Math.min(600, shotSize[1]) : 600,
+    icon: APP_ICON,
     backgroundColor: '#0d0d12',
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#0d0d12', symbolColor: '#8a8a96', height: 40 },
@@ -426,6 +449,7 @@ app.whenReady().then(() => {
   startBridgeServer();
   startMcpServer();
   initAutoUpdater();
+  PRO.reverifyIfDue().catch(() => {});
 });
 app.on('window-all-closed', () => app.quit());
 

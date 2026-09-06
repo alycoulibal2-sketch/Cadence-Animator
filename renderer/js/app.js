@@ -1,11 +1,12 @@
 // App shell: wires everything together — commands, shortcuts, panels, playback, import/export flows.
 import * as S from './state.js';
 import * as CF from './cf.js';
-import { initViewport, updateScene, render, setGizmoMode, toggleGizmoSpace, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, commitOverlays, getInstance, syncItems, refreshInstance, setHandlesVisible, setHandleSize, setPartMarkersVisible, setRotationSnap, setTranslationSnap, viewport } from './viewport.js';
+import { initViewport, updateScene, render, setGizmoMode, toggleGizmoSpace, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, commitOverlays, getInstance, syncItems, refreshInstance, setHandlesVisible, setHandleSize, setRotationSnap, setTranslationSnap, viewport } from './viewport.js';
 import { initTimeline, requestDraw, copySelectedKeys, cutSelectedKeys, pasteKeys, pasteKeysIntoItem, duplicateAtPlayhead, zoomToFit, openSelectedKeyMenu, toggleItemCollapse, toggleCollapseAll, openMarkerEditor } from './timeline.js';
 import { initCurveEditor, toggleCurveEditor, openCurveEditor } from './curves.js';
 import { initAudio, loadAudioFromPath, removeAudio, setAudioVolume, setAudioOffset, restoreAudio } from './audio.js';
 import { toast, toastProgress, modal, promptModal, chooseModal, copyableRow, showContextMenu } from './ui.js';
+import { initPro, openProDialog } from './proDialog.js';
 import { registerCommand, initPalette, showShortcuts, hideShortcuts } from './palette.js';
 import { iconSvg, swapIcon, applyStaticIcons, itemIcon, itemIconSvg } from './icons.js';
 import { STYLES, DIRECTIONS, paramsFor, PARAM_DATA, isDirectional } from './easing.js';
@@ -37,10 +38,10 @@ async function boot() {
   try {
     applyStaticIcons();
     settings = await window.cadence.getSettings() || {};
+    initPro(window.cadence);
     S.state.autoKey = settings.autoKey ?? true;
     S.state.snapping = settings.snapping ?? true;
     S.state.handlesVisible = settings.handlesVisible ?? true;
-    S.state.partMarkersVisible = settings.partMarkersVisible ?? true;
     S.state.handleSize = settings.handleSize ?? 'normal';
     S.state.showSeconds = settings.showSeconds ?? false;
     S.state.rotGridDegrees = settings.rotGridDegrees ?? 15;
@@ -158,6 +159,7 @@ function updateDragHud() {
 // ================================================================ commands & shortcuts
 function registerAllCommands() {
   const C = registerCommand;
+  C({ title: 'Cadence Pro: enter your key', section: 'General', run: () => openProDialog() });
   C({ title: 'Play / Pause', shortcut: 'Space', section: 'Playback', run: togglePlay });
   C({ title: 'Step forward 1 frame', shortcut: '→ / Numpad 6', section: 'Playback', run: () => S.setPlayhead(Math.round(S.state.playhead) + 1) });
   C({ title: 'Step back 1 frame', shortcut: '← / Numpad 4', section: 'Playback', run: () => S.setPlayhead(Math.round(S.state.playhead) - 1) });
@@ -246,7 +248,6 @@ function registerAllCommands() {
   C({ title: 'Toggle onion skin', shortcut: 'B', section: 'Onion skin', run: () => toggleOnionForSelected(false) });
   C({ title: 'Clear all onion skins', shortcut: 'Alt+B', section: 'Onion skin', run: clearOnionSkins });
   C({ title: 'Toggle joint handles', shortcut: 'Ctrl+B', section: 'Onion skin', run: toggleHandles });
-  C({ title: 'Toggle part markers', hint: 'the pale blue patch on each body part you click to select it', section: 'Onion skin', run: togglePartMarkers });
   C({ title: 'Small handles', shortcut: 'Shift+B', section: 'Onion skin', run: smallHandles });
   C({ title: 'Hide handles', shortcut: 'Shift+H', section: 'Onion skin', run: hideHandlesForce });
 
@@ -506,7 +507,6 @@ function persistPrefs() {
   settings.autoKey = S.state.autoKey;
   settings.snapping = S.state.snapping;
   settings.handlesVisible = S.state.handlesVisible;
-  settings.partMarkersVisible = S.state.partMarkersVisible;
   settings.handleSize = S.state.handleSize;
   settings.showSeconds = S.state.showSeconds;
   settings.rotGridDegrees = S.state.rotGridDegrees;
@@ -1378,11 +1378,6 @@ function toggleHandles() { // Ctrl+B
   setHandlesVisible(!S.state.handlesVisible);
   persistPrefs();
   toast(`Joint handles ${S.state.handlesVisible ? 'shown' : 'hidden'}`);
-}
-function togglePartMarkers() {
-  setPartMarkersVisible(!S.state.partMarkersVisible);
-  persistPrefs();
-  toast(`Part markers ${S.state.partMarkersVisible ? 'shown' : 'hidden'}`);
 }
 function smallHandles() { // Shift+B
   setHandleSize(S.state.handleSize === 'small' ? 'normal' : 'small');

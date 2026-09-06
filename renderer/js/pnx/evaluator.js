@@ -39,6 +39,7 @@ import {
   nodesInScope, isZoneKey,
 } from './graph.js';
 
+const PRO_NODE_MESSAGE = 'This node is part of the Cadence Pro simulation pack. Enter your key (command palette → "Cadence Pro") or build from source — the code is MIT.';
 const MAX_DEPTH = 64; // group nesting + evaluation depth guard; a real graph never approaches this
 
 export class Evaluator {
@@ -56,6 +57,9 @@ export class Evaluator {
       time: 0, frame: 0, fps: 30, duration: 60,
       seed: 0, quality: 1,
       profiling: false,
+      // false in the shipped app without a key: Pro-flagged nodes yield their fallback plus a diagnostic.
+      // The engine defaults to true — tests, scripts and source builds are not the place for a gate.
+      pro: true,
       ...options,
     };
     this._depth = 0;
@@ -84,6 +88,13 @@ export class Evaluator {
   invalidateAll() {
     this.cache.clear();
     this.persistent.clear();
+  }
+
+  // A key entered while a session is open switches the pack on in place.
+  setPro(flag) {
+    if (this.options.pro === !!flag) return;
+    this.options.pro = !!flag;
+    this.invalidateAll();
   }
 
   // Advancing the playhead invalidates time-dependent cache entries but MUST NOT touch persistent
@@ -317,6 +328,12 @@ export class Evaluator {
     const def = getNodeType(node.type);
     if (!def) {
       this._diag('error', node.id, `Node type "${node.type}" is not available in this build.`);
+      return this._fallback(node, socketKey);
+    }
+
+    // --- Cadence Pro: the shipped build evaluates these only with a key. The words match the dialog.
+    if (def.pro && this.options.pro === false) {
+      this._diag('warning', node.id, PRO_NODE_MESSAGE);
       return this._fallback(node, socketKey);
     }
 

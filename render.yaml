@@ -1,0 +1,28 @@
+# Render Blueprint for the Cadence Animator Pro licence service (services/license).
+# New → Blueprint → this repository. Fill the `sync: false` values in the dashboard afterwards;
+# LICENSE_SECRET is generated once by Render — copy it somewhere safe, every key depends on it.
+services:
+  - type: web
+    name: cadence-license
+    runtime: node
+    rootDir: services/license
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: LICENSE_SECRET
+        generateValue: true
+      - key: FOUNDING_PAYMENT_LINK
+        sync: false
+      - key: PRO_PAYMENT_LINK
+        sync: false
+      - key: FOUNDING_LIMIT
+        value: "100"
+      - key: ALLOWED_ORIGINS
+        sync: false
