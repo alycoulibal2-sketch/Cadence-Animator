@@ -47,6 +47,8 @@ import './texture.js';
 // --- Phase 8: volume GRIDS only. The fluid solver, pyro and volume rendering are not built; see
 // volume.js's UNIMPLEMENTED table and the Volume Capabilities node, which reads it out loud.
 import './volume.js';
+// Parts 31, 32, 35 (2026-09-06): the grid fluid solver with combustion, and clouds. Drawn by the Volume Renderer.
+import './pyro.js';
 
 // --- always available: observability and layout
 import './debug.js';

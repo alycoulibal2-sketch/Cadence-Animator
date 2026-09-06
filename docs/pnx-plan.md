@@ -160,7 +160,7 @@ Part 78 (no fake features).
 | 5 | Particles, forces, the staged solver, collisions | **done except sub-emission** — the analytic sampler is superseded (§2a). Part 12's event graph is a documented seam, not a feature; see §6 |
 | 6 | Renderers, materials, lights, trails/ribbons/beams | **done** — plus the three.js backend and the studio wiring |
 | 7 | Textures, shader graph, compositing | **done** — see §4.5 |
-| 8 | Volumes, fluid foundation, pyro | not started. **Interface + architecture only when it is.** A CPU grid solver at useful resolutions is not viable in this renderer; the backend gets defined and left explicitly unimplemented rather than faked |
+| 8 | Volumes, fluid foundation, pyro | **built 2026-09-06.** `fluid.js` is a Stam stable-fluids solver on a collocated grid (semi-Lagrangian advection, buoyancy, vorticity confinement, Jacobi projection, open/closed boundary, combustion: fuel above an ignition temperature burns into heat and soot) with checkpoint replay; 16³–64³ on the CPU, 32³ steps in ~28 ms. `nodes/pyro.js` exposes it as Simulate Smoke & Fire (+ Cloud). The Volume Renderer raymarches in three.js (RGBA8 3D texture, self-shadowed, heat through a colour table); Roblox gets an 8×8 flipbook bake. Liquids and GPU compute remain the honest gaps (`volume.js UNIMPLEMENTED`) |
 | 9 | Baking, Roblox exporter, compatibility analyser | **done** — field probing decides native/converted/baked; see §4.5 |
 | 10 | MCP control, verification, profiling, documentation | **done** — 31 `pnx_*` tools; docs are per-node and served from the registry |
 | 11 | Node library, node groups, examples, education hooks | **done** — the library registers no node types, which is the test; see §4.5 |
@@ -410,7 +410,7 @@ exactly the two the specification itself expects to be blocked:
 
 | Effect | Blocked on |
 | --- | --- |
-| Realistic fire | The pyro solver (Parts 31–32). Part 32 is explicit that realistic fire must NOT be faked with a preset plus random particles, so it is absent rather than approximated. A STYLISED fire is constructible, which is the distinction Part 32 draws. |
+| Realistic fire | Constructible since 2026-09-06: a point source → Simulate Smoke & Fire → Volume Renderer (the sheet builds it as the "Fire & smoke" thing). It is a real solver, not a preset plus random particles, which is what Part 32 demands; a STYLISED fire from sprites remains the cheap alternative. The Part 75 test now asserts the primitives exist rather than that they are absent. |
 | Realistic cloud | Volume rendering (Part 35). A cloud can be baked into a volume and read as a field; it cannot be raymarched. |
 
 Both are recorded in `volume.js`'s `UNIMPLEMENTED` table, which a test reads — so the day a solver
@@ -467,9 +467,9 @@ ask "does Cadence have this effect", but "how do I construct this effect". For 3
 - **Attribute transfer and raycast are still brute force** (O(points) or O(faces) per sample). Nearest
   Point is grid-accelerated since Part 27 landed; the same grid is the obvious accelerator for attribute
   transfer, and raycast wants a BVH over faces. Both declare `performance: 'expensive'` so the profiler says so.
-- **Volumetric pyro/fluid (Parts 31–33, 35).** Interfaces and data model only. A real grid solver
-  plus raymarching is out of reach for this renderer at usable resolutions; it will be marked
-  unimplemented in the UI and in the export classification.
+- **Volumetric pyro/fluid (Parts 31–33, 35).** Built on 2026-09-06 at preview resolutions (16³–64³,
+  CPU, checkpointed). The limits that remain: no liquids (a free surface needs FLIP or a level set),
+  no GPU compute, and Roblox receives a flipbook bake rather than a volume — the export report says so.
 - **GPU compute (Parts 53–54).** The execution-backend seam is designed so CPU and a future GPU
   backend can coexist. Only the CPU backend gets built.
 - **Roblox output (Parts 56–58).** Roblox cannot reproduce most of this natively. That is expected

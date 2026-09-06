@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('vfxStudio', {
   saveEffectFile: (json, suggestedName) => ipcRenderer.invoke('vfx:file:saveEffect', json, suggestedName),
   openEffectFile: () => ipcRenderer.invoke('vfx:file:openEffect'),
   saveTextFile: (text, suggestedName) => ipcRenderer.invoke('vfx:file:saveText', text, suggestedName),
+  saveBinaryFile: (bytes, suggestedName, filterName, ext) => ipcRenderer.invoke('vfx:file:saveBinary', bytes, suggestedName, filterName, ext),
 
   // MCP command pipe (main process relays Claude's vfx_* tool calls here)
   onMcpCommand: (cb) => ipcRenderer.on('vfxmcp:command', (_e, msg) => cb(msg)),

@@ -3262,16 +3262,19 @@ check('volume: the unimplemented backends are declared, and no node can use them
 
 check('volume: the capabilities node answers the question from inside the graph', () => {
   // The answer to "can this engine simulate smoke" has to be available to an MCP caller, not only in a
-  // comment — so it is a node, reading the engine's own record rather than a duplicated string.
+  // comment — so it is a node, reading the engine's own record rather than a duplicated string. Since
+  // 2026-09-06 the answer is yes; what remains absent is liquids and GPU compute, and the node says so.
   const g = G.newGraph('t');
   const caps = G.newNode(g, 'cadence.volume.capabilities', 0, 0, { id: 'caps' });
-  assert.equal(ev(g, caps.id, 'hasFluidSolver').value, false);
-  assert.equal(ev(g, caps.id, 'hasVolumeRendering').value, false);
+  assert.equal(ev(g, caps.id, 'hasFluidSolver').value, true);
+  assert.equal(ev(g, caps.id, 'hasVolumeRendering').value, true);
   const missing = ev(g, caps.id, 'missing').value;
-  assert.ok(/advection|pressure/i.test(missing), `the missing list must name the solver: ${missing}`);
-  assert.ok(/raymarch/i.test(missing), 'and the renderer');
+  assert.ok(/FLIP|level.set/i.test(missing), `the missing list must name liquids: ${missing}`);
+  assert.ok(/WebGPU|GPU/i.test(missing), 'and GPU compute');
   const built = ev(g, caps.id, 'built').value;
-  assert.ok(/cache|blur|spawn/i.test(built), `and it must say what volumes ARE good for: ${built}`);
+  assert.ok(/advection|pressure/i.test(built), `the built list must name the solver: ${built}`);
+  assert.ok(/raymarch/i.test(built), 'and the renderer');
+  assert.ok(/blur|combine|threshold/i.test(built), 'and the older volume tools');
 });
 
 // ================================================================ Part 75: the engine stress test
@@ -3331,15 +3334,15 @@ check('Part 75: the specification\'s stress-test effects are constructible from 
   assert.ok(Object.keys(needs).length >= 30, 'the stress list should stay broad');
 });
 
-check('Part 75: the two effects that are NOT constructible are the ones the spec expects', () => {
-  // Part 75 also lists "Realistic fire" and "Realistic cloud", and Part 32 is explicit that realistic
-  // fire must NOT be faked with a preset plus random particles. Both need subsystems this engine does not
-  // have, and that is recorded here so the gap stays visible and honest rather than being quietly
-  // forgotten — and so this test starts failing the day a solver arrives and the entry should move.
-  const VOLmod = VOL.UNIMPLEMENTED;
-  assert.ok(VOLmod.pyro, 'realistic fire needs the pyro solver, which must be declared as absent');
-  assert.ok(VOLmod.volumeRendering, 'realistic cloud needs volume rendering, which must be declared as absent');
-  // A stylised fire IS constructible, which is the distinction Part 32 draws.
+check('Part 75: realistic fire and realistic cloud are constructible now, and the capability table says so', () => {
+  // These were the two effects the specification expected to be blocked (pyro, volume rendering). Both
+  // subsystems landed on 2026-09-06, so the test that used to assert their absence now asserts the
+  // primitives — and that the old absence entries are gone, per Part 78: a built feature must not be
+  // declared missing any more than a missing one may be declared built.
+  for (const id of ['cadence.pyro.simulate', 'cadence.render.volume', 'cadence.volume.cloud']) assert.ok(R.getNode(id), `realistic fire/cloud need ${id}`);
+  assert.ok(!VOL.UNIMPLEMENTED.pyro && !VOL.UNIMPLEMENTED.volumeRendering && !VOL.UNIMPLEMENTED.fluidSolver, 'built subsystems are no longer listed as absent');
+  assert.ok(VOL.BUILT.fluidSolver && VOL.BUILT.pyro && VOL.BUILT.volumeRendering, 'and are recorded as built, with where they live');
+  // A stylised fire remains constructible from particles alone, which is the distinction Part 32 draws.
   for (const id of ['cadence.particles.emitter', 'cadence.noise.curl', 'cadence.color.sampleGradient', 'cadence.render.sprite']) {
     assert.ok(R.getNode(id), `a stylised fire must remain constructible (${id})`);
   }
@@ -4022,6 +4025,91 @@ check('fluid: velocity sampled in world units matches the grid, and a step at 32
   assert.ok(v[1] > 0, `above the source the smoke moves up (${v[1].toFixed(3)} studs/s)`);
   assert.ok(ms < 400, `a 32³ step took ${ms.toFixed(1)} ms — far too slow for a preview`);
   console.log(`      (fluid step at 32³: ${ms.toFixed(1)} ms; at 20³ the earlier tests ran in a fraction of that)`);
+});
+
+// ================================================================ Parts 31, 32, 35: fire, smoke, clouds and the volume pass
+check('pyro: Simulate Smoke & Fire fills a volume, heats it, and offers a velocity field', () => {
+  const g = G.newGraph('pyro');
+  const src = G.newNode(g, 'cadence.geometry.point', 0, 0, { id: 'src', values: { position: [0, 0.4, 0] } });
+  const sim = G.newNode(g, 'cadence.particles.emitter', 0, 0, { id: 'unused' });   // an unrelated node must not matter
+  const fire = G.newNode(g, 'cadence.pyro.simulate', 0, 0, { id: 'fire', values: { resolution: 16, fuel: 3, temperature: 1.6, density: 2, center: [0, 2, 0], size: [4, 4, 4] } });
+  assert.ok(G.connect(g, src.id, 'out', fire.id, 'shape').ok);
+  const e = new E.Evaluator(g, { fps: 30 });
+  e.setTime(25);
+  const dens = e.evaluateSocket(fire.id, 'density');
+  assert.ok(dens.ok !== false && dens.value && dens.value.__volume, 'density is a volume');
+  const info = VOL.describeVolume(dens.value);
+  assert.ok(info.occupancy > 0.005 && info.range.max > 0.05, `smoke exists: ${JSON.stringify(info.range)} occupancy ${info.occupancy.toFixed(3)}`);
+  const heat = e.evaluateSocket(fire.id, 'temperature').value;
+  assert.ok(VOL.describeVolume(heat).range.max > 0.5, 'heat exists');
+  assert.ok(e.evaluateSocket(fire.id, 'burned').value > 0, 'fuel burned');
+  const vel = e.evaluateSocket(fire.id, 'velocity').value;
+  assert.ok(F.isField(vel), 'velocity is a field');
+  const up = F.sampleAny(vel, F.newSampleContext({ position: [0, 1.2, 0] }));
+  assert.ok(up[1] > 0.01, `air rises above the fire (${up[1].toFixed(3)} studs/s)`);
+  void sim;
+});
+
+check('pyro: scrubbing the simulation node backwards through the evaluator is deterministic', () => {
+  const build = () => {
+    const g = G.newGraph('pyro');
+    const fire = G.newNode(g, 'cadence.pyro.simulate', 0, 0, { id: 'fire', values: { resolution: 12, fuel: 2, temperature: 1.5, density: 3, vorticity: 1 } });
+    return { fire, e: new E.Evaluator(g, { fps: 30 }) };
+  };
+  const hashOf = (vol) => { let h = 0; for (let i = 0; i < vol.data.length; i++) h = (h * 31 + Math.round(vol.data[i] * 1e4)) >>> 0; return h; };
+  const a = build(); a.e.setTime(18); const forwards = hashOf(a.e.evaluateSocket(a.fire.id, 'density').value);
+  const b = build(); b.e.setTime(40); b.e.evaluateSocket(b.fire.id, 'density'); b.e.setTime(18);
+  assert.equal(hashOf(b.e.evaluateSocket(b.fire.id, 'density').value), forwards, 'backwards differs');
+});
+
+check('cloud: the Cloud node bakes a lumpy ellipsoid whose coverage follows the setting', () => {
+  const g = G.newGraph('cloud');
+  const thin = G.newNode(g, 'cadence.volume.cloud', 0, 0, { id: 'thin', values: { coverage: 0.3, resolution: 16 } });
+  const thick = G.newNode(g, 'cadence.volume.cloud', 0, 0, { id: 'thick', values: { coverage: 0.9, resolution: 16 } });
+  const e = new E.Evaluator(g, { fps: 30 });
+  const a = VOL.describeVolume(e.evaluateSocket(thin.id, 'out').value);
+  const b = VOL.describeVolume(e.evaluateSocket(thick.id, 'out').value);
+  assert.ok(a.occupancy > 0 && a.occupancy < 1, `a cloud is partly filled (${a.occupancy.toFixed(3)})`);
+  assert.ok(b.occupancy > a.occupancy, `more coverage fills more (${a.occupancy.toFixed(3)} -> ${b.occupancy.toFixed(3)})`);
+  // drifting: a later frame differs
+  e.setTime(30);
+  const later = e.evaluateSocket(thin.id, 'out').value;
+  let diff = 0; const first = e.evaluateSocket(thin.id, 'out').value; void first;
+  const e0 = new E.Evaluator(g, { fps: 30 }); const start = e0.evaluateSocket(thin.id, 'out').value;
+  for (let i = 0; i < later.data.length; i++) diff += Math.abs(later.data[i] - start.data[i]);
+  assert.ok(diff > 0, 'the cloud drifts over time');
+});
+
+check('volume renderer: a volume pass resolves to a draw with a normalised 3D texture and a fire LUT', () => {
+  const g = G.newGraph('vr');
+  const cloud = G.newNode(g, 'cadence.volume.cloud', 0, 0, { id: 'cloud', values: { resolution: 12 } });
+  const vr = G.newNode(g, 'cadence.render.volume', 0, 0, { id: 'vr', values: {} });
+  assert.ok(G.connect(g, cloud.id, 'out', vr.id, 'density').ok);
+  const out = G.newNode(g, 'cadence.render.output', 0, 0, { id: 'out' });
+  assert.ok(G.connect(g, vr.id, 'out', out.id, 'passes').ok);
+  const e = new E.Evaluator(g, { fps: 30 });
+  const res = e.evaluateSocket(out.id, 'out');
+  const cmds = RENDER.flattenCommands(res.value);
+  assert.equal(cmds.length, 1);
+  assert.equal(cmds[0].kind, 'volume');
+  const scene = RENDER.resolveScene(cmds, {});
+  const d = scene.draws[0];
+  assert.equal(d.kind, 'volume');
+  assert.equal(d.resolution, 12);
+  assert.equal(d.texels.length, 12 * 12 * 12 * 4, 'RGBA texels for every voxel');
+  assert.ok(d.densityScale > 0, 'the density scale is the grid maximum');
+  assert.equal(d.lut.length, 256 * 4, 'a 256-entry fire colour table');
+  assert.ok(d.lut[255 * 4] > d.lut[0], 'hot end of the LUT is brighter than the cold end');
+  assert.ok(scene.stats.volumes === 1);
+  // the export analyser classifies it as a flipbook bake, never unsupported
+  const report = RBX.analyseForRoblox(cmds);
+  assert.equal(report.rows[0].level, 'baked');
+  assert.ok(/flipbook/i.test(report.rows[0].how));
+});
+
+check('volumes: the capability table no longer lists the solver or the renderer as absent', () => {
+  assert.ok(!VOL.UNIMPLEMENTED.fluidSolver && !VOL.UNIMPLEMENTED.pyro && !VOL.UNIMPLEMENTED.volumeRendering, 'built features are not declared absent');
+  assert.ok(R.getNode('cadence.pyro.simulate') && R.getNode('cadence.render.volume') && R.getNode('cadence.volume.cloud'));
 });
 
 // ================================================================

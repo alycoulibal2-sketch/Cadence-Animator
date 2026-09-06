@@ -22,6 +22,7 @@
 import * as ST from './studioState.js';
 import * as PNX from './pnxStudio.js';
 import { pnxDrawStats } from './preview.js';
+import { probeCandidate } from './pnxThumbs.js';
 import * as PGRAPH from '../../renderer/js/pnx/graph.js';
 import * as PGROUPS from '../../renderer/js/pnx/groups.js';
 import * as PLIB from '../../renderer/js/pnx/library.js';
@@ -471,6 +472,14 @@ export const PNX_HANDLERS = {
   // The palette and the MCP catalogue, compared as lists. The palette calls REG.currentNodes() and
   // pnx_catalogue calls REG.catalogue(); both read the one registry, so this passes structurally and
   // fails the moment anyone introduces a second list for either client.
+  // Test-only: the live graph rendered on the thumbnail canvas with its pixels read back, optionally
+  // one draw kind alone. The smoketest uses it to prove the volume raymarcher compiles and paints.
+  pnx_test_volume_probe({ frame = null, only = null } = {}) {
+    const g = requirePnx();
+    const f = frame == null ? Math.floor(ST.state.playhead) : Math.floor(frame);
+    return probeCandidate(g, f, { fps: ST.state.doc.fps || 30, duration: ST.state.doc.duration || 60, only });
+  },
+
   pnx_test_registry_parity() {
     const human = REG.currentNodes().map((n) => n.id).sort();
     const claude = REG.catalogue().map((n) => n.id).sort();

@@ -50,6 +50,7 @@ export function slotKindOf(socket) {
     case 'curve': return 'curve';
     case 'gradient': return 'gradient';
     case 'renderCommand': return 'pass';
+    case 'volumeGrid': return 'volume';
     default: return 'other';
   }
 }
@@ -95,6 +96,7 @@ function baseVector(node, socket, fallback) {
 
 // An entry: { id, label, teach, roblox, apply(graph, node, socket) -> { nodes:[ids], focus?: id } }
 const E = (id, label, teach, roblox, apply, extra = {}) => ({ id, label, teach, roblox, apply, ...extra });
+const PGRAPH_socketsOf = (g, n) => G.socketsOf(g, n);
 
 // ---------------------------------------------------------------- menus per slot kind
 const MENUS = {
@@ -294,6 +296,20 @@ const MENUS = {
     E('burst', 'one burst', 'Everything at once, then nothing.', 'native', (g, n, s) => { const at = placer(g, n); const e = at('cadence.particles.emitter', { rate: 0, burstCount: 150, burstTime: 0, lifetime: 1.2, velocity: [0, 6, 0] }); link(g, e, 'out', n, s.key); return { nodes: [e.id], focus: e.id }; }),
   ],
 
+  volume: (graph, node, socket) => {
+    // The renderer's Heat input, when the same node has one, is wired from the same simulation so fire
+    // needs one choice, not two.
+    const wireHeat = (g, n, sim) => { const heat = PGRAPH_socketsOf(g, n).inputs.find((x) => x.key === 'temperature'); if (heat && !G.linksInto(g, n.id, 'temperature').length) link(g, sim, 'temperature', n, 'temperature'); };
+    return [
+      E('none', 'nothing', 'No volume: the renderer draws nothing.', 'native', (g, n, s) => { unlink(g, n, s.key); return { nodes: [] }; }),
+      E('fire', 'fire', 'A burning source: fuel ignites into flame and smoke.', 'baked', (g, n, s) => { const at = placer(g, n); const src = at('cadence.geometry.point', { position: [0, 0.4, 0] }, { col: 1 }); const sim = at('cadence.pyro.simulate', { fuel: 3, temperature: 1.6, density: 1.5, resolution: 32 }); link(g, src, 'out', sim, 'shape'); link(g, sim, 'density', n, s.key); wireHeat(g, n, sim); return { nodes: [src.id, sim.id], focus: sim.id }; }),
+      E('smoke', 'smoke', 'A smoke source with no flame.', 'baked', (g, n, s) => { const at = placer(g, n); const src = at('cadence.geometry.point', { position: [0, 0.4, 0] }, { col: 1 }); const sim = at('cadence.pyro.simulate', { fuel: 0, temperature: 1.2, density: 5, resolution: 32 }); link(g, src, 'out', sim, 'shape'); link(g, sim, 'density', n, s.key); return { nodes: [src.id, sim.id], focus: sim.id }; }),
+      E('cloud', 'a cloud', 'Lumpy shaped noise that drifts.', 'baked', (g, n, s) => { const at = placer(g, n); const c = at('cadence.volume.cloud', {}); link(g, c, 'out', n, s.key); return { nodes: [c.id], focus: c.id }; }),
+      E('bake', 'a baked field', 'Any field frozen into a grid — noise here.', 'baked', (g, n, s) => { const at = placer(g, n); const f = at('cadence.noise.fbm', { scale: 1.5, octaves: 3 }, { col: 1 }); const b = at('cadence.volume.rasterize', { resolution: 24, center: [0, 2, 0], size: [4, 4, 4] }); link(g, f, 'out', b, 'field'); link(g, b, 'out', n, s.key); return { nodes: [f.id, b.id], focus: b.id }; }),
+      E('blurred', 'this, blurred', 'Soften whatever is here.', 'baked', (g, n, s) => { const at = placer(g, n); const cur = currentSource(g, n, s.key); if (!cur) return { nodes: [] }; const bl = at('cadence.volume.blur', { radius: 1 }); link(g, cur.node, cur.socket, bl, 'volume'); link(g, bl, 'out', n, s.key); return { nodes: [bl.id], focus: bl.id }; }),
+    ];
+  },
+
   instances: (graph, node, socket) => [
     E('copies', 'copies on points', 'A small shape copied onto every point — debris, rocks, leaves.', 'converted', (g, n, s) => { const at = placer(g, n); const pts = at('cadence.geometry.pointGrid', { size: [4, 0, 4], countX: 6, countY: 1, countZ: 6 }, { col: 1 }); const shape = at('cadence.geometry.box', { size: [0.3, 0.3, 0.3] }, { col: 1 }); const inst = at('cadence.instance.onPoints', {}); link(g, pts, 'out', inst, 'points'); link(g, shape, 'out', inst, 'geometry'); link(g, inst, 'out', n, s.key); return { nodes: [pts.id, shape.id, inst.id], focus: inst.id }; }),
   ],
@@ -467,6 +483,29 @@ export const THINGS = [
       const mesh = at('cadence.render.mesh', 4, {});
       link(graph, pts, 'out', inst, 'points'); link(graph, box, 'out', inst, 'geometry'); link(graph, inst, 'out', mesh, 'instances'); link(graph, mat, 'out', mesh, 'material'); link(graph, mesh, 'out', out, 'passes');
       return { thing: mesh.id, nodes: [pts.id, box.id, inst.id, mat.id, mesh.id] };
+    },
+  },
+  {
+    id: 'fire', label: 'Fire & smoke', teach: 'A real gas simulation: flames rise from a source and trail smoke. Drawn with light and shadow.', roblox: 'baked',
+    build(graph) {
+      const y = nextRow(graph); const out = ensureOutput(graph);
+      const at = (type, x, values = {}) => G.newNode(graph, type, x, y, { values });
+      const src = at('cadence.geometry.point', -652, { position: [0, 0.4, 0] });
+      const sim = at('cadence.pyro.simulate', -324, { fuel: 3, temperature: 1.6, density: 1.5, resolution: 32, center: [0, 2.5, 0], size: [5, 5, 5] });
+      const vr = at('cadence.render.volume', 4, {});
+      link(graph, src, 'out', sim, 'shape'); link(graph, sim, 'density', vr, 'density'); link(graph, sim, 'temperature', vr, 'temperature'); link(graph, vr, 'out', out, 'passes');
+      return { thing: vr.id, nodes: [src.id, sim.id, vr.id] };
+    },
+  },
+  {
+    id: 'cloud', label: 'A cloud', teach: 'A lumpy, lit, drifting cloud.', roblox: 'baked',
+    build(graph) {
+      const y = nextRow(graph); const out = ensureOutput(graph);
+      const at = (type, x, values = {}) => G.newNode(graph, type, x, y, { values });
+      const c = at('cadence.volume.cloud', -324, {});
+      const vr = at('cadence.render.volume', 4, { smokeColor: [0.95, 0.95, 1, 1], absorption: 2, emission: 0, scatter: 0.45 });
+      link(graph, c, 'out', vr, 'density'); link(graph, vr, 'out', out, 'passes');
+      return { thing: vr.id, nodes: [c.id, vr.id] };
     },
   },
 ];

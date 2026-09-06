@@ -834,9 +834,10 @@
     // The honest statement has to be reachable from inside the graph, not only from documentation.
     const caps = await add('cadence.volume.capabilities', {});
     const c = await vfxCall('pnx_inspect', { nodeId: caps, frame: 0 });
-    assert(c.outputs.hasFluidSolver.value === false, 'there is no fluid solver and the engine must say so');
-    assert(c.outputs.hasVolumeRendering.value === false);
-    assert(/advection|pressure/i.test(c.outputs.missing.value), 'and it must name what is missing');
+    assert(c.outputs.hasFluidSolver.value === true, 'the fluid solver is built (2026-09-06) and the engine must say so');
+    assert(c.outputs.hasVolumeRendering.value === true);
+    assert(/FLIP|level.set|GPU/i.test(c.outputs.missing.value), 'and it must name what is still missing (liquids, GPU compute)');
+    assert(/advection|raymarch/i.test(c.outputs.built.value), 'and what is built');
     return { ok: true, voxels: ins.outputs.voxels.value, mb: ins.outputs.megabytes.value };
   });
 
@@ -1134,6 +1135,37 @@
     assert(dom.cards === 2, `two cards on the sheet, got ${dom.cards}`);
     await vfxCall('vfx_undo');
     return { ok: true, triangles: st.drawn.triangles };
+  });
+  await step('Fire & smoke: the sheet adds a real gas simulation, the raymarcher paints it, and the export bakes a flipbook', async () => {
+    const added = await vfxCall('pnx_sheet_add_thing', { thing: 'fire' });
+    assert(added.ok && added.made && added.made.thing, `add fire failed: ${JSON.stringify(added.diagnostics)}`);
+    const sheet = await vfxCall('pnx_sheet', { text: false });
+    const fire = sheet.things.find((t) => t.type.startsWith('cadence.render.volume'));
+    assert(fire && fire.drawn, 'the Volume Renderer is a drawn thing on the sheet');
+    assert(fire.exportSupport === 'baked', `its badge says baked, got ${fire.exportSupport}`);
+    await vfxCall('pnx_scrub', { frame: 30 });
+    await new Promise((r) => setTimeout(r, 400));
+    const st = await vfxCall('pnx_get_state');
+    assert(st.drawn && st.drawn.volumes === 1, `the backend drew one volume pass: ${JSON.stringify(st.drawn)}`);
+    // pixels, not passes: the raymarch shader must compile and paint something in the box
+    const probe = await vfxCall('pnx_test_volume_probe', { frame: 30, only: 'volume' });
+    assert(probe.ok && probe.draws === 1, `probe drew the volume alone: ${JSON.stringify(probe)}`);
+    assert(probe.programErrors.length === 0, `shader diagnostics: ${JSON.stringify(probe.programErrors)}`);
+    assert(probe.lit > 150, `the fire lights pixels on a 240x150 canvas, got ${probe.lit}`);
+    // the export classifies it as a flipbook bake and actually bakes the sheet
+    const rep = await vfxCall('pnx_export_report');
+    const row = rep.rows.find((r) => r.kind === 'volume');
+    assert(row && row.level === 'baked' && /flipbook/i.test(row.how), `volume row: ${JSON.stringify(row)}`);
+    const t0 = Date.now();
+    const lua = await vfxCall('pnx_export_lua', { bakeStride: 2, maxBakedParticles: 100 });
+    const ms = Date.now() - t0;
+    assert(/PASTE_FLIPBOOK_ID/.test(lua.lua) && /Grid8x8/.test(lua.lua), 'the script carries the flipbook emitter');
+    assert(lua.notes.some((n) => /flipbook/i.test(n)), 'and a note telling the user to save the PNG');
+    assert(ms < 30000, `the bake finished in a reasonable time (${ms} ms)`);
+    await vfxCall('vfx_undo');
+    const after = await vfxCall('pnx_sheet', { text: false });
+    assert(!after.things.some((t) => t.type.startsWith('cadence.render.volume')), 'undo removed the fire');
+    return { ok: true, lit: probe.lit, bakeMs: ms };
   });
   await step('PNX: switching back to a layer-based effect leaves no procedural objects behind', async () => {
     await vfxCall('pnx_close');

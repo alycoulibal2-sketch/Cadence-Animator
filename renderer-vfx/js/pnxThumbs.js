@@ -70,6 +70,34 @@ export function renderCandidate(graph, frame, target, { fps = 30, duration = 60 
   }
 }
 
+// Test-only: render `graph` at `frame` on the hidden canvas and read the pixels back, so a test can
+// prove a pass DRAWS (a shader that fails to compile still reports a pass and draws nothing). `only`
+// keeps just that draw kind, so a volume can be measured without the sprites in front of it. Returns
+// the number of pixels that differ from the background, plus any shader diagnostics three.js kept.
+export function probeCandidate(graph, frame, { fps = 30, duration = 60, only = null } = {}) {
+  ensure();
+  const outId = findOutput(graph);
+  if (!outId) return { ok: false, reason: 'nothing to draw' };
+  const ev = new Evaluator(graph, { fps, duration, quality: 0.6 });
+  ev.setTime(Math.max(0, Math.floor(frame)));
+  const res = ev.evaluateSocket(outId, 'out');
+  const cmds = RENDER.flattenCommands(res.value);
+  const scene3 = RENDER.resolveScene(cmds, { quality: 0.6 });
+  const draws = (scene3.draws || []).filter((d) => !only || d.kind === only);
+  backend.clear();
+  backend.render(draws, camera);
+  renderer.render(scene, camera);
+  const gl = renderer.getContext();
+  const px = new Uint8Array(W * H * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  // the background is the clear colour plus the grid; count pixels that are clearly brighter than it
+  let lit = 0, sum = 0;
+  for (let i = 0; i < W * H; i++) { const r = px[i * 4], g = px[i * 4 + 1], b = px[i * 4 + 2]; const m = Math.max(r, g, b); if (m > 60) lit++; sum += m; }
+  const programErrors = (renderer.info.programs || []).filter((pr) => pr.diagnostics && pr.diagnostics.runnable === false).map((pr) => ({ name: pr.name, log: String(pr.diagnostics.programLog || (pr.diagnostics.fragmentShader && pr.diagnostics.fragmentShader.log) || '').slice(0, 400) }));
+  backend.clear();
+  return { ok: true, draws: draws.length, kinds: draws.map((d) => d.kind), lit, mean: sum / (W * H), stats: backend.lastStats, programErrors };
+}
+
 function blank(target, label) {
   const ctx = target.getContext('2d');
   ctx.fillStyle = '#0e0e15';
