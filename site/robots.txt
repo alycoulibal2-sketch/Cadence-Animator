@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /account.html
+Disallow: /thanks.html
 
-Sitemap: https://cadenceanimator.js.org/sitemap.xml
+Sitemap: https://alycoulibal2-sketch.github.io/Cadence-Animator/sitemap.xml
