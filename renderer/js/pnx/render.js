@@ -102,7 +102,7 @@ export const isMaterial = (v) => !!v && v.__material === true;
 export const DEFAULT_MATERIAL = newMaterial({});
 
 // ---------------------------------------------------------------- render commands
-export const RENDER_KINDS = ['sprite', 'mesh', 'point', 'line', 'trail', 'ribbon', 'beam', 'light', 'volume'];
+export const RENDER_KINDS = ['sprite', 'mesh', 'point', 'line', 'trail', 'ribbon', 'beam', 'light', 'volume', 'look'];
 export const FACING_MODES = ['camera', 'velocity', 'axis', 'normal', 'fixed'];
 
 export function newRenderCommand(kind, source, material, settings = {}) {
@@ -453,13 +453,22 @@ export function gradientLut(gradient, size = 256) {
   return out;
 }
 
+// --- the look (Part 41)
+// A look draws nothing; it is the post pass over the whole frame — bloom, exposure, saturation,
+// contrast, tint, vignette. It travels as a render command so it composes like everything else
+// (connect it to the Effect Output next to the passes it grades) and so the exporter classifies it.
+export function resolveLook(cmd) {
+  const s = cmd.settings || {};
+  return { kind: 'look', count: 1, settings: s };
+}
+
 // ---------------------------------------------------------------- the scene
 // Resolve every command into a draw list. This is what a backend receives, and it is pure data: no
 // three.js types, no GL calls, nothing a Roblox exporter or a bake could not also read.
 export function resolveScene(commands, opts = {}) {
   const list = flattenCommands(commands);
   const draws = [];
-  const stats = { commands: list.length, sprites: 0, meshes: 0, instances: 0, stripVertices: 0, lights: 0, triangles: 0, volumes: 0 };
+  const stats = { commands: list.length, sprites: 0, meshes: 0, instances: 0, stripVertices: 0, lights: 0, triangles: 0, volumes: 0, looks: 0 };
 
   for (const cmd of list) {
     switch (cmd.kind) {
@@ -495,19 +504,28 @@ export function resolveScene(commands, opts = {}) {
         draws.push(d);
         break;
       }
+      case 'look': {
+        const d = resolveLook(cmd);
+        stats.looks += 1;
+        draws.push(d);
+        break;
+      }
       default:
         break;
     }
   }
-  return { draws, stats };
+  // The last look wins, and it is handed up separately so a backend need not search the draws for it.
+  let look = null;
+  for (const d of draws) if (d.kind === 'look') look = d.settings;
+  return { draws, stats, look };
 }
 
 // ---------------------------------------------------------------- backend compatibility (Part 57)
 // What a given backend will and will not honour about a scene. Built from BACKEND_SUPPORT plus the
 // commands' own kinds, so the report cannot drift from what the backend actually does.
 const KIND_SUPPORT = {
-  preview: { native: ['sprite', 'point', 'mesh', 'light', 'volume'], approximated: ['line', 'trail', 'ribbon', 'beam'], unsupported: [] },
-  roblox: { native: ['sprite', 'point'], approximated: ['mesh', 'light', 'beam', 'trail', 'volume'], unsupported: ['ribbon', 'line'] },
+  preview: { native: ['sprite', 'point', 'mesh', 'light', 'volume', 'look'], approximated: ['line', 'trail', 'ribbon', 'beam'], unsupported: [] },
+  roblox: { native: ['sprite', 'point'], approximated: ['mesh', 'light', 'beam', 'trail', 'volume', 'look'], unsupported: ['ribbon', 'line'] },
 };
 
 export function backendReport(commands, backend = 'preview') {

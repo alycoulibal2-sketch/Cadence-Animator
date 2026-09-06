@@ -21,7 +21,7 @@
 
 import * as ST from './studioState.js';
 import * as PNX from './pnxStudio.js';
-import { pnxDrawStats } from './preview.js';
+import { pnxDrawStats, postState } from './preview.js';
 import { probeCandidate } from './pnxThumbs.js';
 import * as PGRAPH from '../../renderer/js/pnx/graph.js';
 import * as PGROUPS from '../../renderer/js/pnx/groups.js';
@@ -696,8 +696,13 @@ export const PNX_HANDLERS = {
         ...(r.droppedChannels ? { droppedChannels: r.droppedChannels } : {}),
       })),
       notes: built.notes,
+      flipbooks: (built.flipbooks || []).length,
+      meshes: (built.meshes || []).map((m) => ({ name: m.name, triangles: m.triangles, bytes: m.obj.length })),
     };
   },
+
+  // Test-only: whether the preview's post pipeline is active for the current look.
+  pnx_test_post_state() { return postState(); },
 
   pnx_export_report() {
     requirePnx();

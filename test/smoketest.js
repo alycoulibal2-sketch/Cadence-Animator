@@ -1196,6 +1196,40 @@
     assert(!after.things.some((t) => t.type.startsWith('cadence.render.volume')), 'undo removed the fire');
     return { ok: true, lit: probe.lit, bakeMs: ms };
   });
+  await step('Effect Look: the sheet adds bloom & grade, the post pipeline switches on, undo switches it off, and a mesh thing exports as .obj', async () => {
+    const added = await vfxCall('pnx_sheet_add_thing', { thing: 'look' });
+    assert(added.ok && added.made && added.made.thing, `add look failed: ${JSON.stringify(added.diagnostics)}`);
+    const sheet = await vfxCall('pnx_sheet', { text: false });
+    const look = sheet.things.find((t) => t.type.startsWith('cadence.render.look'));
+    assert(look && look.drawn && look.exportSupport === 'approximated', `the look is a drawn thing with an approximated badge: ${JSON.stringify(look && [look.drawn, look.exportSupport])}`);
+    await vfxCall('pnx_scrub', { frame: 20 });
+    await new Promise((r) => setTimeout(r, 300));
+    const post = await vfxCall('pnx_test_post_state');
+    assert(post.active === true, `the post pipeline is active: ${JSON.stringify(post)}`);
+    assert(post.bloomEnabled === true, `bloom is on: ${JSON.stringify(post)}`);
+    assert(post.passes === 4, `render → bloom → grade → output, got ${post.passes}`);
+    // the composed frame still paints
+    const shot = await vfxCall('vfx_render_frame', { frame: 20 });
+    assert(typeof shot.image === 'string' && shot.image.length > 5000, 'the composed frame renders');
+    // the export classifies the look and maps it to Lighting effects
+    const rep = await vfxCall('pnx_export_report');
+    const row = rep.rows.find((r) => r.kind === 'look');
+    assert(row && row.level === 'approximated' && /Bloom/.test(row.how), `look row: ${JSON.stringify(row)}`);
+    await vfxCall('vfx_undo');
+    await vfxCall('pnx_scrub', { frame: 21 });
+    await new Promise((r) => setTimeout(r, 300));
+    const off = await vfxCall('pnx_test_post_state');
+    assert(off.active === false, `undo removes the look and the plain path is back: ${JSON.stringify(off)}`);
+    // a mesh thing exports as an .obj plus a mover script (the Pro key from the earlier step is active)
+    const copies = await vfxCall('pnx_sheet_add_thing', { thing: 'copies' });
+    assert(copies.ok && copies.made && copies.made.thing, `add copies failed: ${JSON.stringify(copies.diagnostics)}`);
+    const lua = await vfxCall('pnx_export_lua', { bakeStride: 2 });
+    assert(Array.isArray(lua.meshes) && lua.meshes.length >= 1, `the export carries an .obj: ${JSON.stringify(lua.meshes)}`);
+    assert(lua.meshes[0].triangles > 0 && lua.meshes[0].bytes > 100, `the .obj has content: ${JSON.stringify(lua.meshes[0])}`);
+    assert(/MeshPart/.test(lua.lua) && lua.lua.includes(lua.meshes[0].name), 'and the mover script asks for the MeshPart by name');
+    await vfxCall('vfx_undo');
+    return { ok: true, passes: post.passes, meshes: lua.meshes.length, triangles: lua.meshes[0].triangles };
+  });
   await step('PNX: switching back to a layer-based effect leaves no procedural objects behind', async () => {
     await vfxCall('pnx_close');
     const after = await vfxCall('pnx_get_state');

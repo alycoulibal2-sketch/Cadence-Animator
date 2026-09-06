@@ -161,8 +161,8 @@ node({
   summary: 'Draws a geometry as a solid surface.',
   explain: 'Takes either a geometry with faces or a set of instances. Instances are drawn as instances — one copy of the shape, many transforms — so ten thousand rocks cost ten thousand transforms rather than ten thousand meshes.',
   commonUses: ['a shockwave ring', 'debris shards', 'a displaced sphere as a fireball'],
-  exportSupport: 'converted',
-  exportNote: 'Becomes a MeshPart or a set of Parts. Deformed geometry that changes per frame has to be baked.',
+  exportSupport: 'baked',
+  exportNote: 'Exported as an .obj to upload as a MeshPart, plus a script that places it (per copy, per frame). A mesh that deforms over time carries its first drawn frame only.',
   inputs: [
     { key: 'source', label: 'Geometry', type: 'geometry' },
     { key: 'instances', label: 'Instances', type: 'instanceSet' },
@@ -192,7 +192,7 @@ const stripNode = (spec) => node({
   aliases: spec.aliases, summary: spec.summary, teach: spec.teach, explain: spec.explain,
   commonUses: spec.commonUses,
   exportSupport: spec.exportSupport || 'approximated',
-  exportNote: spec.exportNote || 'Becomes a Roblox Beam where the shape is simple enough, and is baked otherwise.',
+  exportNote: spec.exportNote || 'Becomes a chain of Roblox Beams through points sampled evenly along the curve.',
   performance: 'moderate',
   inputs: [
     { key: 'source', label: spec.sourceLabel || 'Curve', type: 'geometry' },
@@ -245,7 +245,7 @@ stripNode({
   explain: 'A beam is a trail whose ends are usually pinned to two points. For lightning, displace the curve with noise before it reaches here — that keeps the jitter under the graph\'s control, so it can be animated, seeded per bolt, or driven by an impact.',
   commonUses: ['a laser between two points', 'chain lightning', 'a tether or link effect'],
   exportSupport: 'converted',
-  exportNote: 'Maps onto a Roblox Beam, which supports width, colour, texture and texture speed natively.',
+  exportNote: 'Becomes a chain of Roblox Beams along the curve (width, colour and texture speed carried over); a straight beam is one Beam.',
 });
 
 stripNode({
@@ -389,6 +389,40 @@ node({
       smokeColor: V.toComponents('color', i.smokeColor), absorption: Math.max(0, i.absorption), fireColors: i.fireColors,
       emission: Math.max(0, i.emission), heatRange: Math.max(0.01, i.heatRange), steps: Math.max(8, Math.min(160, Math.round(i.steps))),
       lightDirection: V.toComponents('vector3', i.lightDirection), shadow: Math.max(0, i.shadow), scatter: Math.max(0, Math.min(1, i.scatter)),
+    });
+  },
+});
+
+// ---------------------------------------------------------------- the look (Part 41)
+node({
+  id: 'cadence.render.look', label: 'Effect Look', category: REN, subcategory: 'Output',
+  aliases: ['bloom', 'glow the whole effect', 'colour grade', 'color grade', 'post', 'post-processing', 'vignette', 'exposure', 'saturation', 'contrast', 'tint', 'filter', 'grade', 'look'],
+  summary: 'A look over the whole effect: bloom, exposure, saturation, contrast, tint and a vignette.',
+  teach: 'Connect it to the Effect Output next to your passes. Bloom makes bright things glow; the rest grades the picture.',
+  explain: 'Applied to the finished frame, after every pass has drawn — a post pass. Bloom spreads light from anything brighter than the threshold (emission above 1 blooms hardest). Exposure scales the frame; saturation, contrast and tint grade it; the vignette darkens the corners. Roblox has Bloom and Colour Correction under Lighting, which this exports to natively; it has no vignette, so that part is dropped on export and the report says so.',
+  commonUses: ['a glowing hit flash', 'a warm, low-contrast dream look', 'desaturating everything but the fire'],
+  exportSupport: 'approximated',
+  exportNote: 'Becomes a BloomEffect and a ColorCorrectionEffect under Lighting for the duration of the effect; the vignette has no Roblox equivalent and is dropped.',
+  performance: 'moderate',
+  primary: ['bloomStrength', 'bloomThreshold', 'exposure', 'saturation', 'contrast', 'vignette'],
+  inputs: [
+    n('bloomStrength', 'Bloom', 0.6, { min: 0, max: 3, description: '0 switches bloom off.' }),
+    n('bloomThreshold', 'Blooms above', 0.8, { min: 0, max: 1.5, description: 'Brightness that starts to glow. Lower to bloom more of the picture.' }),
+    n('bloomRadius', 'Bloom spread', 0.4, { min: 0, max: 1 }),
+    n('exposure', 'Exposure', 1, { min: 0, max: 4 }),
+    n('saturation', 'Saturation', 1, { min: 0, max: 2 }),
+    n('contrast', 'Contrast', 1, { min: 0, max: 2 }),
+    col('tint', 'Tint', [1, 1, 1, 1]),
+    n('vignette', 'Vignette', 0, { min: 0, max: 1 }),
+    n('vignetteSoftness', 'Vignette softness', 0.5, { min: 0.05, max: 1 }),
+  ],
+  outputs: [cmdOut()],
+  evaluate: (api, i) => {
+    const tint = V.toComponents('color', i.tint);
+    return RENDER.newRenderCommand('look', null, null, {
+      bloomStrength: Math.max(0, i.bloomStrength), bloomThreshold: Math.max(0, i.bloomThreshold), bloomRadius: Math.max(0, Math.min(1, i.bloomRadius)),
+      exposure: Math.max(0, i.exposure), saturation: Math.max(0, i.saturation), contrast: Math.max(0, i.contrast),
+      tint: [tint[0], tint[1], tint[2]], vignette: Math.max(0, Math.min(1, i.vignette)), vignetteSoftness: Math.max(0.05, Math.min(1, i.vignetteSoftness)),
     });
   },
 });

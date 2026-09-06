@@ -418,7 +418,7 @@ export const THINGS = [
     },
   },
   {
-    id: 'ring', label: 'A ring', teach: 'A flat ring you can grow and fade — the core of every shockwave, aura and impact.', roblox: 'unsupported',
+    id: 'ring', label: 'A ring', teach: 'A flat ring you can grow and fade — the core of every shockwave, aura and impact.', roblox: 'baked',
     build(graph) {
       const y = nextRow(graph); const out = ensureOutput(graph);
       const at = (type, x, values = {}) => G.newNode(graph, type, x, y, { values });
@@ -472,7 +472,7 @@ export const THINGS = [
     },
   },
   {
-    id: 'copies', label: 'Copies of a shape', teach: 'One small shape copied onto many points — debris, rocks, petals.', roblox: 'unsupported',
+    id: 'copies', label: 'Copies of a shape', teach: 'One small shape copied onto many points — debris, rocks, petals.', roblox: 'baked',
     build(graph) {
       const y = nextRow(graph); const out = ensureOutput(graph);
       const at = (type, x, values = {}) => G.newNode(graph, type, x, y, { values });
@@ -506,6 +506,15 @@ export const THINGS = [
       const vr = at('cadence.render.volume', 4, { smokeColor: [0.95, 0.95, 1, 1], absorption: 2, emission: 0, scatter: 0.45 });
       link(graph, c, 'out', vr, 'density'); link(graph, vr, 'out', out, 'passes');
       return { thing: vr.id, nodes: [c.id, vr.id] };
+    },
+  },
+  {
+    id: 'look', label: 'Bloom & colour grade', teach: 'A look over the whole effect: bloom, exposure, saturation, contrast, tint, vignette. Roblox gets Bloom and Colour Correction under Lighting.', roblox: 'approximated',
+    build(graph) {
+      const y = nextRow(graph); const out = ensureOutput(graph);
+      const look = G.newNode(graph, 'cadence.render.look', 4, y, { values: { bloomStrength: 0.8, bloomThreshold: 0.7 } });
+      link(graph, look, 'out', out, 'passes');
+      return { thing: look.id, nodes: [look.id] };
     },
   },
 ];
