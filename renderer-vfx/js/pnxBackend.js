@@ -50,6 +50,36 @@ const BLEND = {
   screen: THREE.AdditiveBlending,   // three has no screen blend; additive is the nearest honest match
 };
 
+// The volume raymarcher (Part 35). Runs in the box mesh's object space, which is the unit cube, so the
+// 3D texture coordinate is simply position + 0.5. Front-to-back compositing with premultiplied output;
+// heat is emissive and adds light whether or not the smoke is opaque there.
+const VOLUME_VERT = `out vec3 vPos; void main() { vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const VOLUME_FRAG = `precision highp float; precision highp sampler3D;
+uniform sampler3D uVol; uniform sampler2D uLut; uniform vec3 uCamPos; uniform float uSteps; uniform float uAbsorption;
+uniform float uEmission; uniform float uDensityScale; uniform float uTempScale; uniform vec3 uSmokeColor; uniform vec3 uLightDir;
+uniform float uShadow; uniform float uScatter; uniform float uOpacityScale; in vec3 vPos; out vec4 outColor;
+vec2 boxHit(vec3 ro, vec3 rd) { vec3 inv = 1.0 / rd; vec3 t0 = (vec3(-0.5) - ro) * inv; vec3 t1 = (vec3(0.5) - ro) * inv; vec3 tmin = min(t0, t1); vec3 tmax = max(t0, t1); return vec2(max(max(tmin.x, tmin.y), tmin.z), min(min(tmax.x, tmax.y), tmax.z)); }
+void main() {
+  vec3 rd = normalize(vPos - uCamPos); vec3 ro = uCamPos;
+  vec2 t = boxHit(ro, rd); float tn = max(t.x, 0.0); float tf = t.y; if (tf <= tn) discard;
+  float stepLen = (tf - tn) / uSteps; vec3 acc = vec3(0.0); float accA = 0.0; vec3 L = normalize(uLightDir);
+  for (int i = 0; i < 200; i++) {
+    if (float(i) >= uSteps) break;
+    vec3 p = ro + rd * (tn + (float(i) + 0.5) * stepLen);
+    vec2 sm = texture(uVol, p + 0.5).rg; float d = sm.r * uDensityScale; float temp = sm.g * uTempScale;
+    if (d < 0.002 && temp < 0.02) continue;
+    float a = 1.0 - exp(-d * uAbsorption * stepLen * uOpacityScale);
+    float sh = 1.0;
+    if (uShadow > 0.0 && d > 0.002) { float occ = 0.0; vec3 lp = p; for (int k = 1; k <= 4; k++) { lp += L * stepLen * 2.5; vec3 lu = lp + 0.5; if (any(lessThan(lu, vec3(0.0))) || any(greaterThan(lu, vec3(1.0)))) break; occ += texture(uVol, lu).r * uDensityScale; } sh = exp(-occ * uAbsorption * stepLen * 2.5 * uOpacityScale * uShadow); }
+    vec3 lit = uSmokeColor * (uScatter + (1.0 - uScatter) * sh);
+    vec3 fire = texture(uLut, vec2(clamp(temp, 0.0, 1.0), 0.5)).rgb * uEmission * temp;
+    vec3 col = lit * a + fire * stepLen * uOpacityScale;
+    acc += (1.0 - accA) * col; accA += (1.0 - accA) * a;
+    if (accA > 0.995) break;
+  }
+  outColor = vec4(acc, accA);
+}`;
+
 // A pass's structural identity. Anything in here changing means the pooled objects are rebuilt;
 // anything not in here is applied per frame.
 function signatureOf(draw, index) {
@@ -60,6 +90,7 @@ function signatureOf(draw, index) {
     s.facing || '', s.wireframe ? 1 : 0,
     draw.instanced ? 'inst' : '',
     draw.flipbook ? `fb${draw.flipbook.columns}x${draw.flipbook.rows}` : '',
+    draw.kind === 'volume' ? 'vol' : '',
     // Whether a custom texture is bound is STRUCTURAL: swapping one in has to rebuild the pooled
     // materials, since a three.js material's map cannot be changed without a recompile anyway.
     m.texture ? 'tex' : '',
@@ -73,13 +104,13 @@ export class PnxBackend {
     this.root.name = 'pnx';
     scene.add(this.root);
     this.passes = new Map();          // signature -> pooled objects
-    this.lastStats = { sprites: 0, triangles: 0, lights: 0, passes: 0, pooled: 0 };
+    this.lastStats = { sprites: 0, triangles: 0, lights: 0, volumes: 0, passes: 0, pooled: 0 };
   }
 
   // Draw one frame. `draws` is render.js's resolveScene().draws — plain data.
   render(draws, camera) {
     const live = new Set();
-    let statSprites = 0, statTris = 0, statLights = 0;
+    let statSprites = 0, statTris = 0, statLights = 0, statVolumes = 0;
 
     for (let idx = 0; idx < draws.length; idx++) {
       const draw = draws[idx];
@@ -107,6 +138,10 @@ export class PnxBackend {
           this._applyLights(pass, draw);
           statLights += draw.count || 0;
           break;
+        case 'volume':
+          this._applyVolume(pass, draw, camera);
+          statVolumes += draw.count || 0;
+          break;
         default:
           break;
       }
@@ -126,6 +161,7 @@ export class PnxBackend {
       sprites: statSprites,
       triangles: Math.round(statTris),
       lights: statLights,
+      volumes: statVolumes,
       passes: draws.length,
       pooled: [...this.passes.values()].reduce((s, p) => s + (p.pool ? p.pool.length : 0), 0),
     };
@@ -475,6 +511,72 @@ export class PnxBackend {
       geo.computeBoundingSphere();
     }
     for (let k = strips.length; k < pool.length; k++) pool[k].visible = false;
+  }
+
+  // ---------------------------------------------------------------- volumes
+  // One box mesh per volume pass with the raymarch shader; the 3D texture is re-uploaded per frame
+  // (RGBA8, resolution³ × 4 bytes — 128 KB at 32³) and replaced outright when the resolution changes.
+  _applyVolume(pass, draw, camera) {
+    if (!draw.count) { for (const o of pass.pool) o.visible = false; return; }
+    const mesh = this._ensurePool(pass, 1, () => {
+      const tex = new THREE.Data3DTexture(new Uint8Array(4), 1, 1, 1);
+      tex.format = THREE.RGBAFormat; tex.type = THREE.UnsignedByteType;
+      tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
+      tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping; tex.wrapR = THREE.ClampToEdgeWrapping;
+      tex.unpackAlignment = 1;
+      const lut = new THREE.DataTexture(new Uint8Array(256 * 4), 256, 1, THREE.RGBAFormat, THREE.UnsignedByteType);
+      lut.minFilter = THREE.LinearFilter; lut.magFilter = THREE.LinearFilter; lut.wrapS = THREE.ClampToEdgeWrapping;
+      const mat = new THREE.ShaderMaterial({
+        glslVersion: THREE.GLSL3, vertexShader: VOLUME_VERT, fragmentShader: VOLUME_FRAG,
+        uniforms: {
+          uVol: { value: tex }, uLut: { value: lut }, uCamPos: { value: new THREE.Vector3() }, uSteps: { value: 48 },
+          uAbsorption: { value: 1.5 }, uEmission: { value: 2 }, uDensityScale: { value: 1 }, uTempScale: { value: 1 },
+          uSmokeColor: { value: new THREE.Color(0.75, 0.75, 0.8) }, uLightDir: { value: new THREE.Vector3(0.4, 1, 0.3) },
+          uShadow: { value: 1 }, uScatter: { value: 0.3 }, uOpacityScale: { value: 4 },
+        },
+        transparent: true, depthWrite: false, depthTest: true, side: THREE.BackSide,
+        blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+        blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+      });
+      const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), mat);
+      m.renderOrder = 50;
+      m.frustumCulled = false;
+      m.userData.tex = tex; m.userData.lut = lut; m.userData.res = 0;
+      return m;
+    })[0];
+    mesh.visible = true;
+    const r = draw.resolution;
+    const tex = mesh.userData.tex;
+    if (mesh.userData.res !== r) {
+      tex.dispose();
+      tex.image = { data: new Uint8Array(draw.texels), width: r, height: r, depth: r };
+      mesh.userData.res = r;
+    } else {
+      tex.image.data.set(draw.texels);
+    }
+    tex.needsUpdate = true;
+    const lut = mesh.userData.lut;
+    const ld = lut.image.data;
+    for (let k = 0; k < 256 * 4; k++) ld[k] = Math.max(0, Math.min(255, Math.round((draw.lut[k] ?? 1) * 255)));
+    lut.needsUpdate = true;
+    mesh.position.set(draw.center[0], draw.center[1], draw.center[2]);
+    mesh.scale.set(draw.size[0], draw.size[1], draw.size[2]);
+    mesh.updateMatrixWorld();
+    const st = draw.settings || {};
+    const u = mesh.material.uniforms;
+    u.uSteps.value = st.steps || 48;
+    u.uAbsorption.value = st.absorption ?? 1.5;
+    u.uEmission.value = st.emission ?? 2;
+    u.uDensityScale.value = draw.densityScale;
+    u.uTempScale.value = draw.temperatureScale / Math.max(0.01, st.heatRange || 2);
+    const sc = st.smokeColor || [0.75, 0.75, 0.8];
+    u.uSmokeColor.value.setRGB(sc[0], sc[1], sc[2]);
+    const ldir = st.lightDirection || [0.4, 1, 0.3];
+    u.uLightDir.value.set(ldir[0], ldir[1], ldir[2]);
+    u.uShadow.value = st.shadow ?? 1;
+    u.uScatter.value = st.scatter ?? 0.3;
+    u.uOpacityScale.value = (draw.size[0] + draw.size[1] + draw.size[2]) / 3;
+    if (camera) { const c = camera.position.clone(); mesh.worldToLocal(c); u.uCamPos.value.copy(c); }
   }
 
   // ---------------------------------------------------------------- lights

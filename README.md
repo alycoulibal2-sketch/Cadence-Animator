@@ -65,7 +65,7 @@ You'll need a GitHub Personal Access Token with `repo` scope (Settings → Devel
 
 Every release:
 1. Bump `version` in `package.json` (and re-sync `package-lock.json`'s version with `npm install --package-lock-only`) — electron-updater compares this against what's installed, so it must go up.
-2. `npm run smoketest` — 51 checks. Wipe `test-output/userdata` and kill stray `electron` processes first.
+2. `npm run smoketest` — 77 checks (one, classic clothing, needs the Roblox CDN). Wipe `test-output/userdata` and kill stray `electron` processes first.
 3. `GH_TOKEN=<your token> npm run release` — builds the installer/portable exe and publishes a GitHub Release with them attached, tagged from `package.json`'s version.
 4. **Update the website.** This is part of the release, not a follow-up — the site prints the version, both file sizes, both SHA-256 checksums and a lot of exact counts, and every one of those goes stale on its own:
 

@@ -28,6 +28,7 @@
 
 import * as V from './values.js';
 import * as F from './fields.js';
+import { attachNeighbourQuery } from './spatial.js';
 
 export const DOMAINS = ['point', 'curve', 'face', 'instance'];
 
@@ -343,6 +344,10 @@ export function makeElementContext(g, domain, base = {}) {
   const ctx = F.newSampleContext({ ...base });
   const attributes = Object.create(null);
   ctx.attributes = attributes;
+  // Any walk over a point table can ask about neighbours (Part 27): built lazily on first use over
+  // the table as it stands, and never counting the element itself. The particle solver replaces this
+  // with a per-substep snapshot, because its table changes under the walk (see solver.js).
+  if (domain === 'point' && table) attachNeighbourQuery(ctx, table, () => ctx.index);
 
   // One scratch array per column, allocated once and reused for every element. The vector-valued
   // intrinsics ALIAS their scratch into `attributes`, so reading `position` by name and reading

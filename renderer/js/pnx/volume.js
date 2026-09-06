@@ -268,23 +268,26 @@ export function describeVolume(vol) {
 // ---------------------------------------------------------------- the unimplemented backends
 // Named explicitly, so a caller asking "can this engine do pyro" gets an answer rather than an absence.
 // Read by the export report and by the MCP capability query.
+// BUILT since 2026-09-06 (fluid.js, nodes/pyro.js, the Volume Renderer and the backend raymarcher):
+// the grid fluid solver with combustion, and volume rendering. Recorded here so a reader of this table
+// does not conclude from its brevity that the engine cannot do smoke.
+export const BUILT = {
+  fluidSolver: { parts: [31], what: 'Semi-Lagrangian advection, buoyancy, vorticity confinement, a Jacobi pressure projection, open or closed boundaries; CPU, 16³–64³ with checkpoint replay.', where: 'fluid.js, Simulate Smoke & Fire' },
+  pyro: { parts: [32], what: 'Fuel above an ignition temperature burns into heat and soot; buoyancy lifts the heat.', where: 'fluid.js, Simulate Smoke & Fire' },
+  volumeRendering: { parts: [35], what: 'A raymarched box: density absorbs, heat emits through a colour table, one light with self-shadowing.', where: 'Volume Renderer, pnxBackend.js' },
+};
+
 export const UNIMPLEMENTED = {
-  fluidSolver: {
+  liquids: {
     parts: [31],
-    what: 'Advection, divergence, pressure projection, viscosity, vorticity confinement.',
-    why: 'A stable pressure projection at a resolution worth looking at is seconds per frame on a CPU. At the resolution that would run in real time the result is mush, which would look like the feature working badly rather than being absent.',
-    needs: 'A GPU compute backend, or an offline bake with a progress indicator.',
+    what: 'Liquid simulation with a free surface: pouring water, splashes with a meniscus, FLIP or level sets.',
+    why: 'The grid solver is a gas solver — everything is a density in air. Liquid Pressure on particles gives a liquid LOOK; a true surface needs a level set or FLIP and a surface mesher.',
+    needs: 'A FLIP or level-set solver and a mesher such as marching cubes over the level set.',
   },
-  pyro: {
-    parts: [32],
-    what: 'Combustion, ignition, fuel consumption, temperature-driven buoyancy, soot.',
-    why: 'Pyro is a fluid solver plus a reaction model, so it is blocked on the solver above.',
-    needs: 'The fluid solver first.',
-  },
-  volumeRendering: {
-    parts: [35],
-    what: 'Raymarched density, absorption, scattering, blackbody emission.',
-    why: 'Raymarching needs the renderer to march a ray per pixel through a 3D texture. The preview backend draws sprites and meshes and cannot read back its own output.',
-    needs: 'A shader-based backend with a 3D texture binding.',
+  gpuCompute: {
+    parts: [53, 54],
+    what: 'GPU compute for the fluid and particle solvers.',
+    why: 'Both solvers run on the CPU at preview resolutions; 64³ smoke and 100 000-particle flocks are bakes rather than real time.',
+    needs: 'A WebGPU compute backend behind the same solver interface.',
   },
 };

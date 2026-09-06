@@ -352,3 +352,43 @@ node({
     };
   },
 });
+
+// ---------------------------------------------------------------- volumes (Part 35)
+// The raymarcher lives in the backend; this node only says WHAT to draw. Smoke is lit by one direction
+// with cheap self-shadowing, heat glows through a colour table — the two things that make a volume
+// read as fire and smoke rather than as a grey blob.
+node({
+  id: 'cadence.render.volume', label: 'Volume Renderer', category: REN, subcategory: 'Volumes',
+  aliases: ['draw smoke', 'draw fire', 'raymarch', 'fog', 'cloud renderer', 'volumetric', 'draw volume', 'gas', 'render volume'],
+  summary: 'Draws a volume — smoke, fire, a cloud — as real see-through gas with light and shadow.',
+  teach: 'Turns a box of density into something you can see. Smoke is lit and shadows itself; heat glows with the fire colours.',
+  explain: 'A raymarch: for every pixel the box covers, a ray steps through the grid accumulating density (which absorbs light) and heat (which emits it, coloured by the Fire colours gradient). Self-shadow darkens smoke that has smoke between it and the light, which is what gives a plume its volume. Quality is the number of steps per ray: 48 previews well, 96 is for stills. Feed Smoke from Simulate Smoke & Fire, Cloud, or any volume node; Heat from the simulation.',
+  commonUses: ['a campfire', 'a smoke plume', 'a cloud', 'a nebula'],
+  exportSupport: 'baked',
+  exportNote: 'Baked to a flipbook sprite sheet (8×8 frames) on export, the way Roblox fire and smoke are made by hand; the export offers the PNG to save and upload.',
+  performance: 'expensive',
+  primary: ['density', 'temperature', 'smokeColor', 'absorption', 'emission', 'steps'],
+  inputs: [
+    { key: 'density', label: 'Smoke', type: 'volumeGrid', description: 'The density to draw.' },
+    { key: 'temperature', label: 'Heat', type: 'volumeGrid', description: 'Optional. Where it is hot, the fire colours glow.' },
+    col('smokeColor', 'Smoke colour', [0.72, 0.72, 0.78, 1]),
+    n('absorption', 'Thickness', 1.5, { min: 0, description: 'How opaque the smoke is per stud.' }),
+    { key: 'fireColors', label: 'Fire colours', type: 'gradient', default: { kind: 'color', stops: [{ u: 0, v: '#000000' }, { u: 0.3, v: '#b01400' }, { u: 0.6, v: '#ff8a10' }, { u: 1, v: '#fff6d0' }] } },
+    n('emission', 'Fire brightness', 2, { min: 0 }),
+    n('heatRange', 'White-hot at', 2, { min: 0.01, description: 'The heat value drawn as the end of the fire colours.' }),
+    intIn('steps', 'Quality', 48, { min: 8, max: 160, description: 'Ray steps through the box. Higher is smoother and slower.' }),
+    v3('lightDirection', 'Light from', [0.4, 1, 0.3]),
+    n('shadow', 'Self-shadow', 1, { min: 0, max: 3 }),
+    n('scatter', 'Glow through', 0.3, { min: 0, max: 1, description: 'How much light reaches shadowed smoke. 0 is dramatic, 1 is flat.' }),
+  ],
+  outputs: [cmdOut()],
+  evaluate: (api, i) => {
+    if (!i.density || i.density.__volume !== true) api.note('Connect a volume to Smoke — Simulate Smoke & Fire, Cloud or Bake To Volume.');
+    return RENDER.newRenderCommand('volume', null, null, {
+      density: i.density, temperature: i.temperature,
+      smokeColor: V.toComponents('color', i.smokeColor), absorption: Math.max(0, i.absorption), fireColors: i.fireColors,
+      emission: Math.max(0, i.emission), heatRange: Math.max(0.01, i.heatRange), steps: Math.max(8, Math.min(160, Math.round(i.steps))),
+      lightDirection: V.toComponents('vector3', i.lightDirection), shadow: Math.max(0, i.shadow), scatter: Math.max(0, Math.min(1, i.scatter)),
+    });
+  },
+});

@@ -157,6 +157,7 @@ function initTitlebar() {
 
     let lua = '';
     let notes = [];
+    let flipbooks = [];
     if (ST.isPnxMode()) {
       // A procedural export is not a translation — it is a classification plus whatever can be
       // translated. So the dialogue leads with the classification: which passes became real Roblox
@@ -170,6 +171,7 @@ function initTitlebar() {
       if (!built) { toast('Nothing to export', 'error'); return; }
       lua = built.lua;
       notes = built.notes;
+      flipbooks = built.flipbooks || [];
 
       const c = built.report.counts;
       const parts = [];
@@ -179,6 +181,7 @@ function initTitlebar() {
       if (c.unsupported) parts.push(`${c.unsupported} not exportable`);
       line(`A self-contained LocalScript for this procedural effect. ${parts.join(', ') || 'nothing to export'}.`);
       line(`Script size: ${Math.round(built.bytes / 1024)} KB.`, built.withinBudget ? '' : 'vfx-diag-causes');
+      if (flipbooks.length) line(`${flipbooks.length} volume pass${flipbooks.length === 1 ? '' : 'es'} baked to flipbook sheets. Save each PNG below, upload it to Roblox as a decal, and paste the asset id where the script says PASTE_FLIPBOOK_ID.`);
 
       const h = document.createElement('div');
       h.className = 'vfx-export-notes-head';
@@ -210,6 +213,19 @@ function initTitlebar() {
         for (const d of exportReport.diagnostics.slice(0, 12)) line(`• ${d.message}`, 'vfx-diag-causes');
       }
     }
+    // Baked flipbook sheets are pixels until saved: a canvas encodes each one as a PNG through the binary
+    // save IPC. Offered only when the export produced any.
+    const flipbookActions = flipbooks.map((fb, k) => ({
+      label: flipbooks.length > 1 ? `Save flipbook ${k + 1} PNG` : 'Save flipbook PNG', icon: 'save', run: async () => {
+        const c = document.createElement('canvas'); c.width = fb.width; c.height = fb.height;
+        c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(fb.data), fb.width, fb.height), 0, 0);
+        const blob = await new Promise((res) => c.toBlob(res, 'image/png'));
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const base = (ST.isPnxMode() ? ST.state.pnx.name : ST.state.doc.name).replace(/[^\w\- ]+/g, '').trim() || 'effect';
+        const saved = await window.vfxStudio.saveBinaryFile(bytes, `${base}-flipbook${flipbooks.length > 1 ? '-' + (k + 1) : ''}.png`, 'PNG image', 'png');
+        if (saved) toast(`Saved ${saved} — upload it to Roblox as a decal and paste the id into the script`);
+      },
+    }));
     modal({
       title: 'Export to Roblox (Luau)',
       body,
@@ -227,6 +243,7 @@ function initTitlebar() {
             toast('Luau script copied');
           },
         },
+        ...flipbookActions,
         { label: 'Cancel', run: () => { } },
       ],
     });

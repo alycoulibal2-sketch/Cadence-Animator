@@ -834,9 +834,10 @@
     // The honest statement has to be reachable from inside the graph, not only from documentation.
     const caps = await add('cadence.volume.capabilities', {});
     const c = await vfxCall('pnx_inspect', { nodeId: caps, frame: 0 });
-    assert(c.outputs.hasFluidSolver.value === false, 'there is no fluid solver and the engine must say so');
-    assert(c.outputs.hasVolumeRendering.value === false);
-    assert(/advection|pressure/i.test(c.outputs.missing.value), 'and it must name what is missing');
+    assert(c.outputs.hasFluidSolver.value === true, 'the fluid solver is built (2026-09-06) and the engine must say so');
+    assert(c.outputs.hasVolumeRendering.value === true);
+    assert(/FLIP|level.set|GPU/i.test(c.outputs.missing.value), 'and it must name what is still missing (liquids, GPU compute)');
+    assert(/advection|raymarch/i.test(c.outputs.built.value), 'and what is built');
     return { ok: true, voxels: ins.outputs.voxels.value, mb: ins.outputs.megabytes.value };
   });
 
@@ -1002,6 +1003,45 @@
     return { ok: true, nodes: v.rects.length, labelsChecked: v.sockets };
   });
 
+  await step('PNX: the editor status line tracks the frame, not just the last edit', async () => {
+    // A brand-new procedural effect is built node-then-wire, so for an instant it is a graph whose
+    // Effect Output has no passes. renderStatus() used to run only inside render() — a full DOM
+    // rebuild — so the warning raised at that instant stayed in the header indefinitely, while the
+    // effect drew hundreds of sprites and pnx_verify reported nothing at all wrong.
+    //
+    // Read from the DOM (pnx_test_open_editor.status), never by asking report() again: the bug was
+    // never that the report was wrong, only that nothing had told the header to ask for it.
+    await vfxCall('pnx_new', { name: 'Status Check' });
+
+    await vfxCall('pnx_scrub', { frame: 0 });
+    const atStart = await vfxCall('pnx_test_open_editor');
+    assert(atStart.status, 'the editor must show a status line');
+    assert(!/has-error/.test(atStart.status.className),
+      `a fresh starter graph must not report an error: "${atStart.status.text}"`);
+
+    // Forward to where the emitter has actually produced particles. The editor stays open, so nothing
+    // rebuilds its DOM — only evaluation happens, which is exactly the path that used to update nothing.
+    await vfxCall('pnx_scrub', { frame: 20 });
+    const drawing = await vfxCall('pnx_test_open_editor');
+
+    assert(drawing.status.text !== atStart.status.text,
+      `the status line is frozen: it still reads "${atStart.status.text}" at frame 20, where the effect is drawing`);
+    assert(!/has-warning|has-error/.test(drawing.status.className),
+      `a working graph must not sit on a warning badge: "${drawing.status.text}" (${drawing.status.className})`);
+    assert(/\d+\s*drawn/.test(drawing.status.text),
+      `the status line should report what was drawn, got "${drawing.status.text}"`);
+
+    // And the header must agree with the engine rather than with its own history.
+    const verdict = await vfxCall('pnx_verify', {});
+    const real = (verdict.diagnostics || []).filter((d) => d.severity !== 'info').length;
+    const badged = /has-warning|has-error/.test(drawing.status.className);
+    assert(real > 0 === badged,
+      `the header and pnx_verify disagree: header "${drawing.status.text}" vs ${real} real diagnostics`);
+
+    await vfxCall('pnx_test_close_editor');
+    return { ok: true, atFrame0: atStart.status.text, atFrame20: drawing.status.text };
+  });
+
   await step('PNX acceptance: the add palette searches the real registry', async () => {
     await vfxCall('pnx_new', { name: 'Palette Check' });
     const all = await vfxCall('pnx_test_palette', {});
@@ -1021,6 +1061,112 @@
     return { ok: true, total: all.results, swirl: swirl.labels.slice(0, 3) };
   });
 
+  // ---------------------------------------------------------------- the Effect Sheet (docs/effect-sheet.md)
+  await step('Effect Sheet: the procedural inspector shows things, properties and vary menus', async () => {
+    await vfxCall('pnx_new', { name: 'Sheet Smoketest' });
+    await new Promise((r) => setTimeout(r, 400));
+    const dom = await vfxCall('pnx_test_sheet_dom');
+    assert(dom.mounted, 'the sheet is mounted in the inspector in procedural mode');
+    assert(dom.cards === 1, `the starter draws one thing, got ${dom.cards}: ${dom.cardTitles}`);
+    assert(/Sprite/.test(dom.cardTitles[0]), `the thing is the sprite renderer: ${dom.cardTitles[0]}`);
+    assert(dom.rows >= 8, `rows for its properties, got ${dom.rows}`);
+    assert(dom.varyButtons >= 6, `every value carries a vary menu, got ${dom.varyButtons}`);
+    assert(dom.wiredVary >= 2, `wired slots (size, colour) are marked, got ${dom.wiredVary}`);
+    assert(dom.named === 1, `Normalized Age is named once, got ${dom.named}`);
+    assert(dom.clipped.length === 0, `labels must not clip: ${dom.clipped}`);
+    assert(dom.overflow === 0, `${dom.overflow} elements overflow the panel width`);
+    assert(/nodes/.test(dom.foot), `the foot line reports counts: ${dom.foot}`);
+    // the same projection is what Claude reads
+    const sheet = await vfxCall('pnx_sheet');
+    assert(sheet.things.length === 1 && sheet.stats.reached === sheet.stats.nodes, `pnx_sheet reaches every node: ${JSON.stringify(sheet.stats)}`);
+    assert(typeof sheet.text === 'string' && sheet.text.includes('«Normalized Age»'), 'the text view names the shared value');
+    return { ok: true, rows: dom.rows, vary: dom.varyButtons };
+  });
+
+  await step('Effect Sheet: a menu choice builds real nodes, shows live thumbnails, and undoes', async () => {
+    const sheet = await vfxCall('pnx_sheet', { text: false });
+    const spr = sheet.things[0];
+    const size = spr.rows.find((r) => r.key === 'size');
+    assert(size && size.kind === 'source', 'the starter size is driven over life');
+    const menu = await vfxCall('pnx_sheet_menu', { nodeId: spr.nodeId, socket: 'size' });
+    assert(menu.kind === 'number', `size is a number slot: ${menu.kind}`);
+    assert(menu.curated.length >= 8, `a number slot has a wide menu, got ${menu.curated.length}`);
+    assert(menu.curated.some((e) => e.id === 'random') && menu.curated.some((e) => e.id === 'bySpeed'), 'random and by-speed are offered');
+    assert(menu.curated.every((e) => e.roblox === null || typeof e.roblox === 'string'), 'every entry states its Roblox level');
+    assert(menu.existing.some((x) => /Normalized Age/.test(x.label)), 'values already in the effect are offered');
+    const before = (await vfxCall('pnx_get_graph')).nodes.length;
+    const applied = await vfxCall('pnx_sheet_apply', { nodeId: spr.nodeId, socket: 'size', entry: 'random' });
+    assert(applied.ok, `applying failed: ${JSON.stringify(applied.diagnostics)}`);
+    const after = await vfxCall('pnx_get_graph');
+    assert(after.nodes.length === before + 1 - 2 || after.nodes.length === before + 1, `random replaces the two life nodes with one random node (before ${before}, after ${after.nodes.length})`);
+    const sheet2 = await vfxCall('pnx_sheet', { text: false });
+    const size2 = sheet2.things[0].rows.find((r) => r.key === 'size');
+    assert(size2.kind === 'source' && size2.variesWith.includes('random per particle'), `size now varies randomly: ${JSON.stringify(size2.variesWith)}`);
+    // the menu a person sees: thumbnails are real renders of this effect with each choice applied
+    await new Promise((r) => setTimeout(r, 300));
+    const dom = await vfxCall('pnx_test_sheet_dom', { openMenu: true, waitMs: 900 });
+    assert(dom.menu, 'clicking a vary button opens the source menu');
+    assert(dom.menu.entries >= 6, `the menu has entries, got ${dom.menu.entries}`);
+    assert(dom.menu.thumbs === dom.menu.entries, 'every entry has a thumbnail canvas');
+    assert(dom.menu.lit >= Math.floor(dom.menu.entries / 2), `thumbnails must actually render (lit ${dom.menu.lit} of ${dom.menu.thumbs})`);
+    assert(dom.menu.hasSearch, 'the anything-else search is present');
+    assert(dom.menu.badges.length >= 4, 'entries carry Roblox badges');
+    // one undo step
+    await vfxCall('vfx_undo');
+    const sheet3 = await vfxCall('pnx_sheet', { text: false });
+    const size3 = sheet3.things[0].rows.find((r) => r.key === 'size');
+    assert(size3.variesWith.includes('Normalized Age'), 'Ctrl+Z restores the over-life size');
+    return { ok: true, entries: dom.menu.entries, lit: dom.menu.lit };
+  });
+
+  await step('Effect Sheet: adding a thing puts a second drawn thing on the sheet and on screen', async () => {
+    const added = await vfxCall('pnx_sheet_add_thing', { thing: 'ring' });
+    assert(added.ok && added.made && added.made.thing, `add thing failed: ${JSON.stringify(added.diagnostics)}`);
+    const sheet = await vfxCall('pnx_sheet', { text: false });
+    assert(sheet.things.length === 2, `two things now, got ${sheet.things.length}`);
+    assert(sheet.things.every((t) => t.drawn), 'both are wired to the output');
+    assert(sheet.stats.reached === sheet.stats.nodes, `every node reached: ${JSON.stringify(sheet.stats)}`);
+    await vfxCall('pnx_scrub', { frame: 30 });
+    await new Promise((r) => setTimeout(r, 250));
+    const st = await vfxCall('pnx_get_state');
+    assert(st.drawn && st.drawn.triangles > 0, `the ring draws triangles: ${JSON.stringify(st.drawn)}`);
+    await new Promise((r) => setTimeout(r, 300));
+    const dom = await vfxCall('pnx_test_sheet_dom');
+    assert(dom.cards === 2, `two cards on the sheet, got ${dom.cards}`);
+    await vfxCall('vfx_undo');
+    return { ok: true, triangles: st.drawn.triangles };
+  });
+  await step('Fire & smoke: the sheet adds a real gas simulation, the raymarcher paints it, and the export bakes a flipbook', async () => {
+    const added = await vfxCall('pnx_sheet_add_thing', { thing: 'fire' });
+    assert(added.ok && added.made && added.made.thing, `add fire failed: ${JSON.stringify(added.diagnostics)}`);
+    const sheet = await vfxCall('pnx_sheet', { text: false });
+    const fire = sheet.things.find((t) => t.type.startsWith('cadence.render.volume'));
+    assert(fire && fire.drawn, 'the Volume Renderer is a drawn thing on the sheet');
+    assert(fire.exportSupport === 'baked', `its badge says baked, got ${fire.exportSupport}`);
+    await vfxCall('pnx_scrub', { frame: 30 });
+    await new Promise((r) => setTimeout(r, 400));
+    const st = await vfxCall('pnx_get_state');
+    assert(st.drawn && st.drawn.volumes === 1, `the backend drew one volume pass: ${JSON.stringify(st.drawn)}`);
+    // pixels, not passes: the raymarch shader must compile and paint something in the box
+    const probe = await vfxCall('pnx_test_volume_probe', { frame: 30, only: 'volume' });
+    assert(probe.ok && probe.draws === 1, `probe drew the volume alone: ${JSON.stringify(probe)}`);
+    assert(probe.programErrors.length === 0, `shader diagnostics: ${JSON.stringify(probe.programErrors)}`);
+    assert(probe.lit > 150, `the fire lights pixels on a 240x150 canvas, got ${probe.lit}`);
+    // the export classifies it as a flipbook bake and actually bakes the sheet
+    const rep = await vfxCall('pnx_export_report');
+    const row = rep.rows.find((r) => r.kind === 'volume');
+    assert(row && row.level === 'baked' && /flipbook/i.test(row.how), `volume row: ${JSON.stringify(row)}`);
+    const t0 = Date.now();
+    const lua = await vfxCall('pnx_export_lua', { bakeStride: 2, maxBakedParticles: 100 });
+    const ms = Date.now() - t0;
+    assert(/PASTE_FLIPBOOK_ID/.test(lua.lua) && /Grid8x8/.test(lua.lua), 'the script carries the flipbook emitter');
+    assert(lua.notes.some((n) => /flipbook/i.test(n)), 'and a note telling the user to save the PNG');
+    assert(ms < 30000, `the bake finished in a reasonable time (${ms} ms)`);
+    await vfxCall('vfx_undo');
+    const after = await vfxCall('pnx_sheet', { text: false });
+    assert(!after.things.some((t) => t.type.startsWith('cadence.render.volume')), 'undo removed the fire');
+    return { ok: true, lit: probe.lit, bakeMs: ms };
+  });
   await step('PNX: switching back to a layer-based effect leaves no procedural objects behind', async () => {
     await vfxCall('pnx_close');
     const after = await vfxCall('pnx_get_state');

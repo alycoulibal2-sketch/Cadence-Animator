@@ -12,6 +12,7 @@ import { buildShapeGeometry } from '../../renderer/js/effectMeshBuilder.js';
 import * as ST from './studioState.js';
 import * as PNX from './pnxStudio.js';
 import { PnxBackend } from './pnxBackend.js';
+import { initHandles } from './pnxHandles.js';
 
 const ORIGIN = [0, 0.5, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]; // half a stud above the grid
 
@@ -54,8 +55,13 @@ export function initPreview() {
     syncLayerVisuals();
   });
   syncLayerVisuals();
+  // The Effect Sheet's stage handles live in this scene and share this camera and these controls.
+  initHandles({ scene, camera, renderer, controls, canvas });
   requestAnimationFrame(tick);
 }
+
+// The three.js objects the stage handles (pnxHandles.js) and any test probe need. Read-only by convention.
+export function previewObjects() { return { scene, camera, renderer, controls, canvas }; }
 
 function resize() {
   const w = canvas.parentElement.clientWidth, h = canvas.parentElement.clientHeight;

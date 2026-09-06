@@ -683,6 +683,33 @@ server.tool(
 );
 
 server.tool(
+  'pnx_sheet',
+  'The Effect Sheet: the open procedural effect read as things you can see → their properties → what feeds each one (a literal, or the phrase of the source node, recursively), with shared values named once and unused nodes listed. The same projection a person sees in VFX Studio. Prefer this over pnx_get_graph to understand an effect; use the nodeId/socket keys it returns with pnx_sheet_menu and pnx_sheet_apply.',
+  { scope: z.string().optional().describe('A group id to read that group\'s interior instead of the root'), text: z.boolean().optional().describe('Include the indented text rendering (default true)') },
+  async (args) => { try { return textResult(await vfxCall('pnx_sheet', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_sheet_menu',
+  'The "how does this vary?" menu for one slot of the sheet: curated entries (over its life, random per particle, by distance, a swirl, the floor, …) each with its Roblox export level, plus values already in the effect that fit, plus how many registry nodes fit for a search. Every entry is a composition of registry nodes, never a hidden capability.',
+  { nodeId: z.string(), socket: z.string().describe('the input key, as pnx_sheet lists it') },
+  async (args) => { try { return textResult(await vfxCall('pnx_sheet_menu', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_sheet_apply',
+  'Apply a sheet menu choice to a slot, exactly as clicking it does: pass `entry` (an id from pnx_sheet_menu), or `sourceNodeId`+`sourceSocket` to read an existing value, or `type` for any registry node whose output fits. One undo step; returns the verification read-back.',
+  { nodeId: z.string(), socket: z.string(), entry: z.string().optional(), sourceNodeId: z.string().optional(), sourceSocket: z.string().optional(), type: z.string().optional() },
+  async (args) => { try { return textResult(await vfxCall('pnx_sheet_apply', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'pnx_sheet_add_thing',
+  'Add a complete visible thing wired to the Effect Output — particles, ring, trail, beam, light, copies — so the first result is on screen immediately. Returns the renderer node id and the ids of the nodes it built.',
+  { thing: z.enum(['particles', 'ring', 'trail', 'beam', 'light', 'copies']) },
+  async (args) => { try { return textResult(await vfxCall('pnx_sheet_add_thing', args)); } catch (e) { return errorResult(e); } },
+);
+server.tool(
   'pnx_catalogue',
   'Every available node type as one compact line each: id, label, category, summary, socket types, Roblox export support. Read this (or pnx_search_nodes) before constructing a graph — it is what stops you inventing node types and parameters that do not exist.',
   { category: z.string().optional().describe('e.g. Math, Fields, SDF, Particles, Renderers') },

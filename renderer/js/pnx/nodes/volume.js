@@ -181,7 +181,7 @@ node({
   id: 'cadence.volume.capabilities', label: 'Volume Capabilities', category: C, subcategory: 'Read',
   aliases: ['what is missing', 'fluid solver', 'pyro', 'smoke simulation', 'volume rendering', 'why no fire'],
   summary: 'Says which volume features exist and which do not, and why.',
-  teach: 'A plain answer to "can this engine simulate smoke or fire in a volume". It cannot yet, and this says what is missing.',
+  teach: 'A plain answer to "can this engine simulate smoke or fire in a volume": yes — and this says what is still missing (liquids, GPU compute).',
   explain: 'Reads out the engine\'s own record of what is unimplemented rather than a comment somebody has to keep up to date. Volume grids work as a cache, a 3D blur and a spawn region. Fluid advection, pressure solving, combustion and raymarched rendering are not built — each for a stated reason, with what it would take. Existing as a node rather than only as documentation means the answer is available from inside the graph, including to an MCP caller.',
   commonUses: ['finding out why there is no Pyro node', 'checking what a volume can currently be used for'],
   exportSupport: 'native',
@@ -197,12 +197,13 @@ node({
     const missing = Object.values(VOL.UNIMPLEMENTED)
       .map((u) => `${u.what} — ${u.why} Needs: ${u.needs}`)
       .join(' | ');
-    api.note('Volume grids work as a cache, a 3D blur and a spawn region. There is no fluid solver and no volume rendering; see this node\'s outputs for why.');
+    const built = Object.values(VOL.BUILT).map((b) => `${b.what} (${b.where})`).join(' | ');
+    api.note('Smoke, fire and volume rendering are built: Simulate Smoke & Fire, Cloud and the Volume Renderer. Still absent: ' + Object.keys(VOL.UNIMPLEMENTED).join(', ') + '.');
     return {
-      built: 'Bake a field to a grid, sample it, blur it in 3D, combine, threshold and move it. Read it as a field to drive particles, colour or spawn regions.',
+      built: 'Bake a field to a grid, sample, blur, combine, threshold and move it; simulate smoke and fire on a grid; make clouds; draw any of them with the Volume Renderer. ' + built,
       missing,
-      hasFluidSolver: false,
-      hasVolumeRendering: false,
+      hasFluidSolver: true,
+      hasVolumeRendering: true,
     };
   },
 });

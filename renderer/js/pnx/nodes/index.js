@@ -35,6 +35,8 @@ import './sampling.js';
 
 // --- Phase 5: particles, forces, the staged solver, collisions
 import './particles.js';
+// Part 27: neighbour-aware forces and reads (flocking, separation, liquid pressure, crowding)
+import './neighbours.js';
 
 // --- Phase 6: materials, renderers, lights, trails/ribbons/beams
 import './render.js';
@@ -45,6 +47,10 @@ import './texture.js';
 // --- Phase 8: volume GRIDS only. The fluid solver, pyro and volume rendering are not built; see
 // volume.js's UNIMPLEMENTED table and the Volume Capabilities node, which reads it out loud.
 import './volume.js';
+// Parts 31, 32, 35 (2026-09-06): the grid fluid solver with combustion, and clouds. Drawn by the Volume Renderer.
+import './pyro.js';
+// Parts 22/24/25 (2026-09-06): mesh editing with connectivity, surfaces from fields, curve tools.
+import './mesh.js';
 
 // --- always available: observability and layout
 import './debug.js';

@@ -345,6 +345,17 @@ ipcMain.handle('vfx:file:saveText', async (_e, text, suggestedName) => {
   return r.filePath;
 });
 
+// A binary twin of vfx:file:saveText, for the flipbook PNGs the procedural exporter bakes. The bytes
+// arrive as a Uint8Array over IPC; nothing here interprets them.
+ipcMain.handle('vfx:file:saveBinary', async (_e, bytes, suggestedName, filterName = 'PNG image', ext = 'png') => {
+  const r = await dialog.showSaveDialog(vfxWin, {
+    defaultPath: suggestedName || `flipbook.${ext}`,
+    filters: [{ name: filterName, extensions: [ext] }, { name: 'All files', extensions: ['*'] }],
+  });
+  if (r.canceled || !r.filePath) return null;
+  fs.writeFileSync(r.filePath, Buffer.from(bytes));
+  return r.filePath;
+});
 // ---------------------------------------------------------------- VFX Studio MCP pipe
 // Twin of the main window's mcp:command/mcp:response pipe, targeting the studio window. Claude's
 // vfx_* tools route here (see handleMcpCommand); the studio auto-opens if it isn't running so a

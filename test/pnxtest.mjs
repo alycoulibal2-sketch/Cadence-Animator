@@ -3262,16 +3262,19 @@ check('volume: the unimplemented backends are declared, and no node can use them
 
 check('volume: the capabilities node answers the question from inside the graph', () => {
   // The answer to "can this engine simulate smoke" has to be available to an MCP caller, not only in a
-  // comment — so it is a node, reading the engine's own record rather than a duplicated string.
+  // comment — so it is a node, reading the engine's own record rather than a duplicated string. Since
+  // 2026-09-06 the answer is yes; what remains absent is liquids and GPU compute, and the node says so.
   const g = G.newGraph('t');
   const caps = G.newNode(g, 'cadence.volume.capabilities', 0, 0, { id: 'caps' });
-  assert.equal(ev(g, caps.id, 'hasFluidSolver').value, false);
-  assert.equal(ev(g, caps.id, 'hasVolumeRendering').value, false);
+  assert.equal(ev(g, caps.id, 'hasFluidSolver').value, true);
+  assert.equal(ev(g, caps.id, 'hasVolumeRendering').value, true);
   const missing = ev(g, caps.id, 'missing').value;
-  assert.ok(/advection|pressure/i.test(missing), `the missing list must name the solver: ${missing}`);
-  assert.ok(/raymarch/i.test(missing), 'and the renderer');
+  assert.ok(/FLIP|level.set/i.test(missing), `the missing list must name liquids: ${missing}`);
+  assert.ok(/WebGPU|GPU/i.test(missing), 'and GPU compute');
   const built = ev(g, caps.id, 'built').value;
-  assert.ok(/cache|blur|spawn/i.test(built), `and it must say what volumes ARE good for: ${built}`);
+  assert.ok(/advection|pressure/i.test(built), `the built list must name the solver: ${built}`);
+  assert.ok(/raymarch/i.test(built), 'and the renderer');
+  assert.ok(/blur|combine|threshold/i.test(built), 'and the older volume tools');
 });
 
 // ================================================================ Part 75: the engine stress test
@@ -3331,18 +3334,1126 @@ check('Part 75: the specification\'s stress-test effects are constructible from 
   assert.ok(Object.keys(needs).length >= 30, 'the stress list should stay broad');
 });
 
-check('Part 75: the two effects that are NOT constructible are the ones the spec expects', () => {
-  // Part 75 also lists "Realistic fire" and "Realistic cloud", and Part 32 is explicit that realistic
-  // fire must NOT be faked with a preset plus random particles. Both need subsystems this engine does not
-  // have, and that is recorded here so the gap stays visible and honest rather than being quietly
-  // forgotten — and so this test starts failing the day a solver arrives and the entry should move.
-  const VOLmod = VOL.UNIMPLEMENTED;
-  assert.ok(VOLmod.pyro, 'realistic fire needs the pyro solver, which must be declared as absent');
-  assert.ok(VOLmod.volumeRendering, 'realistic cloud needs volume rendering, which must be declared as absent');
-  // A stylised fire IS constructible, which is the distinction Part 32 draws.
+check('Part 75: realistic fire and realistic cloud are constructible now, and the capability table says so', () => {
+  // These were the two effects the specification expected to be blocked (pyro, volume rendering). Both
+  // subsystems landed on 2026-09-06, so the test that used to assert their absence now asserts the
+  // primitives — and that the old absence entries are gone, per Part 78: a built feature must not be
+  // declared missing any more than a missing one may be declared built.
+  for (const id of ['cadence.pyro.simulate', 'cadence.render.volume', 'cadence.volume.cloud']) assert.ok(R.getNode(id), `realistic fire/cloud need ${id}`);
+  assert.ok(!VOL.UNIMPLEMENTED.pyro && !VOL.UNIMPLEMENTED.volumeRendering && !VOL.UNIMPLEMENTED.fluidSolver, 'built subsystems are no longer listed as absent');
+  assert.ok(VOL.BUILT.fluidSolver && VOL.BUILT.pyro && VOL.BUILT.volumeRendering, 'and are recorded as built, with where they live');
+  // A stylised fire remains constructible from particles alone, which is the distinction Part 32 draws.
   for (const id of ['cadence.particles.emitter', 'cadence.noise.curl', 'cadence.color.sampleGradient', 'cadence.render.sprite']) {
     assert.ok(R.getNode(id), `a stylised fire must remain constructible (${id})`);
   }
+});
+
+// ================================================================ Part 27: neighbours, flocking, liquid
+const SPATIAL = await import('../renderer/js/pnx/spatial.js');
+
+function scatterTable(n, span = 20) {
+  const table = GEO.newTable(n);
+  GEO.ensureAttr(table, 'position', 3);
+  for (let k = 0; k < n; k++) {
+    GEO.writeAttr(table, 'position', k, [
+      F.randomAt('scatter', 0, k, 1) * span - span / 2,
+      F.randomAt('scatter', 0, k, 2) * span - span / 2,
+      F.randomAt('scatter', 0, k, 3) * span - span / 2,
+    ]);
+  }
+  return table;
+}
+
+check('spatial: a radius query returns exactly what brute force returns', () => {
+  const n = 600, r = 1.7;
+  const table = scatterTable(n);
+  const grid = SPATIAL.SpatialGrid.fromTable(table, r);
+  for (let q = 0; q < 40; q++) {
+    const p = [F.randomAt('q', 0, q, 1) * 20 - 10, F.randomAt('q', 0, q, 2) * 20 - 10, F.randomAt('q', 0, q, 3) * 20 - 10];
+    const expect = [];
+    for (let k = 0; k < n; k++) {
+      const x = GEO.readAttr(table, 'position', k, [0, 0, 0]);
+      const d2 = (x[0] - p[0]) ** 2 + (x[1] - p[1]) ** 2 + (x[2] - p[2]) ** 2;
+      if (d2 <= r * r && k !== q) expect.push(k);
+    }
+    const got = [];
+    grid.query(p, r, q, (row) => got.push(row));
+    assert.deepEqual(got.sort((a, b) => a - b), expect.sort((a, b) => a - b), `query ${q} differs from brute force`);
+  }
+});
+
+check('spatial: nearest matches brute force, including far outside the populated region', () => {
+  const n = 400;
+  const table = scatterTable(n);
+  const grid = SPATIAL.SpatialGrid.fromTable(table, 1.3);
+  const brute = (p) => {
+    let best = Infinity, bi = -1;
+    for (let k = 0; k < n; k++) {
+      const x = GEO.readAttr(table, 'position', k, [0, 0, 0]);
+      const d2 = (x[0] - p[0]) ** 2 + (x[1] - p[1]) ** 2 + (x[2] - p[2]) ** 2;
+      if (d2 < best) { best = d2; bi = k; }
+    }
+    return { row: bi, dist2: best };
+  };
+  for (let q = 0; q < 40; q++) {
+    const p = [F.randomAt('nq', 0, q, 1) * 24 - 12, F.randomAt('nq', 0, q, 2) * 24 - 12, F.randomAt('nq', 0, q, 3) * 24 - 12];
+    const a = grid.nearest(p, -1), b = brute(p);
+    near(a.dist2, b.dist2, 1e-6);
+  }
+  const far = grid.nearest([300, -200, 90], -1), farB = brute([300, -200, 90]);
+  assert.equal(far.row, farB.row, 'a query far outside the set still finds the true nearest');
+});
+
+// A burst of particles born on a sphere (or at a point), with one force wired into the solver.
+function flockGraph(forceType, forceValues, { burst = 60, radius = 4, speed = 0, drag = 0.5, collider = null } = {}) {
+  const g = G.newGraph('flock');
+  const shape = radius > 0
+    ? G.newNode(g, 'cadence.geometry.sphere', 0, 0, { id: 'shape', values: { radius, segments: 12, rings: 8 } })
+    : G.newNode(g, 'cadence.geometry.point', 0, 0, { id: 'shape', values: { position: [0, 0, 0] } });
+  const em = G.newNode(g, 'cadence.particles.emitter', 0, 0, {
+    id: 'em', values: { rate: 0, burstCount: burst, burstTime: 0, lifetime: 100, emitFrom: 'points' },
+  });
+  assert.ok(G.connect(g, shape.id, 'out', em.id, 'shape').ok);
+  if (speed) {
+    const dir = G.newNode(g, 'cadence.random.unitVector', 0, 0, { id: 'dir' });
+    const mul = G.newNode(g, 'cadence.math.multiply', 0, 0, { id: 'mul', values: { b: speed } });
+    assert.ok(G.connect(g, dir.id, 'out', mul.id, 'a').ok);
+    assert.ok(G.connect(g, mul.id, 'out', em.id, 'velocity').ok);
+  }
+  const sim = G.newNode(g, 'cadence.particles.simulate', 0, 0, { id: 'sim', values: { maxParticles: 1000, drag } });
+  assert.ok(G.connect(g, em.id, 'out', sim.id, 'emitter').ok);
+  if (forceType) {
+    const f = G.newNode(g, forceType, 0, 0, { id: 'force', values: forceValues });
+    assert.ok(G.connect(g, f.id, 'out', sim.id, 'force').ok, 'force must connect');
+  }
+  return { g, sim, e: new E.Evaluator(g, { fps: 30 }) };
+}
+const statsOf = (geo) => {
+  const n = GEO.pointCount(geo);
+  let cx = 0, cy = 0, cz = 0, vx = 0, vy = 0, vz = 0;
+  const P = [], Vv = [];
+  for (let k = 0; k < n; k++) {
+    const p = GEO.readAttr(geo.points, 'position', k, [0, 0, 0]), v = GEO.readAttr(geo.points, 'velocity', k, [0, 0, 0]);
+    P.push(p); Vv.push(v); cx += p[0]; cy += p[1]; cz += p[2]; vx += v[0]; vy += v[1]; vz += v[2];
+  }
+  cx /= n; cy /= n; cz /= n; vx /= n; vy /= n; vz /= n;
+  let spread = 0, vspread = 0, minPair = Infinity;
+  for (let k = 0; k < n; k++) {
+    spread += Math.hypot(P[k][0] - cx, P[k][1] - cy, P[k][2] - cz);
+    vspread += Math.hypot(Vv[k][0] - vx, Vv[k][1] - vy, Vv[k][2] - vz);
+    for (let j = k + 1; j < n; j++) minPair = Math.min(minPair, Math.hypot(P[k][0] - P[j][0], P[k][1] - P[j][1], P[k][2] - P[j][2]));
+  }
+  return { n, spread: spread / n, vspread: vspread / n, minPair };
+};
+
+check('flock: cohesion pulls a scattered burst toward its centre', () => {
+  const { sim, e } = flockGraph('cadence.forces.flock', { radius: 30, cohesion: 3, separation: 0, alignment: 0, personalSpace: 0, maxForce: 0 });
+  const early = statsOf(seekTo(e, sim, 1).value);
+  const late = statsOf(seekTo(e, sim, 60).value);
+  assert.equal(early.n, 60);
+  assert.ok(late.spread < early.spread * 0.6, `spread went ${early.spread.toFixed(2)} -> ${late.spread.toFixed(2)}, expected a clear gathering`);
+});
+
+check('flock: alignment makes a random burst fly together', () => {
+  const { sim, e } = flockGraph('cadence.forces.flock', { radius: 30, cohesion: 0, separation: 0, alignment: 4, personalSpace: 0, maxForce: 0 }, { radius: 2, speed: 4, drag: 0 });
+  const early = statsOf(seekTo(e, sim, 1).value);
+  const late = statsOf(seekTo(e, sim, 60).value);
+  assert.ok(early.vspread > 1, 'the burst starts with scattered velocities');
+  assert.ok(late.vspread < early.vspread * 0.3, `velocity spread went ${early.vspread.toFixed(2)} -> ${late.vspread.toFixed(2)}, expected alignment`);
+});
+
+check('keep apart: a burst born at one point spreads out instead of piling up', () => {
+  const with_ = flockGraph('cadence.forces.separation', { radius: 3, strength: 20, softness: 2, maxForce: 60 }, { radius: 0, speed: 0.5, drag: 1 });
+  const without = flockGraph(null, {}, { radius: 0, speed: 0.5, drag: 1 });
+  const a = statsOf(seekTo(with_.e, with_.sim, 45).value);
+  const b = statsOf(seekTo(without.e, without.sim, 45).value);
+  assert.ok(a.minPair > b.minPair * 3, `closest pair ${a.minPair.toFixed(3)} with vs ${b.minPair.toFixed(3)} without`);
+  assert.ok(a.spread > b.spread * 1.5, 'the group as a whole occupies more space');
+});
+
+check('liquid pressure: a crowded burst expands until the crowding drops near the rest density', () => {
+  const { g, sim, e } = flockGraph('cadence.forces.liquid', { radius: 1, restDensity: 2, stiffness: 40, viscosity: 1, maxForce: 200 }, { radius: 0.2, burst: 80, speed: 0, drag: 2 });
+  const early = statsOf(seekTo(e, sim, 1).value);
+  const late = statsOf(seekTo(e, sim, 60).value);
+  assert.ok(late.spread > early.spread * 2, `spread went ${early.spread.toFixed(2)} -> ${late.spread.toFixed(2)}`);
+  // and the density read agrees with the picture: crowding at the end is far below the start
+  const dens = G.newNode(g, 'cadence.particles.density', 0, 0, { values: { radius: 1 } });
+  const field = e.evaluateSocket(dens.id, 'out').value;
+  const geo = seekTo(e, sim, 60).value;
+  const walker = GEO.makeElementContext(geo, 'point');
+  let total = 0;
+  for (let k = 0; k < GEO.pointCount(geo); k++) total += F.sampleAny(field, walker.at(k));
+  const meanCrowding = total / GEO.pointCount(geo);
+  assert.ok(meanCrowding < 6, `mean crowding settled at ${meanCrowding.toFixed(2)}`);
+});
+
+check('flock: scrubbing is still deterministic with neighbour forces in the loop', () => {
+  const snap = (r) => {
+    const rows = [];
+    for (let k = 0; k < GEO.pointCount(r.value); k++) {
+      rows.push([GEO.readAttr(r.value.points, 'id', k), ...GEO.readAttr(r.value.points, 'position', k), ...GEO.readAttr(r.value.points, 'velocity', k)].map((v) => Math.round(v * 1e6) / 1e6));
+    }
+    rows.sort((a, b) => a[0] - b[0]);
+    return JSON.stringify(rows);
+  };
+  const setup = () => flockGraph('cadence.forces.flock', { radius: 6, cohesion: 1, separation: 1.5, alignment: 1, personalSpace: 1, maxForce: 30 }, { radius: 3, speed: 3, drag: 0.2 });
+  const a = setup(); const forwards = snap(seekTo(a.e, a.sim, 41));
+  const b = setup(); seekTo(b.e, b.sim, 80); assert.equal(snap(seekTo(b.e, b.sim, 41)), forwards, 'backwards differs');
+  const c = setup(); for (const f of [7, 55, 3, 70, 41]) seekTo(c.e, c.sim, f); assert.equal(snap(seekTo(c.e, c.sim, 41)), forwards, 'jittery differs');
+});
+
+check('neighbour count and crowding read correctly on a plain point grid', () => {
+  const g = G.newGraph('grid');
+  const grid = G.newNode(g, 'cadence.geometry.pointGrid', 0, 0, { values: { size: [2, 2, 0], countX: 3, countY: 3, countZ: 1, center: [0, 0, 0] } });
+  const count = G.newNode(g, 'cadence.particles.neighbourCount', 0, 0, { values: { radius: 1.1 } });
+  const crowd = G.newNode(g, 'cadence.particles.density', 0, 0, { values: { radius: 1.1 } });
+  const e = new E.Evaluator(g, { fps: 30 });
+  const geo = e.evaluateSocket(grid.id, 'out').value;
+  assert.equal(GEO.pointCount(geo), 9);
+  const countField = e.evaluateSocket(count.id, 'out').value;
+  const crowdField = e.evaluateSocket(crowd.id, 'out').value;
+  const walker = GEO.makeElementContext(geo, 'point');
+  const byPos = {};
+  for (let k = 0; k < 9; k++) {
+    const p = GEO.readAttr(geo.points, 'position', k, [0, 0, 0]);
+    byPos[`${Math.round(p[0])},${Math.round(p[1])}`] = { count: F.sampleAny(countField, walker.at(k)), crowd: F.sampleAny(crowdField, walker.at(k)) };
+  }
+  assert.equal(byPos['0,0'].count, 4, 'the centre has four neighbours within 1.1');
+  assert.equal(byPos['1,1'].count, 2, 'a corner has two');
+  assert.equal(byPos['1,0'].count, 3, 'an edge has three');
+  assert.ok(byPos['0,0'].crowd > byPos['1,1'].crowd, 'crowding is higher at the centre');
+  assert.ok(byPos['1,1'].crowd > 1, 'a corner is more crowded than an isolated point');
+  // an isolated single point reads exactly 1
+  const one = G.newNode(g, 'cadence.geometry.point', 0, 0, { values: { position: [50, 50, 50] } });
+  const oneGeo = e.evaluateSocket(one.id, 'out').value;
+  near(F.sampleAny(crowdField, GEO.makeElementContext(oneGeo, 'point').at(0)), 1, 1e-9);
+  // sampled with no neighbourhood at all, the reads stay quiet
+  assert.equal(F.sampleAny(countField, F.newSampleContext({ position: [0, 0, 0] })), 0);
+});
+
+check('nearest neighbour: distance and direction point at the closest other point', () => {
+  const g = G.newGraph('nn');
+  const grid = G.newNode(g, 'cadence.geometry.pointGrid', 0, 0, { values: { size: [4, 0, 0], countX: 3, countY: 1, countZ: 1, center: [0, 0, 0] } });
+  const nn = G.newNode(g, 'cadence.particles.nearestNeighbour', 0, 0, { values: { searchRadius: 10 } });
+  const e = new E.Evaluator(g, { fps: 30 });
+  const geo = e.evaluateSocket(grid.id, 'out').value;   // points at x = -2, 0, 2
+  const dist = e.evaluateSocket(nn.id, 'distance').value, dir = e.evaluateSocket(nn.id, 'direction').value;
+  const walker = GEO.makeElementContext(geo, 'point');
+  for (let k = 0; k < 3; k++) {
+    const p = GEO.readAttr(geo.points, 'position', k, [0, 0, 0]);
+    near(F.sampleAny(dist, walker.at(k)), 2, 1e-5);
+    const d = F.sampleAny(dir, walker.at(k));
+    if (p[0] < -1) nearArr(d, [1, 0, 0], 1e-5);
+    if (p[0] > 1) nearArr(d, [-1, 0, 0], 1e-5);
+  }
+});
+
+check('nearest point: the grid-accelerated lookup agrees with brute force on a large scatter', () => {
+  const g = G.newGraph('np');
+  const sdf = G.newNode(g, 'cadence.sdf.sphere', 0, 0, { values: { center: [0, 0, 0], radius: 5 } });
+  const pts = G.newNode(g, 'cadence.sample.pointsInVolume', 0, 0, { values: { count: 900, boundsCenter: [0, 0, 0], boundsSize: [10, 10, 10] } });
+  assert.ok(G.connect(g, sdf.id, 'out', pts.id, 'shape').ok);
+  const np = G.newNode(g, 'cadence.sample.nearestPoint', 0, 0, {});
+  assert.ok(G.connect(g, pts.id, 'out', np.id, 'geometry').ok);
+  const e = new E.Evaluator(g, { fps: 30 });
+  const geo = e.evaluateSocket(pts.id, 'out').value;
+  assert.ok(GEO.pointCount(geo) > 200, 'the scatter must be large enough to use the grid');
+  const distF = e.evaluateSocket(np.id, 'distance').value, idxF = e.evaluateSocket(np.id, 'index').value;
+  for (let q = 0; q < 30; q++) {
+    const p = [F.randomAt('npq', 0, q, 1) * 16 - 8, F.randomAt('npq', 0, q, 2) * 16 - 8, F.randomAt('npq', 0, q, 3) * 16 - 8];
+    let best = Infinity;
+    for (let k = 0; k < GEO.pointCount(geo); k++) {
+      const x = GEO.readAttr(geo.points, 'position', k, [0, 0, 0]);
+      best = Math.min(best, Math.hypot(x[0] - p[0], x[1] - p[1], x[2] - p[2]));
+    }
+    const ctx = F.newSampleContext({ position: p });
+    near(F.sampleAny(distF, ctx), best, 1e-4);
+    const k = F.sampleAny(idxF, ctx);
+    const x = GEO.readAttr(geo.points, 'position', k, [0, 0, 0]);
+    near(Math.hypot(x[0] - p[0], x[1] - p[1], x[2] - p[2]), best, 1e-4);
+  }
+});
+
+// ================================================================ Part 12 / 26: events and sub-emission
+check('events: the event type is implemented and a Simulate node reports births and deaths by frame', () => {
+  assert.ok(T.isImplementedType(T.parseType('event')), 'event must be an implemented type now');
+  const { sim, e } = simGraph({ emitter: { rate: 30, lifetime: 0.5 } });
+  const ev = seekTo(e, sim, 30, 'events').value;
+  assert.ok(SOLVER.isEvents(ev), 'the events output is an event stream');
+  assert.equal(ev.eventsAt(1).filter((x) => x.kind === 'birth').length, 1, 'one birth per frame at 30/s');
+  assert.equal(ev.eventsAt(10).filter((x) => x.kind === 'death').length, 0, 'nothing dies before 0.5 s');
+  let deaths = 0;
+  for (let f = 1; f <= 30; f++) deaths += ev.eventsAt(f).filter((x) => x.kind === 'death').length;
+  assert.ok(deaths >= 14 && deaths <= 16, `about 15 deaths in the first 30 frames, got ${deaths}`);
+  const d = ev.eventsAt(17).concat(ev.eventsAt(16), ev.eventsAt(15)).find((x) => x.kind === 'death');
+  assert.ok(d, 'a death record exists around frame 15-17');
+  assert.ok(Array.isArray(d.position) && Array.isArray(d.velocity) && typeof d.id === 'number');
+  assert.ok(Math.abs(d.age - 0.5) < 0.05, `a death record carries the age at death (${d.age})`);
+});
+
+// Parent → Particle Events (filter) → child Emitter → child Simulate.
+function subGraph({ kind = 'death', chance = 1, perEvent = 3, inherit = 0.5, parent = {}, parentSim = {}, child = {}, withTrigger = false, collider = false } = {}) {
+  const g = G.newGraph('sub');
+  const pem = G.newNode(g, 'cadence.particles.emitter', 0, 0, { id: 'pem', values: { rate: 30, lifetime: 0.5, velocity: [0, 4, 0], ...parent } });
+  if (collider) {
+    const pt = G.newNode(g, 'cadence.geometry.point', 0, 0, { id: 'pt', values: { position: [0, 3, 0] } });
+    assert.ok(G.connect(g, pt.id, 'out', pem.id, 'shape').ok);
+  }
+  const psim = G.newNode(g, 'cadence.particles.simulate', 0, 0, { id: 'psim', values: { maxParticles: 1000, ...parentSim } });
+  assert.ok(G.connect(g, pem.id, 'out', psim.id, 'emitter').ok);
+  if (collider) {
+    const plane = G.newNode(g, 'cadence.sdf.plane', 0, 0, { id: 'plane', values: { normal: [0, 1, 0], point: [0, 0, 0] } });
+    const col = G.newNode(g, 'cadence.particles.collider', 0, 0, { id: 'col', values: { response: 'bounce', restitution: 0.3 } });
+    assert.ok(G.connect(g, plane.id, 'out', col.id, 'shape').ok);
+    assert.ok(G.connect(g, col.id, 'out', psim.id, 'colliders').ok);
+  }
+  if (withTrigger) {
+    const age = G.newNode(g, 'cadence.particles.age', 0, 0, { id: 'age' });
+    const gt = G.newNode(g, 'cadence.math.greaterThan', 0, 0, { id: 'gt', values: { b: 0.3 } });
+    assert.ok(G.connect(g, age.id, 'out', gt.id, 'a').ok);
+    assert.ok(G.connect(g, gt.id, 'out', psim.id, 'triggerWhen').ok, 'a bool field drives the trigger');
+  }
+  const filt = G.newNode(g, 'cadence.particles.events', 0, 0, { id: 'filt', values: { kind, chance } });
+  assert.ok(G.connect(g, psim.id, 'events', filt.id, 'events').ok, 'events wire into the filter');
+  const cem = G.newNode(g, 'cadence.particles.emitter', 0, 0, { id: 'cem', values: { rate: 0, lifetime: 1, perEvent, inherit, ...child } });
+  assert.ok(G.connect(g, filt.id, 'out', cem.id, 'events').ok, 'filtered events wire into the child emitter');
+  const csim = G.newNode(g, 'cadence.particles.simulate', 0, 0, { id: 'csim', values: { maxParticles: 5000 } });
+  assert.ok(G.connect(g, cem.id, 'out', csim.id, 'emitter').ok);
+  return { g, psim, csim, filt, e: new E.Evaluator(g, { fps: 30 }) };
+}
+
+check('sub-emission: every death spawns exactly "particles per event" children', () => {
+  const { psim, csim, e } = subGraph({ kind: 'death', perEvent: 3 });
+  const died = seekTo(e, psim, 30, 'died').value;
+  const children = seekTo(e, csim, 30, 'count').value;
+  assert.ok(died >= 14, `parents must have died by frame 30 (${died})`);
+  assert.equal(children, died * 3, `3 children per death: ${children} vs ${died} deaths`);
+});
+
+check('sub-emission: children are born where the parent died, with the inherited share of its velocity', () => {
+  const { csim, e } = subGraph({ kind: 'death', perEvent: 1, inherit: 0.5 });
+  // Find the first frame with a child and inspect it.
+  let geo = null, frame = 0;
+  for (let f = 10; f <= 25 && !geo; f++) { const r = seekTo(e, csim, f).value; if (GEO.pointCount(r)) { geo = r; frame = f; } }
+  assert.ok(geo, 'children appear within the parent lifetime');
+  const v = GEO.readAttr(geo.points, 'velocity', 0, [0, 0, 0]);
+  nearArr(v, [0, 2, 0], 1e-4);   // parent moved at (0,4,0); inherit 0.5
+  const p = GEO.readAttr(geo.points, 'position', 0, [0, 0, 0]);
+  // the parent rose at 4 studs/s for ~0.5 s, so the child starts about 2 studs up, then moved one step
+  assert.ok(p[1] > 1.8 && p[1] < 2.3, `born near y=2 (${p[1].toFixed(3)}) at frame ${frame}`);
+});
+
+check('sub-emission: collision events place children on the floor', () => {
+  const { psim, csim, e } = subGraph({ kind: 'collision', perEvent: 1, inherit: 0, collider: true, parent: { rate: 0, burstCount: 40, burstTime: 0, lifetime: 5, velocity: [0, 0, 0] }, parentSim: { force: [0, -30, 0] } });
+  // 3 studs under 30 studs/s² hits at t = sqrt(2*3/30) ≈ 0.447 s ≈ frame 14
+  let geo = null;
+  for (let f = 10; f <= 30 && !geo; f++) { const r = seekTo(e, csim, f).value; if (GEO.pointCount(r)) geo = r; }
+  assert.ok(geo, 'collisions produce children');
+  assert.ok(seekTo(e, psim, 30, 'events').value.eventsAt(30) !== undefined);
+  for (let k = 0; k < GEO.pointCount(geo); k++) {
+    const p = GEO.readAttr(geo.points, 'position', k, [0, 0, 0]);
+    assert.ok(Math.abs(p[1]) < 0.25, `a splash child sits on the floor (y=${p[1].toFixed(3)})`);
+  }
+});
+
+check('events: a trigger condition fires exactly once per particle, on the rising edge', () => {
+  const { psim, e } = subGraph({ kind: 'trigger', withTrigger: true });
+  const ev = seekTo(e, psim, 45, 'events').value;
+  let triggers = 0; const ids = new Set();
+  for (let f = 1; f <= 45; f++) for (const x of ev.eventsAt(f)) if (x.kind === 'trigger') { triggers++; ids.add(x.id); }
+  // 30 particles are born in the first 30 frames and each crosses age 0.3 once before dying at 0.5.
+  assert.equal(triggers, ids.size, 'no particle triggers twice');
+  // Particles keep being born to frame 45; those born by frame ~36 have crossed age 0.3 by then.
+  assert.ok(triggers >= 34 && triggers <= 38, `about 36 crossings, got ${triggers}`);
+  const t = ev.eventsAt(12).find((x) => x.kind === 'trigger');
+  assert.ok(t && t.age >= 0.3 && t.age < 0.36, `fires just past the threshold (${t && t.age})`);
+});
+
+check('events: an interval timer ticks per particle at its own cadence', () => {
+  const { psim, e } = subGraph({ kind: 'interval', parentSim: { triggerEvery: 0.2 } });
+  const ev = seekTo(e, psim, 45, 'events').value;
+  let ticks = 0;
+  for (let f = 1; f <= 45; f++) ticks += ev.eventsAt(f).filter((x) => x.kind === 'interval').length;
+  // each 0.5 s particle ticks at 0.2 s and 0.4 s; by frame 45 those born by frame 39 have ticked once and
+  // those born by frame 33 twice: about 72 ticks.
+  assert.ok(ticks >= 68 && ticks <= 76, `about 72 ticks, got ${ticks}`);
+});
+
+check('events: a chance filter keeps a deterministic share', () => {
+  const half = subGraph({ kind: 'death', chance: 0.5, perEvent: 1 });
+  const all = subGraph({ kind: 'death', chance: 1, perEvent: 1 });
+  const a = seekTo(half.e, half.csim, 40, 'count').value;
+  const b = seekTo(all.e, all.csim, 40, 'count').value;
+  assert.ok(b >= 20, 'enough deaths to judge a share');
+  assert.ok(a > b * 0.25 && a < b * 0.75, `about half kept: ${a} of ${b}`);
+  const again = subGraph({ kind: 'death', chance: 0.5, perEvent: 1 });
+  assert.equal(seekTo(again.e, again.csim, 40, 'count').value, a, 'the same share on a fresh evaluator');
+  assert.equal(seekTo(half.e, half.filt, 20, 'count').value, half.filt && seekTo(half.e, half.psim, 20, 'events').value.eventsAt(20).filter((x) => x.kind === 'death').length ? seekTo(half.e, half.filt, 20, 'count').value : 0);
+});
+
+check('sub-emission: a child simulation scrubs deterministically through its parent\'s history', () => {
+  const snap = (r) => {
+    const rows = [];
+    for (let k = 0; k < GEO.pointCount(r.value); k++) rows.push([GEO.readAttr(r.value.points, 'id', k), ...GEO.readAttr(r.value.points, 'position', k), ...GEO.readAttr(r.value.points, 'velocity', k)].map((v) => Math.round(v * 1e6) / 1e6));
+    rows.sort((a, b) => a[0] - b[0]);
+    return JSON.stringify(rows);
+  };
+  const setup = () => subGraph({ kind: 'death', perEvent: 2, inherit: 0.7, parentSim: { force: [0, -8, 0] } });
+  const a = setup(); const forwards = snap(seekTo(a.e, a.csim, 41));
+  assert.ok(forwards.length > 10, 'children exist at frame 41');
+  const b = setup(); seekTo(b.e, b.csim, 90); assert.equal(snap(seekTo(b.e, b.csim, 41)), forwards, 'backwards differs');
+  const c = setup(); for (const f of [5, 60, 12, 88, 30, 71, 2, 41]) seekTo(c.e, c.csim, f); assert.equal(snap(seekTo(c.e, c.csim, 41)), forwards, 'jittery differs');
+});
+
+check('events: history replays on a scratch copy when a frame was never recorded', () => {
+  const { sim, e } = simGraph({ emitter: { rate: 30, lifetime: 0.5 } });
+  const ev = seekTo(e, sim, 40, 'events').value;
+  const before = JSON.stringify(ev.eventsAt(20));
+  // Forget frame 20 and ask again: the answer must be rebuilt identically, and the live state untouched.
+  const s = e.persistent.values().next().value;   // the one Simulation in this evaluator
+  assert.ok(s && s.history, 'the simulation keeps a history');
+  s.history.delete(20);
+  const liveFrame = s.state.frame;
+  assert.equal(JSON.stringify(ev.eventsAt(20)), before, 'a replayed frame matches the recorded one');
+  assert.equal(s.state.frame, liveFrame, 'the live state was not moved by the replay');
+  assert.deepEqual(ev.eventsAt(999), [], 'a frame in the future is empty, never a seek');
+});
+
+// ================================================================ the Effect Sheet projection (docs/effect-sheet.md §8)
+const SHEET = await import('../renderer/js/pnx/sheet.js');
+
+check('sheet: the starter graph projects with every node reached and one named value', () => {
+  const g = STUDIO.newStarterGraph('starter');
+  const p = SHEET.projectGraph(g);
+  assert.equal(p.stats.reached, p.stats.nodes, `every node must be reached (${p.stats.reached}/${p.stats.nodes})`);
+  assert.equal(p.things.length, 1, 'one drawn thing: the sprite renderer');
+  assert.ok(p.things[0].drawn, 'it is wired to the output');
+  assert.equal(p.named.length, 1, 'Normalized Age is shared by size and colour');
+  assert.equal(p.named[0].label, 'Normalized Age');
+  assert.equal(p.named[0].usedBy.length, 2);
+  assert.deepEqual(p.unused, []);
+  // the sprite's size row is a source whose variation is read structurally
+  const size = p.things[0].rows.find((r) => r.key === 'size');
+  assert.equal(size.kind, 'source');
+  assert.ok(size.variesWith.includes('Normalized Age'), `size varies with ${size.variesWith}`);
+  // the particles row reaches the simulation, which is time dependent
+  const src = p.things[0].rows.find((r) => r.key === 'source');
+  assert.ok(src.variesWith.includes("the effect's time"));
+  // a mode input is a mode row, a literal is a value row with its unit
+  const mat = p.things[0].rows.find((r) => r.key === 'material').sources[0];
+  assert.equal(mat.rows.find((r) => r.key === 'blend').kind, 'mode');
+  const em = src.sources[0].rows.find((r) => r.key === 'emitter').sources[0];
+  const rate = em.rows.find((r) => r.key === 'rate');
+  assert.equal(rate.kind, 'value'); assert.equal(rate.value, 34); assert.equal(rate.unit, 'per second');
+});
+
+check('sheet: every library recipe projects fully inside its group', () => {
+  for (const r of LIB.listRecipes()) {
+    const g = G.newGraph('r');
+    const res = LIB.buildRecipe(g, r.id);
+    assert.ok(res.ok, `${r.id} builds`);
+    const p = SHEET.projectGraph(g, { scope: res.groupId });
+    assert.equal(p.stats.reached, p.stats.nodes, `${r.name}: ${p.stats.reached}/${p.stats.nodes} reached`);
+    assert.ok(p.things.length === 1 && p.things[0].result, `${r.name}: the group's result is the root`);
+  }
+});
+
+check('sheet: the text view reads the starter as a sentence list with the named value', () => {
+  const text = SHEET.sheetText(SHEET.projectGraph(STUDIO.newStarterGraph('s')));
+  assert.ok(text.includes('• Sprite Renderer'), 'the thing');
+  assert.ok(text.includes('«Normalized Age»'), 'the named value');
+  assert.ok(text.includes('gradient #fff6e0'), 'the gradient literal');
+  assert.ok(text.includes('Rate: 34 per second'), 'a unit');
+  assert.ok(text.includes('Blending: additive ▾'), 'a mode');
+  assert.ok(text.includes('varies with Normalized Age'), 'the variation');
+});
+
+check('sheet: a renderer that is not wired to the output is listed as not drawn, never hidden', () => {
+  const g = STUDIO.newStarterGraph('s');
+  const stray = G.newNode(g, 'cadence.render.point', 0, 0, { id: 'stray' });
+  const p = SHEET.projectGraph(g);
+  const t = p.things.find((x) => x.nodeId === 'stray');
+  assert.ok(t && !t.drawn, 'listed, flagged not drawn');
+  assert.ok(SHEET.sheetText(p).includes('not drawn'));
+  // an orphan maths node is reported as unused, never silently dropped
+  G.newNode(g, 'cadence.math.add', 0, 0, { id: 'orphan' });
+  const p2 = SHEET.projectGraph(g);
+  assert.equal(p2.unused.length, 1);
+  assert.equal(p2.unused[0].nodeId, 'orphan');
+});
+
+check('sheet: feeders for a slot type come from the registry and are never empty for the common types', () => {
+  assert.ok(SHEET.feedersFor('float').length >= 150, 'a number slot has a wide menu');
+  assert.ok(SHEET.feedersFor('field<vector3>').length >= 150);
+  assert.ok(SHEET.feedersFor('geometry').length >= 20);
+  assert.ok(SHEET.feedersFor('texture2d').length >= 15);
+  assert.ok(SHEET.feedersFor('material').length >= 1);
+  assert.ok(SHEET.feedersFor('event').length >= 2, 'events come from Simulate and Particle Events');
+  assert.equal(SHEET.feedersFor('nonsense').length, 0);
+});
+
+check('sheet: summaries list only the values that differ from their defaults', () => {
+  const p = SHEET.projectGraph(STUDIO.newStarterGraph('s'));
+  const em = p.things[0].rows.find((r) => r.key === 'source').sources[0].rows.find((r) => r.key === 'emitter').sources[0];
+  const s = SHEET.summaryOf(em, 8);
+  assert.ok(s.includes('rate 34'), s);
+  assert.ok(!s.includes('mass'), 'mass is at its default and stays out of the summary');
+});
+
+check('sheet: an optional phrase template renders from the rows, and a missing key stays visible', () => {
+  const def = { phrase: '{rate} per second from {shape}, living {lifetime} — {missing}' };
+  const rows = [
+    { key: 'rate', kind: 'value', value: 34, unit: 'per second', innerType: 'float' },
+    { key: 'shape', kind: 'source', sources: [{ label: 'Sphere' }] },
+    { key: 'lifetime', kind: 'value', value: 1.6, unit: 'seconds', innerType: 'float' },
+  ];
+  assert.equal(SHEET.phraseFor(null, null, def, rows), '34 per second per second from Sphere, living 1.6 seconds — {missing}');
+});
+
+// ================================================================ the Effect Sheet's source menus (docs/effect-sheet.md §5.3, §5.5)
+const MENUS = await import('../renderer/js/pnx/menus.js');
+
+// A slot on a node, in a starter graph, for every kind the menus know.
+function slotOn(graph, type, key) {
+  const node = Object.values(graph.nodes).find((n) => n.type.startsWith(type));
+  assert.ok(node, `starter has a ${type}`);
+  const socket = G.socketsOf(graph, node).inputs.find((s) => s.key === key);
+  assert.ok(socket, `${type} has a ${key} input`);
+  return { node, socket };
+}
+
+check('menus: every slot kind is classified from its type and hint', () => {
+  const g = STUDIO.newStarterGraph('m');
+  const kinds = [
+    ['cadence.render.sprite', 'size', 'number'],
+    ['cadence.particles.emitter', 'velocity', 'direction'],
+    ['cadence.particles.emitter', 'shape', 'shape'],
+    ['cadence.particles.emitter', 'events', 'events'],
+    ['cadence.particles.simulate', 'force', 'force'],
+    ['cadence.particles.simulate', 'colliders', 'collider'],
+    ['cadence.particles.simulate', 'emitter', 'emitter'],
+    ['cadence.material.surface', 'baseColor', 'colour'],
+    ['cadence.material.surface', 'texture', 'texture'],
+    ['cadence.material.surface', 'blend', 'mode'],
+    ['cadence.render.sprite', 'material', 'material'],
+    ['cadence.geometry.sphere', 'radius', 'number'],
+  ];
+  for (const [type, key, kind] of kinds) {
+    const { socket } = slotOn(g, type, key);
+    assert.equal(MENUS.slotKindOf(socket), kind, `${type}.${key}`);
+  }
+});
+
+check('menus: every curated entry builds, connects to its slot, and the graph still evaluates', () => {
+  const g0 = STUDIO.newStarterGraph('m');
+  const slots = [
+    ['cadence.render.sprite', 'size'], ['cadence.particles.emitter', 'velocity'], ['cadence.particles.emitter', 'shape'],
+    ['cadence.particles.simulate', 'force'], ['cadence.particles.simulate', 'colliders'], ['cadence.material.surface', 'baseColor'],
+    ['cadence.material.surface', 'texture'], ['cadence.render.sprite', 'material'], ['cadence.particles.simulate', 'emitter'],
+    ['cadence.fields.constantDirection', 'direction'], ['cadence.geometry.sphere', 'radius'],
+  ];
+  let tried = 0;
+  for (const [type, key] of slots) {
+    const base = slotOn(g0, type, key);
+    const menu = MENUS.menuFor(g0, base.node, base.socket);
+    assert.ok(menu.curated.length >= 2, `${type}.${key} (${menu.kind}) has entries`);
+    assert.ok(menu.curated.filter((e) => e.current).length <= 1, 'at most one entry is marked current');
+    for (const entry of menu.curated) {
+      const g = structuredClone(g0);
+      const node = g.nodes[base.node.id];
+      const socket = G.socketsOf(g, node).inputs.find((s) => s.key === key);
+      const before = Object.keys(g.nodes).length;
+      const res = MENUS.applyEntry(g, node, socket, entry);
+      tried++;
+      assert.ok(Array.isArray(res.nodes), `${entry.id} on ${key}: returns the nodes it made`);
+      assert.equal(Object.keys(g.nodes).length, before + res.nodes.length, `${entry.id} on ${key}: node count accounts for every new node`);
+      const wired = G.linksInto(g, node.id, key);
+      if (entry.id === 'fixed' || entry.id === 'none') assert.equal(wired.length, 0, `${entry.id} leaves the slot unwired`);
+      else assert.ok(wired.length >= 1, `${entry.id} on ${key} wires the slot`);
+      // whatever it built, the effect still evaluates to a scene without throwing
+      const out = Object.values(g.nodes).find((n) => n.type.startsWith('cadence.render.output'));
+      const e = new E.Evaluator(g, { fps: 30 });
+      e.setTime(12);
+      const r = e.evaluateSocket(out.id, 'out');
+      assert.ok(r.ok !== undefined, `${entry.id} on ${key}: evaluates`);
+      assert.ok(!r.diagnostics.some((d) => d.severity === 'error'), `${entry.id} on ${key}: no evaluation error (${r.diagnostics.map((d) => d.message).join('; ')})`);
+    }
+  }
+  assert.ok(tried >= 60, `tried ${tried} entries`);
+});
+
+check('menus: events entries appear only when another simulation exists, and wire its events', () => {
+  const g = STUDIO.newStarterGraph('m');
+  const { node: em, socket } = slotOn(g, 'cadence.particles.emitter', 'events');
+  const menu = MENUS.menuFor(g, em, socket);
+  // the starter's own simulation is a valid source for a SECOND emitter, but not for the one feeding it
+  const sim = Object.values(g.nodes).find((n) => n.type.startsWith('cadence.particles.simulate'));
+  const child = G.newNode(g, 'cadence.particles.emitter', 0, 0, { id: 'child', values: { rate: 0 } });
+  const cs = G.socketsOf(g, child).inputs.find((s) => s.key === 'events');
+  const m2 = MENUS.menuFor(g, child, cs);
+  const death = m2.curated.find((e) => e.id.startsWith('death:'));
+  assert.ok(death, 'a "when those particles die" entry exists');
+  const res = MENUS.applyEntry(g, child, cs, death);
+  assert.equal(res.nodes.length, 1);
+  const filt = g.nodes[res.nodes[0]];
+  assert.ok(filt.type.startsWith('cadence.particles.events'));
+  assert.equal(G.linksInto(g, filt.id, 'events')[0].fromNode, sim.id, 'the filter reads the simulation');
+  assert.equal(G.linksInto(g, child.id, 'events')[0].fromNode, filt.id, 'the child emitter reads the filter');
+  void menu;
+});
+
+check('menus: existing sources list the values already in the effect, and applying one wires without new nodes', () => {
+  const g = STUDIO.newStarterGraph('m');
+  const { node: spr, socket } = slotOn(g, 'cadence.render.sprite', 'rotation');
+  const ex = MENUS.existingSources(g, spr, socket);
+  const life = ex.find((s) => s.label.startsWith('Normalized Age'));
+  assert.ok(life, 'Normalized Age fits a number slot');
+  assert.ok(!ex.some((s) => s.nodeId === spr.id), 'never itself');
+  const before = Object.keys(g.nodes).length;
+  MENUS.applyExisting(g, spr, socket, life);
+  assert.equal(Object.keys(g.nodes).length, before);
+  assert.equal(G.linksInto(g, spr.id, 'rotation')[0].fromNode, life.nodeId);
+});
+
+check('menus: "anything else" applies any registry node that fits', () => {
+  const g = STUDIO.newStarterGraph('m');
+  const { node: spr, socket } = slotOn(g, 'cadence.render.sprite', 'size');
+  const res = MENUS.applyNodeType(g, spr, socket, 'cadence.noise.perlin');
+  assert.equal(res.nodes.length, 1);
+  assert.ok(g.nodes[res.nodes[0]].type.startsWith('cadence.noise.perlin'));
+  assert.throws(() => MENUS.applyNodeType(g, spr, socket, 'cadence.render.output'), /no output that fits/);
+});
+
+check('menus: every "add a thing" entry builds a drawn thing that evaluates, and removeThing takes only what it owned', () => {
+  for (const t of MENUS.THINGS) {
+    const g = STUDIO.newStarterGraph('m');
+    const before = Object.keys(g.nodes).length;
+    const res = MENUS.addThing(g, t.id);
+    assert.ok(g.nodes[res.thing], `${t.id} returns its renderer`);
+    const out = Object.values(g.nodes).find((n) => n.type.startsWith('cadence.render.output'));
+    assert.ok(G.linksInto(g, out.id, 'passes').some((l) => l.fromNode === res.thing), `${t.id} is wired to the output`);
+    const p = SHEET.projectGraph(g);
+    assert.equal(p.stats.reached, p.stats.nodes, `${t.id}: sheet reaches every node`);
+    assert.equal(p.things.length, 2, `${t.id}: two things on the sheet`);
+    const e = new E.Evaluator(g, { fps: 30 });
+    e.setTime(20);
+    const r = e.evaluateSocket(out.id, 'out');
+    assert.ok(!r.diagnostics.some((d) => d.severity === 'error'), `${t.id} evaluates: ${r.diagnostics.map((d) => d.message).join('; ')}`);
+    // remove it: back to the starter's node count, starter untouched
+    MENUS.removeThing(g, res.thing);
+    assert.equal(Object.keys(g.nodes).length, before, `${t.id}: removal is exact`);
+    assert.equal(SHEET.projectGraph(g).things.length, 1);
+  }
+});
+
+check('menus: the starter sprite\'s "over its life" size is recognised so the fixed entry is not marked current', () => {
+  const g = STUDIO.newStarterGraph('m');
+  const { node: spr, socket } = slotOn(g, 'cadence.render.sprite', 'size');
+  const menu = MENUS.menuFor(g, spr, socket);
+  assert.ok(menu.current, 'the slot is wired');
+  assert.ok(!menu.curated.find((e) => e.id === 'fixed').current);
+});
+
+// ================================================================ Parts 31–32: the grid fluid solver (smoke and fire)
+const FLUID = await import('../renderer/js/pnx/fluid.js');
+
+function smokeSpec(extra = {}) {
+  return {
+    sources: [{ points: new Float32Array([0, 0.6, 0]), radius: 0.5, sdf: null, density: 6, temperature: 1.5, fuel: 0, velocity: null }],
+    buoyancy: 2.5, weight: 0.2, cooling: 0.4, dissipation: 0.1, vorticity: 0.6, iterations: 20,
+    ignition: 0, burnRate: 0, heatRelease: 0, soot: 0, wind: null, boundary: 'open',
+    ...extra,
+  };
+}
+
+check('fluid: a hot source rises — the density centre of mass climbs frame over frame', () => {
+  const sim = new FLUID.FluidSimulation(smokeSpec(), { fps: 30, resolution: 20, center: [0, 2, 0], size: [4, 4, 4] });
+  const early = FLUID.totals(sim.seek(6));
+  const late = FLUID.totals(sim.seek(40));
+  assert.ok(early.density > 0, 'the source deposited density');
+  assert.ok(late.density > early.density, 'density keeps accumulating while the source runs');
+  assert.ok(late.densityCentreY > early.densityCentreY + 1, `smoke rose: centre y ${early.densityCentreY.toFixed(2)} -> ${late.densityCentreY.toFixed(2)} cells`);
+});
+
+check('fluid: the projection leaves the velocity nearly divergence-free', () => {
+  const sim = new FLUID.FluidSimulation(smokeSpec({ iterations: 40 }), { fps: 30, resolution: 20 });
+  const s = sim.seek(20);
+  const div = FLUID.meanAbsDivergence(s);
+  let speed = 0;
+  for (let i = 0; i < s.u.length; i++) speed = Math.max(speed, Math.abs(s.v[i]));
+  assert.ok(speed > 0.05, `the fluid is moving (max |v| ${speed.toFixed(3)} cells/s)`);
+  assert.ok(div < speed * 0.05, `divergence ${div.toExponential(2)} is small next to the speed ${speed.toFixed(3)}`);
+});
+
+check('fluid: fire burns fuel into heat and soot, and only above the ignition temperature', () => {
+  const cold = new FLUID.FluidSimulation(smokeSpec({ sources: [{ points: new Float32Array([0, 0.6, 0]), radius: 0.5, density: 0, temperature: 0.2, fuel: 4, velocity: null }], ignition: 1, burnRate: 3, heatRelease: 2, soot: 0.5 }), { fps: 30, resolution: 16 });
+  const hot = new FLUID.FluidSimulation(smokeSpec({ sources: [{ points: new Float32Array([0, 0.6, 0]), radius: 0.5, density: 0, temperature: 2, fuel: 4, velocity: null }], ignition: 1, burnRate: 3, heatRelease: 2, soot: 0.5 }), { fps: 30, resolution: 16 });
+  const c = cold.seek(20), h = hot.seek(20);
+  assert.equal(c.stats.burned, 0, 'below ignition nothing burns');
+  assert.ok(h.stats.burned > 0, 'above ignition fuel burns');
+  const tc = FLUID.totals(c), th = FLUID.totals(h);
+  assert.ok(th.density > tc.density, 'burning makes smoke (soot)');
+  assert.ok(th.temperature > tc.temperature, 'burning releases heat');
+});
+
+check('fluid: scrubbing is deterministic — the same frame is identical however it is reached', () => {
+  const setup = () => new FLUID.FluidSimulation(smokeSpec({ vorticity: 1.2 }), { fps: 30, resolution: 14, checkpointEvery: 4 });
+  const snap = (s) => { let h = 0; for (let i = 0; i < s.density.length; i++) h = (h * 31 + Math.round((s.density[i] + s.v[i] * 7 + s.temperature[i] * 3) * 1e5)) >>> 0; return `${h}:${s.frame}`; };
+  const a = setup(); const forwards = snap(a.seek(23));
+  const b = setup(); b.seek(45); assert.equal(snap(b.seek(23)), forwards, 'backwards differs');
+  const c = setup(); for (const f of [5, 30, 12, 40, 3, 23]) c.seek(f); assert.equal(snap(c.seek(23)), forwards, 'jittery differs');
+  const d = setup(); assert.equal(snap(d.seek(23)), forwards, 'fresh differs');
+  assert.ok(b.lastSeek.steps <= 4, `a checkpoint every 4 frames means at most 4 replay steps (${b.lastSeek.steps})`);
+});
+
+check('fluid: a wind field made of PNX nodes pushes the smoke sideways', () => {
+  const wind = F.makeField('vector3', () => [30, 0, 0]);
+  const calm = new FLUID.FluidSimulation(smokeSpec(), { fps: 30, resolution: 16 });
+  const windy = new FLUID.FluidSimulation(smokeSpec({ wind }), { fps: 30, resolution: 16 });
+  const xOf = (s) => { let d = 0, dx = 0; const r = s.resolution; for (let z = 0; z < r; z++) for (let y = 0; y < r; y++) for (let x = 0; x < r; x++) { const v = s.density[(z * r + y) * r + x]; d += v; dx += v * x; } return dx / Math.max(1e-9, d); };
+  const xc = xOf(calm.seek(30)), xw = xOf(windy.seek(30));
+  assert.ok(xw > xc + 1, `wind moved the smoke: centre x ${xc.toFixed(2)} -> ${xw.toFixed(2)} cells`);
+});
+
+check('fluid: velocity sampled in world units matches the grid, and a step at 32³ is affordable', () => {
+  const sim = new FLUID.FluidSimulation(smokeSpec(), { fps: 30, resolution: 32, center: [0, 2, 0], size: [4, 4, 4] });
+  sim.seek(10);
+  const t0 = performance.now();
+  sim.seek(15);
+  const ms = (performance.now() - t0) / 5;
+  const v = FLUID.velocityAtWorld(sim.state, [0, 2.5, 0]);
+  assert.ok(v[1] > 0, `above the source the smoke moves up (${v[1].toFixed(3)} studs/s)`);
+  assert.ok(ms < 400, `a 32³ step took ${ms.toFixed(1)} ms — far too slow for a preview`);
+  console.log(`      (fluid step at 32³: ${ms.toFixed(1)} ms; at 20³ the earlier tests ran in a fraction of that)`);
+});
+
+// ================================================================ Parts 31, 32, 35: fire, smoke, clouds and the volume pass
+check('pyro: Simulate Smoke & Fire fills a volume, heats it, and offers a velocity field', () => {
+  const g = G.newGraph('pyro');
+  const src = G.newNode(g, 'cadence.geometry.point', 0, 0, { id: 'src', values: { position: [0, 0.4, 0] } });
+  const sim = G.newNode(g, 'cadence.particles.emitter', 0, 0, { id: 'unused' });   // an unrelated node must not matter
+  const fire = G.newNode(g, 'cadence.pyro.simulate', 0, 0, { id: 'fire', values: { resolution: 16, fuel: 3, temperature: 1.6, density: 2, center: [0, 2, 0], size: [4, 4, 4] } });
+  assert.ok(G.connect(g, src.id, 'out', fire.id, 'shape').ok);
+  const e = new E.Evaluator(g, { fps: 30 });
+  e.setTime(25);
+  const dens = e.evaluateSocket(fire.id, 'density');
+  assert.ok(dens.ok !== false && dens.value && dens.value.__volume, 'density is a volume');
+  const info = VOL.describeVolume(dens.value);
+  assert.ok(info.occupancy > 0.005 && info.range.max > 0.05, `smoke exists: ${JSON.stringify(info.range)} occupancy ${info.occupancy.toFixed(3)}`);
+  const heat = e.evaluateSocket(fire.id, 'temperature').value;
+  assert.ok(VOL.describeVolume(heat).range.max > 0.5, 'heat exists');
+  assert.ok(e.evaluateSocket(fire.id, 'burned').value > 0, 'fuel burned');
+  const vel = e.evaluateSocket(fire.id, 'velocity').value;
+  assert.ok(F.isField(vel), 'velocity is a field');
+  const up = F.sampleAny(vel, F.newSampleContext({ position: [0, 1.2, 0] }));
+  assert.ok(up[1] > 0.01, `air rises above the fire (${up[1].toFixed(3)} studs/s)`);
+  void sim;
+});
+
+check('pyro: scrubbing the simulation node backwards through the evaluator is deterministic', () => {
+  const build = () => {
+    const g = G.newGraph('pyro');
+    const fire = G.newNode(g, 'cadence.pyro.simulate', 0, 0, { id: 'fire', values: { resolution: 12, fuel: 2, temperature: 1.5, density: 3, vorticity: 1 } });
+    return { fire, e: new E.Evaluator(g, { fps: 30 }) };
+  };
+  const hashOf = (vol) => { let h = 0; for (let i = 0; i < vol.data.length; i++) h = (h * 31 + Math.round(vol.data[i] * 1e4)) >>> 0; return h; };
+  const a = build(); a.e.setTime(18); const forwards = hashOf(a.e.evaluateSocket(a.fire.id, 'density').value);
+  const b = build(); b.e.setTime(40); b.e.evaluateSocket(b.fire.id, 'density'); b.e.setTime(18);
+  assert.equal(hashOf(b.e.evaluateSocket(b.fire.id, 'density').value), forwards, 'backwards differs');
+});
+
+check('cloud: the Cloud node bakes a lumpy ellipsoid whose coverage follows the setting', () => {
+  const g = G.newGraph('cloud');
+  const thin = G.newNode(g, 'cadence.volume.cloud', 0, 0, { id: 'thin', values: { coverage: 0.3, resolution: 16 } });
+  const thick = G.newNode(g, 'cadence.volume.cloud', 0, 0, { id: 'thick', values: { coverage: 0.9, resolution: 16 } });
+  const e = new E.Evaluator(g, { fps: 30 });
+  const a = VOL.describeVolume(e.evaluateSocket(thin.id, 'out').value);
+  const b = VOL.describeVolume(e.evaluateSocket(thick.id, 'out').value);
+  assert.ok(a.occupancy > 0 && a.occupancy < 1, `a cloud is partly filled (${a.occupancy.toFixed(3)})`);
+  assert.ok(b.occupancy > a.occupancy, `more coverage fills more (${a.occupancy.toFixed(3)} -> ${b.occupancy.toFixed(3)})`);
+  // drifting: a later frame differs
+  e.setTime(30);
+  const later = e.evaluateSocket(thin.id, 'out').value;
+  let diff = 0; const first = e.evaluateSocket(thin.id, 'out').value; void first;
+  const e0 = new E.Evaluator(g, { fps: 30 }); const start = e0.evaluateSocket(thin.id, 'out').value;
+  for (let i = 0; i < later.data.length; i++) diff += Math.abs(later.data[i] - start.data[i]);
+  assert.ok(diff > 0, 'the cloud drifts over time');
+});
+
+check('volume renderer: a volume pass resolves to a draw with a normalised 3D texture and a fire LUT', () => {
+  const g = G.newGraph('vr');
+  const cloud = G.newNode(g, 'cadence.volume.cloud', 0, 0, { id: 'cloud', values: { resolution: 12 } });
+  const vr = G.newNode(g, 'cadence.render.volume', 0, 0, { id: 'vr', values: {} });
+  assert.ok(G.connect(g, cloud.id, 'out', vr.id, 'density').ok);
+  const out = G.newNode(g, 'cadence.render.output', 0, 0, { id: 'out' });
+  assert.ok(G.connect(g, vr.id, 'out', out.id, 'passes').ok);
+  const e = new E.Evaluator(g, { fps: 30 });
+  const res = e.evaluateSocket(out.id, 'out');
+  const cmds = RENDER.flattenCommands(res.value);
+  assert.equal(cmds.length, 1);
+  assert.equal(cmds[0].kind, 'volume');
+  const scene = RENDER.resolveScene(cmds, {});
+  const d = scene.draws[0];
+  assert.equal(d.kind, 'volume');
+  assert.equal(d.resolution, 12);
+  assert.equal(d.texels.length, 12 * 12 * 12 * 4, 'RGBA texels for every voxel');
+  assert.ok(d.densityScale > 0, 'the density scale is the grid maximum');
+  assert.equal(d.lut.length, 256 * 4, 'a 256-entry fire colour table');
+  assert.ok(d.lut[255 * 4] > d.lut[0], 'hot end of the LUT is brighter than the cold end');
+  assert.ok(scene.stats.volumes === 1);
+  // the export analyser classifies it as a flipbook bake, never unsupported
+  const report = RBX.analyseForRoblox(cmds);
+  assert.equal(report.rows[0].level, 'baked');
+  assert.ok(/flipbook/i.test(report.rows[0].how));
+});
+
+check('volumes: the capability table no longer lists the solver or the renderer as absent', () => {
+  assert.ok(!VOL.UNIMPLEMENTED.fluidSolver && !VOL.UNIMPLEMENTED.pyro && !VOL.UNIMPLEMENTED.volumeRendering, 'built features are not declared absent');
+  assert.ok(R.getNode('cadence.pyro.simulate') && R.getNode('cadence.render.volume') && R.getNode('cadence.volume.cloud'));
+});
+
+// ================================================================ Parts 22/24/25/47: mesh editing, surfaces from fields, curve tools, zones
+const MESH = await import('../renderer/js/pnx/mesh.js');
+
+const closedMesh = (g) => { const adj = MESH.buildAdjacency(g); for (const e of adj.edges.values()) if (e.faces.length !== 2) return false; return adj.edges.size > 0; };
+const radii = (g) => { const out = []; const p = [0, 0, 0]; for (let i = 0; i < g.points.count; i++) { GEO.readAttrInto(g.points, 'position', i, p); out.push(Math.hypot(p[0], p[1], p[2])); } return out; };
+const evalMeshNode = (g, id, key, frame = 0) => { const e = new E.Evaluator(g, { fps: 30 }); e.setTime(frame); return e.evaluateSocket(id, key); };
+
+check('mesh: an icosphere is closed, even, and exactly on its radius', () => {
+  const g = MESH.icosphere(2, 2);
+  assert.equal(GEO.faceCount(g), 320);
+  assert.equal(GEO.pointCount(g), 162);
+  assert.ok(closedMesh(g), 'every edge has two faces');
+  for (const r of radii(g)) assert.ok(Math.abs(r - 2) < 1e-5, `radius ${r}`);
+  // normals point outward
+  const n = g.points.attrs.normal.data, p = g.points.attrs.position.data;
+  for (let i = 0; i < g.points.count; i++) assert.ok(n[i * 3] * p[i * 3] + n[i * 3 + 1] * p[i * 3 + 1] + n[i * 3 + 2] * p[i * 3 + 2] > 0);
+});
+
+check('mesh: welding closes the seam of a UV sphere and keeps it a closed surface', () => {
+  const g = G.newGraph('t');
+  const s = G.newNode(g, 'cadence.geometry.sphere', 0, 0, { values: { radius: 1, segments: 12, rings: 6 } });
+  const sphere = evalMeshNode(g, s.id, 'out').value;
+  assert.ok(!closedMesh(sphere), 'a UV sphere has a seam and pole fans, so it is not closed as built');
+  const r = MESH.weld(sphere, 1e-4);
+  assert.ok(r.merged > 0, `merged ${r.merged} points`);
+  assert.ok(closedMesh(r.geometry), 'welded, every edge has exactly two faces');
+  assert.ok(GEO.faceCount(r.geometry) > 0 && GEO.faceCount(r.geometry) <= GEO.faceCount(sphere));
+});
+
+check('mesh: extruding a plane region raises a lid and walls the rim; individual mode walls every face', () => {
+  const g = G.newGraph('t');
+  const pl = G.newNode(g, 'cadence.geometry.plane', 0, 0, { values: { size: [2, 0, 2] } });
+  const plane = evalMeshNode(g, pl.id, 'out').value;
+  assert.equal(GEO.faceCount(plane), 2);
+  const r = MESH.extrudeFaces(plane, () => true, () => 1, { individual: false });
+  assert.equal(r.extruded, 2);
+  assert.equal(GEO.faceCount(r.geometry), 2 + 4 * 2, 'two top triangles plus four rim quads');
+  const b = GEO.bounds(r.geometry);
+  assert.ok(Math.abs(b.max[1] - 1) < 1e-6 && Math.abs(b.min[1]) < 1e-6, `raised by one: ${JSON.stringify(b)}`);
+  const top = r.geometry.faces.table.attrs.top.data, side = r.geometry.faces.table.attrs.side.data;
+  assert.equal(top.reduce((a, v) => a + v, 0), 2); assert.equal(side.reduce((a, v) => a + v, 0), 8);
+  const ind = MESH.extrudeFaces(plane, () => true, () => 0.5, { individual: true });
+  assert.equal(GEO.faceCount(ind.geometry), 2 * 7, 'each face: a top and three walled edges');
+  // walls face outward: every side face's normal points away from the patch centre in the horizontal plane
+  const ig = MESH.extrudeFaces(MESH.icosphere(1, 1), () => true, () => 0.3, { individual: true }).geometry;
+  const tri = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  let outward = 0, total = 0;
+  for (let f = 0; f < GEO.faceCount(ig); f++) {
+    GEO.triangleCorners(ig, f, tri); const n = GEO.faceNormal(tri[0], tri[1], tri[2]);
+    const c = [(tri[0][0] + tri[1][0] + tri[2][0]) / 3, (tri[0][1] + tri[1][1] + tri[2][1]) / 3, (tri[0][2] + tri[1][2] + tri[2][2]) / 3];
+    total++; if (n[0] * c[0] + n[1] * c[1] + n[2] * c[2] > 0) outward++;
+  }
+  assert.ok(outward / total > 0.95, `${outward}/${total} faces face outward`);
+});
+
+check('mesh: inset panels every face; subdivide quadruples and smooth subdivision keeps a sphere round', () => {
+  const g = G.newGraph('t');
+  const pl = G.newNode(g, 'cadence.geometry.plane', 0, 0, { values: { size: [2, 0, 2] } });
+  const plane = evalMeshNode(g, pl.id, 'out').value;
+  const ins = MESH.insetFaces(plane, () => true, () => 0.3, () => 0.2);
+  assert.equal(GEO.faceCount(ins.geometry), 2 * 7);
+  assert.ok(Math.abs(GEO.bounds(ins.geometry).max[1] - 0.2) < 1e-6, 'depth pushed the panels up');
+  const ico = MESH.icosphere(1, 1);
+  const sub = MESH.subdivideMesh(ico, 1, false);
+  assert.equal(GEO.faceCount(sub), GEO.faceCount(ico) * 4);
+  assert.ok(closedMesh(sub));
+  const smooth = MESH.subdivideMesh(ico, 2, true);
+  assert.ok(closedMesh(smooth));
+  for (const r of radii(smooth)) assert.ok(r > 0.85 && r < 1.01, `smooth subdivision stays near the sphere (${r})`);
+  const sm = MESH.smoothMesh(sub, 5, 0.5);
+  assert.ok(closedMesh(sm) && GEO.pointCount(sm) === GEO.pointCount(sub));
+});
+
+check('mesh: islands, separate, delete faces and duplicate keep their topology honest', () => {
+  const a = MESH.icosphere(1, 1), b = MESH.icosphere(0.5, 1);
+  const two = GEO.joinGeometry(a, b);
+  const isl = MESH.islands(two);
+  assert.equal(isl.count, 2);
+  assert.equal(isl.ids[0], 0); assert.equal(isl.ids[two.points.count - 1], 1);
+  const p = [0, 0, 0];
+  const half = MESH.separateByPoints(a, (i) => { GEO.readAttrInto(a.points, 'position', i, p); return p[0] > 0; });
+  assert.ok(GEO.faceCount(half.selected) > 0 && GEO.faceCount(half.inverted) > 0, 'both halves have faces');
+  assert.ok(GEO.faceCount(half.selected) + GEO.faceCount(half.inverted) < GEO.faceCount(a), 'faces straddling the cut are dropped');
+  const bnd = GEO.bounds(half.selected); assert.ok(bnd.min[0] > 0, 'the selected half is all on the positive side');
+  const tri = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  const upper = MESH.deleteFaces(a, (f) => { GEO.triangleCorners(a, f, tri); return GEO.faceNormal(tri[0], tri[1], tri[2])[1] > 0; });
+  assert.ok(GEO.faceCount(upper) > 0 && GEO.faceCount(upper) < GEO.faceCount(a));
+  assert.equal(GEO.pointCount(upper), GEO.pointCount(a), 'points stay when faces go');
+  const dup = MESH.duplicate(a, 3);
+  assert.equal(GEO.pointCount(dup), GEO.pointCount(a) * 3);
+  assert.equal(dup.points.attrs.copy.data[dup.points.count - 1], 2);
+});
+
+check('mesh: marching tetrahedra turns a sphere SDF into a closed, outward-facing mesh on the radius', () => {
+  const g = MESH.marchingTetrahedra((x, y, z) => Math.hypot(x, y, z) - 1, { center: [0, 0, 0], size: [3, 3, 3], resolution: 24, iso: 0 });
+  assert.ok(GEO.faceCount(g) > 200, `faces ${GEO.faceCount(g)}`);
+  assert.ok(closedMesh(g), 'closed');
+  for (const r of radii(g)) assert.ok(Math.abs(r - 1) < 0.08, `vertex radius ${r}`);
+  const n = g.points.attrs.normal.data, p = g.points.attrs.position.data;
+  let outward = 0;
+  for (let i = 0; i < g.points.count; i++) if (n[i * 3] * p[i * 3] + n[i * 3 + 1] * p[i * 3 + 1] + n[i * 3 + 2] * p[i * 3 + 2] > 0) outward++;
+  assert.equal(outward, g.points.count, 'every normal points outward');
+});
+
+check('mesh: a mesh becomes a signed distance — negative inside, positive outside, correct at corners', () => {
+  const ico = MESH.icosphere(1, 3);
+  const md = MESH.meshDistance(ico);
+  assert.ok(md.closed);
+  assert.ok(Math.abs(md.distance([0, 0, 0]) + 1) < 0.03, `centre ${md.distance([0, 0, 0])}`);
+  assert.ok(Math.abs(md.distance([2, 0, 0]) - 1) < 0.03, `outside ${md.distance([2, 0, 0])}`);
+  assert.ok(Math.abs(md.distance([0.5, 0, 0]) + 0.5) < 0.03, `inside ${md.distance([0.5, 0, 0])}`);
+  // a box: the corner region is where a face-normal sign goes wrong and a pseudonormal does not
+  const g = G.newGraph('t');
+  const bx = G.newNode(g, 'cadence.geometry.box', 0, 0, { values: { size: [2, 2, 2] } });
+  const box = MESH.weld(evalMeshNode(g, bx.id, 'out').value).geometry;
+  const bd = MESH.meshDistance(box);
+  assert.ok(bd.closed, 'a welded box is watertight');
+  assert.ok(bd.distance([1.5, 1.5, 1.5]) > 0.8, `outside the corner: ${bd.distance([1.5, 1.5, 1.5])}`);
+  assert.ok(bd.distance([0.9, 0.9, 0.9]) < 0, `inside near the corner: ${bd.distance([0.9, 0.9, 0.9])}`);
+  assert.ok(Math.abs(bd.distance([0, 0, 0]) + 1) < 1e-6);
+  // timing: 5 000 samples must be far cheaper than brute force
+  const t0 = performance.now();
+  for (let i = 0; i < 5000; i++) md.distance([Math.sin(i) * 1.5, Math.cos(i * 0.7) * 1.5, Math.sin(i * 0.3)]);
+  const ms = performance.now() - t0;
+  assert.ok(ms < 800, `5000 samples against 1280 faces took ${ms.toFixed(0)} ms`);
+});
+
+check('mesh: a mesh boolean through SDFs carves one shape out of another', () => {
+  const g = G.newGraph('t');
+  const a = G.newNode(g, 'cadence.geometry.icosphere', 0, 0, { values: { radius: 1.5, subdivisions: 3 } });
+  const b = G.newNode(g, 'cadence.geometry.icosphere', 0, 0, { values: { radius: 1, subdivisions: 3 } });
+  const tr = G.newNode(g, 'cadence.geometry.transform', 0, 0, { values: { translation: [1.5, 0, 0] } });
+  const bool = G.newNode(g, 'cadence.mesh.boolean', 0, 0, { values: { operation: 'difference', resolution: 40 } });
+  assert.ok(G.connect(g, b.id, 'out', tr.id, 'geometry').ok);
+  assert.ok(G.connect(g, a.id, 'out', bool.id, 'a').ok);
+  assert.ok(G.connect(g, tr.id, 'out', bool.id, 'b').ok);
+  const res = evalMeshNode(g, bool.id, 'out');
+  const m = res.value;
+  assert.ok(GEO.faceCount(m) > 100, `faces ${GEO.faceCount(m)}`);
+  // no vertex may sit well inside the subtracted sphere
+  const p = [0, 0, 0];
+  for (let i = 0; i < m.points.count; i++) { GEO.readAttrInto(m.points, 'position', i, p); assert.ok(Math.hypot(p[0] - 1.5, p[1], p[2]) > 0.85, `vertex inside the cut: ${p}`); }
+  const bnd = GEO.bounds(m);
+  assert.ok(Math.abs(bnd.min[0] + 1.5) < 0.1, 'the far side of A is untouched');
+});
+
+check('curves: curve to mesh sweeps a twist-free tube whose radius follows a per-point attribute', () => {
+  const g = G.newGraph('t');
+  const h = G.newNode(g, 'cadence.curveGeometry.helix', 0, 0, { values: { radius: 1, endRadius: 1, height: 2, turns: 2, segments: 40 } });
+  const store = G.newNode(g, 'cadence.geometry.capture', 0, 0, { values: { name: 'radius' } });
+  const t = G.newNode(g, 'cadence.time.effectTime', 0, 0, {});
+  const mapr = G.newNode(g, 'cadence.math.mapRange', 0, 0, { values: { fromMin: 0, fromMax: 1, toMin: 0.3, toMax: 0.05 } });
+  const idx = G.newNode(g, 'cadence.fields.index', 0, 0, {});
+  const div = G.newNode(g, 'cadence.math.divide', 0, 0, { values: { b: 40 } });
+  const tube = G.newNode(g, 'cadence.curveGeometry.toMesh', 0, 0, { values: { segments: 8, caps: true } });
+  const rd = G.newNode(g, 'cadence.attribute.read', 0, 0, { values: { name: 'radius' } });
+  assert.ok(G.connect(g, h.id, 'out', store.id, 'geometry').ok);
+  assert.ok(G.connect(g, idx.id, 'out', div.id, 'a').ok);
+  assert.ok(G.connect(g, div.id, 'out', mapr.id, 'value').ok);
+  assert.ok(G.connect(g, mapr.id, 'out', store.id, 'value').ok);
+  assert.ok(G.connect(g, store.id, 'out', tube.id, 'curve').ok);
+  assert.ok(G.connect(g, rd.id, 'out', tube.id, 'radius').ok);
+  void t;
+  const m = evalMeshNode(g, tube.id, 'out').value;
+  assert.equal(GEO.pointCount(m), 41 * 8 + 2, 'a ring per curve point plus two cap centres');
+  assert.equal(GEO.faceCount(m), 40 * 8 * 2 + 2 * 8);
+  assert.ok(closedMesh(m), 'a capped tube is watertight');
+  // the tube tapers: ring 0 is fat, the last ring thin
+  const ringRadius = (ring) => { let s = 0; const p = [0, 0, 0]; const c = [0, 0, 0]; for (let j = 0; j < 8; j++) { GEO.readAttrInto(m.points, 'position', ring * 8 + j, p); c[0] += p[0] / 8; c[1] += p[1] / 8; c[2] += p[2] / 8; } for (let j = 0; j < 8; j++) { GEO.readAttrInto(m.points, 'position', ring * 8 + j, p); s += Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]) / 8; } return s; };
+  assert.ok(ringRadius(0) > 0.25 && ringRadius(40) < 0.08, `taper ${ringRadius(0).toFixed(3)} -> ${ringRadius(40).toFixed(3)}`);
+  assert.ok(GEO.hasAttr(m.points, 'uv'));
+});
+
+check('curves: fill, trim, fillet, bezier, spiral and star behave', () => {
+  const g = G.newGraph('t');
+  const star = G.newNode(g, 'cadence.curveGeometry.star', 0, 0, { values: { points: 5, innerRadius: 0.5, outerRadius: 1 } });
+  const fill = G.newNode(g, 'cadence.curveGeometry.fill', 0, 0, {});
+  assert.ok(G.connect(g, star.id, 'out', fill.id, 'curve').ok);
+  const card = evalMeshNode(g, fill.id, 'out').value;
+  assert.equal(GEO.faceCount(card), 8, 'a 10-gon fills with 8 triangles');
+  let area = 0; const tri = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  for (let f = 0; f < 8; f++) { GEO.triangleCorners(card, f, tri); area += GEO.triangleArea(tri[0], tri[1], tri[2]); }
+  assert.ok(area > 1.0 && area < 2.0, `star area ${area.toFixed(3)}`);
+  // trim a straight line to its middle half
+  const line = G.newNode(g, 'cadence.curveGeometry.line', 0, 0, { values: { from: [0, 0, 0], to: [4, 0, 0] } });
+  const trim = G.newNode(g, 'cadence.curveGeometry.trim', 0, 0, { values: { start: 0.25, end: 0.75 } });
+  const info = G.newNode(g, 'cadence.curveGeometry.info', 0, 0, {});
+  assert.ok(G.connect(g, line.id, 'out', trim.id, 'curve').ok);
+  assert.ok(G.connect(g, trim.id, 'out', info.id, 'curve').ok);
+  assert.ok(Math.abs(evalMeshNode(g, info.id, 'length').value - 2) < 1e-6, 'trimmed to length 2');
+  // fillet a square: all points stay inside the square and there are segments+1 points per corner
+  const sq = GEO.pointCloud(4);
+  const P = [[-1, 0, -1], [1, 0, -1], [1, 0, 1], [-1, 0, 1]];
+  for (let i = 0; i < 4; i++) GEO.writeAttr(sq.points, 'position', i, P[i]);
+  GEO.setCurves(sq, [0, 4], [1]);
+  const fil = MESH.filletCurves(sq, 0.3, 4);
+  assert.equal(GEO.pointCount(fil), 4 * 5);
+  const b = GEO.bounds(fil);
+  assert.ok(b.min[0] >= -1 - 1e-6 && b.max[0] <= 1 + 1e-6 && b.min[2] >= -1 - 1e-6 && b.max[2] <= 1 + 1e-6, 'rounded corners stay inside');
+  assert.ok(Math.abs(MESH.curveTotalLength(fil, 0) - (8 - 4 * 0.6 + 4 * (Math.PI / 2) * 0.3)) < 0.02, 'perimeter = straight parts plus four quarter arcs');
+  // bezier endpoints; spiral grows; star is cyclic
+  const bz = MESH.bezierPoints([0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0], 10);
+  assert.equal(bz.length, 11); assert.deepEqual(bz[0], [0, 0, 0]); assert.deepEqual(bz[10], [1, 0, 0]);
+  const sp = G.newNode(g, 'cadence.curveGeometry.spiral', 0, 0, { values: { turns: 2, startRadius: 0.1, endRadius: 2, segments: 50 } });
+  const spg = evalMeshNode(g, sp.id, 'out').value;
+  const p0 = GEO.readAttr(spg.points, 'position', 0), p1 = GEO.readAttr(spg.points, 'position', 50);
+  assert.ok(Math.hypot(p1[0], p1[2]) > Math.hypot(p0[0], p0[2]) * 10, 'the spiral grows outward');
+  const stg = evalMeshNode(g, star.id, 'out').value;
+  assert.equal(stg.curves.cyclic[0], 1, 'a star is a closed loop');
+});
+
+check('mesh nodes: extrude\'s Top output selects the lid for a second extrude; SDF To Mesh, Volume To Mesh and Mesh To SDF run through the evaluator', () => {
+  const g = G.newGraph('t');
+  const ico = G.newNode(g, 'cadence.geometry.icosphere', 0, 0, { values: { radius: 1, subdivisions: 1 } });
+  const e1 = G.newNode(g, 'cadence.mesh.extrude', 0, 0, { values: { offset: 0.3, mode: 'individual' } });
+  const e2 = G.newNode(g, 'cadence.mesh.extrude', 0, 0, { values: { offset: 0.2, mode: 'individual' } });
+  assert.ok(G.connect(g, ico.id, 'out', e1.id, 'geometry').ok);
+  assert.ok(G.connect(g, e1.id, 'out', e2.id, 'geometry').ok);
+  assert.ok(G.connect(g, e1.id, 'top', e2.id, 'selection').ok, 'the Top output is a selection field');
+  const once = evalMeshNode(g, e1.id, 'out').value, twice = evalMeshNode(g, e2.id, 'out').value;
+  assert.equal(GEO.faceCount(once), 80 * 7);
+  assert.equal(GEO.faceCount(twice), GEO.faceCount(once) - 80 + 80 * 7, 'only the 80 lids were extruded again');
+  // SDF To Mesh from a smooth union of two spheres (metaballs)
+  const s1 = G.newNode(g, 'cadence.sdf.sphere', 0, 0, { values: { radius: 0.8, center: [-0.5, 0, 0] } });
+  const s2 = G.newNode(g, 'cadence.sdf.sphere', 0, 0, { values: { radius: 0.8, center: [0.5, 0, 0] } });
+  const su = G.newNode(g, 'cadence.sdf.smoothUnion', 0, 0, { values: { smoothing: 0.5 } });
+  const mc = G.newNode(g, 'cadence.mesh.fromSdf', 0, 0, { values: { size: [4, 3, 3], resolution: 28 } });
+  assert.ok(G.connect(g, s1.id, 'out', su.id, 'a').ok && G.connect(g, s2.id, 'out', su.id, 'b').ok);
+  assert.ok(G.connect(g, su.id, 'out', mc.id, 'distance').ok);
+  const blob = evalMeshNode(g, mc.id, 'out').value;
+  assert.ok(GEO.faceCount(blob) > 300 && closedMesh(blob), `metaball mesh: ${GEO.faceCount(blob)} faces`);
+  const bb = GEO.bounds(blob);
+  assert.ok(bb.size[0] > bb.size[1] * 1.3, 'two spheres side by side make a wide blob');
+  // Volume To Mesh from the cloud node
+  const cl = G.newNode(g, 'cadence.volume.cloud', 0, 0, { values: { resolution: 16 } });
+  const vm = G.newNode(g, 'cadence.mesh.fromVolume', 0, 0, { values: { threshold: 0.3 } });
+  assert.ok(G.connect(g, cl.id, 'out', vm.id, 'volume').ok);
+  const cloudMesh = evalMeshNode(g, vm.id, 'out').value;
+  assert.ok(GEO.faceCount(cloudMesh) > 0, 'a cloud has a surface at its threshold');
+  // Mesh To SDF as a field, sampled through Sample Field style usage: inside test
+  const sd = G.newNode(g, 'cadence.mesh.toSdf', 0, 0, {});
+  assert.ok(G.connect(g, ico.id, 'out', sd.id, 'geometry').ok);
+  const fld = evalMeshNode(g, sd.id, 'out').value;
+  assert.ok(F.isField(fld));
+  assert.ok(F.sampleAny(fld, F.newSampleContext({ position: [0, 0, 0] })) < -0.8);
+  assert.ok(F.sampleAny(fld, F.newSampleContext({ position: [3, 0, 0] })) > 1.5);
+  assert.equal(evalMeshNode(g, sd.id, 'closed').value, true);
+});
+
+check('attribute statistics: max, min, mean and median of a field over a geometry, scalar and vector', () => {
+  const g = G.newGraph('t');
+  const ico = G.newNode(g, 'cadence.geometry.icosphere', 0, 0, { values: { radius: 2, subdivisions: 2 } });
+  const pos = G.newNode(g, 'cadence.fields.position', 0, 0, {});
+  const st = G.newNode(g, 'cadence.attribute.statistics', 0, 0, {});
+  assert.ok(G.connect(g, ico.id, 'out', st.id, 'geometry').ok);
+  assert.ok(G.connect(g, pos.id, 'out', st.id, 'value').ok);
+  const mx = evalMeshNode(g, st.id, 'max').value, mn = evalMeshNode(g, st.id, 'min').value, mean = evalMeshNode(g, st.id, 'mean').value;
+  assert.ok(Array.isArray(mx) && Math.abs(mx[1] - 2) < 1e-5 && Math.abs(mn[1] + 2) < 1e-5, `vector stats ${mx} ${mn}`);
+  assert.ok(Math.abs(mean[0]) < 1e-5 && Math.abs(mean[1]) < 1e-5, 'a sphere is centred');
+  assert.equal(evalMeshNode(g, st.id, 'count').value, 162);
+  const sep = G.newNode(g, 'cadence.vector.separate', 0, 0, {});
+  const st2 = G.newNode(g, 'cadence.attribute.statistics', 0, 0, {});
+  assert.ok(G.connect(g, pos.id, 'out', sep.id, 'vector').ok);
+  assert.ok(G.connect(g, ico.id, 'out', st2.id, 'geometry').ok);
+  assert.ok(G.connect(g, sep.id, 'y', st2.id, 'value').ok);
+  assert.ok(Math.abs(evalMeshNode(g, st2.id, 'range').value - 4) < 1e-5, 'scalar range is 4');
+  assert.ok(Math.abs(evalMeshNode(g, st2.id, 'median').value) < 0.05, 'median height is about zero');
+});
+
+// ---------------------------------------------------------------- zones and the invalidation fix
+function plusOneGroup() {
+  const g = G.newGraph('t');
+  const grp = G.newGroupDef(g, 'Plus one', { inputs: [{ key: 'value', label: 'Value', type: 'float', default: 0 }], outputs: [{ key: 'value', label: 'Value', type: 'float' }] });
+  const gin = G.nodesInScope(g, grp.id).find((n) => n.type === G.GROUP_INPUT_TYPE);
+  const gout = G.nodesInScope(g, grp.id).find((n) => n.type === G.GROUP_OUTPUT_TYPE);
+  const add = G.newNode(g, 'cadence.math.add', 0, 0, { scope: grp.id, values: { b: 1 } });
+  assert.ok(G.connect(g, gin.id, 'value', add.id, 'a').ok);
+  assert.ok(G.connect(g, add.id, 'out', gout.id, 'value').ok);
+  const inst = G.newNode(g, G.groupInstanceType(grp.id), 0, 0, { values: { value: 0 } });
+  return { g, grp, inst, add };
+}
+
+check('groups: an upstream value change reaches a group instance\'s interior (the stale-interior bug is fixed)', () => {
+  const g = G.newGraph('t');
+  const a = G.newNode(g, 'cadence.math.add', 0, 0, { values: { a: 1, b: 2 } });
+  const m = G.newNode(g, 'cadence.math.multiply', 200, 0, { values: { b: 10 } });
+  const s = G.newNode(g, 'cadence.math.subtract', 400, 0, { values: { b: 0 } });
+  G.connect(g, a.id, 'out', m.id, 'a'); G.connect(g, m.id, 'out', s.id, 'a');
+  GRP.collapseToGroup(g, [m.id], { name: 'Times ten' });
+  const ev = new E.Evaluator(g, { fps: 30 });
+  assert.equal(ev.evaluateSocket(s.id, 'out').value, 30);
+  a.values.a = 5; ev.invalidateNode(a.id);
+  assert.equal(ev.evaluateSocket(s.id, 'out').value, 70, 'the interior was re-evaluated with the new input');
+});
+
+check('zones: Repeat runs a group N times feeding its output back into the input of the same name', () => {
+  const { g, inst } = plusOneGroup();
+  assert.ok(G.socketsOf(g, inst).inputs.some((s) => s.key === '__repeat'), 'the instance exposes Repeat as a mode');
+  assert.equal(evalMeshNode(g, inst.id, 'value').value, 1);
+  inst.values.__repeat = 5;
+  assert.equal(evalMeshNode(g, inst.id, 'value').value, 5);
+  inst.values.value = 10; inst.values.__repeat = 3;
+  assert.equal(evalMeshNode(g, inst.id, 'value').value, 13);
+  // a repeat inside the evaluator's cache: changing the count invalidates the instance
+  const ev = new E.Evaluator(g, { fps: 30 });
+  assert.equal(ev.evaluateSocket(inst.id, 'value').value, 13);
+  inst.values.__repeat = 4; ev.invalidateNode(inst.id);
+  assert.equal(ev.evaluateSocket(inst.id, 'value').value, 14);
+});
+
+check('zones: Carry over frames makes a simulation zone — sequential, scrubbable, and reset by a structural edit', () => {
+  const { g, inst, add } = plusOneGroup();
+  inst.values.__simulate = true;
+  const ev = new E.Evaluator(g, { fps: 30 });
+  const at = (f) => { ev.setTime(f); return ev.evaluateSocket(inst.id, 'value').value; };
+  assert.equal(at(0), 1);
+  assert.equal(at(1), 2);
+  assert.equal(at(2), 3);
+  assert.equal(at(2), 3, 'asking the same frame twice does not advance');
+  assert.equal(at(20), 21, 'a jump forward replays the frames in between');
+  assert.equal(at(5), 6, 'a scrub backwards replays from a checkpoint');
+  assert.equal(at(6), 7);
+  assert.equal(at(0), 1, 'frame 0 always starts fresh');
+  // the interior sees each replayed frame's own time
+  const g2 = G.newGraph('t');
+  const grp = G.newGroupDef(g2, 'Accumulate time', { inputs: [{ key: 'total', label: 'Total', type: 'float', default: 0 }], outputs: [{ key: 'total', label: 'Total', type: 'float' }] });
+  const gin = G.nodesInScope(g2, grp.id).find((n) => n.type === G.GROUP_INPUT_TYPE);
+  const gout = G.nodesInScope(g2, grp.id).find((n) => n.type === G.GROUP_OUTPUT_TYPE);
+  const t = G.newNode(g2, 'cadence.time.effectTime', 0, 0, { scope: grp.id });
+  const sum = G.newNode(g2, 'cadence.math.add', 0, 0, { scope: grp.id });
+  assert.ok(G.connect(g2, gin.id, 'total', sum.id, 'a').ok);
+  assert.ok(G.connect(g2, t.id, 'frame', sum.id, 'b').ok);
+  assert.ok(G.connect(g2, sum.id, 'out', gout.id, 'total').ok);
+  const inst2 = G.newNode(g2, G.groupInstanceType(grp.id), 0, 0, { values: { total: 0, __simulate: true } });
+  const ev2 = new E.Evaluator(g2, { fps: 30 });
+  ev2.setTime(4);
+  assert.equal(ev2.evaluateSocket(inst2.id, 'total').value, 0 + 1 + 2 + 3 + 4, 'replayed frames each contributed their own frame number');
+  ev2.setTime(2);
+  assert.equal(ev2.evaluateSocket(inst2.id, 'total').value, 3);
+  // a structural edit inside the group resets the carried state
+  add.values.b = 2; ev.invalidateNode(add.id);
+  assert.equal(at(3), 8, 'after the edit, frame 3 is recomputed from frame 0 with the new step');
 });
 
 // ================================================================

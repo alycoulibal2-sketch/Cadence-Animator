@@ -160,7 +160,7 @@ Part 78 (no fake features).
 | 5 | Particles, forces, the staged solver, collisions | **done except sub-emission** — the analytic sampler is superseded (§2a). Part 12's event graph is a documented seam, not a feature; see §6 |
 | 6 | Renderers, materials, lights, trails/ribbons/beams | **done** — plus the three.js backend and the studio wiring |
 | 7 | Textures, shader graph, compositing | **done** — see §4.5 |
-| 8 | Volumes, fluid foundation, pyro | not started. **Interface + architecture only when it is.** A CPU grid solver at useful resolutions is not viable in this renderer; the backend gets defined and left explicitly unimplemented rather than faked |
+| 8 | Volumes, fluid foundation, pyro | **built 2026-09-06.** `fluid.js` is a Stam stable-fluids solver on a collocated grid (semi-Lagrangian advection, buoyancy, vorticity confinement, Jacobi projection, open/closed boundary, combustion: fuel above an ignition temperature burns into heat and soot) with checkpoint replay; 16³–64³ on the CPU, 32³ steps in ~28 ms. `nodes/pyro.js` exposes it as Simulate Smoke & Fire (+ Cloud). The Volume Renderer raymarches in three.js (RGBA8 3D texture, self-shadowed, heat through a colour table); Roblox gets an 8×8 flipbook bake. Liquids and GPU compute remain the honest gaps (`volume.js UNIMPLEMENTED`) |
 | 9 | Baking, Roblox exporter, compatibility analyser | **done** — field probing decides native/converted/baked; see §4.5 |
 | 10 | MCP control, verification, profiling, documentation | **done** — 31 `pnx_*` tools; docs are per-node and served from the registry |
 | 11 | Node library, node groups, examples, education hooks | **done** — the library registers no node types, which is the test; see §4.5 |
@@ -410,7 +410,7 @@ exactly the two the specification itself expects to be blocked:
 
 | Effect | Blocked on |
 | --- | --- |
-| Realistic fire | The pyro solver (Parts 31–32). Part 32 is explicit that realistic fire must NOT be faked with a preset plus random particles, so it is absent rather than approximated. A STYLISED fire is constructible, which is the distinction Part 32 draws. |
+| Realistic fire | Constructible since 2026-09-06: a point source → Simulate Smoke & Fire → Volume Renderer (the sheet builds it as the "Fire & smoke" thing). It is a real solver, not a preset plus random particles, which is what Part 32 demands; a STYLISED fire from sprites remains the cheap alternative. The Part 75 test now asserts the primitives exist rather than that they are absent. |
 | Realistic cloud | Volume rendering (Part 35). A cloud can be baked into a volume and read as a field; it cannot be raymarched. |
 
 Both are recorded in `volume.js`'s `UNIMPLEMENTED` table, which a test reads — so the day a solver
@@ -444,24 +444,32 @@ ask "does Cadence have this effect", but "how do I construct this effect". For 3
   button cannot exist until the raymarching backend does. Decal is absent for the same reason.
 - **Sending a procedural effect to the animator's timeline still refuses** (see above) — that is the
   remaining place where a procedural effect is second-class next to a layer-based one.
-- **Sub-emission is NOT built (Parts 12, 26).** "Spawn On Death" and "Spawn On Collision" need a
-  second simulation driven by the first's events, with its own state, checkpoints and determinism
-  argument. `solver.js` collects deaths and contacts as data and hands them to a sink, because that
-  information exists only inside the step loop — recovering "which particles died this step" from
-  outside would mean diffing two states and guessing. **Nothing sets that sink yet and no node exposes
-  it**, so nothing in the UI claims it works. The general event bus (Send/Receive/Filter/Sequence/Gate)
-  is likewise absent; the `event` type is declared `implemented: false`, which mechanically prevents a
-  node being registered against it.
-- **Particle interaction is NOT built (Part 27).** Neighbour search, flocking, separation/alignment/
-  cohesion and density estimation all need a spatial acceleration structure. The same structure is what
-  the brute-force queries below want, so it is one piece of work rather than two.
-- **Nearest-point, attribute transfer and raycast are brute force.** They cost O(points) or O(faces)
-  *per sample*, which is fine for hundreds and expensive for tens of thousands sampled per particle.
-  Part 27's spatial acceleration structures are the fix and belong with the particle-interaction work
-  in Phase 5; the nodes declare `performance: 'expensive'` so the profiler and the docs say so now.
-- **Volumetric pyro/fluid (Parts 31–33, 35).** Interfaces and data model only. A real grid solver
-  plus raymarching is out of reach for this renderer at usable resolutions; it will be marked
-  unimplemented in the UI and in the export classification.
+- **Sub-emission IS built (Parts 12 and 26, 2026-09-06).** The `event` type is implemented. A Simulate node
+  records every frame's births, deaths, collisions, trigger crossings ("Fire an event when", a `field<bool>`
+  tested on the rising edge with the previous value kept as a core attribute) and interval ticks ("Fire an
+  event every", a per-particle timer) in `Simulation.history`, and exposes them as an ACCESSOR
+  (`events.eventsAt(frame)`) on its `events` output. An Emitter's "Spawn from events" input spawns
+  `perEvent` children per event at the event's position with `inherit` × its velocity plus the emitter's own
+  velocity field (which sees the parent's velocity and custom attributes); the spawn shape becomes an offset
+  around the event. `Particle Events` filters by kind and a deterministic per-event chance. A child never runs
+  inside the parent's step loop; it replays from its own checkpoints by re-reading the parent's history, and
+  a frame the history no longer holds is REPLAYED ON A SCRATCH COPY from the parent's nearest checkpoint, never
+  on the live state a renderer may be reading. Determinism is asserted across three routes for a child system.
+  The general event bus (Send/Receive/Filter/Sequence/Gate) is still absent.
+- **Particle interaction IS built (Part 27, 2026-09-06).** `spatial.js` is a uniform hash grid rebuilt per
+  substep from a SNAPSHOT of the state, exposed to every field as `ctx.neighbours(radius, fn)` and
+  `ctx.nearestNeighbour()`. Every particle sees the same pre-step picture whatever its row, so flocking is
+  independent of row order and replays byte-identically (asserted across three routes). `nodes/neighbours.js`
+  adds Flock (boids), Keep Apart, Liquid Pressure (a simplified SPH: kernel density + pressure + viscosity,
+  named as a look rather than a solver), Neighbour Count, Crowding, Nearest Neighbour and Neighbours' Velocity.
+  Any walk over a point table (a renderer colouring by crowding, a scatter) gets the same query lazily
+  (`geometry.js`'s element walker). Nearest Point now uses the grid too.
+- **Attribute transfer and raycast are still brute force** (O(points) or O(faces) per sample). Nearest
+  Point is grid-accelerated since Part 27 landed; the same grid is the obvious accelerator for attribute
+  transfer, and raycast wants a BVH over faces. Both declare `performance: 'expensive'` so the profiler says so.
+- **Volumetric pyro/fluid (Parts 31–33, 35).** Built on 2026-09-06 at preview resolutions (16³–64³,
+  CPU, checkpointed). The limits that remain: no liquids (a free surface needs FLIP or a level set),
+  no GPU compute, and Roblox receives a flipbook bake rather than a volume — the export report says so.
 - **GPU compute (Parts 53–54).** The execution-backend seam is designed so CPU and a future GPU
   backend can coexist. Only the CPU backend gets built.
 - **Roblox output (Parts 56–58).** Roblox cannot reproduce most of this natively. That is expected

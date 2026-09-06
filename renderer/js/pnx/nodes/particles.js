@@ -51,19 +51,27 @@ node({
     { key: 'velocity', label: 'Initial velocity', type: 'field<vector3>', default: [0, 0, 0], unit: 'studs/second' },
     { key: 'mass', label: 'Mass', type: 'field<float>', default: 1, min: 1e-6 },
     { key: 'attributes', label: 'Initial attributes', type: 'attributeWrite', multi: true, description: 'Set Attribute nodes, applied once when each particle is born.' },
+    // Sub-emission (Part 26): born from another simulation's events instead of, or as well as, a rate.
+    { key: 'events', label: 'Spawn from events', type: 'event', multi: true, description: 'Events from another Simulate node (or a Particle Events filter). Each event spawns particles at its position.' },
+    intIn('perEvent', 'Particles per event', 1, { min: 0, max: 1000 }),
+    n('inherit', 'Inherit velocity', 0.5, { min: -2, max: 2, description: 'How much of the parent particle\'s velocity a child starts with. 1 keeps it, 0 starts still, negative bounces back.' }),
   ],
   outputs: [{ key: 'out', label: 'Emitter', type: 'emitter' }],
-  evaluate: (api, i) => ({
-    __emitter: true,
-    shape: GEO.isGeometry(i.shape) ? i.shape : null,
-    emitFrom: i.emitFrom,
-    rate: Math.max(0, i.rate),
-    bursts: i.burstCount > 0 ? [{ time: Math.max(0, i.burstTime), count: Math.round(i.burstCount) }] : [],
-    lifetime: i.lifetime,
-    velocity: i.velocity,
-    mass: i.mass,
-    writes: (Array.isArray(i.attributes) ? i.attributes : [i.attributes]).flat().filter(isAttrWrite),
-  }),
+  evaluate: (api, i) => {
+    const streams = (Array.isArray(i.events) ? i.events : [i.events]).flat().filter(SOLVER.isEvents);
+    return {
+      __emitter: true,
+      shape: GEO.isGeometry(i.shape) ? i.shape : null,
+      emitFrom: i.emitFrom,
+      rate: Math.max(0, i.rate),
+      bursts: i.burstCount > 0 ? [{ time: Math.max(0, i.burstTime), count: Math.round(i.burstCount) }] : [],
+      lifetime: i.lifetime,
+      velocity: i.velocity,
+      mass: i.mass,
+      writes: (Array.isArray(i.attributes) ? i.attributes : [i.attributes]).flat().filter(isAttrWrite),
+      eventSources: streams.map((s) => ({ eventsAt: s.eventsAt, perEvent: Math.round(i.perEvent), inherit: i.inherit })),
+    };
+  },
 });
 const isEmitter = (v) => !!v && v.__emitter === true;
 
@@ -122,12 +130,17 @@ node({
     intIn('substeps', 'Substeps', 1, { min: 1, max: 16, description: 'Subdivide each frame. Raise it when fast particles pass through colliders — it costs accuracy, not appearance.' }),
     boolIn('killByAge', 'Die of old age', true),
     intIn('startFrame', 'Start at frame', 0, { min: 0, max: 100000 }),
+    // Events (Part 12): the built-in births, deaths and collisions always come out of `events`; these
+    // two add user-defined ones without a dedicated node per condition.
+    { key: 'triggerWhen', label: 'Fire an event when', type: 'field<bool>', default: false, description: 'Any condition on the particle — age above a value, speed below one, position past a line. Fires once when it becomes true.' },
+    n('triggerEvery', 'Fire an event every', 0, { min: 0, unit: 'seconds', description: 'A per-particle timer. 0 turns it off.' }),
   ],
   outputs: [
     { key: 'out', label: 'Particles', type: 'geometry' },
     { key: 'count', label: 'Alive', type: 'int' },
     { key: 'spawned', label: 'Spawned so far', type: 'int' },
     { key: 'died', label: 'Died so far', type: 'int' },
+    { key: 'events', label: 'Events', type: 'event', description: 'Births, deaths, collisions, triggers and interval ticks. Feed into another Emitter\'s "Spawn from events" or a Particle Events filter.' },
   ],
   evaluate: (api, i) => {
     const emitter = isEmitter(i.emitter) ? i.emitter : null;
@@ -158,6 +171,10 @@ node({
       colliders,
       maxParticles: Math.max(1, Math.round(i.maxParticles)),
       substeps: Math.round(i.substeps),
+      eventSources: emitter?.eventSources || [],
+      // A constant false trigger is "no trigger": the per-particle test is skipped entirely.
+      triggerWhen: (F.isField(i.triggerWhen) && !(F.isConstantField(i.triggerWhen) && !i.triggerWhen.constant)) ? i.triggerWhen : (i.triggerWhen === true ? F.constantField('bool', true) : null),
+      triggerEvery: Math.max(0, Number(i.triggerEvery) || 0),
     };
 
     // The simulation itself persists across frames. It is dropped whenever this node is structurally
@@ -181,7 +198,47 @@ node({
       count: SOLVER.particleCount(state),
       spawned: state.stats.spawned,
       died: state.stats.died,
+      // An accessor over the simulation's recorded history, so a child replaying from its own
+      // checkpoint can ask for any frame it re-steps.
+      events: { __events: true, eventsAt: (f) => sim.eventsAt(f), source: api.path },
     };
+  },
+});
+
+// ---------------------------------------------------------------- event filtering (Part 12)
+node({
+  id: 'cadence.particles.events', label: 'Particle Events', category: 'Events', subcategory: 'Particles',
+  aliases: ['on death', 'on collision', 'on birth', 'spawn on death', 'when a particle dies', 'when it hits', 'sub emitter', 'trail of particles', 'trigger', 'event filter'],
+  summary: 'Picks out the events you want from a simulation: deaths, collisions, births, triggers or interval ticks.',
+  teach: 'Choose which happenings count. Plug the result into another Emitter\'s "Spawn from events" and every one of them gives birth to new particles.',
+  explain: 'A Simulate node reports everything that happens inside it. This filters that stream to one kind and, optionally, to a share of it — a chance of 0.3 keeps roughly a third of the events, decided per event and per frame so it replays identically. "Trigger" events come from the Simulate node\'s own "Fire an event when" condition, and "interval" ticks from its "Fire an event every" timer, so a trail of sparks behind each particle is an interval of 0.05 s feeding an Emitter with "Inherit velocity" set low.',
+  commonUses: ['a puff of smoke where each spark dies', 'splashes where rain hits the floor', 'a trail of embers behind each firework', 'fireworks that burst when they slow down'],
+  exportSupport: 'baked',
+  exportNote: 'Roblox has no sub-emission. Child particles are baked per frame on export.',
+  timeDependent: true,
+  inputs: [
+    { key: 'events', label: 'Events', type: 'event' },
+    mode('kind', 'Which events', ['any', 'death', 'collision', 'birth', 'trigger', 'interval'], 'death'),
+    n('chance', 'Chance', 1, { min: 0, max: 1, description: 'The share of matching events kept. 1 keeps all of them.' }),
+    n('seed', 'Variation', 0),
+  ],
+  outputs: [
+    { key: 'out', label: 'Events', type: 'event' },
+    { key: 'count', label: 'This frame', type: 'int' },
+  ],
+  evaluate: (api, i) => {
+    const src = SOLVER.isEvents(i.events) ? i.events : null;
+    if (i.events && !src) api.warn('The Events input needs the Events output of a Simulate node, or another Particle Events node.');
+    const chance = V.clamp(Number(i.chance) || 0, 0, 1);
+    const seed = V.mixSeeds(api.seed, Math.round(Number(i.seed) || 0));
+    const keep = (ev, frame) => (i.kind === 'any' || ev.kind === i.kind)
+      && (chance >= 1 || F.randomAt(api.path, seed, ev.id >>> 0, frame >>> 0) < chance);
+    const stream = {
+      __events: true,
+      source: api.path,
+      eventsAt: (f) => (src ? src.eventsAt(f).filter((ev) => keep(ev, f)) : []),
+    };
+    return { out: stream, count: src ? stream.eventsAt(api.frame).length : 0 };
   },
 });
 

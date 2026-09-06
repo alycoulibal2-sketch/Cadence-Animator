@@ -102,7 +102,7 @@ export const isMaterial = (v) => !!v && v.__material === true;
 export const DEFAULT_MATERIAL = newMaterial({});
 
 // ---------------------------------------------------------------- render commands
-export const RENDER_KINDS = ['sprite', 'mesh', 'point', 'line', 'trail', 'ribbon', 'beam', 'light'];
+export const RENDER_KINDS = ['sprite', 'mesh', 'point', 'line', 'trail', 'ribbon', 'beam', 'light', 'volume'];
 export const FACING_MODES = ['camera', 'velocity', 'axis', 'normal', 'fixed'];
 
 export function newRenderCommand(kind, source, material, settings = {}) {
@@ -403,13 +403,63 @@ export function resolveLights(cmd, opts = {}) {
   };
 }
 
+// --- volumes (Part 35)
+// A volume pass carries the density (and optionally heat) grids plus everything the raymarcher needs,
+// normalised into RGBA8 texels so a backend can upload them as one 3D texture: R = density / max,
+// G = heat / max. The fire colour table is baked here from the gradient, so the backend stays dumb.
+export function resolveVolume(cmd, opts = {}) {
+  const s = cmd.settings || {};
+  const dens = s.density && s.density.__volume === true ? s.density : null;
+  if (!dens) return { kind: 'volume', count: 0, settings: s, material: cmd.material };
+  const r = dens.resolution, n = r * r * r;
+  const temp = s.temperature && s.temperature.__volume === true && s.temperature.resolution === r ? s.temperature : null;
+  let maxD = 0, maxT = 0;
+  for (let i = 0; i < n; i++) { const d = dens.data[i * dens.channels]; if (d > maxD) maxD = d; }
+  if (temp) for (let i = 0; i < n; i++) { const t = temp.data[i * temp.channels]; if (t > maxT) maxT = t; }
+  const densityScale = maxD > 1e-6 ? maxD : 1, temperatureScale = maxT > 1e-6 ? maxT : 1;
+  const texels = new Uint8Array(n * 4);
+  for (let i = 0; i < n; i++) {
+    texels[i * 4] = Math.max(0, Math.min(255, Math.round((dens.data[i * dens.channels] / densityScale) * 255)));
+    texels[i * 4 + 1] = temp ? Math.max(0, Math.min(255, Math.round((temp.data[i * temp.channels] / temperatureScale) * 255))) : 0;
+    texels[i * 4 + 2] = 0;
+    texels[i * 4 + 3] = 255;
+  }
+  return {
+    kind: 'volume', count: 1, resolution: r, center: [...dens.center], size: [...dens.size],
+    texels, densityScale, temperatureScale, maxDensity: maxD, maxTemperature: maxT,
+    lut: gradientLut(s.fireColors), volumes: { density: dens, temperature: temp },
+    settings: s, material: cmd.material,
+  };
+}
+
+// 256 RGBA entries of a colour gradient, for a 1D lookup texture. Stops may be hex strings or colours.
+export function gradientLut(gradient, size = 256) {
+  const raw = Array.isArray(gradient?.stops) ? gradient.stops : [];
+  const stops = raw.map((st) => ({ u: Math.max(0, Math.min(1, Number(st.u) || 0)), c: typeof st.v === 'string' ? V.hexToColor(st.v) : V.toComponents('color', st.v) })).sort((a, b) => a.u - b.u);
+  const out = new Float32Array(size * 4);
+  for (let k = 0; k < size; k++) {
+    const u = k / (size - 1);
+    let c;
+    if (!stops.length) c = [u, u, u, 1];
+    else if (u <= stops[0].u) c = stops[0].c;
+    else if (u >= stops[stops.length - 1].u) c = stops[stops.length - 1].c;
+    else {
+      let i = 0; while (i < stops.length - 1 && stops[i + 1].u < u) i++;
+      const a = stops[i], b = stops[i + 1]; const t = b.u > a.u ? (u - a.u) / (b.u - a.u) : 0;
+      c = [0, 1, 2, 3].map((j) => a.c[j] + (b.c[j] - a.c[j]) * t);
+    }
+    out[k * 4] = c[0]; out[k * 4 + 1] = c[1]; out[k * 4 + 2] = c[2]; out[k * 4 + 3] = c[3] ?? 1;
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- the scene
 // Resolve every command into a draw list. This is what a backend receives, and it is pure data: no
 // three.js types, no GL calls, nothing a Roblox exporter or a bake could not also read.
 export function resolveScene(commands, opts = {}) {
   const list = flattenCommands(commands);
   const draws = [];
-  const stats = { commands: list.length, sprites: 0, meshes: 0, instances: 0, stripVertices: 0, lights: 0, triangles: 0 };
+  const stats = { commands: list.length, sprites: 0, meshes: 0, instances: 0, stripVertices: 0, lights: 0, triangles: 0, volumes: 0 };
 
   for (const cmd of list) {
     switch (cmd.kind) {
@@ -439,6 +489,12 @@ export function resolveScene(commands, opts = {}) {
         draws.push(d);
         break;
       }
+      case 'volume': {
+        const d = resolveVolume(cmd, opts);
+        stats.volumes += d.count;
+        draws.push(d);
+        break;
+      }
       default:
         break;
     }
@@ -450,8 +506,8 @@ export function resolveScene(commands, opts = {}) {
 // What a given backend will and will not honour about a scene. Built from BACKEND_SUPPORT plus the
 // commands' own kinds, so the report cannot drift from what the backend actually does.
 const KIND_SUPPORT = {
-  preview: { native: ['sprite', 'point', 'mesh', 'light'], approximated: ['line', 'trail', 'ribbon', 'beam'], unsupported: [] },
-  roblox: { native: ['sprite', 'point'], approximated: ['mesh', 'light', 'beam', 'trail'], unsupported: ['ribbon', 'line'] },
+  preview: { native: ['sprite', 'point', 'mesh', 'light', 'volume'], approximated: ['line', 'trail', 'ribbon', 'beam'], unsupported: [] },
+  roblox: { native: ['sprite', 'point'], approximated: ['mesh', 'light', 'beam', 'trail', 'volume'], unsupported: ['ribbon', 'line'] },
 };
 
 export function backendReport(commands, backend = 'preview') {

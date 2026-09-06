@@ -5,6 +5,8 @@
 // the animator's idioms). Every pointer gesture snapshots undo at pointerdown (curves.js rule).
 
 import * as ST from './studioState.js';
+import { mountHeroStrip } from './heroStrip.js';
+let heroMount = null;
 import {
   getLayer, newLayer, addLayer, removeLayer, duplicateLayer, moveLayer, setClip,
   setCurveKey, deleteCurveKey, resolveProp, resolveModParam, getModifier,
@@ -89,14 +91,15 @@ function rebuild() {
     rows = [];
     listEl.innerHTML = '';
     listEl.style.paddingTop = RULER_H + 'px';
-    const note = document.createElement('div');
-    note.className = 'vfx-track-header';
-    note.style.cssText = 'display:block;padding:10px 12px;font-size:11px;line-height:1.5;opacity:.6;';
-    note.textContent = 'Procedural effect \u2014 no layers. Time is driven by the graph; scrub the ruler to evaluate a frame.';
-    listEl.appendChild(note);
+    // In procedural mode the track column shows ONE particle's life — the hero strip — instead of
+    // layer rows the graph does not have. The ruler on the right stays the effect's own clock, so the
+    // two clocks are two visible things rather than a concept to explain.
+    if (heroMount) { heroMount.destroy(); heroMount = null; }
+    heroMount = mountHeroStrip(listEl);
     draw();
     return;
   }
+  if (heroMount) { heroMount.destroy(); heroMount = null; }
   buildRows();
   listEl.innerHTML = '';
   listEl.style.paddingTop = RULER_H + 'px';

@@ -221,6 +221,15 @@ export function analyseForRoblox(commands, { graph = null, evaluator = null } = 
         });
         break;
       }
+      case 'volume': {
+        rows.push({
+          ...base, level: 'baked',
+          how: 'Baked to a flipbook sprite sheet — 8×8 frames of the volume as seen from the front, played once over the effect on a ParticleEmitter. Save the PNG the export offers, upload it to Roblox as a decal, and paste its asset id where the script says PASTE_FLIPBOOK_ID.',
+          reasons: ['Roblox cannot render volumes; a flipbook is how its fire and smoke are made by hand.'],
+          notes: ['The sheet is a front view; the sprite faces the camera, so it reads correctly from every side except directly above.'],
+        });
+        break;
+      }
       default:
         rows.push({ ...base, level: 'unsupported', how: 'Not exported.', reasons: ['Unrecognised render pass.'], notes: [] });
     }
@@ -292,6 +301,7 @@ export function buildRobloxExport({
   L.push('');
 
   let emitted = 0;
+  const flipbooks = [];
   for (const row of report.rows) {
     const cmd = commands[row.index];
     const id = `P${row.index + 1}`;
@@ -310,6 +320,9 @@ export function buildRobloxExport({
       emitted++;
     } else if (row.kind === 'beam' || row.kind === 'trail') {
       emitBeam(L, notes, cmd, row, id, { fps, duration, evaluateFrame, bake });
+      emitted++;
+    } else if (row.kind === 'volume') {
+      emitVolumeFlipbook(L, notes, cmd, row, id, { fps, duration, evaluateFrame, bake, flipbooks });
       emitted++;
     } else {
       emitBakedParticles(L, notes, cmd, row, id, { fps, duration, evaluateFrame, bake });
@@ -364,6 +377,8 @@ export function buildRobloxExport({
     notes,
     bytes: lua.length,
     withinBudget: budget.ok,
+    // Volume passes baked to sprite sheets: RGBA pixels the studio turns into PNGs to save and upload.
+    flipbooks,
   };
 }
 
@@ -651,4 +666,94 @@ function emitBeam(L, notes, cmd, row, id, { duration, evaluateFrame }) {
   L.push(`local function ${id}_stop() ${id}.Enabled = false end`);
   L.push(`PASSES[#PASSES + 1] = { update = ${id}_update, stop = ${id}_stop }`);
   notes.push(`Pass ${row.index + 1} exports as a Roblox Beam between its two endpoints. A Beam is a straight camera-facing strip, so any curvature in the original is lost.`);
+}
+
+// ---------------------------------------------------------------- volume → flipbook (Part 35 → Part 58)
+// A CPU raymarch of the volume pass, front view, orthographic, one cell per sampled frame. The same
+// compositing as the backend shader without self-shadow taps beyond three, so a 96 px cell over 64
+// frames costs about a second. Output is straight-alpha RGBA, which is what a PNG and Roblox expect.
+export function bakeVolumeFlipbook(evaluateFrame, passIndex, { fps = 30, duration = 60, columns = 8, rows = 8, cell = 96, steps = 40 } = {}) {
+  const frames = columns * rows;
+  const W = columns * cell, H = rows * cell;
+  const data = new Uint8ClampedArray(W * H * 4);
+  let drawn = 0;
+  for (let k = 0; k < frames; k++) {
+    const frame = Math.round((k * Math.max(1, duration - 1)) / Math.max(1, frames - 1));
+    const scene = evaluateFrame(frame);
+    const draw = scene && scene.draws ? scene.draws[passIndex] : null;
+    if (!draw || draw.kind !== 'volume' || !draw.count) continue;
+    drawn++;
+    const r = draw.resolution, tex = draw.texels, st = draw.settings || {};
+    const lut = draw.lut, dScale = draw.densityScale, tScale = draw.temperatureScale / Math.max(0.01, st.heatRange || 2);
+    const absorption = st.absorption ?? 1.5, emission = st.emission ?? 2, scatter = st.scatter ?? 0.3, shadow = st.shadow ?? 1;
+    const sc = st.smokeColor || [0.75, 0.75, 0.8];
+    const depth = draw.size[2];
+    const stepLen = 1 / steps;
+    const cx0 = (k % columns) * cell, cy0 = Math.floor(k / columns) * cell;
+    const sample = (u, v, w) => {
+      // trilinear on the RGBA8 texels; u,v,w in 0..1
+      const gx = Math.max(0, Math.min(r - 1.0001, u * r - 0.5)), gy = Math.max(0, Math.min(r - 1.0001, v * r - 0.5)), gz = Math.max(0, Math.min(r - 1.0001, w * r - 0.5));
+      const x0 = Math.floor(gx), y0 = Math.floor(gy), z0 = Math.floor(gz), tx = gx - x0, ty = gy - y0, tz = gz - z0;
+      const x1 = Math.min(r - 1, x0 + 1), y1 = Math.min(r - 1, y0 + 1), z1 = Math.min(r - 1, z0 + 1);
+      const at = (x, y, z, c) => tex[((z * r + y) * r + x) * 4 + c] / 255;
+      const lerp3 = (c) => { const a = at(x0, y0, z0, c) + (at(x1, y0, z0, c) - at(x0, y0, z0, c)) * tx, b = at(x0, y1, z0, c) + (at(x1, y1, z0, c) - at(x0, y1, z0, c)) * tx, e = at(x0, y0, z1, c) + (at(x1, y0, z1, c) - at(x0, y0, z1, c)) * tx, f = at(x0, y1, z1, c) + (at(x1, y1, z1, c) - at(x0, y1, z1, c)) * tx; const g0 = a + (b - a) * ty, g1 = e + (f - e) * ty; return g0 + (g1 - g0) * tz; };
+      return [lerp3(0) * dScale, lerp3(1) * tScale];
+    };
+    for (let py = 0; py < cell; py++) {
+      for (let px = 0; px < cell; px++) {
+        const u = (px + 0.5) / cell, v = 1 - (py + 0.5) / cell;
+        let acc0 = 0, acc1 = 0, acc2 = 0, accA = 0;
+        for (let i = 0; i < steps; i++) {
+          const w = (i + 0.5) * stepLen;
+          const [d, temp] = sample(u, v, w);
+          if (d < 0.002 && temp < 0.02) continue;
+          const a = 1 - Math.exp(-d * absorption * stepLen * depth);
+          let sh = 1;
+          if (shadow > 0 && d > 0.002) { let occ = 0; for (let q = 1; q <= 3; q++) { const vv = v + q * stepLen * 2.5; if (vv > 1) break; occ += sample(u, vv, w)[0]; } sh = Math.exp(-occ * absorption * stepLen * 2.5 * depth * shadow); }
+          const lit = scatter + (1 - scatter) * sh;
+          const tt = Math.max(0, Math.min(1, temp)); const li = Math.round(tt * 255) * 4;
+          const fr = lut[li] * emission * temp * stepLen * depth, fg = lut[li + 1] * emission * temp * stepLen * depth, fb = lut[li + 2] * emission * temp * stepLen * depth;
+          acc0 += (1 - accA) * (sc[0] * lit * a + fr); acc1 += (1 - accA) * (sc[1] * lit * a + fg); acc2 += (1 - accA) * (sc[2] * lit * a + fb);
+          accA += (1 - accA) * a;
+          if (accA > 0.995) break;
+        }
+        // fire with no smoke is pure emission: give it alpha from its brightness so it is not cut out
+        const lum = Math.max(acc0, acc1, acc2);
+        const alpha = Math.max(accA, Math.min(1, lum));
+        const o = ((cy0 + py) * W + (cx0 + px)) * 4;
+        const un = alpha > 1e-4 ? 1 / alpha : 0;
+        data[o] = Math.round(Math.min(1, acc0 * un) * 255); data[o + 1] = Math.round(Math.min(1, acc1 * un) * 255); data[o + 2] = Math.round(Math.min(1, acc2 * un) * 255); data[o + 3] = Math.round(alpha * 255);
+      }
+    }
+  }
+  return { passIndex, width: W, height: H, columns, rows, cell, data, frames, drawn };
+}
+
+function emitVolumeFlipbook(L, notes, cmd, row, id, { fps, duration, evaluateFrame, bake, flipbooks }) {
+  const sheet = bakeVolumeFlipbook(evaluateFrame, row.index, { fps, duration, columns: 8, rows: 8, cell: bake.flipbookCell || 96, steps: bake.flipbookSteps || 40 });
+  flipbooks.push(sheet);
+  const centre = cmd.settings?.density?.center || [0, 2, 0];
+  const size = cmd.settings?.density?.size || [4, 4, 4];
+  notes.push(`Pass ${row.index + 1} (volume) was baked to an 8×8 flipbook (${sheet.width}×${sheet.height}). Save the PNG, upload it to Roblox, and replace PASTE_FLIPBOOK_ID in the script.`);
+  L.push(`local ${id}_att = Instance.new("Attachment")`);
+  L.push(`${id}_att.Parent = anchor`);
+  L.push(`${id}_att.Position = ${v3(centre)}`);
+  L.push(`local ${id} = Instance.new("ParticleEmitter")`);
+  L.push(`${id}.Parent = ${id}_att`);
+  L.push(`${id}.Texture = "rbxassetid://PASTE_FLIPBOOK_ID" -- the 8x8 sheet Cadence exported next to this script`);
+  L.push(`${id}.FlipbookLayout = Enum.ParticleFlipbookLayout.Grid8x8`);
+  L.push(`${id}.FlipbookMode = Enum.ParticleFlipbookMode.OneShot`);
+  L.push(`${id}.Rate = 0`);
+  L.push(`${id}.Lifetime = NumberRange.new(${n(Math.max(0.05, duration / fps))})`);
+  L.push(`${id}.Speed = NumberRange.new(0)`);
+  L.push(`${id}.Size = NumberSequence.new(${n(Math.max(size[0], size[1]))})`);
+  L.push(`${id}.Transparency = NumberSequence.new(0)`);
+  L.push(`${id}.LightEmission = ${cmd.settings?.emission > 0 ? 0.8 : 0}`);
+  L.push(`${id}.LightInfluence = 0`);
+  L.push(`${id}.Orientation = Enum.ParticleOrientation.FacingCamera`);
+  L.push(`${id}.LockedToPart = true`);
+  L.push(`${id}.Enabled = false`);
+  L.push(`do local started = false`);
+  L.push(`  PASSES[#PASSES + 1] = { update = function(frame) if not started then started = true; ${id}:Emit(1) end end, stop = function() started = false; ${id}:Clear() end }`);
+  L.push(`end`);
 }

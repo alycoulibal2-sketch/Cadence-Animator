@@ -30,7 +30,7 @@ export const CATEGORIES = [
   'Geometry', 'Curves', 'SDF',
   'Particles', 'Instances',
   'Forces', 'Simulation', 'Collision',
-  'Fluids', 'Pyro', 'Volumes',
+  'Fluids', 'Pyro', 'Volumes', 'Mesh',
   'Materials', 'Shaders',
   'Renderers', 'Lights', 'Camera',
   'Compositing', 'Audio',
