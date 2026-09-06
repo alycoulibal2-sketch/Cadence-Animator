@@ -34,17 +34,12 @@ import * as T from '../../renderer/js/pnx/types.js';
 import { modal, toast, showContextMenu } from '../../renderer/js/ui.js';
 import { buildControl as sharedBuildControl, gradientCss } from './pnxControls.js';
 import '../../renderer/js/pnx/nodes/index.js';
+import * as TOOLS from '../../renderer/js/pnx/editorTools.js';
 
-// Wide enough for the longest input label the registry actually uses alongside its control. Measured,
-// not guessed: at 210px "Particle limit", "Flipbook columns" and "Initial attributes" all ellipsised
-// to "Particle …", which makes two different sockets look like the same one.
-const NODE_W = 268;
-// Every socket dot is positioned from this, so it must equal the header's real rendered height or
-// each dot sits a few pixels off its own row. The header is given this height explicitly below rather
-// than inheriting .node-box-header's, so the two cannot drift apart.
-const HEADER_H = 28;
-const ROW_H = 22;
-const SOCKET_R = 5;
+// Box geometry lives in editorTools.js so the auto-layout and the canvas cannot disagree about how
+// tall a node is (the header is given HEADER_H explicitly below rather than inheriting
+// .node-box-header's, so the two cannot drift apart).
+const { NODE_W, HEADER_H, ROW_H, SOCKET_R } = TOOLS;
 
 let isOpen = false;
 let root, viewportEl, worldEl, wiresEl, nodesEl, commentsEl, rubberEl, breadcrumbEl, statusEl;
@@ -55,6 +50,15 @@ const selected = new Set();
 const selectedLinks = new Set();
 let clipboard = null;
 let cachedRect = null;
+// Phase 7: the help panel, the minimap, keyboard focus and a keyboard-driven wire.
+let mainEl = null, helpEl = null, minimapEl = null, minimapCtx = null, accentColour = '#7c8cff';
+let helpVisible = true;
+let focusSocket = null;   // { nodeId, io, key } — the socket Tab has landed on
+let kbWire = null;        // { nodeId, io, key, socket } — a wire started with Enter, waiting for its other end
+// The minimap's model is rebuilt on a document change and only READ while drawing, so a pan, a zoom or
+// a node drag redraws without allocating; draws are coalesced to one per animation frame.
+const minimapModel = { rects: new Map(), minX: 0, minY: 0, maxX: 0, maxY: 0, scale: 0, ox: 0, oy: 0, bx: 0, by: 0 };
+let minimapRaf = 0;
 
 export function isPnxEditorOpen() { return isOpen; }
 export function closePnxNodeEditor() { closeModal?.(); }
@@ -77,6 +81,7 @@ function screenToWorld(cx, cy) {
 }
 function applyTransform() {
   worldEl.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.k})`;
+  scheduleMinimap();
 }
 function viewportCenterWorld() {
   const r = viewportEl.getBoundingClientRect();
@@ -149,6 +154,16 @@ export function openPnxNodeEditor() {
   groupBtn.addEventListener('click', () => groupSelection());
   toolbar.appendChild(groupBtn);
 
+  const layoutBtn = el('button', 'tb-btn pnx-layout-btn', 'Auto-layout');
+  layoutBtn.title = 'Arrange the nodes left to right by what feeds what  (Ctrl+L)';
+  layoutBtn.addEventListener('click', () => autoLayout());
+  toolbar.appendChild(layoutBtn);
+
+  const helpBtn = el('button', 'tb-btn pnx-help-btn', '? Help');
+  helpBtn.title = 'Show or hide the help panel for the selected node  (H)';
+  helpBtn.addEventListener('click', () => { helpVisible = !helpVisible; renderHelp(); });
+  toolbar.appendChild(helpBtn);
+
   breadcrumbEl = el('div', 'pnx-breadcrumb');
   toolbar.appendChild(breadcrumbEl);
 
@@ -169,7 +184,11 @@ export function openPnxNodeEditor() {
   worldEl.append(wiresEl, commentsEl, nodesEl);
   rubberEl = el('div', 'node-editor-rubberband');
   viewportEl.append(worldEl, rubberEl);
-  root.appendChild(viewportEl);
+  buildMinimap();
+  mainEl = el('div', 'pnx-editor-main');
+  helpEl = el('aside', 'pnx-help');
+  mainEl.append(viewportEl, helpEl);
+  root.appendChild(mainEl);
 
   wireViewportEvents();
   root.addEventListener('keydown', onKeyDown);
@@ -189,7 +208,7 @@ export function openPnxNodeEditor() {
 
   const m = modal({
     title: '', body: root,
-    onClose: () => { isOpen = false; ST.off('effect', onChange); ST.off('pnx', onChange); stopEvaluated(); },
+    onClose: () => { isOpen = false; ST.off('effect', onChange); ST.off('pnx', onChange); stopEvaluated(); if (minimapRaf) cancelAnimationFrame(minimapRaf); minimapRaf = 0; focusSocket = null; kbWire = null; },
   });
   closeModal = m.close;
   applyTransform();
@@ -221,10 +240,15 @@ function render() {
 
   nodesEl.innerHTML = '';
   commentsEl.innerHTML = '';
+  if (focusSocket && !graph().nodes[focusSocket.nodeId]) focusSocket = null;
+  if (kbWire && !graph().nodes[kbWire.nodeId]) kbWire = null;
   for (const node of PGRAPH.nodesInScope(graph(), scope)) nodesEl.appendChild(buildNodeEl(node));
   renderWires();
+  renderKbWire();
   renderBreadcrumb();
   renderStatus();
+  renderHelp();
+  rebuildMinimapModel();
 }
 
 function renderBreadcrumb() {
@@ -368,6 +392,8 @@ function buildNodeEl(node) {
       dot.style.top = (rowY(idx) - SOCKET_R) + 'px';
       dot.dataset.socketKey = row.socket.key;
       dot.dataset.socketIo = row.io;
+      if (focusSocket && focusSocket.nodeId === node.id && focusSocket.io === row.io && focusSocket.key === row.socket.key) dot.classList.add('focused');
+      if (kbWire && kbWire.nodeId === node.id && kbWire.io === row.io && kbWire.key === row.socket.key) dot.classList.add('wiring');
       const tn = T.formatType(row.socket.type);
       dot.title = `${row.socket.label} — ${T.typeMeta(row.socket.type.name)?.label || tn} (${tn})`
         + (row.socket.unit ? `\nMeasured in ${row.socket.unit}` : '')
@@ -497,48 +523,72 @@ function closeAddPalette() {
   if (paletteEl) { paletteEl.remove(); paletteEl = null; }
 }
 
-function openAddPalette(screenX, screenY, worldPos) {
+// `forSocket` is the wire being held when the palette was opened by releasing a drag on empty canvas:
+// only node types with a socket that wire can land on are listed, each row says which socket, and
+// choosing one creates the node already connected.
+function openAddPalette(screenX, screenY, worldPos, { forSocket = null } = {}) {
   closeAddPalette();
-  const p = el('div', 'pnx-palette');
+  const held = forSocket;
+  const fits = held ? new Set(REG.currentNodes().filter((n) => TOOLS.fittingSocket(n, held.io, held.socket.type)).map((n) => n.id)) : null;
+  const p = el('div', 'pnx-palette' + (held ? ' pnx-palette-for-socket' : ''));
   paletteEl = p;
   p.style.left = Math.min(screenX, window.innerWidth - 380) + 'px';
   p.style.top = Math.min(screenY, window.innerHeight - 420) + 'px';
 
   const input = el('input', 'fld pnx-palette-search');
   input.type = 'text';
-  input.placeholder = 'Search 354 nodes…  (try "swirl", "fade", "bounce")';
+  input.placeholder = held
+    ? `Nodes that fit ${held.socket.label} (${T.formatType(held.socket.type)})…`
+    : 'Search 354 nodes…  (try "swirl", "fade", "bounce")';
   const results = el('div', 'pnx-palette-results');
+  if (held) p.appendChild(el('div', 'pnx-palette-hint', `Connect ${held.io === 'out' ? 'the' : 'something to'} ${held.socket.label} ${held.io === 'out' ? 'output' : 'input'} to…`));
   p.append(input, results);
   document.body.appendChild(p);
 
   let items = [];
   let active = 0;
 
+  // Commands the palette also answers to, so "arrange" or "tidy" finds Auto-layout where a person
+  // would look for it. A command row runs instead of adding a node.
+  const COMMANDS = [
+    { command: 'autoLayout', label: 'Auto-layout', category: 'Command', summary: 'Arrange the nodes left to right by what feeds what (Ctrl+L).', match: /^(auto|lay|arrange|tidy|clean|order|sort|align)/i, run: () => autoLayout() },
+  ];
+  const choose = (n) => {
+    if (n.command) { closeAddPalette(); n.run(); return; }
+    if (held) addNodeWired(n.id, worldPos, held); else addNode(n.id, worldPos);
+    closeAddPalette();
+  };
   const renderResults = () => {
     const q = input.value.trim();
     items = q
-      ? REG.searchNodes(q, { limit: 60 })
+      ? REG.searchNodes(q, { limit: fits ? 400 : 60 })
       : REG.currentNodes().slice().sort((a, b) => a.category.localeCompare(b.category) || a.label.localeCompare(b.label));
+    if (fits) items = items.filter((n) => fits.has(n.id)).slice(0, 60);
+    if (!held && q) items = [...COMMANDS.filter((c) => c.match.test(q)), ...items];
     results.innerHTML = '';
     if (!items.length) {
-      results.appendChild(el('div', 'pnx-palette-empty', `Nothing matches "${q}".`));
+      results.appendChild(el('div', 'pnx-palette-empty', held ? `Nothing that fits ${held.socket.label} matches "${q}".` : `Nothing matches "${q}".`));
       return;
     }
     let lastCat = null;
     items.forEach((n, i) => {
-      if (!q && n.category !== lastCat) {
+      if (!q && !held && n.category !== lastCat) {
         lastCat = n.category;
         results.appendChild(el('div', 'pnx-palette-cat', n.category));
       }
-      const row = el('div', 'pnx-palette-row' + (i === active ? ' active' : ''));
+      const row = el('div', 'pnx-palette-row' + (i === active ? ' active' : '') + (n.command ? ' pnx-palette-command' : ''));
       row.dataset.index = i;
       const main = el('div', 'pnx-palette-main');
       main.appendChild(el('span', 'pnx-palette-label', n.label));
       main.appendChild(el('span', 'pnx-palette-badge', n.category));
       if (n.pro) main.appendChild(el('span', 'pnx-palette-badge pnx-badge-pro', 'Pro'));
+      if (held && !n.command) {
+        const fit = TOOLS.fittingSocket(n, held.io, held.socket.type);
+        if (fit) main.appendChild(el('span', 'pnx-palette-badge pnx-badge-fit', `${held.io === 'out' ? '→' : '←'} ${fit.label}`));
+      }
       row.appendChild(main);
       row.appendChild(el('div', 'pnx-palette-desc', n.summary));
-      row.addEventListener('pointerdown', (e) => { e.preventDefault(); addNode(n.id, worldPos); closeAddPalette(); });
+      row.addEventListener('pointerdown', (e) => { e.preventDefault(); choose(n); });
       results.appendChild(row);
     });
   };
@@ -554,7 +604,7 @@ function openAddPalette(screenX, screenY, worldPos) {
   input.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
-    else if (e.key === 'Enter') { e.preventDefault(); if (items[active]) { addNode(items[active].id, worldPos); closeAddPalette(); } }
+    else if (e.key === 'Enter') { e.preventDefault(); if (items[active]) choose(items[active]); }
     else if (e.key === 'Escape') { e.preventDefault(); closeAddPalette(); root.focus(); }
     e.stopPropagation();
   });
@@ -579,6 +629,43 @@ function addNode(type, pos) {
   selected.clear();
   if (created) selected.add(created.id);
   render();
+}
+
+// Add a node and wire it to the socket a drag was released from, in ONE undo step. The new node is
+// placed so the socket that takes the wire sits where the pointer let go, which is where the eye is.
+function addNodeWired(type, pos, held) {
+  const def = REG.getNode(type);
+  const fit = TOOLS.fittingSocket(def, held.io, held.socket.type);
+  let created = null, res = null;
+  mutate((g) => {
+    created = PGRAPH.newNode(g, type, 0, 0, { scope });
+    const rows = rowsOf(created);
+    const idx = fit ? rows.findIndex((r) => r.io === (held.io === 'out' ? 'in' : 'out') && r.socket.key === fit.key) : -1;
+    created.x = Math.round(held.io === 'out' ? pos.x : pos.x - NODE_W);
+    created.y = Math.round(pos.y - (idx >= 0 ? rowY(idx) : HEADER_H / 2));
+    if (fit) {
+      res = held.io === 'out'
+        ? PGRAPH.connect(g, held.nodeId, held.key, created.id, fit.key)
+        : PGRAPH.connect(g, created.id, fit.key, held.nodeId, held.key);
+    }
+  }, { structural: true });
+  if (res && !res.ok) toast(`Added ${def?.label || type}, but could not connect it: ${res.reason}`, 'error');
+  selected.clear();
+  if (created) selected.add(created.id);
+  focusSocket = null;
+  render();
+}
+
+// ---------------------------------------------------------------- auto-layout
+// Position is presentation, so the write is layout-only (no evaluator invalidation, like a drag)
+// and one undo step.
+function autoLayout() {
+  let res = null;
+  mutate((g) => { res = TOOLS.applyAutoLayout(g, scope); }, { nodeId: '__layout__' });
+  frameAll();
+  render();
+  if (res) toast(`Arranged ${res.moved} node${res.moved === 1 ? '' : 's'} in ${res.columns} column${res.columns === 1 ? '' : 's'}`);
+  return res;
 }
 
 // ---------------------------------------------------------------- node context menu
@@ -766,6 +853,8 @@ function onNodeDragMove(e) {
     if (div) { div.style.left = Math.round(o.x + dx) + 'px'; div.style.top = Math.round(o.y + dy) + 'px'; }
   }
   updateWiresLive(nodeDrag, dx, dy);
+  for (const [id, o] of nodeDrag.origins) { const rc = minimapModel.rects.get(id); if (rc) { rc.x = o.x + dx; rc.y = o.y + dy; } }
+  scheduleMinimap();
 }
 
 function updateWiresLive(drag, dx, dy) {
@@ -893,11 +982,25 @@ function finishSocketDrag(e) {
   const target = document.elementFromPoint(e.clientX, e.clientY);
   const dot = target?.closest?.('.pnx-socket');
   const box = target?.closest?.('.pnx-node');
-  if (!dot || !box) { render(); return; }
+  const heldSocket = { nodeId: drag.node.id, io: drag.io, key: drag.socket.key, socket: drag.socket };
+  if (!dot || !box) {
+    render();
+    // Let go over empty canvas: offer the nodes this wire could plug into, wired on choosing.
+    const onCanvas = !!target && target !== minimapEl && (target === viewportEl || target === worldEl || viewportEl.contains(target));
+    if (onCanvas) openAddPalette(e.clientX, e.clientY, screenToWorld(e.clientX, e.clientY), { forSocket: heldSocket });
+    return;
+  }
 
   const otherId = box.dataset.nodeId;
   const otherIo = dot.dataset.socketIo;
   const otherKey = dot.dataset.socketKey;
+  if (otherId === drag.node.id && otherIo === drag.io && otherKey === drag.socket.key) {
+    // A click on a socket, not a drag: the same search, next to the socket.
+    render();
+    const wp = socketWorldPos(drag.node, drag.io, drag.socket.key);
+    openAddPalette(e.clientX + 12, e.clientY, { x: wp.x + (drag.io === 'out' ? 60 : -60), y: wp.y }, { forSocket: heldSocket });
+    return;
+  }
   if (otherIo === drag.io) { toast(`Connect an output to an input`, 'error'); render(); return; }
 
   const a = drag.io === 'out'
@@ -929,7 +1032,23 @@ function onKeyDown(e) {
     render();
     return;
   }
+  if (ctrl && e.key.toLowerCase() === 'l') { e.preventDefault(); autoLayout(); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); return; }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    navigate(e.key.slice(5).toLowerCase());
+    return;
+  }
+  if (e.key === 'Tab') { e.preventDefault(); cycleSocket(e.shiftKey ? -1 : 1); return; }
+  if (e.key === 'Enter') { e.preventDefault(); onEnterKey(); return; }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    if (paletteEl) { const live = paletteEl.isConnected; closeAddPalette(); if (live) return; }
+    if (kbWire) { kbWire = null; toast('Wire cancelled'); render(); return; }
+    if (focusSocket) { focusSocket = null; render(); return; }
+    return;
+  }
+  if (e.key.toLowerCase() === 'h' && !ctrl) { e.preventDefault(); helpVisible = !helpVisible; renderHelp(); return; }
   if (e.key.toLowerCase() === 'a' && !ctrl) {
     e.preventDefault();
     const r = viewportEl.getBoundingClientRect();
@@ -939,11 +1058,11 @@ function onKeyDown(e) {
   if (e.key.toLowerCase() === 'm' && !ctrl) { e.preventDefault(); for (const id of selected) toggleFlag(id, 'muted'); return; }
   if (e.key.toLowerCase() === 'b' && !ctrl) { e.preventDefault(); for (const id of selected) toggleFlag(id, 'bypassed'); return; }
   if (e.key.toLowerCase() === 'f' && !ctrl) { e.preventDefault(); frameAll(); return; }
-  if (e.key === 'Escape') { e.preventDefault(); closeAddPalette(); }
 }
 
 function deleteSelection() {
   if (!selected.size && !selectedLinks.size) return;
+  focusSocket = null; kbWire = null;
   const ids = [...selected], links = [...selectedLinks];
   mutate((g) => {
     for (const id of links) delete g.links[id];
@@ -990,6 +1109,356 @@ function pasteClipboard() {
 function duplicateSelection() {
   copySelection();
   pasteClipboard();
+}
+
+// ---------------------------------------------------------------- keyboard navigation
+// Arrows walk the graph, Tab walks a node's sockets, Enter starts a wire from the focused socket and
+// completes it on another node's socket. The whole editor is usable without a mouse.
+function singleSelected() {
+  if (selected.size !== 1) return null;
+  return graph().nodes[[...selected][0]] || null;
+}
+
+function navigate(dir) {
+  const nodes = PGRAPH.nodesInScope(graph(), scope);
+  if (!nodes.length) return;
+  const cur = singleSelected();
+  let next;
+  if (!cur) {
+    // Nothing selected: start at the top-left node.
+    next = nodes.slice().sort((a, b) => a.x - b.x || a.y - b.y)[0];
+  } else {
+    next = TOOLS.nearestInDirection(nodes, cur, dir, (n) => TOOLS.boxSize(graph(), n));
+    if (!next) return;
+  }
+  selected.clear(); selectedLinks.clear();
+  selected.add(next.id);
+  // While a wire is held, landing on a node focuses the first socket it could take.
+  focusSocket = kbWire && next.id !== kbWire.nodeId ? firstFittingSocketOn(next) : null;
+  ensureVisible(next);
+  render();
+}
+
+function socketFits(row) {
+  if (!kbWire || row.io === kbWire.io) return false;
+  const a = kbWire.io === 'out' ? kbWire.socket.type : row.socket.type;
+  const b = kbWire.io === 'out' ? row.socket.type : kbWire.socket.type;
+  return T.containsGeneric(a) || T.containsGeneric(b) || T.canConnect(a, b);
+}
+
+function firstFittingSocketOn(node) {
+  const row = rowsOf(node).find((r) => r.socket.socket !== false && socketFits(r));
+  return row ? { nodeId: node.id, io: row.io, key: row.socket.key } : null;
+}
+
+function cycleSocket(delta) {
+  const node = singleSelected();
+  if (!node) { navigate('right'); return; }
+  let list = rowsOf(node).filter((r) => r.socket.socket !== false);
+  if (kbWire && node.id !== kbWire.nodeId) list = list.filter(socketFits);
+  if (!list.length) { if (kbWire) toast('Nothing on this node takes that wire', 'error'); return; }
+  let idx = list.findIndex((r) => focusSocket && focusSocket.nodeId === node.id && r.io === focusSocket.io && r.socket.key === focusSocket.key);
+  idx = idx < 0 ? (delta > 0 ? 0 : list.length - 1) : (idx + delta + list.length) % list.length;
+  focusSocket = { nodeId: node.id, io: list[idx].io, key: list[idx].socket.key };
+  render();
+}
+
+function onEnterKey() {
+  if (kbWire) {
+    if (!focusSocket || focusSocket.nodeId === kbWire.nodeId) {
+      toast('Arrow to another node, Tab to one of its sockets, then Enter to connect (Esc cancels)');
+      return;
+    }
+    const a = kbWire.io === 'out' ? kbWire : focusSocket;
+    const b = kbWire.io === 'out' ? focusSocket : kbWire;
+    let res = null;
+    mutate((g) => { res = PGRAPH.connect(g, a.nodeId, a.key, b.nodeId, b.key); }, { structural: true });
+    if (!res?.ok) { toast(`Cannot connect: ${res?.reason}`, 'error'); return; }
+    kbWire = null;
+    render();
+    return;
+  }
+  if (focusSocket) {
+    const node = graph().nodes[focusSocket.nodeId];
+    const socket = node && PGRAPH.findSocket(graph(), node, focusSocket.key, focusSocket.io);
+    if (!socket) { focusSocket = null; render(); return; }
+    kbWire = { nodeId: node.id, io: focusSocket.io, key: focusSocket.key, socket };
+    toast(`Wire from ${socket.label}: arrow to a node, Tab to a socket, Enter to connect, Esc to cancel`);
+    render();
+    return;
+  }
+  if (singleSelected()) cycleSocket(1);
+}
+
+// The wire being built with the keyboard, drawn like a dragged one: from its socket to the focused
+// socket on the node the arrows landed on, or a short stub while there is no target yet.
+function renderKbWire() {
+  if (!kbWire) return;
+  const from = graph().nodes[kbWire.nodeId];
+  if (!from) { kbWire = null; return; }
+  const a = socketWorldPos(from, kbWire.io, kbWire.key);
+  let b = { x: a.x + (kbWire.io === 'out' ? 70 : -70), y: a.y };
+  if (focusSocket && focusSocket.nodeId !== kbWire.nodeId && graph().nodes[focusSocket.nodeId]) {
+    b = socketWorldPos(graph().nodes[focusSocket.nodeId], focusSocket.io, focusSocket.key);
+  }
+  const path = document.createElementNS(wiresEl.namespaceURI, 'path');
+  path.setAttribute('class', 'node-wire-temp');
+  path.setAttribute('stroke', typeColor(kbWire.socket.type));
+  path.setAttribute('d', kbWire.io === 'out' ? wirePathD(a, b) : wirePathD(b, a));
+  wiresEl.appendChild(path);
+}
+
+// Pan just enough that the node is on screen, keeping the zoom.
+function ensureVisible(node) {
+  const W = viewportEl.clientWidth, H = viewportEl.clientHeight;
+  if (!W || !H) return;
+  const margin = 24;
+  const sx = node.x * view.k + view.x, sy = node.y * view.k + view.y;
+  const sw = NODE_W * view.k, sh = TOOLS.boxHeight(graph(), node) * view.k;
+  let dx = 0, dy = 0;
+  if (sx < margin) dx = margin - sx; else if (sx + sw > W - margin) dx = (W - margin) - (sx + sw);
+  if (sy < margin) dy = margin - sy; else if (sy + sh > H - margin) dy = (H - margin) - (sy + sh);
+  if (dx || dy) { view.x += dx; view.y += dy; applyTransform(); }
+}
+
+// ---------------------------------------------------------------- minimap
+// A small canvas in the viewport's corner: every node box in the current scope and the rectangle the
+// viewport shows. Click or drag on it to move the view. The model (node rects and their bounds) is
+// rebuilt only when the document renders; a pan or zoom just redraws, and draws are coalesced to one
+// per animation frame, so scrolling the canvas never allocates for the map.
+const MINIMAP_W = 200, MINIMAP_H = 132, MINIMAP_PAD = 4;
+function buildMinimap() {
+  minimapEl = el('canvas', 'pnx-minimap');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  minimapEl.width = Math.round(MINIMAP_W * dpr);
+  minimapEl.height = Math.round(MINIMAP_H * dpr);
+  minimapEl.style.width = MINIMAP_W + 'px';
+  minimapEl.style.height = MINIMAP_H + 'px';
+  minimapEl.title = 'Overview — click or drag to move the view';
+  minimapCtx = minimapEl.getContext('2d');
+  try { accentColour = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || accentColour; } catch (e) { /* keep the default */ }
+  let down = false;
+  minimapEl.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); down = true; try { minimapEl.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events have no pointer */ } panToMinimap(e); });
+  minimapEl.addEventListener('pointermove', (e) => { if (down) panToMinimap(e); });
+  minimapEl.addEventListener('pointerup', () => { down = false; });
+  minimapEl.addEventListener('pointercancel', () => { down = false; });
+  minimapEl.addEventListener('dblclick', (e) => e.stopPropagation());
+  minimapEl.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); });
+  viewportEl.appendChild(minimapEl);
+}
+
+function rebuildMinimapModel() {
+  const m = minimapModel;
+  m.rects.clear();
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of PGRAPH.nodesInScope(graph(), scope)) {
+    const h = TOOLS.boxHeight(graph(), n);
+    m.rects.set(n.id, { x: n.x, y: n.y, w: NODE_W, h, selected: selected.has(n.id) });
+    if (n.x < minX) minX = n.x; if (n.y < minY) minY = n.y;
+    if (n.x + NODE_W > maxX) maxX = n.x + NODE_W; if (n.y + h > maxY) maxY = n.y + h;
+  }
+  if (!m.rects.size) { minX = 0; minY = 0; maxX = 1; maxY = 1; }
+  m.minX = minX; m.minY = minY; m.maxX = maxX; m.maxY = maxY;
+  scheduleMinimap();
+}
+
+function scheduleMinimap() {
+  if (minimapRaf || !minimapCtx) return;
+  minimapRaf = requestAnimationFrame(drawMinimap);
+}
+
+function drawMinimap() {
+  minimapRaf = 0;
+  if (!minimapCtx || !isOpen) return;
+  const ctx = minimapCtx, m = minimapModel;
+  const dpr = minimapEl.width / MINIMAP_W;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, MINIMAP_W, MINIMAP_H);
+  // The map covers the nodes AND the viewport, so the view rectangle is always on it.
+  const vw = viewportEl.clientWidth / view.k, vh = viewportEl.clientHeight / view.k;
+  const vx = -view.x / view.k, vy = -view.y / view.k;
+  const minX = Math.min(m.minX, vx), minY = Math.min(m.minY, vy);
+  const maxX = Math.max(m.maxX, vx + vw), maxY = Math.max(m.maxY, vy + vh);
+  const spanX = Math.max(1, maxX - minX), spanY = Math.max(1, maxY - minY);
+  const scale = Math.min((MINIMAP_W - MINIMAP_PAD * 2) / spanX, (MINIMAP_H - MINIMAP_PAD * 2) / spanY);
+  const ox = MINIMAP_PAD + ((MINIMAP_W - MINIMAP_PAD * 2) - spanX * scale) / 2;
+  const oy = MINIMAP_PAD + ((MINIMAP_H - MINIMAP_PAD * 2) - spanY * scale) / 2;
+  m.scale = scale; m.ox = ox; m.oy = oy; m.bx = minX; m.by = minY;
+  for (const rc of m.rects.values()) {
+    ctx.fillStyle = rc.selected ? accentColour : 'rgba(200, 200, 215, 0.55)';
+    ctx.fillRect(ox + (rc.x - minX) * scale, oy + (rc.y - minY) * scale, Math.max(2, rc.w * scale), Math.max(2, rc.h * scale));
+  }
+  ctx.strokeStyle = accentColour;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(ox + (vx - minX) * scale + 0.5, oy + (vy - minY) * scale + 0.5, Math.max(2, vw * scale), Math.max(2, vh * scale));
+}
+
+function panToMinimap(e) {
+  const m = minimapModel;
+  if (!m.scale) return;
+  const r = minimapEl.getBoundingClientRect();
+  const wx = m.bx + (e.clientX - r.left - m.ox) / m.scale;
+  const wy = m.by + (e.clientY - r.top - m.oy) / m.scale;
+  view.x = viewportEl.clientWidth / 2 - wx * view.k;
+  view.y = viewportEl.clientHeight / 2 - wy * view.k;
+  applyTransform();
+}
+
+// ---------------------------------------------------------------- help panel
+// The selected node's own documentation, read from the registry description every other surface
+// (pnx_describe_node, the sheet, the tooltips) reads — nothing here is written per node.
+function renderHelp() {
+  if (!helpEl) return;
+  helpEl.hidden = !helpVisible;
+  if (!helpVisible) return;
+  helpEl.innerHTML = '';
+  const node = singleSelected();
+  if (!node) { helpEl.appendChild(helpHint(selected.size)); return; }
+  const def = REG.getNode(node.type);
+  if (!def) {
+    const isGroup = PGRAPH.isGroupInstanceType(node.type);
+    const gd = isGroup ? graph().groups[PGRAPH.groupIdOfType(node.type)] : graph().groups[node.scope];
+    helpEl.appendChild(el('h3', 'pnx-help-title', isGroup ? (gd?.name || 'Group') : (node.type === PGRAPH.GROUP_INPUT_TYPE ? 'Group Input' : 'Group Output')));
+    helpEl.appendChild(el('p', 'pnx-help-summary', isGroup
+      ? (gd?.description || 'A group: several nodes packaged as one. Open it to see how it is built.')
+      : 'The boundary of the group you are inside: what comes in from outside, or what it hands back.'));
+    if (gd) helpEl.appendChild(el('div', 'pnx-help-cat', `${gd.inputs?.length || 0} inputs · ${gd.outputs?.length || 0} outputs`));
+    return;
+  }
+  const d = REG.describeNode(def.id);
+  const head = el('div', 'pnx-help-head');
+  head.appendChild(el('h3', 'pnx-help-title', d.label));
+  if (d.pro) { const b = el('span', 'pnx-help-pro', 'Pro'); b.title = 'Part of the Cadence Pro simulation pack'; head.appendChild(b); }
+  helpEl.appendChild(head);
+  helpEl.appendChild(el('div', 'pnx-help-cat', `${d.category}${d.subcategory ? ' › ' + d.subcategory : ''}`));
+  helpEl.appendChild(el('p', 'pnx-help-summary', d.summary));
+  if (d.teach) helpEl.appendChild(el('p', 'pnx-help-teach', d.teach));
+  if (d.explain) helpEl.appendChild(el('p', 'pnx-help-explain', d.explain));
+  if (d.commonUses.length) {
+    helpEl.appendChild(el('h4', null, 'Common uses'));
+    const ul = el('ul', 'pnx-help-uses');
+    for (const u of d.commonUses) ul.appendChild(el('li', null, u));
+    helpEl.appendChild(ul);
+  }
+  const ex = el('div', 'pnx-help-export');
+  ex.appendChild(el('span', `pnx-help-export-level is-${d.exportSupport}`, `Roblox: ${d.exportSupport}`));
+  if (d.exportNote) ex.appendChild(el('span', 'muted', ` — ${d.exportNote}`));
+  helpEl.appendChild(ex);
+  if (d.performance) helpEl.appendChild(el('div', 'pnx-help-perf', `Cost: ${d.performance}`));
+  const io = (title, list) => {
+    if (!list.length) return;
+    helpEl.appendChild(el('h4', null, title));
+    for (const sk of list) {
+      const line = el('div', 'pnx-help-socket');
+      line.appendChild(el('b', null, sk.label));
+      line.appendChild(el('span', 'muted', ` ${sk.type}${sk.unit ? ' · ' + sk.unit : ''}${sk.connectable === false ? ' · mode' : ''}`));
+      if (sk.description) line.appendChild(el('div', 'muted', sk.description));
+      helpEl.appendChild(line);
+    }
+  };
+  io('Inputs', d.inputs);
+  io('Outputs', d.outputs);
+}
+
+function helpHint(count) {
+  const wrap = el('div', 'pnx-help-hint');
+  wrap.appendChild(el('h3', 'pnx-help-title', count > 1 ? `${count} nodes selected` : 'Node help'));
+  wrap.appendChild(el('p', 'pnx-help-summary', count > 1 ? 'Select one node to read what it does.' : 'Select a node to read what it does, what it takes and how it exports to Roblox.'));
+  const keys = el('div', 'pnx-help-keys');
+  const row = (k, what) => { const r = el('div'); const kb = el('kbd', null, k); r.append(kb, el('span', null, what)); keys.appendChild(r); };
+  row('← ↑ → ↓', 'Move the selection to the nearest node');
+  row('Tab', 'Step through the selected node\'s sockets');
+  row('Enter', 'Start a wire from the socket, or finish it on another');
+  row('Esc', 'Cancel the wire');
+  row('Delete', 'Remove the selection');
+  row('Ctrl+D', 'Duplicate');
+  row('Ctrl+L', 'Auto-layout');
+  row('A', 'Add a node');
+  row('F', 'Frame everything');
+  row('H', 'Hide this panel');
+  row('Drag a wire to empty space', 'Search for a node that fits it');
+  wrap.appendChild(keys);
+  return wrap;
+}
+
+// ---------------------------------------------------------------- test hooks
+// The smoketest drives the editor through these the way a person does: real DOM events on the real
+// canvas, and reads back what the editor believes. Not part of the MCP-facing API.
+export function editorTest() {
+  const state = () => ({
+    open: isOpen, scope, helpVisible,
+    selected: [...selected],
+    focusSocket: focusSocket ? { ...focusSocket } : null,
+    kbWire: kbWire ? { nodeId: kbWire.nodeId, io: kbWire.io, key: kbWire.key } : null,
+    view: { ...view },
+    paletteOpen: !!paletteEl,
+  });
+  return {
+    state,
+    select(ids) { selected.clear(); selectedLinks.clear(); for (const id of ids) if (graph().nodes[id]) selected.add(id); focusSocket = null; render(); return state(); },
+    key(key, { ctrl = false, shift = false } = {}) {
+      root.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ctrlKey: ctrl, shiftKey: shift }));
+      return state();
+    },
+    dragSocketToSpace(nodeId, io, key) {
+      const dot = nodesEl.querySelector(`[data-node-id="${nodeId}"] .pnx-socket[data-socket-io="${io}"][data-socket-key="${key}"]`);
+      if (!dot) return { ok: false, reason: 'no such socket on the canvas' };
+      const dr = dot.getBoundingClientRect();
+      const vr = viewportEl.getBoundingClientRect();
+      let empty = null;
+      for (const [fx, fy] of [[0.5, 0.9], [0.5, 0.1], [0.9, 0.5], [0.1, 0.5], [0.3, 0.9], [0.7, 0.1], [0.15, 0.85]]) {
+        const px = vr.left + vr.width * fx, py = vr.top + vr.height * fy;
+        const t = document.elementFromPoint(px, py);
+        if (t === viewportEl || t === worldEl) { empty = [px, py]; break; }
+      }
+      if (!empty) return { ok: false, reason: 'no empty spot in view' };
+      const opts = (x, y) => ({ clientX: x, clientY: y, bubbles: true, cancelable: true, pointerId: 1, button: 0, isPrimary: true });
+      dot.dispatchEvent(new PointerEvent('pointerdown', opts(dr.left + dr.width / 2, dr.top + dr.height / 2)));
+      window.dispatchEvent(new PointerEvent('pointermove', opts(empty[0], empty[1])));
+      window.dispatchEvent(new PointerEvent('pointerup', opts(empty[0], empty[1])));
+      const rows = paletteEl ? [...paletteEl.querySelectorAll('.pnx-palette-row')] : [];
+      return {
+        ok: !!paletteEl, rows: rows.length, total: REG.currentNodes().length,
+        placeholder: paletteEl?.querySelector('.pnx-palette-search')?.placeholder || '',
+        hint: paletteEl?.querySelector('.pnx-palette-hint')?.textContent || '',
+        labels: rows.slice(0, 8).map((r) => r.querySelector('.pnx-palette-label')?.textContent || ''),
+        fitBadges: rows.filter((r) => r.querySelector('.pnx-badge-fit')).length,
+      };
+    },
+    paletteChoose(query) {
+      if (!paletteEl) return { ok: false, reason: 'the palette is not open' };
+      const input = paletteEl.querySelector('.pnx-palette-search');
+      if (query) { input.value = query; input.dispatchEvent(new Event('input', { bubbles: true })); }
+      const rows = [...paletteEl.querySelectorAll('.pnx-palette-row')];
+      const labels = rows.slice(0, 6).map((r) => r.querySelector('.pnx-palette-label')?.textContent || '');
+      if (!rows.length) return { ok: false, rows: 0, labels };
+      rows[0].dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 1 }));
+      return { ok: true, chosen: labels[0], labels, rows: rows.length, selected: [...selected], paletteOpen: !!paletteEl };
+    },
+    minimap({ clickAt = null } = {}) {
+      if (!minimapEl) return { present: false };
+      drawMinimap();
+      const before = { ...view };
+      if (clickAt) {
+        const r = minimapEl.getBoundingClientRect();
+        minimapEl.dispatchEvent(new PointerEvent('pointerdown', { clientX: r.left + r.width * clickAt[0], clientY: r.top + r.height * clickAt[1], bubbles: true, cancelable: true, pointerId: 1, button: 0 }));
+        minimapEl.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 1, button: 0 }));
+      }
+      return { present: true, width: minimapEl.clientWidth, height: minimapEl.clientHeight, rects: minimapModel.rects.size, scale: minimapModel.scale, before, after: { ...view } };
+    },
+    help() {
+      if (!helpEl) return { present: false };
+      return {
+        present: true, visible: helpVisible && !helpEl.hidden,
+        title: helpEl.querySelector('.pnx-help-title')?.textContent || '',
+        text: helpEl.textContent || '',
+        pro: !!helpEl.querySelector('.pnx-help-pro'),
+        sections: [...helpEl.querySelectorAll('h4')].map((h) => h.textContent),
+        exportLevel: helpEl.querySelector('.pnx-help-export-level')?.textContent || '',
+      };
+    },
+    autoLayout: () => autoLayout(),
+  };
 }
 
 // ---------------------------------------------------------------- library

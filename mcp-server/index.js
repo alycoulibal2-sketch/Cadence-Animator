@@ -758,6 +758,13 @@ server.tool(
 );
 
 server.tool(
+  'pnx_auto_layout',
+  'Arrange the graph: a layered left-to-right layout by depth (what feeds what), rows packed without overlap. Presentation only — nothing re-evaluates. Lays out the root by default; pass a group id to lay out that group\'s interior, or all: true for every scope. Returns the new positions and any overlaps left (none, unless boxes are wider than the layout assumes).',
+  { scope: z.string().optional().describe('A group id, to lay out that group\'s interior instead of the root'), all: z.boolean().optional().describe('Lay out the root and every group') },
+  async (args) => { try { return textResult(await vfxCall('pnx_auto_layout', args)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
   'pnx_set_value',
   'Set one input socket value on a node. Rejects an unknown socket and lists the real ones. Only this node and what depends on it is recomputed.',
   { nodeId: z.string(), socket: z.string(), value: z.any() },

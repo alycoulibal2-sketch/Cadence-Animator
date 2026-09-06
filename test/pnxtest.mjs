@@ -4624,6 +4624,117 @@ check('export: a curved beam becomes a chain of Beams that keeps its curve; a st
   assert.equal((built3.lua.match(/Instance\.new\("Beam"\)/g) || []).length, BAKE6.ROBLOX_LIMITS.beamSegments, 'capped at the Roblox limit');
 });
 
+// ================================================================ Phase 7: the node editor's pure tools (layout, navigation, socket fit)
+const TOOLS7 = await import('../renderer/js/pnx/editorTools.js');
+
+check('layout: auto-layout puts every node in a column by depth, packs rows without overlap, and is deterministic', () => {
+  const g = STUDIO.newStarterGraph('lay');
+  // scramble: everything on one spot
+  for (const n of Object.values(g.nodes)) { n.x = 100; n.y = 100; }
+  assert.ok(TOOLS7.overlappingPairs(g).length > 0, 'the scramble overlaps');
+  const res = TOOLS7.applyAutoLayout(g);
+  assert.ok(res.moved > 0 && res.columns >= 4, `moved ${res.moved} into ${res.columns} columns`);
+  assert.deepEqual(TOOLS7.overlappingPairs(g), [], 'no two boxes overlap after the layout');
+  for (const l of Object.values(g.links)) {
+    assert.ok(g.nodes[l.fromNode].x < g.nodes[l.toNode].x, `every wire runs left to right (${g.nodes[l.fromNode].type} → ${g.nodes[l.toNode].type})`);
+  }
+  // columns are a fixed pitch apart: every x is the origin plus a whole number of (NODE_W + gap)
+  const xs = [...new Set(Object.values(g.nodes).map((n) => n.x))].sort((a, b) => a - b);
+  assert.equal(xs.length, res.columns, 'one x per column');
+  for (let i = 1; i < xs.length; i++) assert.equal(xs[i] - xs[i - 1], xs[1] - xs[0], 'columns are evenly spaced');
+  // the top-left stays where the graph was
+  assert.equal(Math.min(...Object.values(g.nodes).map((n) => n.x)), 100);
+  assert.equal(Math.min(...Object.values(g.nodes).map((n) => n.y)), 100);
+  // a second run changes nothing, and a fresh scramble lays out identically
+  const snap = Object.fromEntries(Object.values(g.nodes).map((n) => [n.id, [n.x, n.y]]));
+  const again = TOOLS7.applyAutoLayout(g);
+  assert.equal(again.moved, 0, 'idempotent');
+  for (const n of Object.values(g.nodes)) { n.x = 5; n.y = 7; }
+  TOOLS7.applyAutoLayout(g, '', { originX: 100, originY: 100 });
+  assert.deepEqual(Object.fromEntries(Object.values(g.nodes).map((n) => [n.id, [n.x, n.y]])), snap, 'the same graph lays out the same way from any starting positions');
+});
+
+check('layout: a straight chain stays on one line, and a group\'s interior is laid out in its own scope', () => {
+  const g = G.newGraph('chain');
+  const a = G.newNode(g, 'cadence.geometry.sphere', 0, 300, { id: 'ca' });
+  const b = G.newNode(g, 'cadence.geometry.transform', 50, 10, { id: 'cb' });
+  const c = G.newNode(g, 'cadence.render.mesh', 20, 600, { id: 'cc' });
+  const out = G.newNode(g, 'cadence.render.output', 0, 0, { id: 'co' });
+  assert.ok(G.connect(g, a.id, 'out', b.id, 'geometry').ok || G.connect(g, a.id, 'out', b.id, 'source').ok, 'sphere feeds the transform');
+  assert.ok(G.connect(g, b.id, 'out', c.id, 'source').ok);
+  assert.ok(G.connect(g, c.id, 'out', out.id, 'passes').ok);
+  TOOLS7.applyAutoLayout(g);
+  const centre = (n) => n.y + TOOLS7.boxHeight(g, n) / 2;
+  assert.ok(Math.abs(centre(a) - centre(b)) < 1 && Math.abs(centre(b) - centre(c)) < 1 && Math.abs(centre(c) - centre(out)) < 1,
+    `a one-input chain lines up by centre: ${[a, b, c, out].map(centre).join(', ')}`);
+  assert.ok(a.x < b.x && b.x < c.x && c.x < out.x);
+
+  // group the middle two; the interior gets its own layout, the root gets its own
+  const res = GRP.collapseToGroup(g, [b.id, c.id], { name: 'Mid' });
+  assert.ok(res.ok, res.reason);
+  const groupId = G.groupIdOfType(g.nodes[res.instanceId].type);
+  for (const n of Object.values(g.nodes)) { n.x = 0; n.y = 0; }
+  const all = TOOLS7.applyAutoLayoutAll(g);
+  assert.equal(all.scopes, 2, 'root and one group');
+  assert.deepEqual(TOOLS7.overlappingPairs(g, ''), [], 'the root has no overlaps');
+  assert.deepEqual(TOOLS7.overlappingPairs(g, groupId), [], 'the group interior has no overlaps');
+  const inner = G.nodesInScope(g, groupId);
+  assert.ok(inner.length >= 4, `interior: the two nodes plus the boundary pair, got ${inner.length}`);
+  const gin = inner.find((n) => n.type === G.GROUP_INPUT_TYPE), gout = inner.find((n) => n.type === G.GROUP_OUTPUT_TYPE);
+  assert.ok(gin.x < g.nodes[b.id].x && g.nodes[c.id].x < gout.x, 'inside the group: input boundary, then the chain, then the output boundary');
+  // laying out the group alone does not touch the root
+  const rootBefore = G.nodesInScope(g, '').map((n) => [n.id, n.x, n.y]);
+  TOOLS7.applyAutoLayout(g, groupId, { originX: 5000, originY: 5000 });
+  assert.deepEqual(G.nodesInScope(g, '').map((n) => [n.id, n.x, n.y]), rootBefore, 'a group layout leaves the root alone');
+  assert.ok(inner.every((n) => n.x >= 5000 && n.y >= 5000), 'and moves only the interior');
+});
+
+check('navigation: the nearest node in a direction prefers what is straight ahead and still reaches an off-axis node', () => {
+  const size = () => ({ w: 268, h: 100 });
+  const at = (id, x, y) => ({ id, x, y });
+  const from = at('f', 0, 0);
+  const ahead = at('ahead', 700, 0), near = at('near', 350, 300), behind = at('behind', -400, 0), above = at('above', 0, -300);
+  const nodes = [from, ahead, near, behind, above];
+  assert.equal(TOOLS7.nearestInDirection(nodes, from, 'right', size).id, 'ahead', 'straight ahead beats a closer node well off the axis');
+  assert.equal(TOOLS7.nearestInDirection(nodes, from, 'left', size).id, 'behind');
+  assert.equal(TOOLS7.nearestInDirection(nodes, from, 'up', size).id, 'above');
+  assert.equal(TOOLS7.nearestInDirection(nodes, from, 'down', size).id, 'near', 'the only node below is reached even though it is mostly to the right');
+  assert.equal(TOOLS7.nearestInDirection([from, above], from, 'right', size), null, 'nothing to the right');
+  assert.equal(TOOLS7.nearestInDirection(nodes, from, 'sideways', size), null, 'an unknown direction is nothing');
+});
+
+check('fit: fittingSocket finds the socket a held wire lands on, and refuses types that cannot connect', () => {
+  const geo = 'geometry';
+  const mesh = TOOLS7.fittingSocket(R.getNode('cadence.render.mesh'), 'out', geo);
+  assert.ok(mesh && mesh.key === 'source' && mesh.rank === 3, `a geometry output lands on the Mesh Renderer's Geometry input: ${JSON.stringify(mesh)}`);
+  assert.equal(TOOLS7.fittingSocket(R.getNode('cadence.render.output'), 'out', geo), null, 'the Effect Output takes render commands, not geometry');
+  const add = R.getNode('cadence.math.add');
+  assert.equal(TOOLS7.fittingSocket(add, 'out', geo), null, 'a generic with numeric kinds does not admit a geometry');
+  const addF = TOOLS7.fittingSocket(add, 'out', 'float');
+  assert.ok(addF && addF.rank === 1, `but admits a float through its generic: ${JSON.stringify(addF)}`);
+  const addField = TOOLS7.fittingSocket(add, 'out', 'field<float>');
+  assert.ok(addField && addField.rank === 1, 'and a field of float, which lifts');
+  // held INPUT: which output of a candidate feeds it
+  const sphereOut = TOOLS7.fittingSocket(R.getNode('cadence.geometry.sphere'), 'in', geo);
+  assert.ok(sphereOut && sphereOut.key === 'out' && sphereOut.rank === 3, `a geometry input is fed by the Sphere's output: ${JSON.stringify(sphereOut)}`);
+  assert.equal(TOOLS7.fittingSocket(R.getNode('cadence.geometry.sphere'), 'in', 'renderCommand'), null);
+  // mode inputs (socket: false) never fit
+  const look = R.getNode('cadence.render.look');
+  const fitLook = TOOLS7.fittingSocket(look, 'out', 'float');
+  assert.ok(fitLook && look.inputs.find((s) => s.key === fitLook.key).socket !== false, 'a mode setting is never offered as a landing socket');
+  // the filter the palette applies: every offered type really accepts the wire
+  const offered = R.currentNodes().filter((n) => TOOLS7.fittingSocket(n, 'out', geo));
+  assert.ok(offered.length > 20 && offered.length < R.currentNodes().length, `a geometry wire is offered ${offered.length} of ${R.currentNodes().length} node types`);
+  for (const n of offered.slice(0, 40)) {
+    const g = G.newGraph('fit');
+    const src = G.newNode(g, 'cadence.geometry.sphere', 0, 0);
+    const dst = G.newNode(g, n.id, 400, 0);
+    const fit = TOOLS7.fittingSocket(n, 'out', geo);
+    const res = G.connect(g, src.id, 'out', dst.id, fit.key);
+    assert.ok(res.ok, `${n.id}.${fit.key} accepts the wire the palette promised: ${res.reason}`);
+  }
+});
+
 // ================================================================
 console.log(`\nPNX: ${passed} passed, ${failed} failed  (${R.nodeCount()} node types registered)`);
 if (failed) {

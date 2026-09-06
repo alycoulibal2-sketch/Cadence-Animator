@@ -26,7 +26,8 @@ import { probeCandidate } from './pnxThumbs.js';
 import * as PGRAPH from '../../renderer/js/pnx/graph.js';
 import * as PGROUPS from '../../renderer/js/pnx/groups.js';
 import * as PLIB from '../../renderer/js/pnx/library.js';
-import { openPnxNodeEditor, closePnxNodeEditor, isPnxEditorOpen, pnxEditorRoot } from './pnxNodeEditor.js';
+import { openPnxNodeEditor, closePnxNodeEditor, isPnxEditorOpen, pnxEditorRoot, editorTest } from './pnxNodeEditor.js';
+import * as TOOLS from '../../renderer/js/pnx/editorTools.js';
 import * as REG from '../../renderer/js/pnx/registry.js';
 import * as SHEET from '../../renderer/js/pnx/sheet.js';
 import * as MENUS from '../../renderer/js/pnx/menus.js';
@@ -149,6 +150,18 @@ export const PNX_HANDLERS = {
     // needlessly drop a running simulation every time a node was dragged.
     ST.mutatePnx((g) => { const n = g.nodes[nodeId]; n.x = x; n.y = y; }, { nodeId: '__layout__' });
     return { ok: true, nodeId, x, y };
+  },
+
+  // A layered left-to-right layout by depth (columns), rows packed without overlap, one scope at a
+  // time — a group's interior is laid out in its own space. Presentation only, so a running simulation
+  // is not disturbed; one undo step.
+  pnx_auto_layout({ scope = null, all = false } = {}) {
+    const g = requirePnx();
+    if (scope && !g.groups[scope]) throw new Error(`"${scope}" is not a group in this graph`);
+    let res = null;
+    ST.mutatePnx((gg) => { res = all ? TOOLS.applyAutoLayoutAll(gg) : TOOLS.applyAutoLayout(gg, scope || PGRAPH.ROOT_SCOPE); }, { nodeId: '__layout__' });
+    const overlaps = all ? [] : TOOLS.overlappingPairs(g, scope || PGRAPH.ROOT_SCOPE);
+    return { ok: overlaps.length === 0, ...res, overlaps };
   },
 
   pnx_set_value({ nodeId, socket, value }) {
@@ -443,6 +456,30 @@ export const PNX_HANDLERS = {
     };
     if (!keepOpen) palette.remove();
     return result;
+  },
+
+  // The editor's keyboard, wire-to-space, minimap and help-panel behaviour, driven through real DOM
+  // events (see editorTest in pnxNodeEditor.js). Test-only.
+  pnx_test_editor({ action = 'state', nodeIds = null, nodeId = null, io = 'out', socket = 'out', keys = null, query = null, clickAt = null } = {}) {
+    requirePnx();
+    if (!isPnxEditorOpen()) openPnxNodeEditor();
+    const t = editorTest();
+    switch (action) {
+      case 'state': return t.state();
+      case 'select': return t.select(nodeIds || (nodeId ? [nodeId] : []));
+      case 'keys': {
+        // keys: ['ArrowRight', 'Tab', { key: 'd', ctrl: true }]
+        let last = t.state();
+        for (const k of keys || []) last = typeof k === 'string' ? t.key(k) : t.key(k.key, { ctrl: !!k.ctrl, shift: !!k.shift });
+        return last;
+      }
+      case 'dragToSpace': return t.dragSocketToSpace(nodeId, io, socket);
+      case 'paletteChoose': return t.paletteChoose(query || '');
+      case 'minimap': return t.minimap({ clickAt });
+      case 'help': return t.help();
+      case 'autoLayout': return t.autoLayout();
+      default: throw new Error(`unknown editor test action "${action}"`);
+    }
   },
 
   // Waits for the modal's fade-out to finish removing it, so the next open starts from a clean DOM.
