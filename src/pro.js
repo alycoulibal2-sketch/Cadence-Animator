@@ -15,7 +15,7 @@
 // Set when the licence service is deployed (services/license/README.md step 4). Empty = Pro is not
 // open yet: the dialog says so and activation is refused with that reason. Can be overridden per
 // machine through settings.json → pro.api (used by tests and by anyone self-hosting the service).
-const DEFAULT_LICENSE_API = '';
+const DEFAULT_LICENSE_API = 'https://cadence-license.onrender.com';
 const REVERIFY_DAYS = 7;
 const OFFLINE_GRACE_DAYS = 30;
 const TIMEOUT_MS = 20000;
