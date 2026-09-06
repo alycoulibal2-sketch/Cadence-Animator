@@ -452,13 +452,17 @@ ask "does Cadence have this effect", but "how do I construct this effect". For 3
   it**, so nothing in the UI claims it works. The general event bus (Send/Receive/Filter/Sequence/Gate)
   is likewise absent; the `event` type is declared `implemented: false`, which mechanically prevents a
   node being registered against it.
-- **Particle interaction is NOT built (Part 27).** Neighbour search, flocking, separation/alignment/
-  cohesion and density estimation all need a spatial acceleration structure. The same structure is what
-  the brute-force queries below want, so it is one piece of work rather than two.
-- **Nearest-point, attribute transfer and raycast are brute force.** They cost O(points) or O(faces)
-  *per sample*, which is fine for hundreds and expensive for tens of thousands sampled per particle.
-  Part 27's spatial acceleration structures are the fix and belong with the particle-interaction work
-  in Phase 5; the nodes declare `performance: 'expensive'` so the profiler and the docs say so now.
+- **Particle interaction IS built (Part 27, 2026-09-06).** `spatial.js` is a uniform hash grid rebuilt per
+  substep from a SNAPSHOT of the state, exposed to every field as `ctx.neighbours(radius, fn)` and
+  `ctx.nearestNeighbour()`. Every particle sees the same pre-step picture whatever its row, so flocking is
+  independent of row order and replays byte-identically (asserted across three routes). `nodes/neighbours.js`
+  adds Flock (boids), Keep Apart, Liquid Pressure (a simplified SPH: kernel density + pressure + viscosity,
+  named as a look rather than a solver), Neighbour Count, Crowding, Nearest Neighbour and Neighbours' Velocity.
+  Any walk over a point table (a renderer colouring by crowding, a scatter) gets the same query lazily
+  (`geometry.js`'s element walker). Nearest Point now uses the grid too.
+- **Attribute transfer and raycast are still brute force** (O(points) or O(faces) per sample). Nearest
+  Point is grid-accelerated since Part 27 landed; the same grid is the obvious accelerator for attribute
+  transfer, and raycast wants a BVH over faces. Both declare `performance: 'expensive'` so the profiler says so.
 - **Volumetric pyro/fluid (Parts 31–33, 35).** Interfaces and data model only. A real grid solver
   plus raymarching is out of reach for this renderer at usable resolutions; it will be marked
   unimplemented in the UI and in the export classification.

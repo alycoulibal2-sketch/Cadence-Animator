@@ -45,6 +45,7 @@
 import * as V from './values.js';
 import * as F from './fields.js';
 import * as GEO from './geometry.js';
+import { SpatialGrid } from './spatial.js';
 
 // The attributes the solver itself reads or writes. Anything else is a user attribute.
 export const CORE_ATTRS = [
@@ -299,6 +300,17 @@ export function stepState(state, spec, dt) {
     if (count) {
       const table = state.table;
       const walker = GEO.makeElementContext(stateAsGeometry(state), 'point', { time: state.time });
+
+      // NEIGHBOURS (Part 27). The walker's default neighbour query reads the live table, which is
+      // being rewritten as this loop runs — a particle late in the row order would see its early
+      // neighbours already moved. So the solver installs its own query over a SNAPSHOT taken here,
+      // after spawning and before any integration: every particle sees the same picture, whatever
+      // its row, which makes flocking independent of row order and therefore replayable. Built
+      // lazily on the first request, so a graph with no neighbour-aware node pays nothing.
+      let grid = null;
+      const gridFor = (radius) => grid || (grid = SpatialGrid.fromTable(table, Math.max(1e-3, Number(radius) || 1)));
+      walker.ctx.neighbours = (radius, fn) => gridFor(radius).query(walker.ctx.position, radius, walker.ctx.index, fn);
+      walker.ctx.nearestNeighbour = (maxRadius) => gridFor(maxRadius).nearest(walker.ctx.position, walker.ctx.index);
       // EVENT SEAM — Part 12 / Part 26's "Spawn On Death" and "Spawn On Collision".
       //
       // Deaths and contacts are collected here as data and handed to `spec.events` if the caller

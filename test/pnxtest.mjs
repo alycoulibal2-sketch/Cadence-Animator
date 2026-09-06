@@ -3345,6 +3345,232 @@ check('Part 75: the two effects that are NOT constructible are the ones the spec
   }
 });
 
+// ================================================================ Part 27: neighbours, flocking, liquid
+const SPATIAL = await import('../renderer/js/pnx/spatial.js');
+
+function scatterTable(n, span = 20) {
+  const table = GEO.newTable(n);
+  GEO.ensureAttr(table, 'position', 3);
+  for (let k = 0; k < n; k++) {
+    GEO.writeAttr(table, 'position', k, [
+      F.randomAt('scatter', 0, k, 1) * span - span / 2,
+      F.randomAt('scatter', 0, k, 2) * span - span / 2,
+      F.randomAt('scatter', 0, k, 3) * span - span / 2,
+    ]);
+  }
+  return table;
+}
+
+check('spatial: a radius query returns exactly what brute force returns', () => {
+  const n = 600, r = 1.7;
+  const table = scatterTable(n);
+  const grid = SPATIAL.SpatialGrid.fromTable(table, r);
+  for (let q = 0; q < 40; q++) {
+    const p = [F.randomAt('q', 0, q, 1) * 20 - 10, F.randomAt('q', 0, q, 2) * 20 - 10, F.randomAt('q', 0, q, 3) * 20 - 10];
+    const expect = [];
+    for (let k = 0; k < n; k++) {
+      const x = GEO.readAttr(table, 'position', k, [0, 0, 0]);
+      const d2 = (x[0] - p[0]) ** 2 + (x[1] - p[1]) ** 2 + (x[2] - p[2]) ** 2;
+      if (d2 <= r * r && k !== q) expect.push(k);
+    }
+    const got = [];
+    grid.query(p, r, q, (row) => got.push(row));
+    assert.deepEqual(got.sort((a, b) => a - b), expect.sort((a, b) => a - b), `query ${q} differs from brute force`);
+  }
+});
+
+check('spatial: nearest matches brute force, including far outside the populated region', () => {
+  const n = 400;
+  const table = scatterTable(n);
+  const grid = SPATIAL.SpatialGrid.fromTable(table, 1.3);
+  const brute = (p) => {
+    let best = Infinity, bi = -1;
+    for (let k = 0; k < n; k++) {
+      const x = GEO.readAttr(table, 'position', k, [0, 0, 0]);
+      const d2 = (x[0] - p[0]) ** 2 + (x[1] - p[1]) ** 2 + (x[2] - p[2]) ** 2;
+      if (d2 < best) { best = d2; bi = k; }
+    }
+    return { row: bi, dist2: best };
+  };
+  for (let q = 0; q < 40; q++) {
+    const p = [F.randomAt('nq', 0, q, 1) * 24 - 12, F.randomAt('nq', 0, q, 2) * 24 - 12, F.randomAt('nq', 0, q, 3) * 24 - 12];
+    const a = grid.nearest(p, -1), b = brute(p);
+    near(a.dist2, b.dist2, 1e-6);
+  }
+  const far = grid.nearest([300, -200, 90], -1), farB = brute([300, -200, 90]);
+  assert.equal(far.row, farB.row, 'a query far outside the set still finds the true nearest');
+});
+
+// A burst of particles born on a sphere (or at a point), with one force wired into the solver.
+function flockGraph(forceType, forceValues, { burst = 60, radius = 4, speed = 0, drag = 0.5, collider = null } = {}) {
+  const g = G.newGraph('flock');
+  const shape = radius > 0
+    ? G.newNode(g, 'cadence.geometry.sphere', 0, 0, { id: 'shape', values: { radius, segments: 12, rings: 8 } })
+    : G.newNode(g, 'cadence.geometry.point', 0, 0, { id: 'shape', values: { position: [0, 0, 0] } });
+  const em = G.newNode(g, 'cadence.particles.emitter', 0, 0, {
+    id: 'em', values: { rate: 0, burstCount: burst, burstTime: 0, lifetime: 100, emitFrom: 'points' },
+  });
+  assert.ok(G.connect(g, shape.id, 'out', em.id, 'shape').ok);
+  if (speed) {
+    const dir = G.newNode(g, 'cadence.random.unitVector', 0, 0, { id: 'dir' });
+    const mul = G.newNode(g, 'cadence.math.multiply', 0, 0, { id: 'mul', values: { b: speed } });
+    assert.ok(G.connect(g, dir.id, 'out', mul.id, 'a').ok);
+    assert.ok(G.connect(g, mul.id, 'out', em.id, 'velocity').ok);
+  }
+  const sim = G.newNode(g, 'cadence.particles.simulate', 0, 0, { id: 'sim', values: { maxParticles: 1000, drag } });
+  assert.ok(G.connect(g, em.id, 'out', sim.id, 'emitter').ok);
+  if (forceType) {
+    const f = G.newNode(g, forceType, 0, 0, { id: 'force', values: forceValues });
+    assert.ok(G.connect(g, f.id, 'out', sim.id, 'force').ok, 'force must connect');
+  }
+  return { g, sim, e: new E.Evaluator(g, { fps: 30 }) };
+}
+const statsOf = (geo) => {
+  const n = GEO.pointCount(geo);
+  let cx = 0, cy = 0, cz = 0, vx = 0, vy = 0, vz = 0;
+  const P = [], Vv = [];
+  for (let k = 0; k < n; k++) {
+    const p = GEO.readAttr(geo.points, 'position', k, [0, 0, 0]), v = GEO.readAttr(geo.points, 'velocity', k, [0, 0, 0]);
+    P.push(p); Vv.push(v); cx += p[0]; cy += p[1]; cz += p[2]; vx += v[0]; vy += v[1]; vz += v[2];
+  }
+  cx /= n; cy /= n; cz /= n; vx /= n; vy /= n; vz /= n;
+  let spread = 0, vspread = 0, minPair = Infinity;
+  for (let k = 0; k < n; k++) {
+    spread += Math.hypot(P[k][0] - cx, P[k][1] - cy, P[k][2] - cz);
+    vspread += Math.hypot(Vv[k][0] - vx, Vv[k][1] - vy, Vv[k][2] - vz);
+    for (let j = k + 1; j < n; j++) minPair = Math.min(minPair, Math.hypot(P[k][0] - P[j][0], P[k][1] - P[j][1], P[k][2] - P[j][2]));
+  }
+  return { n, spread: spread / n, vspread: vspread / n, minPair };
+};
+
+check('flock: cohesion pulls a scattered burst toward its centre', () => {
+  const { sim, e } = flockGraph('cadence.forces.flock', { radius: 30, cohesion: 3, separation: 0, alignment: 0, personalSpace: 0, maxForce: 0 });
+  const early = statsOf(seekTo(e, sim, 1).value);
+  const late = statsOf(seekTo(e, sim, 60).value);
+  assert.equal(early.n, 60);
+  assert.ok(late.spread < early.spread * 0.6, `spread went ${early.spread.toFixed(2)} -> ${late.spread.toFixed(2)}, expected a clear gathering`);
+});
+
+check('flock: alignment makes a random burst fly together', () => {
+  const { sim, e } = flockGraph('cadence.forces.flock', { radius: 30, cohesion: 0, separation: 0, alignment: 4, personalSpace: 0, maxForce: 0 }, { radius: 2, speed: 4, drag: 0 });
+  const early = statsOf(seekTo(e, sim, 1).value);
+  const late = statsOf(seekTo(e, sim, 60).value);
+  assert.ok(early.vspread > 1, 'the burst starts with scattered velocities');
+  assert.ok(late.vspread < early.vspread * 0.3, `velocity spread went ${early.vspread.toFixed(2)} -> ${late.vspread.toFixed(2)}, expected alignment`);
+});
+
+check('keep apart: a burst born at one point spreads out instead of piling up', () => {
+  const with_ = flockGraph('cadence.forces.separation', { radius: 3, strength: 20, softness: 2, maxForce: 60 }, { radius: 0, speed: 0.5, drag: 1 });
+  const without = flockGraph(null, {}, { radius: 0, speed: 0.5, drag: 1 });
+  const a = statsOf(seekTo(with_.e, with_.sim, 45).value);
+  const b = statsOf(seekTo(without.e, without.sim, 45).value);
+  assert.ok(a.minPair > b.minPair * 3, `closest pair ${a.minPair.toFixed(3)} with vs ${b.minPair.toFixed(3)} without`);
+  assert.ok(a.spread > b.spread * 1.5, 'the group as a whole occupies more space');
+});
+
+check('liquid pressure: a crowded burst expands until the crowding drops near the rest density', () => {
+  const { g, sim, e } = flockGraph('cadence.forces.liquid', { radius: 1, restDensity: 2, stiffness: 40, viscosity: 1, maxForce: 200 }, { radius: 0.2, burst: 80, speed: 0, drag: 2 });
+  const early = statsOf(seekTo(e, sim, 1).value);
+  const late = statsOf(seekTo(e, sim, 60).value);
+  assert.ok(late.spread > early.spread * 2, `spread went ${early.spread.toFixed(2)} -> ${late.spread.toFixed(2)}`);
+  // and the density read agrees with the picture: crowding at the end is far below the start
+  const dens = G.newNode(g, 'cadence.particles.density', 0, 0, { values: { radius: 1 } });
+  const field = e.evaluateSocket(dens.id, 'out').value;
+  const geo = seekTo(e, sim, 60).value;
+  const walker = GEO.makeElementContext(geo, 'point');
+  let total = 0;
+  for (let k = 0; k < GEO.pointCount(geo); k++) total += F.sampleAny(field, walker.at(k));
+  const meanCrowding = total / GEO.pointCount(geo);
+  assert.ok(meanCrowding < 6, `mean crowding settled at ${meanCrowding.toFixed(2)}`);
+});
+
+check('flock: scrubbing is still deterministic with neighbour forces in the loop', () => {
+  const snap = (r) => {
+    const rows = [];
+    for (let k = 0; k < GEO.pointCount(r.value); k++) {
+      rows.push([GEO.readAttr(r.value.points, 'id', k), ...GEO.readAttr(r.value.points, 'position', k), ...GEO.readAttr(r.value.points, 'velocity', k)].map((v) => Math.round(v * 1e6) / 1e6));
+    }
+    rows.sort((a, b) => a[0] - b[0]);
+    return JSON.stringify(rows);
+  };
+  const setup = () => flockGraph('cadence.forces.flock', { radius: 6, cohesion: 1, separation: 1.5, alignment: 1, personalSpace: 1, maxForce: 30 }, { radius: 3, speed: 3, drag: 0.2 });
+  const a = setup(); const forwards = snap(seekTo(a.e, a.sim, 41));
+  const b = setup(); seekTo(b.e, b.sim, 80); assert.equal(snap(seekTo(b.e, b.sim, 41)), forwards, 'backwards differs');
+  const c = setup(); for (const f of [7, 55, 3, 70, 41]) seekTo(c.e, c.sim, f); assert.equal(snap(seekTo(c.e, c.sim, 41)), forwards, 'jittery differs');
+});
+
+check('neighbour count and crowding read correctly on a plain point grid', () => {
+  const g = G.newGraph('grid');
+  const grid = G.newNode(g, 'cadence.geometry.pointGrid', 0, 0, { values: { size: [2, 2, 0], countX: 3, countY: 3, countZ: 1, center: [0, 0, 0] } });
+  const count = G.newNode(g, 'cadence.particles.neighbourCount', 0, 0, { values: { radius: 1.1 } });
+  const crowd = G.newNode(g, 'cadence.particles.density', 0, 0, { values: { radius: 1.1 } });
+  const e = new E.Evaluator(g, { fps: 30 });
+  const geo = e.evaluateSocket(grid.id, 'out').value;
+  assert.equal(GEO.pointCount(geo), 9);
+  const countField = e.evaluateSocket(count.id, 'out').value;
+  const crowdField = e.evaluateSocket(crowd.id, 'out').value;
+  const walker = GEO.makeElementContext(geo, 'point');
+  const byPos = {};
+  for (let k = 0; k < 9; k++) {
+    const p = GEO.readAttr(geo.points, 'position', k, [0, 0, 0]);
+    byPos[`${Math.round(p[0])},${Math.round(p[1])}`] = { count: F.sampleAny(countField, walker.at(k)), crowd: F.sampleAny(crowdField, walker.at(k)) };
+  }
+  assert.equal(byPos['0,0'].count, 4, 'the centre has four neighbours within 1.1');
+  assert.equal(byPos['1,1'].count, 2, 'a corner has two');
+  assert.equal(byPos['1,0'].count, 3, 'an edge has three');
+  assert.ok(byPos['0,0'].crowd > byPos['1,1'].crowd, 'crowding is higher at the centre');
+  assert.ok(byPos['1,1'].crowd > 1, 'a corner is more crowded than an isolated point');
+  // an isolated single point reads exactly 1
+  const one = G.newNode(g, 'cadence.geometry.point', 0, 0, { values: { position: [50, 50, 50] } });
+  const oneGeo = e.evaluateSocket(one.id, 'out').value;
+  near(F.sampleAny(crowdField, GEO.makeElementContext(oneGeo, 'point').at(0)), 1, 1e-9);
+  // sampled with no neighbourhood at all, the reads stay quiet
+  assert.equal(F.sampleAny(countField, F.newSampleContext({ position: [0, 0, 0] })), 0);
+});
+
+check('nearest neighbour: distance and direction point at the closest other point', () => {
+  const g = G.newGraph('nn');
+  const grid = G.newNode(g, 'cadence.geometry.pointGrid', 0, 0, { values: { size: [4, 0, 0], countX: 3, countY: 1, countZ: 1, center: [0, 0, 0] } });
+  const nn = G.newNode(g, 'cadence.particles.nearestNeighbour', 0, 0, { values: { searchRadius: 10 } });
+  const e = new E.Evaluator(g, { fps: 30 });
+  const geo = e.evaluateSocket(grid.id, 'out').value;   // points at x = -2, 0, 2
+  const dist = e.evaluateSocket(nn.id, 'distance').value, dir = e.evaluateSocket(nn.id, 'direction').value;
+  const walker = GEO.makeElementContext(geo, 'point');
+  for (let k = 0; k < 3; k++) {
+    const p = GEO.readAttr(geo.points, 'position', k, [0, 0, 0]);
+    near(F.sampleAny(dist, walker.at(k)), 2, 1e-5);
+    const d = F.sampleAny(dir, walker.at(k));
+    if (p[0] < -1) nearArr(d, [1, 0, 0], 1e-5);
+    if (p[0] > 1) nearArr(d, [-1, 0, 0], 1e-5);
+  }
+});
+
+check('nearest point: the grid-accelerated lookup agrees with brute force on a large scatter', () => {
+  const g = G.newGraph('np');
+  const sdf = G.newNode(g, 'cadence.sdf.sphere', 0, 0, { values: { center: [0, 0, 0], radius: 5 } });
+  const pts = G.newNode(g, 'cadence.sample.pointsInVolume', 0, 0, { values: { count: 900, boundsCenter: [0, 0, 0], boundsSize: [10, 10, 10] } });
+  assert.ok(G.connect(g, sdf.id, 'out', pts.id, 'shape').ok);
+  const np = G.newNode(g, 'cadence.sample.nearestPoint', 0, 0, {});
+  assert.ok(G.connect(g, pts.id, 'out', np.id, 'geometry').ok);
+  const e = new E.Evaluator(g, { fps: 30 });
+  const geo = e.evaluateSocket(pts.id, 'out').value;
+  assert.ok(GEO.pointCount(geo) > 200, 'the scatter must be large enough to use the grid');
+  const distF = e.evaluateSocket(np.id, 'distance').value, idxF = e.evaluateSocket(np.id, 'index').value;
+  for (let q = 0; q < 30; q++) {
+    const p = [F.randomAt('npq', 0, q, 1) * 16 - 8, F.randomAt('npq', 0, q, 2) * 16 - 8, F.randomAt('npq', 0, q, 3) * 16 - 8];
+    let best = Infinity;
+    for (let k = 0; k < GEO.pointCount(geo); k++) {
+      const x = GEO.readAttr(geo.points, 'position', k, [0, 0, 0]);
+      best = Math.min(best, Math.hypot(x[0] - p[0], x[1] - p[1], x[2] - p[2]));
+    }
+    const ctx = F.newSampleContext({ position: p });
+    near(F.sampleAny(distF, ctx), best, 1e-4);
+    const k = F.sampleAny(idxF, ctx);
+    const x = GEO.readAttr(geo.points, 'position', k, [0, 0, 0]);
+    near(Math.hypot(x[0] - p[0], x[1] - p[1], x[2] - p[2]), best, 1e-4);
+  }
+});
+
 // ================================================================
 console.log(`\nPNX: ${passed} passed, ${failed} failed  (${R.nodeCount()} node types registered)`);
 if (failed) {

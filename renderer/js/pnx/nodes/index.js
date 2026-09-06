@@ -35,6 +35,8 @@ import './sampling.js';
 
 // --- Phase 5: particles, forces, the staged solver, collisions
 import './particles.js';
+// Part 27: neighbour-aware forces and reads (flocking, separation, liquid pressure, crowding)
+import './neighbours.js';
 
 // --- Phase 6: materials, renderers, lights, trails/ribbons/beams
 import './render.js';

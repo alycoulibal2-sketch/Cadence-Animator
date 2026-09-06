@@ -19,6 +19,7 @@
 import * as V from '../values.js';
 import * as F from '../fields.js';
 import * as GEO from '../geometry.js';
+import { SpatialGrid, cellSizeFor } from '../spatial.js';
 import { node, n, i as intIn, b as boolIn, v3, out, mode } from './_helpers.js';
 
 const C = 'Geometry';
@@ -223,9 +224,9 @@ node({
   id: 'cadence.sample.nearestPoint', label: 'Nearest Point', category: C, subcategory: 'Query',
   aliases: ['closest point', 'find nearest', 'snap to points', 'proximity', 'distance to points'],
   summary: 'Finds the closest point of a geometry to wherever you are.',
-  explain: 'A brute-force search, so it costs the point count per lookup — fine for hundreds of points, expensive for tens of thousands sampled per particle. It is the primitive behind proximity effects: fading by distance to a set of markers, or attracting particles to the nearest of several targets.',
+  explain: 'Backed by a spatial grid built once per evaluation, so a lookup costs the few cells around you rather than the whole point set — tens of thousands of points sampled per particle is fine. It is the primitive behind proximity effects: fading by distance to a set of markers, or attracting particles to the nearest of several targets.',
   commonUses: ['attracting particles to their nearest target', 'fading by distance to a set of markers'],
-  exportSupport: 'baked', performance: 'expensive',
+  exportSupport: 'baked', performance: 'moderate',
   inputs: [geoIn('geometry', 'Points')],
   outputs: [
     { key: 'position', label: 'Position', type: 'field<vector3>', unit: 'studs' },
@@ -236,18 +237,26 @@ node({
     const src = i.geometry;
     const count = GEO.pointCount(src);
     const pos = count ? src.points.attrs.position : null;
+    // The grid is built once here, at graph time, and shared by every sample. Below a few dozen
+    // points the scan is cheaper than the hashing, so small sets keep the direct loop.
+    const grid = count > 48 ? SpatialGrid.fromGeometry(src, cellSizeFor(src)) : null;
     // Compute once per sample and share across the three outputs, so asking for position AND distance
     // does not double the search cost.
     const find = (ctx) => {
       if (!count) return { position: [0, 0, 0], distance: 0, index: -1 };
       const p = ctx.position || [0, 0, 0];
       let best = Infinity, bi = 0;
-      for (let k = 0; k < count; k++) {
-        const dx = pos.data[k * 3] - (p[0] || 0);
-        const dy = pos.data[k * 3 + 1] - (p[1] || 0);
-        const dz = pos.data[k * 3 + 2] - (p[2] || 0);
-        const d = dx * dx + dy * dy + dz * dz;
-        if (d < best) { best = d; bi = k; }
+      if (grid) {
+        const r = grid.nearest(p, -1);
+        best = r.dist2; bi = Math.max(0, r.row);
+      } else {
+        for (let k = 0; k < count; k++) {
+          const dx = pos.data[k * 3] - (p[0] || 0);
+          const dy = pos.data[k * 3 + 1] - (p[1] || 0);
+          const dz = pos.data[k * 3 + 2] - (p[2] || 0);
+          const d = dx * dx + dy * dy + dz * dz;
+          if (d < best) { best = d; bi = k; }
+        }
       }
       return {
         position: [pos.data[bi * 3], pos.data[bi * 3 + 1], pos.data[bi * 3 + 2]],
