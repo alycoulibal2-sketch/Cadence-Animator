@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Changelog — Cadence Animator</title>
+<meta name="description" content="What changed in Cadence Animator, straight from the repository: the last 60 commits, each linked to its diff on GitHub.">
+<meta name="theme-color" content="#0a0a0e">
+<link rel="canonical" href="https://alycoulibal2-sketch.github.io/Cadence-Animator/changelog.html">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Changelog — Cadence Animator">
+<meta property="og:description" content="The last 60 commits, generated from git log.">
+<meta property="og:url" content="https://alycoulibal2-sketch.github.io/Cadence-Animator/changelog.html">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<script>(function(){try{var t=localStorage.getItem('cadence-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t)}}catch(e){}document.documentElement.className+=' js'})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:opsz,wght@14..32,400..700&display=swap">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<header class="nav" id="nav">
+  <div class="shell nav-inner">
+    <a class="brand" href="./" aria-label="Cadence Animator — home">
+      <svg viewBox="0 0 28 24" width="26" height="22" fill="none" aria-hidden="true" focusable="false">
+        <path d="M4.6 17.8C9.4 17.8 11.2 6.2 16 6.2C19.3 6.2 21 10.5 23.4 12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+        <path d="M4.6 15L7.4 17.8L4.6 20.6L1.8 17.8Z" fill="currentColor"/>
+        <path d="M16 3.4L18.8 6.2L16 9L13.2 6.2Z" fill="currentColor"/>
+      </svg>
+      Cadence <span class="brand-sub">Animator</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html#animate">Animate</a></li>
+        <li><a href="index.html#vfx">VFX</a></li>
+        <li><a href="index.html#studio">Studio + Claude</a></li>
+        <li><a href="index.html#pricing">Pricing</a></li>
+        <li><a href="safety.html">Safety</a></li>
+        <li><a href="docs.html">Docs</a></li>
+      </ul>
+    </nav>
+    <div class="nav-actions">
+      <button class="nav-search" id="cmdkOpen" type="button" aria-label="Search the site (Control K)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span aria-hidden="true">Search</span>
+        <kbd aria-hidden="true">Ctrl K</kbd>
+      </button>
+      <button class="icon-btn theme-toggle" id="themeToggle" type="button" aria-label="Switch theme">
+        <svg class="sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+      </button>
+      <a class="btn btn-primary btn-sm" href="index.html#download">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 20h16"/></svg>
+        <span>Download</span>
+      </a>
+      <button class="icon-btn nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <div class="shell shell-narrow">
+    <div class="page-hero">
+      <p class="eyebrow">Changelog</p>
+      <h1>What changed, straight from the repository.</h1>
+      <p class="lede">
+        The last <span data-changelog-count>60</span> commits, generated from
+        <code>git log</code> by <code>site/tools/gen-changelog.js</code> &mdash; nothing here was written
+        for the website. Each line links to its diff. The current release is
+        <a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases">v<span data-version>0.10.0</span></a>.
+      </p>
+      <p class="small muted">Generated 2026-09-06 at commit <a class="mono" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/e02eb63015049245b25524fede154fdf70887880">e02eb63</a>. <a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commits/main">The full history is on GitHub.</a></p>
+    </div>
+
+    <!-- CHANGELOG:BEGIN — generated by site/tools/gen-changelog.js, do not hand-edit -->
+    <ul class="log">
+      <li class="log-day">
+        <h2>31 July 2026</h2>
+        <ul>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/e02eb63015049245b25524fede154fdf70887880">e02eb63</a><span>Site: sync to the 0.10.0 release</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/f97c59144a61c448d9c721bad82e4aa722f0d079">f97c591</a><span>0.10.0 — a minor bump, because the node editor is a feature <span class="pill pill-release">release</span></span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/13d939c240b4352e4f58d2b9640d111665f3bc3a">13d939c</a><span>Expose the procedural engine to human users: a real node editor</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/7fc016fe8f2c06ec55bbc132ef4a352c1b1adce0">7fc016f</a><span>Hold the CNAME until js.org merges, so the site stays reachable</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/9b98ca9e697686fcf7c5126fed401293af038267">9b98ca9</a><span>Make the site a public product site, not a project workspace</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/c61e4d4d4330a4937d67d00d60af59aa98621327">c61e4d4</a><span>Don't offer a node graph button that argues with you</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/a480a442b4423ee396bd49690caa056395a97478">a480a44</a><span>Site: document the procedural engine, and re-count what went stale</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/ee1a7861fae59c5fa3d4c4c65aa46479b52d7a20">ee1a786</a><span>Bump version to 0.9.0 <span class="pill pill-release">release</span></span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/52851cd31f030d409bc6427a859f3141c72c35f8">52851cd</a><span>Wait for the clothing composite instead of guessing how long it takes</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/863c8a7b60b7e98a40f53e43f12c588cebd0e25e">863c8a7</a><span>Merge the PNX procedural VFX engine</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/b897151eacaadad3e40eb1ad58ef3b19583b319f">b897151</a><span>Stop paying for the same texture bytes over and over</span></li>
+        </ul>
+      </li>
+      <li class="log-day">
+        <h2>30 July 2026</h2>
+        <ul>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/4332f9e28ce54e0470dabf0a6e04a3c0291a8d5e">4332f9e</a><span>Keep Part 75's stress test as a standing check</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/6e9373bbd2243b82101743ef403eef0be7b434af">6e9373b</a><span>Add PNX node groups, the recipe library, and volume grids: phases 8 and 11</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/e85ffba8595d490b0a68687abd35e15c780a9b39">e85ffba</a><span>Add PNX textures and texture compositing: phase 7</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/4fc3f4b2bd07de1d7d566cb55172c132ba00e3b7">4fc3f4b</a><span>Add the PNX Roblox exporter and baking system: phase 9</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/a588d086edd0aeb34d0ebb133115ef770b177d5d">a588d08</a><span>Wire PNX into the studio, and add phases 6 and 10</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/a0d52708240a7abd2ef80d4f8130358f69737099">a0d5270</a><span>Add the PNX particle solver: phase 5</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/093c02df8ccee058577192d92c516812a6ee9f8f">093c02d</a><span>Add the PNX procedural node engine: phases 1-4</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/0677564054cc2ec8b577a71dcc59636613c3ad53">0677564</a><span>Site: stack label/value rows on phones, add robots.txt and sitemap.xml</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/01ab4ea2ac0e86188276e3aee76b43ceeaff51b2">01ab4ea</a><span>Make updating the website a numbered step of cutting a release</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/ae7ae0664bc8e6fd1e46eefaa9ecb1ea5ac2a150">ae7ae06</a><span>Keep the site readable with JavaScript disabled</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/30c5ac8d9983b951781097cc37a36ddf8cce831a">30c5ac8</a><span>Add the Cadence Animator website</span></li>
+        </ul>
+      </li>
+      <li class="log-day">
+        <h2>29 July 2026</h2>
+        <ul>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/5fdfe0d7ed1f90d81bfe4d48b3b2a65bda6dfa01">5fdfe0d</a><span>Bump version to 0.8.0 <span class="pill pill-release">release</span></span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/7a5acc79406447fdb35d130ca6c887e0870ba1a9">7a5acc7</a><span>Lay part markers in the part's own face, and require clicking the part</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/90afd594ab7ca929e20ad0032eecedaf1fa4e7ae">90afd59</a><span>Show a Moon-style marker on every part, so what is selectable is visible</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/660792ef01f77e50e000c40e2aafc53aae9d51fd">660792e</a><span>Filter avatar textures the way Roblox does, and supersample the composite</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/eafb4ad2c6b1faef077242e938905d5ccd7e30ed">eafb4ad</a><span>Composite R15 clothing with Roblox's own group meshes</span></li>
+        </ul>
+      </li>
+      <li class="log-day">
+        <h2>28 July 2026</h2>
+        <ul>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/37c4307f49fc6c550f06959012f60af52a1b54a5">37c4307</a><span>Render and import Roblox rigs exactly, measured against Studio</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/da855c70e17d720eb4c92e3d67d5a4165ce8230f">da855c7</a><span>Fix Roblox asset parsing and read Roblox's own local content</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/65e74e1aa1ef1641a356ad482a62e20eff8954ef">65e74e1</a><span>Port Moon's colour picker for Color3 property tracks</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/a1f0ea642023068b3bf270411575d4a6ada9f808">a1f0ea6</a><span>Add screen effects, the welder and bulk keyframe editing; document the parity work</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/ffe3ea9c4e9fb23f191e2a4e4ad2dfcbc4c41db7">ffe3ea9</a><span>Animate arbitrary Roblox instance properties and one-shot actions</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/70b66675802a63c2d38c39667df79c96a9f1a7d4">70b6667</a><span>Add Moon's play range, wiggle fill and frame offset</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/c9f9c7c99b71fec293ea3f3dc16b958d1f42a92a">c9f9c7c</a><span>Port Moon Animator 2's easing engine and event markers</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/75222f14b4d32178a3ad6ef9833b7e0651e0aada">75222f1</a><span>Bump version to 0.7.0 <span class="pill pill-release">release</span></span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/d8fa13abfe210de708718513f50c37239e802771">d8fa13a</a><span>Add a set_view MCP tool to aim the viewport camera</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/b45aebf9e36e3cf441f3d1ab7b40a110df8f4f9a">b45aebf</a><span>Keep embedded meshes out of undo snapshots</span></li>
+        </ul>
+      </li>
+      <li class="log-day">
+        <h2>22 July 2026</h2>
+        <ul>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/8a20ed0590f994181c8618e8319741d9d7b46c72">8a20ed0</a><span>Redesign the UI: SVG icon system, simplified navigation, fluid motion</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/5b86e73b2de3fceaf99b59c09f7b17ed602546b7">5b86e73</a><span>Register rigging/world-space MCP tools, add IK twist control and hinge-axis validation</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/38ade79a77732fb68cf722d51a71de83458987fb">38ade79</a><span>Swap timeline/inspector name display: timeline shows part, inspector leads with joint</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/f890a48185c74ac02757a51f8dd27e4736b32fdc">f890a48</a><span>Bump version to 0.6.9 <span class="pill pill-release">release</span></span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/1e5c36fe322f85983125117d9fd8fab27df76e14">1e5c36f</a><span>Anatomical rotation pivots, whole-limb selection boxes, keyframe eval cache, readable rig names</span></li>
+        </ul>
+      </li>
+      <li class="log-day">
+        <h2>21 July 2026</h2>
+        <ul>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/7f364cc7deb5fdc264ba82d1c55131306e18b5d0">7f364cc</a><span>Add a persistent titlebar button to reopen the node graph after closing it</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/006cf1473d64d767aeb1c22864382358a81794dc">006cf14</a><span>Make the node editor canvas smooth: batch pointer motion, drag via transform not left/top</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/71abd05a0c65b65e50bbbf0e7b5cc50c89797821">71abd05</a><span>Fix window not opening / zombie background process after close</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/74c3cb0b08eaf1a484ce4c9ae703c8bd2c54a4ff">74c3cb0</a><span>docs: add Node Editor architecture section to vfx-studio.md</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/e542b8a649445d848ced66ff7757107ab01706fd">e542b8a</a><span>Node-graph VFX editor: canvas UI + entry point (v1 foundation complete)</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/e544ff4dffc6f9060d31511bbb1019562d1015df">e544ff4</a><span>Node-graph VFX editor foundation: data model, v1 node catalog, compiler</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/7380882ab045802128310a784413cc9f9ceb47bf">7380882</a><span>Remove SKETCH IT entirely — Cadence pivots to a node-based VFX editor</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/050fa3898161229486512ada6f177593a89cbccb">050fa38</a><span>SKETCH IT 2.0 correction: replace archetype pick/combine with a from-scratch primitive composer</span></li>
+        </ul>
+      </li>
+      <li class="log-day">
+        <h2>20 July 2026</h2>
+        <ul>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/da813d9cd84dc6b4acc08132e3230e38c518395e">da813d9</a><span>SKETCH IT 2.0 Phase 7: hardening, full regression, docs</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/7044faa6c4f70e4d0ddd467ea541ad8a64b619c6">7044faa</a><span>SKETCH IT 2.0 Phase 6: Motion layer (arrows -&gt; motionField -&gt; interpretMotion)</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/695332f837177a00971d13ec67a51ceea22e68f3">695332f</a><span>SKETCH IT 2.0 Phase 5: Density layer (paint -&gt; densityField -&gt; interpretDensity)</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/bdf30618590e0b7c85470d8609687df0b4a52b8d">bdf3061</a><span>SKETCH IT 2.0 Phase 4: Color layer (paint -&gt; colorField -&gt; interpretColor -&gt; colorRamp)</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/1529980a25ee6a9490c49a144765557d384e123f">1529980</a><span>SKETCH IT 2.0 Phase 3: archetype combination (combineArchetypeDocs + combo slots)</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/360ec9e5c2e597cdd9b4b902e72175ff524914a2">360ec9e</a><span>SKETCH IT 2.0 Phase 2: Energy layer + intent plumbing (sketchIntent.js)</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/63656d6125a139e25d1207c9941b7c6a3793ba35">63656d6</a><span>SKETCH IT 2.0 Phase 1: Composition Planner rename/widen + shape-tool palette + Free Sketch cleanup</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/4fe8149b1bf0f182b91ac37e130ee61d76731d2a">4fe8149</a><span>SKETCH IT 2.0 Phase 0: colorRamp/densityRamp engine primitives + sketchOrigin passthrough</span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/a39cc415ee0afda3424ca1f7c48aaed31d657bf4">a39cc41</a><span>Bump version to 0.6.8 <span class="pill pill-release">release</span></span></li>
+          <li><a class="sha" href="https://github.com/alycoulibal2-sketch/Cadence-Animator/commit/d5f74e9bfe028cd805507dc6498f817b2a6ed42d">d5f74e9</a><span>Fix camera shake compounding forever instead of settling per-frame</span></li>
+        </ul>
+      </li>
+    </ul>
+    <!-- CHANGELOG:END -->
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="shell">
+    <div class="footer-grid">
+      <div class="footer-about">
+        <a class="brand" href="./" style="margin-right:0">
+          <svg viewBox="0 0 28 24" width="26" height="22" fill="none" aria-hidden="true" focusable="false">
+            <path d="M4.6 17.8C9.4 17.8 11.2 6.2 16 6.2C19.3 6.2 21 10.5 23.4 12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            <path d="M4.6 15L7.4 17.8L4.6 20.6L1.8 17.8Z" fill="currentColor"/>
+            <path d="M16 3.4L18.8 6.2L16 9L13.2 6.2Z" fill="currentColor"/>
+          </svg>
+          Cadence <span class="brand-sub">Animator</span>
+        </a>
+        <p>A free, open-source Roblox animation suite for Windows. Built in the open; nothing leaves your PC.</p>
+      </div>
+      <div>
+        <p class="footer-label">Product</p>
+        <ul>
+          <li><a href="index.html#animate">Animate</a></li>
+          <li><a href="index.html#vfx">VFX Studio</a></li>
+          <li><a href="index.html#studio">Roblox Studio + Claude</a></li>
+          <li><a href="index.html#compare">Compared to Moon</a></li>
+          <li><a href="index.html#pricing">Pricing</a></li>
+          <li><a href="index.html#roadmap">Roadmap</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="footer-label">Docs</p>
+        <ul>
+          <li><a href="docs.html#install">Install</a></li>
+          <li><a href="docs.html#studio-setup">Connect Studio</a></li>
+          <li><a href="docs.html#first-animation">First animation</a></li>
+          <li><a href="docs.html#shortcuts">Shortcuts</a></li>
+          <li><a href="docs.html#pro">Pro and your key</a></li>
+          <li><a href="docs.html#troubleshooting">Troubleshooting</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="footer-label">Trust</p>
+        <ul>
+          <li><a href="safety.html">Is it safe?</a></li>
+          <li><a href="safety.html#verify">Verify a download</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+          <li><a href="changelog.html" aria-current="page">Changelog</a></li>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator">Source code</a></li>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/issues">Report a concern</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="footer-label">Account</p>
+        <ul>
+          <li><a href="account.html">Your licence key</a></li>
+          <li><a href="index.html#download">Download</a></li>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases">All releases</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-base">
+      <span>Cadence Animator <span data-version>0.10.0</span> &middot; MIT licence</span>
+      <span>Not affiliated with Roblox Corporation or Moon Animator.</span>
+    </div>
+  </div>
+</footer>
+
+<div class="cmdk" id="cmdk" role="dialog" aria-modal="true" aria-label="Jump to a section">
+  <div class="cmdk-box">
+    <div class="cmdk-input">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
+      <input id="cmdkInput" type="text" placeholder="Jump to anything…" autocomplete="off" spellcheck="false" aria-label="Search sections and documentation">
+    </div>
+    <ul class="cmdk-results" id="cmdkResults"></ul>
+    <div class="cmdk-foot">
+      <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> navigate</span>
+      <span><kbd>&crarr;</kbd> open</span>
+      <span><kbd>Esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/site.js" defer></script>
+</body>
+</html>

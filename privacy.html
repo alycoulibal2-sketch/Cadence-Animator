@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy — Cadence Animator</title>
+<meta name="description" content="Cadence Animator's privacy policy in ten plain lines: no telemetry, no account, no analytics. A Pro purchase records an email and a licence key at Stripe, and nothing else.">
+<meta name="theme-color" content="#0a0a0e">
+<link rel="canonical" href="https://alycoulibal2-sketch.github.io/Cadence-Animator/privacy.html">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Privacy — Cadence Animator">
+<meta property="og:description" content="Ten plain lines. No telemetry, no account, no analytics.">
+<meta property="og:url" content="https://alycoulibal2-sketch.github.io/Cadence-Animator/privacy.html">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<script>(function(){try{var t=localStorage.getItem('cadence-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t)}}catch(e){}document.documentElement.className+=' js'})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:opsz,wght@14..32,400..700&display=swap">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="progress" id="progress" aria-hidden="true"></div>
+
+<header class="nav" id="nav">
+  <div class="shell nav-inner">
+    <a class="brand" href="./" aria-label="Cadence Animator — home">
+      <svg viewBox="0 0 28 24" width="26" height="22" fill="none" aria-hidden="true" focusable="false">
+        <path d="M4.6 17.8C9.4 17.8 11.2 6.2 16 6.2C19.3 6.2 21 10.5 23.4 12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+        <path d="M4.6 15L7.4 17.8L4.6 20.6L1.8 17.8Z" fill="currentColor"/>
+        <path d="M16 3.4L18.8 6.2L16 9L13.2 6.2Z" fill="currentColor"/>
+      </svg>
+      Cadence <span class="brand-sub">Animator</span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html#animate">Animate</a></li>
+        <li><a href="index.html#vfx">VFX</a></li>
+        <li><a href="index.html#studio">Studio + Claude</a></li>
+        <li><a href="index.html#pricing">Pricing</a></li>
+        <li><a href="safety.html">Safety</a></li>
+        <li><a href="docs.html">Docs</a></li>
+      </ul>
+    </nav>
+    <div class="nav-actions">
+      <button class="nav-search" id="cmdkOpen" type="button" aria-label="Search the site (Control K)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span aria-hidden="true">Search</span>
+        <kbd aria-hidden="true">Ctrl K</kbd>
+      </button>
+      <button class="icon-btn theme-toggle" id="themeToggle" type="button" aria-label="Switch theme">
+        <svg class="sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+      </button>
+      <a class="btn btn-primary btn-sm" href="index.html#download">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 20h16"/></svg>
+        <span>Download</span>
+      </a>
+      <button class="icon-btn nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <div class="shell shell-narrow">
+    <div class="page-hero">
+      <p class="eyebrow">Privacy</p>
+      <h1>Ten lines. That is the whole policy.</h1>
+      <p class="lede">Cadence is a desktop app that keeps your work on your PC. There is very little to say about your data, because there is very little of it.</p>
+    </div>
+
+    <ol class="lines">
+      <li>The app has no account, no sign-in and no telemetry. It never sends usage data, crash reports or identifiers anywhere.</li>
+      <li>This website has no analytics, no cookies and no trackers. It loads one webfont from Google Fonts and asks the GitHub API for public numbers; nothing about you is sent to either.</li>
+      <li>Your projects, autosaves, settings and a debug log live under <code>%APPDATA%\Cadence Animator</code> on your own machine, and nowhere else.</li>
+      <li>When you load a rig, the app fetches meshes and textures from Roblox&rsquo;s asset servers, and looks a username up on <code>users.roblox.com</code> only when you type one. Roblox sees those requests, as it would from Studio.</li>
+      <li>The installed build asks GitHub for the release list to notice updates. GitHub sees a request for a public page. Nothing downloads or installs without your click.</li>
+      <li>The phone companion is off by default. When you turn it on, a temporary Cloudflare tunnel carries your own viewport to your own phone, gated by a token; it ends when the app closes.</li>
+      <li>If you buy Pro, Stripe records the email you enter and the payment, as any card payment does. Our licence server keeps that email and the key it issued so the key can be verified. That is the complete list.</li>
+      <li>We never see or store your card details; Stripe handles the payment. We do not send marketing email. A receipt and your key are the only messages a purchase produces.</li>
+      <li>To delete your licence record, write from the purchase email and it is removed; the key stops verifying at the same time. Refunds are 14 days, no questions.</li>
+      <li>The source code is public, so every statement above can be checked against it. If you find it says otherwise, <a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/issues">open an issue</a> and it gets fixed in the open.</li>
+    </ol>
+
+    <p class="small muted" style="margin-top:22px">Last reviewed with Cadence <span data-version>0.10.0</span>. The <a href="safety.html">safety page</a> links each network and file claim to its source line.</p>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="shell">
+    <div class="footer-grid">
+      <div class="footer-about">
+        <a class="brand" href="./" style="margin-right:0">
+          <svg viewBox="0 0 28 24" width="26" height="22" fill="none" aria-hidden="true" focusable="false">
+            <path d="M4.6 17.8C9.4 17.8 11.2 6.2 16 6.2C19.3 6.2 21 10.5 23.4 12" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+            <path d="M4.6 15L7.4 17.8L4.6 20.6L1.8 17.8Z" fill="currentColor"/>
+            <path d="M16 3.4L18.8 6.2L16 9L13.2 6.2Z" fill="currentColor"/>
+          </svg>
+          Cadence <span class="brand-sub">Animator</span>
+        </a>
+        <p>A free, open-source Roblox animation suite for Windows. Built in the open; nothing leaves your PC.</p>
+      </div>
+      <div>
+        <p class="footer-label">Product</p>
+        <ul>
+          <li><a href="index.html#animate">Animate</a></li>
+          <li><a href="index.html#vfx">VFX Studio</a></li>
+          <li><a href="index.html#studio">Roblox Studio + Claude</a></li>
+          <li><a href="index.html#compare">Compared to Moon</a></li>
+          <li><a href="index.html#pricing">Pricing</a></li>
+          <li><a href="index.html#roadmap">Roadmap</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="footer-label">Docs</p>
+        <ul>
+          <li><a href="docs.html#install">Install</a></li>
+          <li><a href="docs.html#studio-setup">Connect Studio</a></li>
+          <li><a href="docs.html#first-animation">First animation</a></li>
+          <li><a href="docs.html#shortcuts">Shortcuts</a></li>
+          <li><a href="docs.html#pro">Pro and your key</a></li>
+          <li><a href="docs.html#troubleshooting">Troubleshooting</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="footer-label">Trust</p>
+        <ul>
+          <li><a href="safety.html">Is it safe?</a></li>
+          <li><a href="safety.html#verify">Verify a download</a></li>
+          <li><a href="privacy.html" aria-current="page">Privacy</a></li>
+          <li><a href="changelog.html">Changelog</a></li>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator">Source code</a></li>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/issues">Report a concern</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="footer-label">Account</p>
+        <ul>
+          <li><a href="account.html">Your licence key</a></li>
+          <li><a href="index.html#download">Download</a></li>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases">All releases</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-base">
+      <span>Cadence Animator <span data-version>0.10.0</span> &middot; MIT licence</span>
+      <span>Not affiliated with Roblox Corporation or Moon Animator.</span>
+    </div>
+  </div>
+</footer>
+
+<div class="cmdk" id="cmdk" role="dialog" aria-modal="true" aria-label="Jump to a section">
+  <div class="cmdk-box">
+    <div class="cmdk-input">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
+      <input id="cmdkInput" type="text" placeholder="Jump to anything…" autocomplete="off" spellcheck="false" aria-label="Search sections and documentation">
+    </div>
+    <ul class="cmdk-results" id="cmdkResults"></ul>
+    <div class="cmdk-foot">
+      <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> navigate</span>
+      <span><kbd>&crarr;</kbd> open</span>
+      <span><kbd>Esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/site.js" defer></script>
+</body>
+</html>
