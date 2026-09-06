@@ -31,7 +31,7 @@ function clampLength(v, max) {
 
 // ---------------------------------------------------------------- Flock
 node({
-  id: 'cadence.forces.flock', label: 'Flock', category: FORCES, subcategory: 'Flocking',
+  id: 'cadence.forces.flock', pro: true, label: 'Flock', category: FORCES, subcategory: 'Flocking',
   aliases: ['boids', 'birds', 'school of fish', 'swarm', 'herd', 'crowd', 'flocking', 'follow each other', 'bees'],
   summary: 'Makes particles move like a flock: they keep apart, match speed with their neighbours, and stay together.',
   teach: 'Three rules make a flock: do not crowd your neighbours, fly the way they fly, and stay near the group.',
@@ -77,7 +77,7 @@ node({
 
 // ---------------------------------------------------------------- Keep Apart
 node({
-  id: 'cadence.forces.separation', label: 'Keep Apart', category: FORCES, subcategory: 'Flocking',
+  id: 'cadence.forces.separation', pro: true, label: 'Keep Apart', category: FORCES, subcategory: 'Flocking',
   aliases: ['separation', 'repel each other', 'spread out', 'personal space', 'avoid overlap', 'no overlap', 'push apart'],
   summary: 'Pushes particles away from each other so they do not pile up.',
   teach: 'Every particle pushes its neighbours away. Useful when they all get born in one spot.',
@@ -120,7 +120,7 @@ node({
 const poly6 = (d2, h2, h9) => (d2 >= h2 ? 0 : (315 / (64 * Math.PI * h9)) * Math.pow(h2 - d2, 3));
 
 node({
-  id: 'cadence.forces.liquid', label: 'Liquid Pressure', category: FORCES, subcategory: 'Flocking',
+  id: 'cadence.forces.liquid', pro: true, label: 'Liquid Pressure', category: FORCES, subcategory: 'Flocking',
   aliases: ['sph', 'fluid particles', 'water', 'blob', 'splash', 'puddle', 'incompressible', 'viscosity', 'goo', 'slime'],
   summary: 'Makes particles behave like a liquid: they resist being squeezed together and drag on each other.',
   teach: 'Particles push apart when crowded and slow down their neighbours, which is what water drops do.',
@@ -181,7 +181,7 @@ node({
 
 // ---------------------------------------------------------------- reads
 node({
-  id: 'cadence.particles.neighbourCount', label: 'Neighbour Count', category: PARTICLES, subcategory: 'Neighbours',
+  id: 'cadence.particles.neighbourCount', pro: true, label: 'Neighbour Count', category: PARTICLES, subcategory: 'Neighbours',
   aliases: ['crowding', 'how many nearby', 'density count', 'neighbors', 'nearby particles', 'count within'],
   summary: 'How many other particles (or points) are within a radius of this one.',
   teach: 'Counts the neighbours around each particle. Colour by it and crowded places light up.',
@@ -200,7 +200,7 @@ node({
 });
 
 node({
-  id: 'cadence.particles.density', label: 'Crowding', category: PARTICLES, subcategory: 'Neighbours',
+  id: 'cadence.particles.density', pro: true, label: 'Crowding', category: PARTICLES, subcategory: 'Neighbours',
   aliases: ['density', 'smooth density', 'how packed', 'local density', 'sph density', 'thickness'],
   summary: 'A smooth measure of how packed the particles are around this one: 1 alone, higher in a crowd.',
   teach: 'Like Neighbour Count, but smooth — a particle just inside the radius counts a little, one right on top counts fully.',
@@ -223,7 +223,7 @@ node({
 });
 
 node({
-  id: 'cadence.particles.nearestNeighbour', label: 'Nearest Neighbour', category: PARTICLES, subcategory: 'Neighbours',
+  id: 'cadence.particles.nearestNeighbour', pro: true, label: 'Nearest Neighbour', category: PARTICLES, subcategory: 'Neighbours',
   aliases: ['closest particle', 'distance to nearest', 'nearest other', 'gap', 'spacing', 'direction to nearest'],
   summary: 'The distance and direction to the closest other particle.',
   explain: 'Searches outward from the particle up to the search radius. Beyond that it reports the search radius itself and no direction, so a lonely particle reads "far away" rather than "infinitely far" — which keeps anything you drive with it finite.',
@@ -256,7 +256,7 @@ node({
 });
 
 node({
-  id: 'cadence.particles.neighbourVelocity', label: 'Neighbours\' Velocity', category: PARTICLES, subcategory: 'Neighbours',
+  id: 'cadence.particles.neighbourVelocity', pro: true, label: 'Neighbours\' Velocity', category: PARTICLES, subcategory: 'Neighbours',
   aliases: ['average velocity nearby', 'group velocity', 'flow around me', 'match speed', 'local flow'],
   summary: 'The average velocity of the other particles within a radius.',
   explain: 'What Flock\'s alignment rule reads, exposed on its own so a look can use it: stretch a sprite along the group\'s motion, or colour by how much a particle disagrees with its neighbours.',

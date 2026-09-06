@@ -13,6 +13,11 @@ import * as ST from './studioState.js';
 import * as PNX from './pnxStudio.js';
 import { PnxBackend } from './pnxBackend.js';
 import { initHandles } from './pnxHandles.js';
+import { EffectComposer } from '../../renderer/vendor/three/postprocessing/EffectComposer.js';
+import { RenderPass } from '../../renderer/vendor/three/postprocessing/RenderPass.js';
+import { ShaderPass } from '../../renderer/vendor/three/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from '../../renderer/vendor/three/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from '../../renderer/vendor/three/postprocessing/OutputPass.js';
 
 const ORIGIN = [0, 0.5, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]; // half a stud above the grid
 
@@ -22,6 +27,70 @@ const layerVisuals = new Map(); // layerId -> { kind, ...three objects, signatur
 // replacing the other: an Effect-doc effect renders through sampleEffect + layerVisuals exactly as
 // before, a PNX effect renders through resolveScene + PnxBackend, and neither knows about the other.
 let pnxBackend = null;
+
+// ---------------------------------------------------------------- the look (post pipeline)
+// Built on first use and kept: RenderPass → UnrealBloomPass → a grade/vignette ShaderPass → OutputPass
+// (tone mapping + sRGB, which the composer's linear half-float target otherwise skips). While no
+// look is set the plain renderer.render path is used, so an effect without a look costs nothing extra.
+let composer = null, renderPass = null, bloomPass = null, gradePass = null, outputPass = null, currentLook = null;
+const GRADE_SHADER = {
+  uniforms: {
+    tDiffuse: { value: null }, uExposure: { value: 1 }, uSaturation: { value: 1 }, uContrast: { value: 1 },
+    uTint: { value: new THREE.Vector3(1, 1, 1) }, uVignette: { value: 0 }, uSoftness: { value: 0.5 },
+  },
+  vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uExposure, uSaturation, uContrast, uVignette, uSoftness; uniform vec3 uTint; varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      vec3 col = c.rgb * uExposure * uTint;
+      float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
+      col = mix(vec3(l), col, uSaturation);
+      col = mix(vec3(0.18), col, uContrast);
+      vec2 d = vUv - 0.5;
+      float r = length(d) * 1.4142;
+      float v = 1.0 - uVignette * smoothstep(1.0 - uSoftness, 1.0, r);
+      gl_FragColor = vec4(max(col, 0.0) * v, c.a);
+    }`,
+};
+function ensureComposer() {
+  if (composer) return;
+  // A multisampled target, or the look would cost the preview the antialiasing the canvas has.
+  const w = Math.max(1, canvas.width), h = Math.max(1, canvas.height);
+  composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 4 }));
+  renderPass = new RenderPass(scene, camera);
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(Math.max(1, canvas.width), Math.max(1, canvas.height)), 0.6, 0.4, 0.8);
+  gradePass = new ShaderPass(GRADE_SHADER);
+  outputPass = new OutputPass();
+  composer.addPass(renderPass); composer.addPass(bloomPass); composer.addPass(gradePass); composer.addPass(outputPass);
+  sizeComposer();
+}
+function sizeComposer() {
+  if (!composer) return;
+  const w = canvas.parentElement.clientWidth, h = canvas.parentElement.clientHeight;
+  if (!w || !h) return;
+  composer.setPixelRatio(renderer.getPixelRatio());
+  composer.setSize(w, h);
+}
+// Apply (or clear) the look the last procedural frame carried.
+export function setLook(look) {
+  currentLook = look || null;
+  if (!currentLook) return;
+  ensureComposer();
+  const k = currentLook;
+  bloomPass.strength = k.bloomStrength ?? 0; bloomPass.radius = k.bloomRadius ?? 0.4; bloomPass.threshold = k.bloomThreshold ?? 0.8;
+  bloomPass.enabled = (k.bloomStrength ?? 0) > 0;
+  const u = gradePass.uniforms;
+  u.uExposure.value = k.exposure ?? 1; u.uSaturation.value = k.saturation ?? 1; u.uContrast.value = k.contrast ?? 1;
+  const t = k.tint || [1, 1, 1]; u.uTint.value.set(t[0], t[1], t[2]);
+  u.uVignette.value = k.vignette ?? 0; u.uSoftness.value = k.vignetteSoftness ?? 0.5;
+}
+// Test-only: what the post pipeline is doing right now.
+export function postState() {
+  return { active: !!currentLook, passes: composer ? composer.passes.length : 0, bloom: currentLook ? (currentLook.bloomStrength ?? 0) : 0, bloomEnabled: !!(bloomPass && bloomPass.enabled) };
+}
+function paint() {
+  if (currentLook && composer) composer.render(); else renderer.render(scene, camera);
+}
 
 export function initPreview() {
   canvas = document.getElementById('vfxCanvas');
@@ -71,6 +140,7 @@ function resize() {
   camera.updateProjectionMatrix();
   fxCanvas.width = w;
   fxCanvas.height = h;
+  sizeComposer();
 }
 
 // ---------------------------------------------------------------- per-layer visuals
@@ -265,8 +335,9 @@ function renderPnxFrame(frame) {
   });
   const scene3 = PNX.evaluateFrame(frame);
   if (!pnxBackend) pnxBackend = new PnxBackend(scene);
-  if (!scene3) { pnxBackend.clear(); return null; }
+  if (!scene3) { pnxBackend.clear(); setLook(null); return null; }
   pnxBackend.render(scene3.draws, camera);
+  setLook(scene3.look || null);
   // The screen-effects overlay belongs to the Effect doc's screen layers; a procedural graph has no
   // equivalent yet (Part 41 compositing is a later phase), so it is cleared rather than left showing
   // the previous document's vignette.
@@ -294,6 +365,7 @@ function tick(now) {
   if (ST.state.pnx) {
     shake = renderPnxFrame(frame);
   } else {
+    setLook(null);
     const sample = sampleEffect(doc, frame, {
       origin: ORIGIN,
       soloIds: ST.state.solo,
@@ -315,11 +387,11 @@ function tick(now) {
     camera.translateX(shake.dx * 0.25);
     camera.translateY(shake.dy * 0.25);
     camera.rotateZ((shake.roll * Math.PI) / 180);
-    renderer.render(scene, camera);
+    paint();
     camera.position.copy(basePos);
     camera.quaternion.copy(baseQuat);
   } else {
-    renderer.render(scene, camera);
+    paint();
   }
   requestAnimationFrame(tick);
 }

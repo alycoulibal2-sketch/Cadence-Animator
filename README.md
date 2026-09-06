@@ -1,3 +1,5 @@
+<p align="center"><img src="brand/icon.png" alt="" width="112"></p>
+
 # Cadence Animator
 
 A standalone Roblox animation app — animate rigs in a real desktop app (not a Studio plugin UI), then sync with Roblox Studio to bring rigs in and send finished animations back out.
@@ -83,3 +85,13 @@ Every release:
 ## Website
 
 `site/` holds the project's website — a dependency-free static site, deployed to GitHub Pages. It doubles as the public documentation. See [`site/README.md`](site/README.md) for how to work on it and for the release checklist above in more detail.
+
+## Logo and icons
+
+The logo lives in `brand/`: `cadence-mark.svg` (the monochrome mark used inline in the app and the site), `cadence-favicon.svg` (the 16 px-tuned tile for browser tabs) and `cadence-icon.svg` (the app icon tile). Every icon the project ships is generated from those three files and never hand-edited:
+
+```
+npm run brand
+```
+
+That rewrites the Windows `brand/icon.ico`, the installer sidebar, the site favicon and touch icon, and the mobile PWA icons. See `brand/README.md` for what goes where.

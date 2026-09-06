@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- The app icon: the Cadence mark on a dark rounded tile with a soft indigo glow. Source for
+       icon.ico (Windows), the mobile PWA icons and the touch icons. Regenerate: npm run brand -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1a26"/>
+      <stop offset="1" stop-color="#0a0a0e"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="256" cy="228" r="236" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7c8cff" stop-opacity="0.36"/>
+      <stop offset="0.5" stop-color="#7c8cff" stop-opacity="0.11"/>
+      <stop offset="1" stop-color="#7c8cff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="arc" x1="10" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b8c0ff"/>
+      <stop offset="1" stop-color="#6b7bff"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.4"/>
+    </filter>
+  </defs>
+  <rect id="tile" width="512" height="512" rx="116" fill="url(#bg)"/>
+  <rect id="tileGlow" width="512" height="512" rx="116" fill="url(#glow)"/>
+  <rect id="edge" x="2" y="2" width="508" height="508" rx="114" fill="none" stroke="#8d9bff" stroke-opacity="0.22" stroke-width="4"/>
+  <g id="glyph">
+  <g filter="url(#soft)" opacity="0.55" transform="translate(256 256) scale(14.1667) translate(-12 -12)" fill="none" stroke="#7c8cff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="9" y1="2.6" x2="9" y2="7"/><line x1="15" y1="2.6" x2="15" y2="7"/><path d="M5.8 7h12.4v2.6a6.2 6.2 0 0 1-12.4 0V7z"/><line x1="12" y1="15.8" x2="12" y2="21.4"/>
+  </g>
+  <g transform="translate(256 256) scale(14.1667) translate(-12 -12)" fill="none" stroke="url(#arc)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="9" y1="2.6" x2="9" y2="7"/><line x1="15" y1="2.6" x2="15" y2="7"/><path d="M5.8 7h12.4v2.6a6.2 6.2 0 0 1-12.4 0V7z"/><line x1="12" y1="15.8" x2="12" y2="21.4"/>
+  </g>
+  </g>
+</svg>

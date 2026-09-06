@@ -21,10 +21,12 @@
 // all and forces the whole pass to be baked. That question cannot be answered by reading the graph,
 // because a field is a closure — so it is answered by sampling.
 //
-// A NOTE ON WHAT IS NOT ATTEMPTED. Procedural geometry cannot become a MeshPart: Roblox has no runtime
-// mesh construction, and a mesh must be uploaded as an asset first. A mesh pass is therefore reported as
-// unsupported with that explanation, rather than exported as several hundred Parts that would look
-// wrong and run badly. Refusing with a reason is the honest option (Part 78).
+// MESHES, BEAMS AND THE LOOK (Part 41). Roblox has no runtime mesh construction, so a mesh pass is
+// exported as a Wavefront .obj to upload as a MeshPart, plus a mover script that clones the uploaded
+// part and places it per frame (per instance for an instance set). A curved strip becomes a CHAIN of
+// Beams through points sampled evenly along it, rather than one Beam that loses the curve. An Effect
+// Look becomes Roblox's own BloomEffect and ColorCorrectionEffect under Lighting; the vignette has no
+// equivalent and is dropped with a note. Ribbons and lines are still refused with a reason (Part 78).
 
 import * as V from '../values.js';
 import * as F from '../fields.js';
@@ -187,9 +189,9 @@ export function analyseForRoblox(commands, { graph = null, evaluator = null } = 
       case 'trail': {
         rows.push({
           ...base, level: 'converted',
-          how: 'Becomes a Roblox Beam between two attachments, with the width and colour baked into its sequences.',
+          how: 'Becomes a chain of Roblox Beams through points sampled evenly along the strip, with the width and colour baked per frame.',
           reasons: [],
-          notes: ['A Beam is a flat, camera-facing strip; a trail with more than a couple of segments is approximated by its endpoints plus curve control points.'],
+          notes: ['A Beam is a flat, camera-facing strip; the curve is kept to the resolution of the chain (up to ' + BAKE.ROBLOX_LIMITS.beamSegments + ' segments).'],
         });
         break;
       }
@@ -202,12 +204,24 @@ export function analyseForRoblox(commands, { graph = null, evaluator = null } = 
         });
         break;
       }
+      case 'look': {
+        const st = cmd.settings || {};
+        const notes = [];
+        if ((st.vignette || 0) > 0) notes.push('The vignette has no Roblox equivalent and is dropped.');
+        rows.push({
+          ...base, level: 'approximated',
+          how: 'Becomes a BloomEffect and a ColorCorrectionEffect under Lighting while the effect plays (bloom, exposure, saturation, contrast, tint).',
+          reasons: ['Roblox post-processing is a fixed set of Lighting effects; the values are mapped onto their ranges.'],
+          notes,
+        });
+        break;
+      }
       case 'mesh': {
         rows.push({
-          ...base, level: 'unsupported',
-          how: 'Not exported.',
-          reasons: ['Roblox cannot build a mesh at runtime — a mesh has to be uploaded as an asset first. Exporting this as several hundred Parts instead would look wrong and run badly, so it is refused rather than approximated.'],
-          notes: ['Export the geometry separately as a mesh asset, then use a Roblox MeshPart and animate it with a transform sequence.'],
+          ...base, level: 'baked',
+          how: 'Exported as an .obj to upload as a MeshPart, plus a script that places and moves it (per instance, per frame). Save the .obj the export offers, upload it, insert the MeshPart under the script with the name the script asks for.',
+          reasons: ['Roblox cannot build a mesh at runtime — a mesh has to be uploaded as an asset first.'],
+          notes: ['A mesh that deforms over time exports its first drawn frame only; the script moves it.'],
         });
         break;
       }
@@ -302,6 +316,7 @@ export function buildRobloxExport({
 
   let emitted = 0;
   const flipbooks = [];
+  const meshes = [];
   for (const row of report.rows) {
     const cmd = commands[row.index];
     const id = `P${row.index + 1}`;
@@ -323,6 +338,12 @@ export function buildRobloxExport({
       emitted++;
     } else if (row.kind === 'volume') {
       emitVolumeFlipbook(L, notes, cmd, row, id, { fps, duration, evaluateFrame, bake, flipbooks });
+      emitted++;
+    } else if (row.kind === 'look') {
+      emitLook(L, notes, cmd, row, id);
+      emitted++;
+    } else if (row.kind === 'mesh') {
+      emitMesh(L, notes, cmd, row, id, { fps, duration, evaluateFrame, bake, meshes });
       emitted++;
     } else {
       emitBakedParticles(L, notes, cmd, row, id, { fps, duration, evaluateFrame, bake });
@@ -379,6 +400,8 @@ export function buildRobloxExport({
     withinBudget: budget.ok,
     // Volume passes baked to sprite sheets: RGBA pixels the studio turns into PNGs to save and upload.
     flipbooks,
+    // Mesh passes as .obj text, one per source geometry, to save and upload as MeshParts.
+    meshes,
   };
 }
 
@@ -619,21 +642,37 @@ function emitBakedLight(L, notes, cmd, row, id, { duration, evaluateFrame }) {
 }
 
 // ---------------------------------------------------------------- beams
-function emitBeam(L, notes, cmd, row, id, { duration, evaluateFrame }) {
-  // A Roblox Beam runs between two attachments, so the export takes the strip's endpoints per frame and
-  // its width/colour from the strip's own parameterisation. A many-segment curve is genuinely lossy
-  // here — Beam has CurveSize0/1 and nothing more — and the note says so.
+function emitBeam(L, notes, cmd, row, id, { duration, evaluateFrame, bake = {} }) {
+  // A Roblox Beam is a straight camera-facing strip between two attachments, so a curved strip is
+  // exported as a CHAIN of Beams through K+1 points sampled evenly along it. K is capped by Roblox's
+  // practical limit; a two-point strip is one Beam, as before.
+  const want = Math.max(1, Math.min(BAKE.ROBLOX_LIMITS.beamSegments, Math.round(bake.beamSegments ?? 8)));
+  let K = 1;
+  {
+    const probe = evaluateFrame(Math.floor(duration / 2));
+    const d = probe && probe.draws[row.index];
+    const s0 = d && d.strips && d.strips[0];
+    if (s0 && s0.count > 2) K = Math.min(want, s0.count - 1);
+  }
+  const N = K + 1;
   const seq = BAKE.bakeTransformSequence(evaluateFrame, (scene) => {
-    const d = scene.draws.find((x) => x.kind === 'beam' || x.kind === 'trail');
-    if (!d || !d.strips.length) return null;
+    const d = scene.draws[row.index];
+    if (!d || d.kind !== row.kind || !d.strips || !d.strips.length) return null;
     const s = d.strips[0];
-    const last = s.count - 1;
-    return [
-      s.positions[0], s.positions[1], s.positions[2],
-      s.positions[last * 3], s.positions[last * 3 + 1], s.positions[last * 3 + 2],
-      s.widths[0], s.widths[last],
-      s.colors[0], s.colors[1], s.colors[2],
-    ];
+    if (s.count < 2) return null;
+    const out = [];
+    for (let k = 0; k < N; k++) {
+      const t = N === 1 ? 0 : k / (N - 1);
+      // the strip's own `along` parameter is by length, so even t is even spacing on the curve
+      let j = 0; while (j < s.count - 2 && s.alongs[j + 1] < t) j++;
+      const a0 = s.alongs[j], a1 = s.alongs[Math.min(j + 1, s.count - 1)];
+      const u = a1 > a0 ? Math.max(0, Math.min(1, (t - a0) / (a1 - a0))) : 0;
+      const j1 = Math.min(j + 1, s.count - 1);
+      for (let c = 0; c < 3; c++) out.push(s.positions[j * 3 + c] + (s.positions[j1 * 3 + c] - s.positions[j * 3 + c]) * u);
+      out.push(s.widths[j] + (s.widths[j1] - s.widths[j]) * u);
+      for (let c = 0; c < 3; c++) out.push(s.colors[j * 4 + c] + (s.colors[j1 * 4 + c] - s.colors[j * 4 + c]) * u);
+    }
+    return out;
   }, { from: 0, to: duration - 1, stride: 1 });
 
   const live = seq.filter((s) => s.value);
@@ -641,33 +680,154 @@ function emitBeam(L, notes, cmd, row, id, { duration, evaluateFrame }) {
     L.push('-- the beam was never drawn, so nothing was exported');
     return;
   }
-  const segments = 0;
-  L.push(`local ${id}_a0 = Instance.new("Attachment"); ${id}_a0.Parent = anchor`);
-  L.push(`local ${id}_a1 = Instance.new("Attachment"); ${id}_a1.Parent = anchor`);
-  L.push(`local ${id} = Instance.new("Beam")`);
-  L.push(`${id}.Attachment0 = ${id}_a0; ${id}.Attachment1 = ${id}_a1`);
-  L.push(`${id}.Parent = anchor`);
-  L.push(`${id}.Enabled = false`);
-  L.push(`${id}.FaceCamera = true`);
-  L.push(`${id}.LightEmission = ${cmd.material?.blend === 'additive' ? '1' : '0'}`);
-  if (cmd.settings?.textureFlow) L.push(`${id}.TextureSpeed = ${n(cmd.settings.textureFlow)}`);
+  for (let k = 0; k < N; k++) L.push(`local ${id}_a${k} = Instance.new("Attachment"); ${id}_a${k}.Parent = anchor`);
+  L.push(`local ${id}_beams = {}`);
+  for (let k = 0; k < K; k++) {
+    L.push(`do local b = Instance.new("Beam"); b.Attachment0 = ${id}_a${k}; b.Attachment1 = ${id}_a${k + 1}; b.Parent = anchor; b.Enabled = false; b.FaceCamera = true`);
+    L.push(`  b.LightEmission = ${cmd.material?.blend === 'additive' ? '1' : '0'}${cmd.settings?.textureFlow ? `; b.TextureSpeed = ${n(cmd.settings.textureFlow)}` : ''}; ${id}_beams[${k + 1}] = b end`);
+  }
   L.push(`local ${id}_KEYS = {`);
   for (const s of live) L.push(`  {${n(s.frame)},${s.value.map(n).join(',')}},`);
   L.push('}');
   L.push(`local function ${id}_update(frame)`);
   L.push(`  local best = ${id}_KEYS[1]`);
   L.push(`  for _, k in ipairs(${id}_KEYS) do if k[1] <= frame then best = k else break end end`);
-  L.push(`  ${id}.Enabled = true`);
-  L.push(`  ${id}_a0.Position = Vector3.new(best[2], best[3], best[4])`);
-  L.push(`  ${id}_a1.Position = Vector3.new(best[5], best[6], best[7])`);
-  L.push(`  ${id}.Width0 = best[8]; ${id}.Width1 = best[9]`);
-  L.push(`  ${id}.Color = ColorSequence.new(Color3.new(math.clamp(best[10],0,1), math.clamp(best[11],0,1), math.clamp(best[12],0,1)))`);
+  // Luau cannot index locals by a built name, so the attachments go through a table.
+  L.push(`  local A = {${Array.from({ length: N }, (_, k) => `${id}_a${k}`).join(', ')}}`);
+  L.push(`  for i = 1, ${N} do local o = 2 + (i - 1) * 7`);
+  L.push(`    A[i].Position = Vector3.new(best[o], best[o + 1], best[o + 2])`);
+  L.push(`  end`);
+  L.push(`  for i = 1, ${K} do local o = 2 + (i - 1) * 7; local b = ${id}_beams[i]`);
+  L.push(`    b.Enabled = true`);
+  L.push(`    b.Width0 = best[o + 3]; b.Width1 = best[o + 10]`);
+  L.push(`    b.Color = ColorSequence.new(Color3.new(math.clamp(best[o + 4], 0, 1), math.clamp(best[o + 5], 0, 1), math.clamp(best[o + 6], 0, 1)), Color3.new(math.clamp(best[o + 11], 0, 1), math.clamp(best[o + 12], 0, 1), math.clamp(best[o + 13], 0, 1)))`);
+  L.push(`  end`);
   L.push('end');
-  L.push(`local function ${id}_stop() ${id}.Enabled = false end`);
+  L.push(`local function ${id}_stop() for _, b in ipairs(${id}_beams) do b.Enabled = false end end`);
   L.push(`PASSES[#PASSES + 1] = { update = ${id}_update, stop = ${id}_stop }`);
-  notes.push(`Pass ${row.index + 1} exports as a Roblox Beam between its two endpoints. A Beam is a straight camera-facing strip, so any curvature in the original is lost.`);
+  notes.push(K > 1
+    ? `Pass ${row.index + 1} exports as a chain of ${K} Roblox Beams through ${N} points sampled evenly along the strip, so its curve is kept to that resolution.`
+    : `Pass ${row.index + 1} exports as a Roblox Beam between its two endpoints.`);
 }
 
+// ---------------------------------------------------------------- the look → Lighting effects
+function emitLook(L, notes, cmd, row, id) {
+  const st = cmd.settings || {};
+  const bloomOn = (st.bloomStrength || 0) > 0;
+  const intensity = Math.min(1, (st.bloomStrength || 0) * 0.6);
+  const size = 8 + Math.max(0, Math.min(1, st.bloomRadius ?? 0.4)) * 48;
+  const threshold = Math.max(0, Math.min(1, st.bloomThreshold ?? 0.8));
+  const brightness = Math.max(-1, Math.min(1, (st.exposure ?? 1) - 1));
+  const contrast = Math.max(-1, Math.min(1, (st.contrast ?? 1) - 1));
+  const saturation = Math.max(-1, Math.min(1, (st.saturation ?? 1) - 1));
+  const tint = st.tint || [1, 1, 1];
+  L.push(`local ${id}_bloom, ${id}_cc`);
+  L.push(`local function ${id}_update(frame)`);
+  L.push(`  if ${id}_cc then return end`);
+  L.push(`  local Lighting = game:GetService("Lighting")`);
+  if (bloomOn) L.push(`  ${id}_bloom = Instance.new("BloomEffect"); ${id}_bloom.Intensity = ${n(intensity)}; ${id}_bloom.Size = ${n(size)}; ${id}_bloom.Threshold = ${n(threshold)}; ${id}_bloom.Parent = Lighting`);
+  L.push(`  ${id}_cc = Instance.new("ColorCorrectionEffect"); ${id}_cc.Brightness = ${n(brightness)}; ${id}_cc.Contrast = ${n(contrast)}; ${id}_cc.Saturation = ${n(saturation)}; ${id}_cc.TintColor = Color3.new(${n(Math.max(0, Math.min(1, tint[0])))}, ${n(Math.max(0, Math.min(1, tint[1])))}, ${n(Math.max(0, Math.min(1, tint[2])))}); ${id}_cc.Parent = Lighting`);
+  L.push('end');
+  L.push(`local function ${id}_stop() if ${id}_bloom then ${id}_bloom:Destroy(); ${id}_bloom = nil end if ${id}_cc then ${id}_cc:Destroy(); ${id}_cc = nil end end`);
+  L.push(`PASSES[#PASSES + 1] = { update = ${id}_update, stop = ${id}_stop }`);
+  notes.push(`Pass ${row.index + 1} (look) becomes ${bloomOn ? 'a BloomEffect and ' : ''}a ColorCorrectionEffect under Lighting while the effect plays${(st.vignette || 0) > 0 ? '; the vignette is dropped' : ''}.`);
+}
+
+// ---------------------------------------------------------------- mesh → .obj + a MeshPart mover
+// Wavefront OBJ of a geometry: positions, normals and uvs when present, 1-based triangle faces.
+export function objFromGeometry(g, name = 'mesh', precision = 4) {
+  const q = (v) => { const m = 10 ** precision; const r = Math.round((Number(v) || 0) * m) / m; return Object.is(r, -0) ? 0 : r; };
+  const lines = [`# Cadence Animator export: ${name}`, `o ${name.replace(/\s+/g, '_')}`];
+  const n = GEO.pointCount(g);
+  const pos = g.points.attrs.position.data;
+  for (let i = 0; i < n; i++) lines.push(`v ${q(pos[i * 3])} ${q(pos[i * 3 + 1])} ${q(pos[i * 3 + 2])}`);
+  const hasUv = GEO.hasAttr(g.points, 'uv'), hasN = GEO.hasAttr(g.points, 'normal');
+  if (hasUv) { const uv = g.points.attrs.uv.data; for (let i = 0; i < n; i++) lines.push(`vt ${q(uv[i * 2])} ${q(uv[i * 2 + 1])}`); }
+  if (hasN) { const nr = g.points.attrs.normal.data; for (let i = 0; i < n; i++) lines.push(`vn ${q(nr[i * 3])} ${q(nr[i * 3 + 1])} ${q(nr[i * 3 + 2])}`); }
+  const c = g.faces ? g.faces.corners : new Int32Array(0);
+  const ref = (i) => (hasUv && hasN ? `${i}/${i}/${i}` : hasUv ? `${i}/${i}` : hasN ? `${i}//${i}` : `${i}`);
+  for (let f = 0; f < GEO.faceCount(g); f++) lines.push(`f ${ref(c[f * 3] + 1)} ${ref(c[f * 3 + 1] + 1)} ${ref(c[f * 3 + 2] + 1)}`);
+  return lines.join('\n') + '\n';
+}
+
+function emitMesh(L, notes, cmd, row, id, { duration, evaluateFrame, bake = {}, meshes }) {
+  // the first frame that draws the mesh is the one exported as geometry
+  let first = null;
+  const step = Math.max(1, Math.round(duration / 16));
+  for (let f = 0; f < duration && !first; f += step) { const sc = evaluateFrame(f); const d = sc && sc.draws[row.index]; if (d && d.kind === 'mesh' && d.count) first = d; }
+  if (!first) { L.push('-- the mesh was never drawn, so nothing was exported'); return; }
+  const sources = first.instanced ? (first.sources || []) : [first.geometry];
+  const names = sources.map((_, k) => `${id}_Mesh${sources.length > 1 ? k + 1 : ''}`);
+  sources.forEach((g, k) => { if (GEO.isGeometry(g) && GEO.faceCount(g)) meshes.push({ passIndex: row.index, name: names[k], obj: objFromGeometry(g, names[k], bake.precision ?? 4), triangles: GEO.faceCount(g), points: GEO.pointCount(g) }); });
+  const stride = Math.max(1, Math.round(bake.stride ?? 1));
+  const maxInst = Math.max(1, Math.round(bake.maxInstances ?? 64));
+  // per-frame keys: instances carry position, rotation, scale; a plain mesh carries its centre
+  const centreOf = (positions) => { let x = 0, y = 0, z = 0; const cnt = positions.length / 3; for (let i = 0; i < cnt; i++) { x += positions[i * 3]; y += positions[i * 3 + 1]; z += positions[i * 3 + 2]; } return cnt ? [x / cnt, y / cnt, z / cnt] : [0, 0, 0]; };
+  const c0 = first.instanced ? [0, 0, 0] : centreOf(first.positions);
+  const seq = BAKE.bakeTransformSequence(evaluateFrame, (scene) => {
+    const d = scene.draws[row.index];
+    if (!d || d.kind !== 'mesh' || !d.count) return null;
+    if (!d.instanced) { const c = centreOf(d.positions); return [1, c[0] - c0[0], c[1] - c0[1], c[2] - c0[2]]; }
+    const cnt = Math.min(d.count, maxInst), rc = d.rotations.length / d.count;
+    const out = [cnt];
+    for (let i = 0; i < cnt; i++) {
+      out.push(d.sourceIndex[i] || 0, d.positions[i * 3], d.positions[i * 3 + 1], d.positions[i * 3 + 2]);
+      if (rc === 4) out.push(d.rotations[i * 4], d.rotations[i * 4 + 1], d.rotations[i * 4 + 2], d.rotations[i * 4 + 3]);
+      else { const e = [d.rotations[i * rc] || 0, d.rotations[i * rc + 1] || 0, d.rotations[i * rc + 2] || 0]; const q = eulerToQuat(e); out.push(q[0], q[1], q[2], q[3]); }
+      out.push(d.scales[i * 3], d.scales[i * 3 + 1], d.scales[i * 3 + 2]);
+    }
+    return out;
+  }, { from: 0, to: duration - 1, stride, precision: bake.precision ?? 3 });
+  const live = seq.filter((s) => s.value);
+  const isStatic = !first.instanced && BAKE.geometryIsStatic(evaluateFrame, (sc) => { const d = sc.draws[row.index]; return d && d.kind === 'mesh' && d.count ? { count: d.positions.length, positions: d.positions } : null; });
+  if (!first.instanced && !isStatic) notes.push(`Pass ${row.index + 1}: the mesh deforms over time; the export carries its first drawn frame and moves it by its centre.`);
+  const neon = first.emission && first.emission.length ? (Array.from(first.emission).reduce((a, v) => a + v, 0) / first.emission.length) > 0.5 : false;
+  L.push(`-- Upload the .obj Cadence saved as ${names.join(', ')}, insert ${sources.length > 1 ? 'them' : 'it'} as MeshPart${sources.length > 1 ? 's' : ''} named ${names.map((x) => `"${x}"`).join(', ')} under this script.`);
+  L.push(`local ${id}_templates = {${names.map((x) => `script:FindFirstChild("${x}") or script.Parent:FindFirstChild("${x}")`).join(', ')}}`);
+  L.push(`local ${id}_parts = {}`);
+  L.push(`local ${id}_warned = false`);
+  L.push(`local ${id}_KEYS = {`);
+  for (const s of live) L.push(`  {${n(s.frame)},${s.value.map(n).join(',')}},`);
+  L.push('}');
+  L.push(`local function ${id}_part(i, src)`);
+  L.push(`  local p = ${id}_parts[i]`);
+  L.push(`  if p then return p end`);
+  L.push(`  local t = ${id}_templates[src + 1] or ${id}_templates[1]`);
+  L.push(`  if not t then if not ${id}_warned then ${id}_warned = true; warn("Cadence export: MeshPart ${names[0]} not found under the script — upload the .obj and insert it") end return nil end`);
+  L.push(`  p = t:Clone(); p.Anchored = true; p.CanCollide = false; p.CanQuery = false; p.CanTouch = false${neon ? '; p.Material = Enum.Material.Neon' : ''}; p.Parent = rig`);
+  L.push(`  ${id}_parts[i] = p`);
+  L.push(`  return p`);
+  L.push('end');
+  L.push(`local function ${id}_update(frame)`);
+  L.push(`  local best = ${id}_KEYS[1]`);
+  L.push(`  for _, k in ipairs(${id}_KEYS) do if k[1] <= frame then best = k else break end end`);
+  if (!first.instanced) {
+    L.push(`  local p = ${id}_part(1, 0)`);
+    L.push(`  if p then p.CFrame = anchor.CFrame * CFrame.new(best[3], best[4], best[5]) end`);
+  } else {
+    L.push(`  local cnt = best[2]`);
+    L.push(`  for i = 1, cnt do local o = 3 + (i - 1) * 11`);
+    L.push(`    local p = ${id}_part(i, best[o])`);
+    L.push(`    if p then`);
+    L.push(`      p.CFrame = anchor.CFrame * CFrame.new(best[o + 1], best[o + 2], best[o + 3], best[o + 4], best[o + 5], best[o + 6], best[o + 7])`);
+    L.push(`      local t = ${id}_templates[best[o] + 1] or ${id}_templates[1]`);
+    L.push(`      p.Size = Vector3.new(t.Size.X * best[o + 8], t.Size.Y * best[o + 9], t.Size.Z * best[o + 10])`);
+    L.push(`      p.Transparency = 0`);
+    L.push(`    end`);
+    L.push(`  end`);
+    L.push(`  for i = cnt + 1, #${id}_parts do ${id}_parts[i].Transparency = 1 end`);
+  }
+  L.push('end');
+  L.push(`local function ${id}_stop() for _, p in pairs(${id}_parts) do p.Transparency = 1 end end`);
+  L.push(`PASSES[#PASSES + 1] = { update = ${id}_update, stop = ${id}_stop }`);
+  notes.push(`Pass ${row.index + 1} (mesh) was exported as ${meshes.filter((m) => m.passIndex === row.index).length} .obj file${sources.length > 1 ? 's' : ''} plus a mover script. Save the .obj, upload it to Roblox, and insert the MeshPart named ${names[0]} under the script.`);
+}
+
+function eulerToQuat(e) {
+  const [x, y, z] = e.map((d) => (d * Math.PI) / 180);
+  const cx = Math.cos(x / 2), sx = Math.sin(x / 2), cy = Math.cos(y / 2), sy = Math.sin(y / 2), cz = Math.cos(z / 2), sz = Math.sin(z / 2);
+  return [sx * cy * cz + cx * sy * sz, cx * sy * cz - sx * cy * sz, cx * cy * sz - sx * sy * cz, cx * cy * cz + sx * sy * sz];
+}
 // ---------------------------------------------------------------- volume → flipbook (Part 35 → Part 58)
 // A CPU raymarch of the volume pass, front view, orthographic, one cell per sampled frame. The same
 // compositing as the backend shader without self-shadow taps beyond three, so a 96 px cell over 64

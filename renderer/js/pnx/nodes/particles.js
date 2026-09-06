@@ -207,7 +207,7 @@ node({
 
 // ---------------------------------------------------------------- event filtering (Part 12)
 node({
-  id: 'cadence.particles.events', label: 'Particle Events', category: 'Events', subcategory: 'Particles',
+  id: 'cadence.particles.events', pro: true, label: 'Particle Events', category: 'Events', subcategory: 'Particles',
   aliases: ['on death', 'on collision', 'on birth', 'spawn on death', 'when a particle dies', 'when it hits', 'sub emitter', 'trail of particles', 'trigger', 'event filter'],
   summary: 'Picks out the events you want from a simulation: deaths, collisions, births, triggers or interval ticks.',
   teach: 'Choose which happenings count. Plug the result into another Emitter\'s "Spawn from events" and every one of them gives birth to new particles.',

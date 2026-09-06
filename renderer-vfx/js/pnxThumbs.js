@@ -12,6 +12,7 @@ import { Evaluator } from '../../renderer/js/pnx/evaluator.js';
 import * as RENDER from '../../renderer/js/pnx/render.js';
 import { getNode as getNodeType } from '../../renderer/js/pnx/registry.js';
 import { PnxBackend } from './pnxBackend.js';
+import { isActive as proActive } from '../../renderer/js/proDialog.js';
 
 const W = 240, H = 150;
 let renderer = null, scene = null, camera = null, backend = null;
@@ -52,7 +53,7 @@ export function renderCandidate(graph, frame, target, { fps = 30, duration = 60 
     ensure();
     const outId = findOutput(graph);
     if (!outId) return blank(target, 'nothing to draw');
-    const ev = new Evaluator(graph, { fps, duration, quality: 0.6 });
+    const ev = new Evaluator(graph, { fps, duration, quality: 0.6, pro: proActive() });
     ev.setTime(Math.max(0, Math.floor(frame)));
     const res = ev.evaluateSocket(outId, 'out');
     const cmds = RENDER.flattenCommands(res.value);
@@ -78,7 +79,7 @@ export function probeCandidate(graph, frame, { fps = 30, duration = 60, only = n
   ensure();
   const outId = findOutput(graph);
   if (!outId) return { ok: false, reason: 'nothing to draw' };
-  const ev = new Evaluator(graph, { fps, duration, quality: 0.6 });
+  const ev = new Evaluator(graph, { fps, duration, quality: 0.6, pro: proActive() });
   ev.setTime(Math.max(0, Math.floor(frame)));
   const res = ev.evaluateSocket(outId, 'out');
   const cmds = RENDER.flattenCommands(res.value);

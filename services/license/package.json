@@ -1,0 +1,12 @@
+{
+  "name": "cadence-license",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cadence Animator Pro licence service: keys are HMACs of the buyer's email, issued after Stripe confirms payment.",
+  "main": "server.js",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js"
+  }
+}

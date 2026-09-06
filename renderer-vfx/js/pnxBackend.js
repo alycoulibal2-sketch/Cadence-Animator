@@ -114,6 +114,8 @@ export class PnxBackend {
 
     for (let idx = 0; idx < draws.length; idx++) {
       const draw = draws[idx];
+      // A look draws nothing here: it is the post pass, and preview.js applies it over the whole frame.
+      if (draw.kind === 'look') continue;
       const sig = signatureOf(draw, idx);
       live.add(sig);
       let pass = this.passes.get(sig);

@@ -27,7 +27,7 @@ function channelVolume(s, name) {
 }
 
 node({
-  id: 'cadence.pyro.simulate', label: 'Simulate Smoke & Fire', category: C, subcategory: 'Simulate',
+  id: 'cadence.pyro.simulate', pro: true, label: 'Simulate Smoke & Fire', category: C, subcategory: 'Simulate',
   aliases: ['fire', 'smoke', 'pyro', 'fluid', 'gas', 'flames', 'realistic fire', 'campfire', 'explosion smoke', 'steam', 'volumetric', 'burn'],
   summary: 'A real gas simulation on a grid: smoke that rolls and curls, fire that rises and burns fuel.',
   teach: 'Puts smoke (and heat, and fuel) into a box of air and lets it move like air does. Draw it with the Volume Renderer.',
@@ -123,7 +123,7 @@ node({
 // needs, and the Volume Renderer's lighting does the rest. Deliberately a generator, so it costs one
 // bake per frame it drifts and nothing when it is still.
 node({
-  id: 'cadence.volume.cloud', label: 'Cloud', category: 'Volumes', subcategory: 'Create',
+  id: 'cadence.volume.cloud', pro: true, label: 'Cloud', category: 'Volumes', subcategory: 'Create',
   aliases: ['clouds', 'realistic cloud', 'cumulus', 'fog bank', 'mist', 'nebula', 'volumetric cloud', 'puffy'],
   summary: 'A cloud-shaped density volume: layered noise inside a soft ellipsoid, drifting over time.',
   teach: 'Makes a fluffy cloud you can draw with the Volume Renderer. Coverage makes it thicker, drift makes it move.',

@@ -618,6 +618,35 @@
     return { ok: true, counts: compat.counts };
   });
 
+  await step('Cadence Pro: procedural export and the simulation pack are gated by the key, and the key switches them on', async () => {
+    const before = await window.cadence.proStatus();
+    assert(!before.active, 'a fresh user-data dir has no key');
+    await vfxCall('pnx_new', { name: 'Pro gate' });
+    let refused = null;
+    try { await vfxCall('pnx_export_lua', {}); } catch (e) { refused = e; }
+    assert(refused && /Cadence Pro/.test(String(refused.message || refused)), `export without a key must be refused: ${refused && refused.message}`);
+    // A Pro node yields its type's default without a key and a real value with one. Cloud makes a
+    // volume grid; Volume Info counts its voxels, so the gate is visible as 0 versus 12³.
+    const cloud = await vfxCall('pnx_add_node', { type: 'cadence.volume.cloud', x: 0, y: 0, values: { resolution: 12 } });
+    const info = await vfxCall('pnx_add_node', { type: 'cadence.volume.info', x: 200, y: 0 });
+    await vfxCall('pnx_connect', { fromNode: cloud.nodeId, fromSocket: 'out', toNode: info.nodeId, toSocket: 'volume' });
+    const voxelsGated = (await vfxCall('pnx_inspect', { nodeId: info.nodeId, frame: 0 })).outputs.voxels.value;
+    assert(voxelsGated === 0, `without a key the Cloud node yields nothing, got ${voxelsGated} voxels`);
+    const bad = await window.cadence.proActivate('smoketest@cadence.local', 'AAAA-AAAA-AAAA-AAAA-AAAA');
+    assert(!bad.ok, 'a wrong key does not activate');
+    const r = await window.cadence.proActivate('smoketest@cadence.local', 'TEST-TEST-TEST-TEST-TEST');
+    assert(r.ok && r.status.active, `the test key activates in a smoketest run: ${JSON.stringify(r)}`);
+    await new Promise((res) => setTimeout(res, 200));
+    const st = await window.cadence.proStatus();
+    assert(st.active && st.keyHint === '…TEST', `status reflects the key: ${JSON.stringify(st)}`);
+    const voxelsOpen = (await vfxCall('pnx_inspect', { nodeId: info.nodeId, frame: 0 })).outputs.voxels.value;
+    assert(voxelsOpen === 12 * 12 * 12, `with the key the same node makes a real 12³ volume, got ${voxelsOpen}`);
+    await vfxCall('pnx_remove_node', { nodeId: info.nodeId });
+    await vfxCall('pnx_remove_node', { nodeId: cloud.nodeId });
+    const again = await vfxCall('pnx_export_lua', {});
+    assert(again.lua && again.lua.length > 100, 'with the key, the same export succeeds');
+    return { ok: true, keyHint: r.status.keyHint };
+  });
   await step('PNX: a simple effect exports as a real ParticleEmitter, and reports how', async () => {
     await vfxCall('pnx_new', { name: 'Export Smoketest' });
 
@@ -1061,6 +1090,150 @@
     return { ok: true, total: all.results, swirl: swirl.labels.slice(0, 3) };
   });
 
+  await step('Node editor: dragging a wire onto empty canvas opens the palette filtered to what fits, and choosing wires the node', async () => {
+    await vfxCall('pnx_new', { name: 'Wire To Space' });
+    const g0 = await vfxCall('pnx_get_graph');
+    const sim = g0.nodes.find((n) => n.type.startsWith('cadence.particles.simulate'));
+    assert(sim, 'the starter graph has a Simulate Particles node');
+    await vfxCall('pnx_test_open_editor');
+    const drop = await vfxCall('pnx_test_editor', { action: 'dragToSpace', nodeId: sim.id, io: 'out', socket: 'out' });
+    assert(drop.ok, `releasing the wire on empty canvas opens the palette: ${JSON.stringify(drop)}`);
+    assert(drop.rows > 5 && drop.rows < drop.total, `the palette is filtered to node types with a fitting socket (${drop.rows} of ${drop.total})`);
+    assert(/fit/i.test(drop.placeholder), `the search box says what it is filtered to: ${drop.placeholder}`);
+    assert(drop.fitBadges === drop.rows, 'every row names the socket the wire would land on');
+    const linksBefore = g0.links.length;
+    const chosen = await vfxCall('pnx_test_editor', { action: 'paletteChoose', query: 'Point Renderer' });
+    assert(chosen.ok && /Point Renderer/.test(chosen.chosen), `Point Renderer is offered for a geometry wire: ${JSON.stringify(chosen.labels)}`);
+    const g1 = await vfxCall('pnx_get_graph');
+    const added = g1.nodes.find((n) => n.type.startsWith('cadence.render.point'));
+    assert(added, 'the chosen node was created');
+    assert(g1.links.length === linksBefore + 1 && g1.links.some((l) => l.from === `${sim.id}.out` && l.to === `${added.id}.source`), `and it is wired from the dragged socket: ${JSON.stringify(g1.links.slice(-1))}`);
+    assert(chosen.selected.length === 1 && chosen.selected[0] === added.id, 'the new node is selected');
+    assert(!chosen.paletteOpen, 'the palette closed');
+    await vfxCall('vfx_undo');
+    const g2 = await vfxCall('pnx_get_graph');
+    assert(g2.nodes.length === g0.nodes.length && g2.links.length === linksBefore, 'one undo step removes the node and its wire together');
+    await vfxCall('pnx_test_close_editor');
+    return { ok: true, offered: drop.rows, of: drop.total };
+  });
+
+  await step('Node editor: auto-layout puts every node in a column by depth with no overlaps, and one undo restores the old positions', async () => {
+    await vfxCall('pnx_new', { name: 'Layout' });
+    const g0 = await vfxCall('pnx_get_graph');
+    // scramble: pile three nodes on top of each other
+    for (const n of g0.nodes.slice(0, 3)) await vfxCall('pnx_move_node', { nodeId: n.id, x: 100, y: 100 });
+    const scrambled = await vfxCall('pnx_get_graph');
+    const res = await vfxCall('pnx_auto_layout', {});
+    assert(res.ok && res.overlaps.length === 0, `no overlaps after the layout: ${JSON.stringify(res.overlaps)}`);
+    assert(res.columns >= 4, `the starter graph spans several columns, got ${res.columns}`);
+    const g1 = await vfxCall('pnx_get_graph');
+    const pos = new Map(g1.nodes.map((n) => [n.id, n]));
+    const endOf = (ref) => pos.get(ref.slice(0, ref.lastIndexOf('.')));
+    for (const l of g1.links) assert(endOf(l.from).x < endOf(l.to).x, `every wire runs left to right: ${l.from} → ${l.to}`);
+    // the real boxes on the canvas agree: no two overlap
+    const v = await vfxCall('pnx_test_open_editor');
+    const overlaps = [];
+    for (let i = 0; i < v.rects.length; i++) for (let j = i + 1; j < v.rects.length; j++) {
+      const a = v.rects[i], b = v.rects[j];
+      if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) overlaps.push(`${a.title} over ${b.title}`);
+    }
+    assert(overlaps.length === 0, `the drawn boxes must not overlap: ${overlaps.join('; ')}`);
+    // the toolbar button and Ctrl+L are the same command, and the palette finds it by name
+    const pal = await vfxCall('pnx_test_palette', { query: 'arrange', keepOpen: false });
+    assert(pal.labels[0] === 'Auto-layout', `the palette offers the command for "arrange": ${pal.labels.join(', ')}`);
+    await vfxCall('pnx_test_close_editor');
+    await vfxCall('vfx_undo');
+    const g2 = await vfxCall('pnx_get_graph');
+    const back = g2.nodes.every((n) => { const o = scrambled.nodes.find((m) => m.id === n.id); return o && o.x === n.x && o.y === n.y; });
+    assert(back, 'one undo step restores every old position');
+    return { ok: true, columns: res.columns, moved: res.moved };
+  });
+
+  await step('Node editor: the minimap shows every node and the view, and clicking it pans the canvas', async () => {
+    await vfxCall('pnx_new', { name: 'Minimap' });
+    const g = await vfxCall('pnx_get_graph');
+    await vfxCall('pnx_test_open_editor');
+    const m = await vfxCall('pnx_test_editor', { action: 'minimap' });
+    assert(m.present && m.width > 100 && m.height > 60, `the minimap canvas is in the corner: ${JSON.stringify(m)}`);
+    assert(m.rects === g.nodes.length, `it holds a rectangle per node (${m.rects} of ${g.nodes.length})`);
+    assert(m.scale > 0, 'it has a world-to-map scale');
+    const clicked = await vfxCall('pnx_test_editor', { action: 'minimap', clickAt: [0.05, 0.05] });
+    assert(clicked.before.x !== clicked.after.x || clicked.before.y !== clicked.after.y, `clicking the top-left of the map pans the view: ${JSON.stringify([clicked.before, clicked.after])}`);
+    assert(clicked.after.k === clicked.before.k, 'panning by the minimap keeps the zoom');
+    await vfxCall('pnx_test_close_editor');
+    return { ok: true, rects: m.rects };
+  });
+
+  await step('Node editor: selecting a node shows its help, and a Pro node carries the badge', async () => {
+    await vfxCall('pnx_new', { name: 'Help Panel' });
+    const g = await vfxCall('pnx_get_graph');
+    const sim = g.nodes.find((n) => n.type.startsWith('cadence.particles.simulate'));
+    const doc = await vfxCall('pnx_describe_node', { type: 'cadence.particles.simulate' });
+    await vfxCall('pnx_test_open_editor');
+    const idle = await vfxCall('pnx_test_editor', { action: 'help' });
+    assert(idle.present && idle.visible && /Select a node/.test(idle.text) && /Ctrl\+L/.test(idle.text), `with nothing selected the panel teaches the keys: ${idle.text.slice(0, 80)}`);
+    await vfxCall('pnx_test_editor', { action: 'select', nodeId: sim.id });
+    const h = await vfxCall('pnx_test_editor', { action: 'help' });
+    assert(h.title === doc.label, `the panel is titled by the node: ${h.title}`);
+    assert(h.text.includes(doc.summary), 'it shows the summary');
+    if (doc.teach) assert(h.text.includes(doc.teach), 'and the teach line');
+    if (doc.explain) assert(h.text.includes(doc.explain.slice(0, 60)), 'and the explanation');
+    assert(h.sections.includes('Common uses') && h.sections.includes('Inputs') && h.sections.includes('Outputs'), `sections: ${h.sections}`);
+    assert(new RegExp(`Roblox: ${doc.exportSupport}`).test(h.exportLevel), `the export level is stated: ${h.exportLevel}`);
+    assert(!h.pro, 'Simulate Particles is not a Pro node');
+    const cloud = await vfxCall('pnx_add_node', { type: 'cadence.volume.cloud', x: 900, y: 600 });
+    await vfxCall('pnx_test_editor', { action: 'select', nodeId: cloud.nodeId });
+    const hp = await vfxCall('pnx_test_editor', { action: 'help' });
+    assert(hp.pro && hp.title === 'Cloud', `a Pro node shows the badge: ${JSON.stringify([hp.title, hp.pro])}`);
+    const hidden = await vfxCall('pnx_test_editor', { action: 'keys', keys: ['h'] });
+    assert(hidden.helpVisible === false && !(await vfxCall('pnx_test_editor', { action: 'help' })).visible, 'H hides the panel');
+    await vfxCall('pnx_test_editor', { action: 'keys', keys: ['h'] });
+    await vfxCall('pnx_remove_node', { nodeId: cloud.nodeId });
+    await vfxCall('pnx_test_close_editor');
+    return { ok: true, title: h.title };
+  });
+
+  await step('Node editor: arrows walk the graph, Tab walks sockets, Enter wires by keyboard, Ctrl+D duplicates and Delete removes', async () => {
+    await vfxCall('pnx_new', { name: 'Keyboard', blank: true });
+    const a = await vfxCall('pnx_add_node', { type: 'cadence.geometry.sphere', x: 0, y: 0 });
+    const b = await vfxCall('pnx_add_node', { type: 'cadence.render.mesh', x: 420, y: 0 });
+    const c = await vfxCall('pnx_add_node', { type: 'cadence.render.output', x: 840, y: 0 });
+    await vfxCall('pnx_test_open_editor');
+    let st = await vfxCall('pnx_test_editor', { action: 'select', nodeId: a.nodeId });
+    st = await vfxCall('pnx_test_editor', { action: 'keys', keys: ['ArrowRight'] });
+    assert(st.selected.length === 1 && st.selected[0] === b.nodeId, `ArrowRight from the sphere selects the mesh renderer: ${JSON.stringify(st.selected)}`);
+    st = await vfxCall('pnx_test_editor', { action: 'keys', keys: ['ArrowRight'] });
+    assert(st.selected[0] === c.nodeId, 'and again reaches the output');
+    st = await vfxCall('pnx_test_editor', { action: 'keys', keys: ['ArrowLeft', 'ArrowLeft'] });
+    assert(st.selected[0] === a.nodeId, 'ArrowLeft twice is back at the sphere');
+    st = await vfxCall('pnx_test_editor', { action: 'keys', keys: ['Tab'] });
+    assert(st.focusSocket && st.focusSocket.nodeId === a.nodeId && st.focusSocket.io === 'out', `Tab focuses the sphere's output first: ${JSON.stringify(st.focusSocket)}`);
+    const first = st.focusSocket.key;
+    st = await vfxCall('pnx_test_editor', { action: 'keys', keys: ['Tab'] });
+    assert(st.focusSocket.key !== first || st.focusSocket.io !== 'out', 'Tab again moves to the next socket');
+    st = await vfxCall('pnx_test_editor', { action: 'keys', keys: [{ key: 'Tab', shift: true }] });
+    assert(st.focusSocket.key === first && st.focusSocket.io === 'out', 'Shift+Tab steps back');
+    st = await vfxCall('pnx_test_editor', { action: 'keys', keys: ['Enter'] });
+    assert(st.kbWire && st.kbWire.nodeId === a.nodeId && st.kbWire.key === first, `Enter starts a wire from the focused socket: ${JSON.stringify(st.kbWire)}`);
+    st = await vfxCall('pnx_test_editor', { action: 'keys', keys: ['ArrowRight'] });
+    assert(st.selected[0] === b.nodeId && st.focusSocket && st.focusSocket.nodeId === b.nodeId && st.focusSocket.io === 'in', `arrowing to a node with a wire held focuses a socket that fits: ${JSON.stringify(st.focusSocket)}`);
+    assert(st.focusSocket.key === 'source', `the geometry lands on the renderer's Geometry input: ${st.focusSocket.key}`);
+    st = await vfxCall('pnx_test_editor', { action: 'keys', keys: ['Enter'] });
+    assert(!st.kbWire, 'Enter completes the wire');
+    let g = await vfxCall('pnx_get_graph');
+    assert(g.links.some((l) => l.from === `${a.nodeId}.out` && l.to === `${b.nodeId}.source`), `the link exists in the graph: ${JSON.stringify(g.links)}`);
+    st = await vfxCall('pnx_test_editor', { action: 'keys', keys: [{ key: 'd', ctrl: true }] });
+    g = await vfxCall('pnx_get_graph');
+    assert(g.nodes.length === 4 && st.selected.length === 1 && st.selected[0] !== b.nodeId, 'Ctrl+D duplicates the selected node and selects the copy');
+    st = await vfxCall('pnx_test_editor', { action: 'keys', keys: ['Delete'] });
+    g = await vfxCall('pnx_get_graph');
+    assert(g.nodes.length === 3 && st.selected.length === 0, 'Delete removes it again');
+    st = await vfxCall('pnx_test_editor', { action: 'keys', keys: ['ArrowDown'] });
+    assert(st.selected.length === 1, 'an arrow with nothing selected picks the first node');
+    await vfxCall('pnx_test_close_editor');
+    return { ok: true };
+  });
+
   // ---------------------------------------------------------------- the Effect Sheet (docs/effect-sheet.md)
   await step('Effect Sheet: the procedural inspector shows things, properties and vary menus', async () => {
     await vfxCall('pnx_new', { name: 'Sheet Smoketest' });
@@ -1166,6 +1339,40 @@
     const after = await vfxCall('pnx_sheet', { text: false });
     assert(!after.things.some((t) => t.type.startsWith('cadence.render.volume')), 'undo removed the fire');
     return { ok: true, lit: probe.lit, bakeMs: ms };
+  });
+  await step('Effect Look: the sheet adds bloom & grade, the post pipeline switches on, undo switches it off, and a mesh thing exports as .obj', async () => {
+    const added = await vfxCall('pnx_sheet_add_thing', { thing: 'look' });
+    assert(added.ok && added.made && added.made.thing, `add look failed: ${JSON.stringify(added.diagnostics)}`);
+    const sheet = await vfxCall('pnx_sheet', { text: false });
+    const look = sheet.things.find((t) => t.type.startsWith('cadence.render.look'));
+    assert(look && look.drawn && look.exportSupport === 'approximated', `the look is a drawn thing with an approximated badge: ${JSON.stringify(look && [look.drawn, look.exportSupport])}`);
+    await vfxCall('pnx_scrub', { frame: 20 });
+    await new Promise((r) => setTimeout(r, 300));
+    const post = await vfxCall('pnx_test_post_state');
+    assert(post.active === true, `the post pipeline is active: ${JSON.stringify(post)}`);
+    assert(post.bloomEnabled === true, `bloom is on: ${JSON.stringify(post)}`);
+    assert(post.passes === 4, `render → bloom → grade → output, got ${post.passes}`);
+    // the composed frame still paints
+    const shot = await vfxCall('vfx_render_frame', { frame: 20 });
+    assert(typeof shot.image === 'string' && shot.image.length > 5000, 'the composed frame renders');
+    // the export classifies the look and maps it to Lighting effects
+    const rep = await vfxCall('pnx_export_report');
+    const row = rep.rows.find((r) => r.kind === 'look');
+    assert(row && row.level === 'approximated' && /Bloom/.test(row.how), `look row: ${JSON.stringify(row)}`);
+    await vfxCall('vfx_undo');
+    await vfxCall('pnx_scrub', { frame: 21 });
+    await new Promise((r) => setTimeout(r, 300));
+    const off = await vfxCall('pnx_test_post_state');
+    assert(off.active === false, `undo removes the look and the plain path is back: ${JSON.stringify(off)}`);
+    // a mesh thing exports as an .obj plus a mover script (the Pro key from the earlier step is active)
+    const copies = await vfxCall('pnx_sheet_add_thing', { thing: 'copies' });
+    assert(copies.ok && copies.made && copies.made.thing, `add copies failed: ${JSON.stringify(copies.diagnostics)}`);
+    const lua = await vfxCall('pnx_export_lua', { bakeStride: 2 });
+    assert(Array.isArray(lua.meshes) && lua.meshes.length >= 1, `the export carries an .obj: ${JSON.stringify(lua.meshes)}`);
+    assert(lua.meshes[0].triangles > 0 && lua.meshes[0].bytes > 100, `the .obj has content: ${JSON.stringify(lua.meshes[0])}`);
+    assert(/MeshPart/.test(lua.lua) && lua.lua.includes(lua.meshes[0].name), 'and the mover script asks for the MeshPart by name');
+    await vfxCall('vfx_undo');
+    return { ok: true, passes: post.passes, meshes: lua.meshes.length, triangles: lua.meshes[0].triangles };
   });
   await step('PNX: switching back to a layer-based effect leaves no procedural objects behind', async () => {
     await vfxCall('pnx_close');
@@ -1547,44 +1754,23 @@
     return { ok: true };
   });
 
-  // ---------------------------------------------------------------- part markers
-  await step('every drawable part carries a visible, clickable marker sitting on its surface', async () => {
-    const THREE = await import('../renderer/../node_modules/three/build/three.module.js');
+  // ---------------------------------------------------------------- no part markers
+  await step('rig parts carry no pale-blue marker; the whole part is the click target', async () => {
+    // The Moon-style patches were removed on 2026-09-06 at the user's request. Selection must still
+    // work through each part's invisible whole-part click box.
     const item = await D.addBuiltinRig('r6');
     await new Promise((r) => setTimeout(r, 1200));
     D.updateScene();
     const inst = D.getInstance(item.id);
-
     for (const [name, p] of inst.parts) {
-      assert(p.marker, `${name} has no marker`);
-      // The invisible HumanoidRootPart must not sprout one.
-      const shouldShow = p.def.transparency < 0.99;
-      assert(p.marker.visible === shouldShow, `${name} marker visibility should be ${shouldShow}`);
+      assert(!p.marker, `${name} still has a marker`);
+      assert(p.selBox && p.selBox.userData.isSelBox && p.selBox.userData.partId === p.def.id, `${name} has no click box`);
     }
-
-    // Placement is derived from the RENDERED geometry, not Part.Size. A classic head is a 2x1x1
-    // Part that draws as a ~1.2 lathe, so sizing off Part.Size buried its marker inside the head.
-    const head = inst.parts.get('Head');
-    const camera = D.viewport.camera;
-    D.updateScene();
-    const headCentre = new THREE.Vector3(head.world[0], head.world[1], head.world[2]);
-    const markerPos = new THREE.Vector3().setFromMatrixPosition(head.marker.matrix);
-    // The head is ROUND, so the distance must be its radius regardless of view angle. Treating it
-    // as a box put the marker at 0.864 — out where the bounding box corner is, visibly hovering.
-    const out = markerPos.distanceTo(headCentre);
-    assert(out > 0.55 && out < 0.65,
-      `the head marker should sit on the lathe's ~0.6 surface, got ${out.toFixed(3)} from centre`);
-    // and it must be on the camera's side of the part, never buried behind it
-    const toCam = new THREE.Vector3().setFromMatrixPosition(camera.matrixWorld).sub(headCentre).normalize();
-    const toMarker = markerPos.clone().sub(headCentre).normalize();
-    assert(toCam.dot(toMarker) > 0.9, 'the marker should face the camera side of the part');
-
-    // Clicking the marker must select that part — it is its own raycast target.
-    assert(head.marker.userData.partId === 'Head' && head.marker.userData.isSelBox,
-      'the marker should identify its part to the picker');
-
+    let stray = 0;
+    inst.group.traverse((o) => { if (o.isMesh && o.geometry && o.geometry.type === 'PlaneGeometry' && o.material && o.material.color && o.material.color.getHex() === 0x8ed0e8) stray++; });
+    assert(stray === 0, `${stray} pale-blue quads remain in the rig`);
     S.removeItem(item.id);
-    return { parts: inst.parts.size };
+    return { ok: true, parts: inst.parts.size };
   });
 
   // ---------------------------------------------------------------- part multi-select + keying

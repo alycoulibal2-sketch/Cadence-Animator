@@ -430,11 +430,15 @@ ask "does Cadence have this effect", but "how do I construct this effect". For 3
   What *is* built is Part 42's deformation family, which needs no connectivity because it only moves
   points — and it is one node (`Set Position` driven by a field), not fifteen, because bend, twist,
   taper, bulge, wave, ripple, melt and noise-displace are all "move each point by a field".
-- **Screen-space compositing is NOT built (Part 41).** Bloom over the final render, motion blur, depth of
-  field, chromatic aberration and lens distortion are screen-space passes: they need a render target and a
-  post-process chain that reads back the renderer's own output, which the sprite/mesh preview backend
-  cannot do. What IS built operates on a texture the graph made — real and useful, and named `Glow`
-  rather than `Bloom` to keep the distinction visible.
+- **Screen-space compositing (Part 41) IS built as the Effect Look (2026-09-06).** Bloom, exposure,
+  saturation, contrast, tint and a vignette travel as one `look` render command that the Effect Output
+  composes like any pass; the preview applies it through a post chain (three's RenderPass →
+  UnrealBloomPass → a grade/vignette ShaderPass → OutputPass on a multisampled half-float target) that
+  exists only while a look is present, so an effect without one still takes the plain render path. Roblox
+  gets a BloomEffect and a ColorCorrectionEffect under Lighting; the vignette has no equivalent and the
+  report says it is dropped. Motion blur, depth of field, chromatic aberration and lens distortion are
+  still absent — they need per-pixel depth and velocity the sprite backend does not write. `Glow` (a
+  texture-space effect on an image the graph made) keeps its name to keep the distinction visible.
 - **Send-to-Animator still refuses a procedural effect.** The animator's timeline holds Effect docs and a
   procedural graph is not one. Lua export works (phase 9).
 - **A baked export is a recording, not a simulation.** It plays back identically every time, and the note
@@ -475,5 +479,11 @@ ask "does Cadence have this effect", but "how do I construct this effect". For 3
 - **Roblox output (Parts 56–58).** Roblox cannot reproduce most of this natively. That is expected
   and is exactly why the classification and export report exist. Cadence's authoring capability is
   deliberately not limited to what Roblox can run.
-- **The current preview renderer draws sprites, meshes and point lights only.** Trails, ribbons,
-  beams, decals and volumes need new renderer backends (Phase 6), not new node types.
+- **The preview renderer draws sprites, meshes, point lights, strips (trails, ribbons, beams, lines),
+  volumes and a post look.** Decals are the one render kind still absent (they need projected-texture
+  support). On export, a mesh pass is no longer refused: each source geometry is written as a Wavefront
+  .obj to upload as a MeshPart, and the script clones the uploaded part per copy and places it per frame
+  (a deforming mesh carries its first drawn frame, moved by its centre). A curved beam or trail becomes a
+  chain of up to 8 Roblox Beams through points sampled evenly along the strip, so the curve survives to
+  that resolution rather than collapsing to a straight line; ribbons and lines are still refused with a
+  reason, because a Beam cannot hold its own orientation.

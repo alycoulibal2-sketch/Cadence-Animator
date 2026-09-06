@@ -45,6 +45,8 @@ function base(spec) {
     examples: spec.examples,
     preview: spec.preview,
     lesson: spec.lesson,
+    // Part of the Cadence Pro simulation pack (evaluator.js gates it when the app has no key).
+    pro: spec.pro === true,
   };
 }
 

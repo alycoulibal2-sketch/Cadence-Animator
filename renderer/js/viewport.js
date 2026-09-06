@@ -404,7 +404,6 @@ export function syncItems() {
       const inst = makeInstance(item);
       inst.setHandlesVisible?.(S.state.handlesVisible);
       inst.setHandleSize?.(S.state.handleSize);
-      inst.setPartMarkersVisible?.(S.state.partMarkersVisible);
       viewport.instances.set(item.id, inst);
     }
   }
@@ -482,9 +481,6 @@ export function updateScene() {
   for (const item of unattached) updateOneItem(item, t);
   for (const item of attached) updateOneItem(item, t);
   // After every part has its world transform for this frame: face the part markers at the camera.
-  if (S.state.partMarkersVisible) {
-    for (const [, inst] of viewport.instances) inst.updatePartMarkers?.(viewport.camera);
-  }
   updateGizmoAnchor();
   updateSelBox();
 }
@@ -815,7 +811,6 @@ function pick(e) {
   for (const [, inst] of viewport.instances) {
     if (inst.parts) {
       for (const [, p] of inst.parts) {
-        if (p.marker && p.marker.visible) boxes.push(p.marker);
       }
     }
   }

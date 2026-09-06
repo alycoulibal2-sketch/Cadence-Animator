@@ -606,3 +606,38 @@ button.sheet-badge-unsupported { cursor: pointer; }
 .hero-strip-scale span:nth-child(n+2) { text-align: center; }
 .hero-strip-scale span:last-child { text-align: right; }
 #vfxTrackList .hero-strip { min-width: 320px; }
+
+/* ---- the procedural editor, phase 7: help panel, minimap, keyboard focus, socket-filtered palette */
+.pnx-editor-main { display: flex; flex: 1 1 auto; min-height: 0; }
+.pnx-editor-main > .node-editor-viewport { min-width: 0; }
+.pnx-minimap {
+  position: absolute; right: 12px; bottom: 12px; z-index: 3; cursor: crosshair;
+  border: 1px solid var(--border); border-radius: 6px; background: rgba(12, 12, 18, 0.72);
+}
+.pnx-help {
+  flex: 0 0 280px; overflow-y: auto; border-left: 1px solid var(--border); background: var(--bg-1);
+  padding: 12px 14px; font-size: 12px; line-height: 1.45; color: var(--text-2);
+}
+.pnx-help[hidden] { display: none; }
+.pnx-help-title { margin: 0; font-size: 14px; color: var(--text-1); }
+.pnx-help h4 { margin: 12px 0 4px; font-size: 11px; color: var(--text-1); text-transform: uppercase; letter-spacing: 0.05em; }
+.pnx-help p { margin: 6px 0; }
+.pnx-help-head { display: flex; align-items: center; gap: 8px; }
+.pnx-help-pro { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #ffd57a; border: 1px solid #ffd57a; border-radius: 4px; padding: 0 5px; }
+.pnx-help-cat { color: var(--text-3); font-size: 11px; margin: 2px 0 6px; }
+.pnx-help-teach { color: var(--text-3); font-style: italic; }
+.pnx-help-uses { margin: 0; padding-left: 18px; }
+.pnx-help-socket { margin-bottom: 4px; }
+.pnx-help-socket b { color: var(--text-1); font-weight: 600; }
+.pnx-help-export { margin-top: 10px; }
+.pnx-help-export-level { font-weight: 600; color: var(--text-1); }
+.pnx-help-export-level.is-unsupported { color: #ff8a65; }
+.pnx-help-perf { color: var(--text-3); font-size: 11px; margin-top: 2px; }
+.pnx-help-keys { margin-top: 10px; }
+.pnx-help-keys div { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--border); }
+.pnx-help-keys kbd { flex: 0 0 auto; font-family: inherit; font-size: 11px; color: var(--text-1); background: var(--bg-3); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; }
+.pnx-socket.focused { box-shadow: 0 0 0 3px var(--accent), 0 0 0 5px rgba(0, 0, 0, 0.55); transform: scale(1.35); z-index: 2; }
+.pnx-socket.wiring { box-shadow: 0 0 0 3px rgba(224, 192, 96, 0.9); transform: scale(1.35); }
+.pnx-palette-hint { padding: 8px 10px 0; font-size: 11.5px; color: var(--text-3); }
+.pnx-badge-fit { color: var(--accent); }
+.pnx-palette-command .pnx-palette-label::before { content: "▶ "; color: var(--accent); }

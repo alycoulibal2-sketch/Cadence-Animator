@@ -2264,6 +2264,7 @@ check('studio: profiling attributes cost to nodes', () => {
 // ================================================================ phase 9: baking and export
 const BAKE = await import('../renderer/js/pnx/bake.js');
 const RBX = await import('../renderer/js/pnx/targets/roblox.js');
+const BAKE6 = await import('../renderer/js/pnx/bake.js');
 
 // A structural validator for generated Luau. Not a parser — a parser is a project of its own — but it
 // catches every failure mode a CODE GENERATOR actually has: an unclosed block, unbalanced brackets, a
@@ -2479,7 +2480,7 @@ check('export: a colliding, curl-forced effect is BAKED, with both reasons named
     'the user must be told a bake is a recording, not a simulation');
 });
 
-check('export: a mesh pass is refused with a reason, never faked', () => {
+check('export: a mesh pass is baked to an .obj with the reason stated, never faked as Parts', () => {
   const g = G.newGraph('m');
   const sph = G.newNode(g, 'cadence.geometry.sphere', 0, 0, { id: 'msph', values: { radius: 2 } });
   const ren = G.newNode(g, 'cadence.render.mesh', 200, 0, { id: 'mren' });
@@ -2488,12 +2489,13 @@ check('export: a mesh pass is refused with a reason, never faked', () => {
   assert.ok(G.connect(g, ren.id, 'out', out.id, 'passes').ok);
 
   const built = exportGraph(g);
-  assert.equal(built.report.rows[0].level, 'unsupported');
+  assert.equal(built.report.rows[0].level, 'baked');
   assert.ok(/cannot build a mesh at runtime/i.test(built.report.rows[0].reasons[0]),
-    'the refusal must explain WHY, not merely refuse');
+    'the classification must explain WHY an upload is needed');
+  assert.equal(built.meshes.length, 1, 'the sphere travels as an .obj');
   // And it must not have quietly emitted several hundred parts instead.
-  assert.ok(!/Instance\.new\("Part"\)[\s\S]*Instance\.new\("Part"\)[\s\S]*Instance\.new\("Part"\)/.test(built.lua)
-    || built.lua.includes('not exported'), 'an unsupported pass must not be silently approximated');
+  assert.ok(!/Instance\.new\("Part"\)[\s\S]*Instance\.new\("Part"\)[\s\S]*Instance\.new\("Part"\)/.test(built.lua),
+    'a mesh pass must not be approximated as a pile of Parts');
   assert.deepEqual(checkLuaStructure(built.lua), []);
 });
 
@@ -2513,7 +2515,7 @@ check('export: a light becomes a PointLight with its values baked per frame', ()
   assert.deepEqual(checkLuaStructure(built.lua), []);
 });
 
-check('export: a beam becomes a Roblox Beam and says what it lost', () => {
+check('export: a beam becomes a chain of Roblox Beams and says how many', () => {
   const g = G.newGraph('bm');
   const helix = G.newNode(g, 'cadence.curveGeometry.helix', 0, 0, { id: 'bmh', values: { radius: 1, endRadius: 1, height: 6, turns: 2, segments: 20 } });
   const beam = G.newNode(g, 'cadence.render.beam', 200, 0, { id: 'bmb', values: { width: 0.4 } });
@@ -2524,8 +2526,8 @@ check('export: a beam becomes a Roblox Beam and says what it lost', () => {
   const built = exportGraph(g, { duration: 20 });
   assert.equal(built.report.rows[0].level, 'converted');
   assert.ok(built.lua.includes('Instance.new("Beam")'));
-  assert.ok(built.notes.some((nt) => /curvature in the original is lost/i.test(nt)),
-    'a 20-segment helix flattened to a 2-point Beam must say so');
+  assert.ok(built.notes.some((nt) => /chain of 8 Roblox Beams/i.test(nt)),
+    `a 20-segment helix becomes a chain of 8 Beams, and the note says so: ${built.notes.join(' | ')}`);
   assert.deepEqual(checkLuaStructure(built.lua), []);
 });
 
@@ -2538,7 +2540,7 @@ check('export: an empty graph produces a valid script that explains itself', () 
 });
 
 check('export: the report classifies every pass and names the level honestly', () => {
-  // Several passes at once: one native, one unsupported. The report must not collapse them.
+  // Several passes at once: one native, one baked. The report must not collapse them.
   const g = G.newGraph('mix');
   const em = G.newNode(g, 'cadence.particles.emitter', 0, 0, { id: 'xem', values: { rate: 20, lifetime: 1 } });
   const sim = G.newNode(g, 'cadence.particles.simulate', 200, 0, { id: 'xsim' });
@@ -2555,12 +2557,12 @@ check('export: the report classifies every pass and names the level honestly', (
   const built = exportGraph(g, { duration: 30 });
   assert.equal(built.report.rows.length, 2, 'both passes must be classified');
   const levels = built.report.rows.map((r) => r.level).sort();
-  assert.deepEqual(levels, ['native', 'unsupported']);
-  assert.ok(!built.report.lossless, 'an export that loses a pass is not lossless');
+  assert.deepEqual(levels, ['baked', 'native']);
+  assert.ok(!built.report.lossless, 'an export that bakes a pass is not lossless');
   assert.ok(built.report.exportable, 'but it is still partly exportable');
   // The header comment must carry the classification, so the script explains itself months later.
   assert.ok(/pass 1 \(sprite\): NATIVE/.test(built.lua));
-  assert.ok(/pass 2 \(mesh\): UNSUPPORTED/.test(built.lua));
+  assert.ok(/pass 2 \(mesh\): BAKED/.test(built.lua));
   assert.deepEqual(checkLuaStructure(built.lua), []);
 });
 
@@ -4454,6 +4456,283 @@ check('zones: Carry over frames makes a simulation zone — sequential, scrubbab
   // a structural edit inside the group resets the carried state
   add.values.b = 2; ev.invalidateNode(add.id);
   assert.equal(at(3), 8, 'after the edit, frame 3 is recomputed from frame 0 with the new step');
+});
+
+// ================================================================ Cadence Pro: the evaluator gate
+check('pro gate: an evaluator without the key yields the default for Pro nodes with a diagnostic, and switches on in place', () => {
+  const proIds = R.catalogue().filter((n) => n.pro).map((n) => n.id.replace(/@\d+$/, ''));
+  for (const id of ['cadence.forces.flock', 'cadence.forces.separation', 'cadence.forces.liquid', 'cadence.particles.events', 'cadence.pyro.simulate', 'cadence.volume.cloud', 'cadence.render.volume']) {
+    assert.ok(proIds.includes(id), `${id} is flagged Pro`);
+  }
+  assert.ok(!proIds.includes('cadence.particles.simulate') && !proIds.includes('cadence.math.add'), 'the free core is not flagged');
+  const g = G.newGraph('t');
+  const cloud = G.newNode(g, 'cadence.volume.cloud', 0, 0, { id: 'cloud', values: { resolution: 8 } });
+  const info = G.newNode(g, 'cadence.volume.info', 0, 0, { id: 'info' });
+  assert.ok(G.connect(g, cloud.id, 'out', info.id, 'volume').ok);
+  const gated = new E.Evaluator(g, { fps: 30, pro: false });
+  const r1 = gated.evaluateSocket(info.id, 'voxels');
+  assert.equal(r1.value, 0, 'without the key the Cloud yields nothing');
+  assert.ok(r1.diagnostics.some((d) => /Cadence Pro/.test(d.message)), `the diagnostic names the gate: ${JSON.stringify(r1.diagnostics)}`);
+  gated.setPro(true);
+  assert.equal(gated.evaluateSocket(info.id, 'voxels').value, 512, 'the key switches it on in place');
+  gated.setPro(false);
+  assert.equal(gated.evaluateSocket(info.id, 'voxels').value, 0, 'and off again');
+  // the default is unrestricted: the engine, not the app, is what tests and source builds get
+  assert.equal(new E.Evaluator(g, { fps: 30 }).evaluateSocket(info.id, 'voxels').value, 512);
+});
+
+// ================================================================ Phase 6: the look, mesh export and beam chains
+check('look: the Effect Look is a post pass the scene hands up, and Roblox gets Bloom and Colour Correction', () => {
+  const g = STUDIO.newStarterGraph('lk');
+  const out = Object.values(g.nodes).find((nd) => nd.type.startsWith('cadence.render.output'));
+  const look = G.newNode(g, 'cadence.render.look', 400, 300, { id: 'lk1', values: { bloomStrength: 1.2, bloomThreshold: 0.5, vignette: 0.4, saturation: 1.3 } });
+  assert.ok(G.connect(g, look.id, 'out', out.id, 'passes').ok);
+  const e = new E.Evaluator(g, { fps: 30, duration: 60 });
+  e.setTime(10);
+  const cmds = RENDER.flattenCommands(e.evaluateSocket(out.id, 'out').value);
+  const scene = RENDER.resolveScene(cmds, { frame: 10 });
+  assert.equal(scene.stats.looks, 1, 'one look in the stats');
+  assert.ok(scene.stats.sprites > 0, 'the sprite pass still draws next to it');
+  assert.ok(scene.look && Math.abs(scene.look.bloomStrength - 1.2) < 1e-9, `the look is handed up separately: ${JSON.stringify(scene.look)}`);
+  assert.equal(scene.look.vignette, 0.4);
+  assert.equal(RENDER.backendReport(cmds, 'preview').rows.find((r) => r.kind === 'look').level, 'native', 'the preview draws it natively');
+  const a = RBX.analyseForRoblox(cmds, { graph: g, evaluator: e });
+  const row = a.rows.find((r) => r.kind === 'look');
+  assert.ok(row && row.level === 'approximated', `the look is approximated on Roblox: ${JSON.stringify(row)}`);
+  assert.ok(/Bloom/.test(row.how), `how names Bloom: ${row.how}`);
+  assert.ok(row.notes.some((nt) => /vignette/i.test(nt)), 'the dropped vignette is named in the report');
+  const built = exportGraph(g, { duration: 20 });
+  assert.ok(built.lua.includes('Instance.new("BloomEffect")'), 'bloom becomes a BloomEffect under Lighting');
+  assert.ok(built.lua.includes('Instance.new("ColorCorrectionEffect")'), 'the grade becomes a ColorCorrectionEffect');
+  assert.ok(/Saturation = 0\.3/.test(built.lua), 'saturation 1.3 maps to Roblox\'s +0.3');
+  assert.ok(built.notes.some((nt) => /vignette is dropped/i.test(nt)), 'the notes say the vignette is dropped');
+  assert.ok(built.lua.includes(':Destroy()'), 'and the effects are removed when the effect stops');
+  assert.deepEqual(checkLuaStructure(built.lua), []);
+});
+
+check('look: the Bloom & colour grade thing sits on the sheet and a bloom of 0 exports no BloomEffect', () => {
+  const g = STUDIO.newStarterGraph('lk2');
+  const res = MENUS.addThing(g, 'look');
+  assert.ok(g.nodes[res.thing].type.startsWith('cadence.render.look'));
+  const p = SHEET.projectGraph(g);
+  const card = p.things.find((t) => t.type.startsWith('cadence.render.look'));
+  assert.ok(card && card.drawn && card.exportSupport === 'approximated', `the look is a drawn thing with its badge: ${JSON.stringify(card && [card.drawn, card.exportSupport])}`);
+  g.nodes[res.thing].values.bloomStrength = 0;
+  const built = exportGraph(g, { duration: 20 });
+  assert.ok(!built.lua.includes('Instance.new("BloomEffect")'), 'no bloom means no BloomEffect');
+  assert.ok(built.lua.includes('ColorCorrectionEffect'), 'the grade is still there');
+  assert.deepEqual(checkLuaStructure(built.lua), []);
+});
+
+check('export: a mesh pass is exported as an .obj plus a MeshPart mover script', () => {
+  const g = G.newGraph('mo');
+  const inputs = R.getNode('cadence.render.mesh').inputs.map((s) => s.key);
+  assert.ok(inputs.includes('source') && inputs.includes('instances'), `mesh renderer sockets: ${inputs}`);
+  const ico = G.newNode(g, 'cadence.geometry.icosphere', 0, 0, { id: 'moico', values: { radius: 1.5, subdivisions: 1 } });
+  const ren = G.newNode(g, 'cadence.render.mesh', 200, 0, { id: 'moren' });
+  const out = G.newNode(g, 'cadence.render.output', 400, 0, { id: 'moout' });
+  assert.ok(G.connect(g, ico.id, 'out', ren.id, 'source').ok);
+  assert.ok(G.connect(g, ren.id, 'out', out.id, 'passes').ok);
+  const built = exportGraph(g, { duration: 20 });
+  assert.equal(built.report.rows[0].level, 'baked');
+  assert.ok(/cannot build a mesh at runtime/i.test(built.report.rows[0].reasons[0]), 'the reason says why an upload is needed');
+  assert.equal(built.meshes.length, 1, 'one .obj for one geometry');
+  const m = built.meshes[0];
+  const e = new E.Evaluator(g, { fps: 30, duration: 20 });
+  e.setTime(0);
+  const geo = e.evaluateSocket(ico.id, 'out').value;
+  const lines = m.obj.split('\n');
+  assert.equal(lines.filter((l) => l.startsWith('v ')).length, GEO.pointCount(geo), 'a v line per point');
+  assert.equal(lines.filter((l) => l.startsWith('f ')).length, GEO.faceCount(geo), 'an f line per triangle');
+  assert.ok(lines.filter((l) => l.startsWith('f ')).every((l) => l.split(' ').length === 4), 'every face is a triangle');
+  assert.equal(m.triangles, GEO.faceCount(geo));
+  assert.ok(m.name === 'P1_Mesh' && built.lua.includes('MeshPart') && built.lua.includes('"P1_Mesh"'), 'the script asks for the MeshPart by name');
+  assert.ok(/CFrame\.new\(best\[3\], best\[4\], best\[5\]\)/.test(built.lua), 'a plain mesh is moved by its centre');
+  assert.ok(built.notes.some((nt) => /\.obj/.test(nt)), 'the notes tell the user to save and upload the .obj');
+  assert.deepEqual(checkLuaStructure(built.lua), []);
+  // the same obj re-parses: every face index is within the vertex count
+  const nv = lines.filter((l) => l.startsWith('v ')).length;
+  for (const l of lines.filter((x) => x.startsWith('f '))) {
+    for (const ref of l.slice(2).split(' ')) { const idx = Number(ref.split('/')[0]); assert.ok(idx >= 1 && idx <= nv, `face index ${idx} in range`); }
+  }
+});
+
+check('export: an instance set exports one .obj per source and places every copy by a quaternion CFrame', () => {
+  const g = G.newGraph('mi');
+  const pts = G.newNode(g, 'cadence.geometry.pointGrid', 0, 0, { id: 'mipts', values: { size: [4, 0, 4], countX: 3, countY: 1, countZ: 3 } });
+  const box = G.newNode(g, 'cadence.geometry.box', 0, 200, { id: 'mibox', values: { size: [0.3, 0.3, 0.3] } });
+  const inst = G.newNode(g, 'cadence.instance.onPoints', 200, 0, { id: 'miinst' });
+  const ren = G.newNode(g, 'cadence.render.mesh', 400, 0, { id: 'miren' });
+  const out = G.newNode(g, 'cadence.render.output', 600, 0, { id: 'miout' });
+  assert.ok(G.connect(g, pts.id, 'out', inst.id, 'points').ok);
+  assert.ok(G.connect(g, box.id, 'out', inst.id, 'geometry').ok);
+  assert.ok(G.connect(g, inst.id, 'out', ren.id, 'instances').ok);
+  assert.ok(G.connect(g, ren.id, 'out', out.id, 'passes').ok);
+  const built = exportGraph(g, { duration: 20 });
+  assert.equal(built.report.rows[0].level, 'baked');
+  assert.equal(built.meshes.length, 1, 'one source geometry, one .obj');
+  assert.ok(/CFrame\.new\(best\[o \+ 1\], best\[o \+ 2\], best\[o \+ 3\], best\[o \+ 4\], best\[o \+ 5\], best\[o \+ 6\], best\[o \+ 7\]\)/.test(built.lua),
+    'instances are placed with the quaternion CFrame constructor');
+  assert.ok(/local cnt = best\[2\]/.test(built.lua), 'the count travels with each key');
+  const key = /P1_KEYS = \{\n\s*\{0,(\d+),/.exec(built.lua);
+  assert.ok(key && Number(key[1]) === 9, `nine copies in the first key: ${key && key[0]}`);
+  assert.ok(/p\.Size = Vector3\.new\(t\.Size\.X \* best\[o \+ 8\]/.test(built.lua), 'the scale multiplies the uploaded part\'s size');
+  assert.deepEqual(checkLuaStructure(built.lua), []);
+});
+
+check('export: a curved beam becomes a chain of Beams that keeps its curve; a straight one stays a single Beam', () => {
+  const g = G.newGraph('bc');
+  const inputs = R.getNode('cadence.render.beam').inputs.map((s) => s.key);
+  assert.ok(inputs.includes('source') && inputs.includes('width'), `beam sockets: ${inputs}`);
+  const helix = G.newNode(g, 'cadence.curveGeometry.helix', 0, 0, { id: 'bch', values: { radius: 1, endRadius: 1, height: 6, turns: 2, segments: 40 } });
+  const beam = G.newNode(g, 'cadence.render.beam', 200, 0, { id: 'bcb', values: { width: 0.4 } });
+  const out = G.newNode(g, 'cadence.render.output', 400, 0, { id: 'bco' });
+  assert.ok(G.connect(g, helix.id, 'out', beam.id, 'source').ok);
+  assert.ok(G.connect(g, beam.id, 'out', out.id, 'passes').ok);
+  const built = exportGraph(g, { duration: 20 });
+  assert.equal(built.report.rows[0].level, 'converted');
+  for (let k = 0; k <= 8; k++) assert.ok(built.lua.includes(`local P1_a${k} = Instance.new("Attachment")`), `attachment ${k} is declared`);
+  assert.ok(!built.lua.includes('local P1_a9 '), 'and no tenth');
+  assert.equal((built.lua.match(/Instance\.new\("Beam"\)/g) || []).length, 8, 'eight Beams in the chain');
+  assert.ok(built.notes.some((nt) => /chain of 8/.test(nt)), `the note says so: ${built.notes.join(' | ')}`);
+  // each key carries 9 points × 7 values after the frame number
+  const key = /P1_KEYS = \{\n\s*\{([^}]*)\}/.exec(built.lua);
+  assert.ok(key, 'the keys table is there');
+  assert.equal(key[1].split(',').length, 1 + 9 * 7, 'frame + nine points of x,y,z,width,r,g,b');
+  // the chain's ends are the helix's ends, and its middle point is on the helix's radius
+  const vals = key[1].split(',').map(Number);
+  const p0 = vals.slice(1, 4), p8 = vals.slice(1 + 8 * 7, 4 + 8 * 7), p4 = vals.slice(1 + 4 * 7, 4 + 4 * 7);
+  assert.ok(Math.abs((p8[1] - p0[1]) - 6) < 0.05, `the ends span the helix height: y ${p0[1]} .. ${p8[1]}`);
+  assert.ok(Math.abs(Math.hypot(p4[0], p4[2]) - 1) < 0.1, `the midpoint sits on the helix radius: ${Math.hypot(p4[0], p4[2])}`);
+  assert.ok(built.lua.includes('local A = {P1_a0, P1_a1, P1_a2, P1_a3, P1_a4, P1_a5, P1_a6, P1_a7, P1_a8}'), 'the attachments are indexed through a table');
+  assert.deepEqual(checkLuaStructure(built.lua), []);
+
+  const g2 = G.newGraph('bl');
+  const line = G.newNode(g2, 'cadence.curveGeometry.line', 0, 0, { id: 'bll', values: { from: [0, 0, 0], to: [0, 3, 0] } });
+  const beam2 = G.newNode(g2, 'cadence.render.beam', 200, 0, { id: 'blb' });
+  const out2 = G.newNode(g2, 'cadence.render.output', 400, 0, { id: 'blo' });
+  assert.ok(G.connect(g2, line.id, 'out', beam2.id, 'source').ok);
+  assert.ok(G.connect(g2, beam2.id, 'out', out2.id, 'passes').ok);
+  const built2 = exportGraph(g2, { duration: 20 });
+  assert.equal((built2.lua.match(/Instance\.new\("Beam"\)/g) || []).length, 1, 'a two-point line is one Beam');
+  assert.ok(built2.lua.includes('local P1_a1 = ') && !built2.lua.includes('local P1_a2 = '), 'two attachments');
+  assert.ok(built2.notes.some((nt) => /between its two endpoints/.test(nt)));
+  assert.deepEqual(checkLuaStructure(built2.lua), []);
+
+  // the cap: asking for more segments than Roblox's practical limit is clamped
+  const built3 = exportGraph(g, { duration: 20, bake: { beamSegments: 50 } });
+  assert.equal((built3.lua.match(/Instance\.new\("Beam"\)/g) || []).length, BAKE6.ROBLOX_LIMITS.beamSegments, 'capped at the Roblox limit');
+});
+
+// ================================================================ Phase 7: the node editor's pure tools (layout, navigation, socket fit)
+const TOOLS7 = await import('../renderer/js/pnx/editorTools.js');
+
+check('layout: auto-layout puts every node in a column by depth, packs rows without overlap, and is deterministic', () => {
+  const g = STUDIO.newStarterGraph('lay');
+  // scramble: everything on one spot
+  for (const n of Object.values(g.nodes)) { n.x = 100; n.y = 100; }
+  assert.ok(TOOLS7.overlappingPairs(g).length > 0, 'the scramble overlaps');
+  const res = TOOLS7.applyAutoLayout(g);
+  assert.ok(res.moved > 0 && res.columns >= 4, `moved ${res.moved} into ${res.columns} columns`);
+  assert.deepEqual(TOOLS7.overlappingPairs(g), [], 'no two boxes overlap after the layout');
+  for (const l of Object.values(g.links)) {
+    assert.ok(g.nodes[l.fromNode].x < g.nodes[l.toNode].x, `every wire runs left to right (${g.nodes[l.fromNode].type} → ${g.nodes[l.toNode].type})`);
+  }
+  // columns are a fixed pitch apart: every x is the origin plus a whole number of (NODE_W + gap)
+  const xs = [...new Set(Object.values(g.nodes).map((n) => n.x))].sort((a, b) => a - b);
+  assert.equal(xs.length, res.columns, 'one x per column');
+  for (let i = 1; i < xs.length; i++) assert.equal(xs[i] - xs[i - 1], xs[1] - xs[0], 'columns are evenly spaced');
+  // the top-left stays where the graph was
+  assert.equal(Math.min(...Object.values(g.nodes).map((n) => n.x)), 100);
+  assert.equal(Math.min(...Object.values(g.nodes).map((n) => n.y)), 100);
+  // a second run changes nothing, and a fresh scramble lays out identically
+  const snap = Object.fromEntries(Object.values(g.nodes).map((n) => [n.id, [n.x, n.y]]));
+  const again = TOOLS7.applyAutoLayout(g);
+  assert.equal(again.moved, 0, 'idempotent');
+  for (const n of Object.values(g.nodes)) { n.x = 5; n.y = 7; }
+  TOOLS7.applyAutoLayout(g, '', { originX: 100, originY: 100 });
+  assert.deepEqual(Object.fromEntries(Object.values(g.nodes).map((n) => [n.id, [n.x, n.y]])), snap, 'the same graph lays out the same way from any starting positions');
+});
+
+check('layout: a straight chain stays on one line, and a group\'s interior is laid out in its own scope', () => {
+  const g = G.newGraph('chain');
+  const a = G.newNode(g, 'cadence.geometry.sphere', 0, 300, { id: 'ca' });
+  const b = G.newNode(g, 'cadence.geometry.transform', 50, 10, { id: 'cb' });
+  const c = G.newNode(g, 'cadence.render.mesh', 20, 600, { id: 'cc' });
+  const out = G.newNode(g, 'cadence.render.output', 0, 0, { id: 'co' });
+  assert.ok(G.connect(g, a.id, 'out', b.id, 'geometry').ok || G.connect(g, a.id, 'out', b.id, 'source').ok, 'sphere feeds the transform');
+  assert.ok(G.connect(g, b.id, 'out', c.id, 'source').ok);
+  assert.ok(G.connect(g, c.id, 'out', out.id, 'passes').ok);
+  TOOLS7.applyAutoLayout(g);
+  const centre = (n) => n.y + TOOLS7.boxHeight(g, n) / 2;
+  assert.ok(Math.abs(centre(a) - centre(b)) < 1 && Math.abs(centre(b) - centre(c)) < 1 && Math.abs(centre(c) - centre(out)) < 1,
+    `a one-input chain lines up by centre: ${[a, b, c, out].map(centre).join(', ')}`);
+  assert.ok(a.x < b.x && b.x < c.x && c.x < out.x);
+
+  // group the middle two; the interior gets its own layout, the root gets its own
+  const res = GRP.collapseToGroup(g, [b.id, c.id], { name: 'Mid' });
+  assert.ok(res.ok, res.reason);
+  const groupId = G.groupIdOfType(g.nodes[res.instanceId].type);
+  for (const n of Object.values(g.nodes)) { n.x = 0; n.y = 0; }
+  const all = TOOLS7.applyAutoLayoutAll(g);
+  assert.equal(all.scopes, 2, 'root and one group');
+  assert.deepEqual(TOOLS7.overlappingPairs(g, ''), [], 'the root has no overlaps');
+  assert.deepEqual(TOOLS7.overlappingPairs(g, groupId), [], 'the group interior has no overlaps');
+  const inner = G.nodesInScope(g, groupId);
+  assert.ok(inner.length >= 4, `interior: the two nodes plus the boundary pair, got ${inner.length}`);
+  const gin = inner.find((n) => n.type === G.GROUP_INPUT_TYPE), gout = inner.find((n) => n.type === G.GROUP_OUTPUT_TYPE);
+  assert.ok(gin.x < g.nodes[b.id].x && g.nodes[c.id].x < gout.x, 'inside the group: input boundary, then the chain, then the output boundary');
+  // laying out the group alone does not touch the root
+  const rootBefore = G.nodesInScope(g, '').map((n) => [n.id, n.x, n.y]);
+  TOOLS7.applyAutoLayout(g, groupId, { originX: 5000, originY: 5000 });
+  assert.deepEqual(G.nodesInScope(g, '').map((n) => [n.id, n.x, n.y]), rootBefore, 'a group layout leaves the root alone');
+  assert.ok(inner.every((n) => n.x >= 5000 && n.y >= 5000), 'and moves only the interior');
+});
+
+check('navigation: the nearest node in a direction prefers what is straight ahead and still reaches an off-axis node', () => {
+  const size = () => ({ w: 268, h: 100 });
+  const at = (id, x, y) => ({ id, x, y });
+  const from = at('f', 0, 0);
+  const ahead = at('ahead', 700, 0), near = at('near', 350, 300), behind = at('behind', -400, 0), above = at('above', 0, -300);
+  const nodes = [from, ahead, near, behind, above];
+  assert.equal(TOOLS7.nearestInDirection(nodes, from, 'right', size).id, 'ahead', 'straight ahead beats a closer node well off the axis');
+  assert.equal(TOOLS7.nearestInDirection(nodes, from, 'left', size).id, 'behind');
+  assert.equal(TOOLS7.nearestInDirection(nodes, from, 'up', size).id, 'above');
+  assert.equal(TOOLS7.nearestInDirection(nodes, from, 'down', size).id, 'near', 'the only node below is reached even though it is mostly to the right');
+  assert.equal(TOOLS7.nearestInDirection([from, above], from, 'right', size), null, 'nothing to the right');
+  assert.equal(TOOLS7.nearestInDirection(nodes, from, 'sideways', size), null, 'an unknown direction is nothing');
+});
+
+check('fit: fittingSocket finds the socket a held wire lands on, and refuses types that cannot connect', () => {
+  const geo = 'geometry';
+  const mesh = TOOLS7.fittingSocket(R.getNode('cadence.render.mesh'), 'out', geo);
+  assert.ok(mesh && mesh.key === 'source' && mesh.rank === 3, `a geometry output lands on the Mesh Renderer's Geometry input: ${JSON.stringify(mesh)}`);
+  assert.equal(TOOLS7.fittingSocket(R.getNode('cadence.render.output'), 'out', geo), null, 'the Effect Output takes render commands, not geometry');
+  const add = R.getNode('cadence.math.add');
+  assert.equal(TOOLS7.fittingSocket(add, 'out', geo), null, 'a generic with numeric kinds does not admit a geometry');
+  const addF = TOOLS7.fittingSocket(add, 'out', 'float');
+  assert.ok(addF && addF.rank === 1, `but admits a float through its generic: ${JSON.stringify(addF)}`);
+  const addField = TOOLS7.fittingSocket(add, 'out', 'field<float>');
+  assert.ok(addField && addField.rank === 1, 'and a field of float, which lifts');
+  // held INPUT: which output of a candidate feeds it
+  const sphereOut = TOOLS7.fittingSocket(R.getNode('cadence.geometry.sphere'), 'in', geo);
+  assert.ok(sphereOut && sphereOut.key === 'out' && sphereOut.rank === 3, `a geometry input is fed by the Sphere's output: ${JSON.stringify(sphereOut)}`);
+  assert.equal(TOOLS7.fittingSocket(R.getNode('cadence.geometry.sphere'), 'in', 'renderCommand'), null);
+  // mode inputs (socket: false) never fit
+  const look = R.getNode('cadence.render.look');
+  const fitLook = TOOLS7.fittingSocket(look, 'out', 'float');
+  assert.ok(fitLook && look.inputs.find((s) => s.key === fitLook.key).socket !== false, 'a mode setting is never offered as a landing socket');
+  // the filter the palette applies: every offered type really accepts the wire
+  const offered = R.currentNodes().filter((n) => TOOLS7.fittingSocket(n, 'out', geo));
+  assert.ok(offered.length > 20 && offered.length < R.currentNodes().length, `a geometry wire is offered ${offered.length} of ${R.currentNodes().length} node types`);
+  for (const n of offered.slice(0, 40)) {
+    const g = G.newGraph('fit');
+    const src = G.newNode(g, 'cadence.geometry.sphere', 0, 0);
+    const dst = G.newNode(g, n.id, 400, 0);
+    const fit = TOOLS7.fittingSocket(n, 'out', geo);
+    const res = G.connect(g, src.id, 'out', dst.id, fit.key);
+    assert.ok(res.ok, `${n.id}.${fit.key} accepts the wire the palette promised: ${res.reason}`);
+  }
 });
 
 // ================================================================

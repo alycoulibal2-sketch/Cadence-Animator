@@ -15,6 +15,7 @@ import { initDiagnosticsPanel } from './diagnosticsPanel.js';
 import { serializeEffect, parseEffect } from '../../renderer/js/effectModel.js';
 import { buildEffectLua } from '../../renderer/js/effectExport.js';
 import { toast, modal } from '../../renderer/js/ui.js';
+import { initPro, openProDialog } from '../../renderer/js/proDialog.js';
 import { applyStaticIcons, swapIcon } from '../../renderer/js/icons.js';
 import { isNodeEditorOpen, openNodeEditor } from './nodeEditor.js';
 import { openPnxNodeEditor } from './pnxNodeEditor.js';
@@ -145,6 +146,12 @@ function initTitlebar() {
 
   document.getElementById('exportLuaBtn').addEventListener('click', async () => {
     if (!gateOnErrors('export')) return;
+    // Procedural export is Cadence Pro; the layer-based export stays free. Asked of the main process
+    // at click time, so a key entered a moment ago counts.
+    if (ST.isPnxMode()) {
+      const st = await window.vfxStudio.proStatus();
+      if (!st.active) { openProDialog({ reason: 'export' }); return; }
+    }
     const body = document.createElement('div');
     body.className = 'vfx-export-summary';
     const line = (text, cls) => {
@@ -158,6 +165,7 @@ function initTitlebar() {
     let lua = '';
     let notes = [];
     let flipbooks = [];
+    let meshes = [];
     if (ST.isPnxMode()) {
       // A procedural export is not a translation — it is a classification plus whatever can be
       // translated. So the dialogue leads with the classification: which passes became real Roblox
@@ -172,6 +180,7 @@ function initTitlebar() {
       lua = built.lua;
       notes = built.notes;
       flipbooks = built.flipbooks || [];
+      meshes = built.meshes || [];
 
       const c = built.report.counts;
       const parts = [];
@@ -181,6 +190,7 @@ function initTitlebar() {
       if (c.unsupported) parts.push(`${c.unsupported} not exportable`);
       line(`A self-contained LocalScript for this procedural effect. ${parts.join(', ') || 'nothing to export'}.`);
       line(`Script size: ${Math.round(built.bytes / 1024)} KB.`, built.withinBudget ? '' : 'vfx-diag-causes');
+      if (meshes.length) line(`${meshes.length} mesh${meshes.length === 1 ? '' : 'es'} exported as .obj. Save each one below, upload it to Roblox, and insert the MeshPart under the script with the name the script asks for.`);
       if (flipbooks.length) line(`${flipbooks.length} volume pass${flipbooks.length === 1 ? '' : 'es'} baked to flipbook sheets. Save each PNG below, upload it to Roblox as a decal, and paste the asset id where the script says PASTE_FLIPBOOK_ID.`);
 
       const h = document.createElement('div');
@@ -226,6 +236,12 @@ function initTitlebar() {
         if (saved) toast(`Saved ${saved} — upload it to Roblox as a decal and paste the id into the script`);
       },
     }));
+    const meshActions = meshes.map((m) => ({
+      label: `Save ${m.name}.obj`, icon: 'save', run: async () => {
+        const saved = await window.vfxStudio.saveTextFile(m.obj, `${m.name}.obj`);
+        if (saved) toast(`Saved ${saved} — upload it to Roblox and insert the MeshPart named ${m.name} under the script`);
+      },
+    }));
     modal({
       title: 'Export to Roblox (Luau)',
       body,
@@ -243,6 +259,7 @@ function initTitlebar() {
             toast('Luau script copied');
           },
         },
+        ...meshActions,
         ...flipbookActions,
         { label: 'Cancel', run: () => { } },
       ],
@@ -317,6 +334,7 @@ import { initStudioMcp } from './mcp.js';
 // ---------------------------------------------------------------- boot
 async function boot() {
   applyStaticIcons();
+  initPro(window.vfxStudio);
   initPreview();
   initClipTimeline();
   initInspector();

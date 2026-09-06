@@ -6,6 +6,12 @@ contextBridge.exposeInMainWorld('cadence', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (s) => ipcRenderer.invoke('settings:set', s),
 
+  // Cadence Pro (src/pro.js)
+  proStatus: () => ipcRenderer.invoke('pro:status'),
+  proActivate: (email, key) => ipcRenderer.invoke('pro:activate', email, key),
+  proDeactivate: () => ipcRenderer.invoke('pro:deactivate'),
+  onProChanged: (cb) => ipcRenderer.on('pro:changed', (_e, s) => cb(s)),
+
   // dialogs / files
   openDialog: (opts) => ipcRenderer.invoke('dialog:open', opts),
   saveDialog: (opts) => ipcRenderer.invoke('dialog:save', opts),
