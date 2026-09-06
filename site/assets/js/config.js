@@ -11,10 +11,10 @@
 
 window.CADENCE_CONFIG = {
   /* Stripe Checkout / Payment Link for the Founding price (first 100 keys). */
-  PRO_FOUNDING_LINK: '',
+  PRO_FOUNDING_LINK: 'https://buy.stripe.com/00w5kEbZ5f4Qgb8bwU0Ny0d',
 
   /* Stripe Checkout / Payment Link for the regular price. */
-  PRO_LINK: '',
+  PRO_LINK: 'https://buy.stripe.com/cNi7sMd393m8gb80Sg0Ny0e',
 
   /* Base URL of the licence API, with no trailing slash, e.g.
      'https://licence.example.com'. The pages call:
@@ -23,7 +23,7 @@ window.CADENCE_CONFIG = {
        GET {LICENSE_API}/license?session_id=...        -> { key, email }
      Empty: pricing hides the founding counter, account.html and thanks.html
      explain that verification opens with Pro. */
-  LICENSE_API: '',
+  LICENSE_API: 'https://cadence-license.onrender.com',
 
   /* Where a buyer writes when a key does not arrive. Empty: pages point at
      the GitHub issue tracker instead. */
