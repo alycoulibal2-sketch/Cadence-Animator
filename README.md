@@ -51,6 +51,30 @@ There's no "save before you close or you lose your work" — every change writes
 
 R6, R15, Rthro, Rthro Slender ship built in. Anything else — your own avatar, a specific asset ID, a `.rbxm`/`.rbxmx` file — comes in through the flows above, at any hierarchy depth, with UGC textures (including `SurfaceAppearance` face textures) applied automatically.
 
+## The semantic layer
+
+`renderer/js/ai/**` lets an AI reason about a shot in animation terms instead of raw CFrames. It
+projects the project into stable-id graphs — a Scene Graph, a Rig Graph, a Timeline Graph and a
+Dependency Graph — where every part and joint carries a semantic role (hips, chest, wrist, the
+planted foot) together with the evidence and certainty behind that mapping. So `resolve_semantic`
+can answer "the left foot" as a naming fact, "the planted foot" as a measurement, and "the weapon
+hand" with a question when nothing is actually held, rather than guessing.
+
+It also adds content-addressed immutable snapshots, a keyframe-level project diff that reports the
+exact frame range an edit touched, a rig validation pass, and a provenance graph that lives inside
+the project — so "which request caused this keyframe?" is still answerable after a save and reload.
+
+Twelve MCP tools expose it: `inspect_scene`, `inspect_rig`, `inspect_timeline`,
+`resolve_semantic`, `selection_vocabulary`, `set_semantic_role`, `snapshot_scene`,
+`list_snapshots`, `restore_snapshot`, `diff_snapshots`, `record_provenance`,
+`inspect_provenance`. Each states up front whether it is read-only, mutating or destructive.
+
+The layer is deliberately honest about its own limits: every result reports what it actually
+examined, and `inspect_scene` returns a list of what the layer *cannot* yet do — no motion
+measurement, no render passes beyond a beauty pass, no baselines, no constraints or transactions.
+Design, status per requirement, and the two pre-existing defects this work uncovered are in
+[`docs/animation-intelligence/`](docs/animation-intelligence/).
+
 ## Keyboard
 
 `Ctrl+K` opens the command palette — type what you want to do. `?` shows the full shortcut sheet, or click **⌘ Shortcuts** in the title bar. The essentials: `Space` play/pause, `W`/`E` move/rotate, `S` key the current pose, `A` toggle auto-key, `C` rotation-grid snap, `F` focus selected.
@@ -67,7 +91,18 @@ You'll need a GitHub Personal Access Token with `repo` scope (Settings → Devel
 
 Every release:
 1. Bump `version` in `package.json` (and re-sync `package-lock.json`'s version with `npm install --package-lock-only`) — electron-updater compares this against what's installed, so it must go up.
-2. `npm run smoketest` — 77 checks (one, classic clothing, needs the Roblox CDN). Wipe `test-output/userdata` and kill stray `electron` processes first.
+2. Run the tests. The three plain-Node suites are the fast loop and need no Electron:
+
+   ```bash
+   node test/coretest.mjs   # the pure effect core
+   node test/pnxtest.mjs    # the PNX procedural engine
+   node test/aitest.mjs     # the semantic layer (renderer/js/ai/**)
+   ```
+
+   Then `npm run smoketest` — the in-app pass (one check, classic clothing, needs the Roblox CDN).
+   Wipe `test-output/userdata` and kill stray `electron` processes first. Some `pnxtest` and
+   smoketest checks assert wall-clock budgets and fail on slower hardware without anything being
+   broken — check whether a failure is a timing assertion before treating it as a regression.
 3. `GH_TOKEN=<your token> npm run release` — builds the installer/portable exe and publishes a GitHub Release with them attached, tagged from `package.json`'s version.
 4. **Update the website.** This is part of the release, not a follow-up — the site prints the version, both file sizes, both SHA-256 checksums and a lot of exact counts, and every one of those goes stale on its own:
 

@@ -271,10 +271,27 @@ function restoreHeavy(items, stash) {
   }
 }
 
+// `project.semantics` (the semantic layer's role pins, key annotations and locks — see
+// renderer/js/ai/**) IS undoable state: pinning a role with set_semantic_role is an edit like any
+// other, and before this was captured, pushUndo() ran but changed nothing, so `undo` silently
+// left the pin in place.
+//
+// Its `provenance` sub-graph is deliberately NOT captured. Provenance is append-only history
+// (directive Part 56), and an undo that rewinds the record of what happened defeats the point of
+// keeping it — worse, undoing a change would erase the record of the change being undone. It is
+// split out here and re-attached live in applySnapshot: the same carry-across-by-reference
+// pattern HEAVY_FIELDS already uses for immutable geometry, and for the same reason, since a
+// growing graph cloned on every setKey is exactly the cost that comment exists to avoid.
+function undoableSemantics(p) {
+  if (!p.semantics) return null;
+  const { provenance, ...rest } = p.semantics;
+  return Object.keys(rest).length ? rest : null;
+}
+
 function snapshot() {
   const p = state.project;
   const { lite, stash } = stashHeavy(p.items);
-  const s = structuredClone({ items: lite, tracks: p.tracks, groups: p.groups, markers: p.markers || {}, playRange: p.playRange || null, onionSkin: p.onionSkin, length: p.length, fps: p.fps, loop: p.loop, priority: p.priority, name: p.name, audio: p.audio });
+  const s = structuredClone({ items: lite, tracks: p.tracks, groups: p.groups, markers: p.markers || {}, playRange: p.playRange || null, onionSkin: p.onionSkin, length: p.length, fps: p.fps, loop: p.loop, priority: p.priority, name: p.name, audio: p.audio, semantics: undoableSemantics(p) });
   s.__heavy = stash;               // attached AFTER the clone — never deep-copied
   return s;
 }
@@ -282,7 +299,19 @@ function applySnapshot(s) {
   const { __heavy, ...rest } = s;
   const next = structuredClone(rest);
   restoreHeavy(next.items, __heavy);
+  // `semantics` is handled separately from the Object.assign because it is the one field that
+  // must sometimes be REMOVED: Object.assign never deletes, so assigning a snapshot taken before
+  // the first role pin would otherwise leave the pin in place.
+  const history = state.project.semantics && state.project.semantics.provenance;
+  const restored = next.semantics;
+  delete next.semantics;
   Object.assign(state.project, next);
+  if (restored || history) {
+    state.project.semantics = { ...(restored || {}) };
+    if (history) state.project.semantics.provenance = history;
+  } else {
+    delete state.project.semantics;
+  }
   emit('project');
 }
 export function pushUndo() {

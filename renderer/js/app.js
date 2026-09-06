@@ -25,6 +25,7 @@ import { parseEffect, effectSummary } from './effectModel.js';
 import { runValidation } from './diagnostics.js';
 import './effectValidators.js'; // side effect: registers the shared validator pack
 import { buildEffectLua } from './effectExport.js';
+import * as AI from './ai/index.js'; // the semantic layer — pure, plain-data-in/out (see ai/index.js)
 
 let builtinRigs = null;
 let settings = {};
@@ -112,6 +113,10 @@ async function boot() {
       getInstance, updateScene, render, focusSelected, frameAll, debugFrame, debugPick, debugSimulateDrag, setHandlesVisible, viewport, refreshInstance,
       applyTheme, currentTheme, openThemeFlow, riggingToolsFlow, buildChain, solveIK, setUnparented, addVfxItem,
       addRigItem, importExternalMeshFlow, applyVfxPreset,
+      // The semantic layer, plus a direct line into the MCP handlers. `mcp()` lets the smoketest
+      // exercise a tool exactly as Claude would, instead of re-implementing what the handler does
+      // and then testing the re-implementation.
+      AI, liveProject, snapshotStore, mcp: (type, payload) => MCP_HANDLERS[type](payload || {}),
     };
   } catch (e) {
     console.error('[boot] failed:', e && e.stack || e);
@@ -3214,6 +3219,22 @@ function resolveItemOrigin(item, frame) {
   return S.evalTrackCF(item.id, '@origin', frame, item.origin);
 }
 
+// The semantic layer's snapshot store is session-scoped and in memory (see ai/snapshot.js). It is
+// NOT persisted: a durable snapshot store is a file-format decision that has not been made, and
+// pretending otherwise would make a baseline look more permanent than it is.
+//
+// Declared ABOVE MCP_HANDLERS deliberately — the smoketest's registration-coverage step reads
+// everything between `const MCP_HANDLERS = {` and `function initMcp` as handler keys, so helpers
+// belong on this side of the block.
+const snapshotStore = new AI.SnapshotStore();
+
+// The live project plus the session state the semantic layer treats as optional (selection and
+// camera view are not project data). Shallow on purpose — `items` and `tracks` move by reference,
+// so this costs nothing even on a project carrying tens of megabytes of baked textures.
+function liveProject() {
+  return { ...S.state.project, __selection: S.state.selection, __cameraView: S.state.cameraView };
+}
+
 const MCP_HANDLERS = {
   // Unpacked, so callers still see each part's real customTexture rather than the `@texlib:` refs
   // serialize() now writes to disk — this tool's output shape is unchanged by that optimization.
@@ -3822,6 +3843,165 @@ const MCP_HANDLERS = {
     const boxA = CF.worldAABB(defA.size, worlds.get(defA.id));
     const boxB = CF.worldAABB(defB.size, worlds.get(defB.id));
     return { colliding: CF.aabbOverlap(boxA, boxB), boxA, boxB };
+  },
+
+  // ---------------------------------------------------------------- semantic layer (ai/**)
+  //
+  // Directive Parts 16-19 (the semantic model), 50 (the MCP interface) and 56 (provenance).
+  // Everything here reads `S.state.project` as PLAIN DATA and returns a projection of it; the
+  // only mutating handler is set_semantic_role, and it goes through pushUndo like any other edit.
+  //
+  // Selection, playhead and camera-view are session state that lives on `S.state`, not in the
+  // project. They are overlaid with a SHALLOW spread — cheap, since items/tracks move by
+  // reference — under `__`-prefixed keys the pure layer reads and treats as optional.
+
+  inspect_scene: ({ frame, includeRig = true, includeTimeline = false, includeKeys = false } = {}) => {
+    const scene = AI.sceneGraph(liveProject(), {
+      frame: frame ?? S.state.playhead, includeRig, includeTimeline, includeKeys,
+    });
+    return { ...scene, capabilities: AI.capabilities() };
+  },
+
+  inspect_rig: ({ itemId }) => {
+    const item = itemId ? S.getItem(itemId) : S.state.project.items.find((i) => i.rig);
+    if (!item) throw new Error(itemId ? `No item with id ${itemId}` : 'There is no rig in this project');
+    if (!item.rig) throw new Error(`"${item.name}" has no rig`);
+    return AI.rigGraph(liveProject(), item, { ikChainLength: S.state.ikChainLength ?? 3 });
+  },
+
+  inspect_timeline: ({ itemId, includeKeys = true } = {}) => {
+    const item = itemId ? S.getItem(itemId) : S.state.project.items[0];
+    if (!item) throw new Error('There are no items in this project');
+    return AI.timelineGraph(liveProject(), item, { includeKeys });
+  },
+
+  resolve_semantic: ({ query, itemId, frame, window: win, kind }) => {
+    if (!query) throw new Error('resolve_semantic needs a query — try "the planted foot" or "the left hand"');
+    return AI.resolveSemantic(liveProject(), query, {
+      itemId, kind, window: win, frame: frame ?? S.state.playhead,
+    });
+  },
+
+  selection_vocabulary: () => AI.selectionVocabulary(),
+
+  set_semantic_role: ({ itemId, kind, key, role, side, reason }) => {
+    const item = S.getItem(itemId);
+    if (!item) throw new Error(`No item with id ${itemId}`);
+    // Resolve the target to a real entity id BEFORE mutating, so provenance records the same
+    // address every other tool uses. A joint id is derived from topology, so it needs the joint
+    // object rather than just its name — a pin on a joint that does not exist is still recorded,
+    // with a null entity, rather than being given a made-up id.
+    const joint = kind === 'joints' ? (item.rig?.joints || []).find((j) => j.name === key) : null;
+    const entityId = kind === 'parts' ? AI.ids.partId(itemId, key)
+      : kind === 'items' ? AI.ids.itemId(item)
+        : joint ? AI.ids.jointId(itemId, joint) : null;
+    if (kind === 'joints' && !joint) throw new Error(`No joint named "${key}" on "${item.name}"`);
+    if (kind === 'parts' && !(item.rig?.parts || []).some((p) => p.id === key)) {
+      throw new Error(`No part with id "${key}" on "${item.name}" — inspect_rig lists them (use the part id, not its display name)`);
+    }
+
+    S.pushUndo();
+    const entry = AI.roles.setRole(S.state.project, itemId, kind, key, role ?? null, { side, reason });
+    AI.provenance.record(S.state.project, {
+      type: 'note', author: 'ai',
+      summary: role ? `pinned role "${role}" on ${kind}/${key} of "${item.name}"` : `cleared the pinned role on ${kind}/${key} of "${item.name}"`,
+      detail: { itemId, kind, key, role: role ?? null, reason: reason ?? null },
+      entities: entityId ? [entityId] : [],
+      timestamp: new Date().toISOString(),
+    });
+    S.emit('items');
+    S.markDirty();
+    return { entry, overrides: AI.roles.listOverrides(S.state.project) };
+  },
+
+  snapshot_scene: ({ reason, author = 'ai', pinned = false } = {}) => {
+    const snap = snapshotStore.take(S.state.project, {
+      reason: reason || null, author, pinned, timestamp: new Date().toISOString(),
+    });
+    AI.provenance.record(S.state.project, {
+      type: 'snapshot', author,
+      summary: `snapshot ${snap.short}${snap.deduplicated ? ' (identical to one already held)' : ''}${reason ? ` — ${reason}` : ''}`,
+      detail: { hash: snap.hash, deduplicated: snap.deduplicated, pinned: snap.pinned },
+      timestamp: snap.created_at,
+    });
+    return { ...snap, store: snapshotStore.stats() };
+  },
+
+  list_snapshots: () => ({ snapshots: snapshotStore.list(), store: snapshotStore.stats() }),
+
+  // Destructive: replaces the whole project. Goes through pushUndo first, so a restore is itself
+  // undoable — Part 55 requires recovery from a recovery.
+  restore_snapshot: ({ id }) => {
+    const restored = snapshotStore.restore(id);
+    if (!restored) throw new Error(`No snapshot "${id}" is held (it may have been evicted — list_snapshots shows what is)`);
+    const before = snapshotStore.take(S.state.project, { reason: `state before restoring ${id}`, author: 'ai', pinned: true, timestamp: new Date().toISOString() });
+    const diff = AI.diffProjects(S.state.project, restored);
+
+    // Provenance is append-only history, not state — a snapshot never captured it (see
+    // ai/snapshot.js `withoutHistory`), so it is carried across rather than reverted. Rolling
+    // back to a baseline must not erase the record of what happened since, including the record
+    // of this restore.
+    const history = S.state.project.semantics && S.state.project.semantics.provenance;
+
+    S.pushUndo();
+    // Replace contents in place rather than reassigning `state.project`: autosave scheduling and
+    // several listeners close over the current project object, and swapping it wholesale here
+    // would strand them the way `loadProject` deliberately does not.
+    const p = S.state.project;
+    for (const k of Object.keys(p)) delete p[k];
+    Object.assign(p, restored);
+    if (history) {
+      p.semantics = p.semantics || {};
+      p.semantics.provenance = history;
+    }
+    AI.provenance.record(p, {
+      type: 'decision', author: 'ai',
+      summary: `restored snapshot ${id} — ${diff.summary}`,
+      detail: { snapshot: id, before_snapshot: before.id, changes: diff.summary },
+      links: [{ type: 'rolls_back', target: id }],
+      timestamp: new Date().toISOString(),
+    });
+
+    // The selection can name an item the restored state does not contain — `loadProject` clears
+    // it for exactly this reason, and a restore is the same kind of wholesale replacement.
+    S.setSelection(null, null);
+    S.emit('project');
+    S.emit('items');
+    S.emit('tracks', {});
+    S.markDirty();
+    syncItems();
+    updateScene();
+    requestDraw();
+    return { restored: id, undoable: true, before_snapshot: before.id, changes: diff.summary, diff };
+  },
+
+  diff_snapshots: ({ from, to }) => {
+    const a = from ? snapshotStore.get(from) : null;
+    if (from && !a) throw new Error(`No snapshot "${from}" is held`);
+    const b = to ? snapshotStore.get(to) : null;
+    if (to && !b) throw new Error(`No snapshot "${to}" is held`);
+    const before = a ? a.project : S.state.project;
+    const after = b ? b.project : S.state.project;
+    return { from: from || 'live', to: to || 'live', ...AI.diffProjects(before, after) };
+  },
+
+  record_provenance: ({ type, summary, detail, parents, entities, links, author = 'ai' }) => {
+    const id = AI.provenance.record(S.state.project, {
+      type, summary, detail, parents, entities, links, author, timestamp: new Date().toISOString(),
+    });
+    S.markDirty();
+    return { id, stats: AI.provenance.stats(S.state.project) };
+  },
+
+  inspect_provenance: ({ nodeId, entity, type, contains, limit } = {}) => {
+    const p = S.state.project;
+    if (nodeId) {
+      const ex = AI.provenance.explain(p, nodeId);
+      if (!ex) throw new Error(`No provenance node "${nodeId}"`);
+      return ex;
+    }
+    if (entity) return AI.provenance.historyOf(p, entity, { limit });
+    return { ...AI.provenance.query(p, { type, contains, limit }), stats: AI.provenance.stats(p) };
   },
 };
 

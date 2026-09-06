@@ -1053,6 +1053,145 @@ server.tool(
 server.tool('vfx_undo', 'Undo the last VFX Studio change.', {}, async () => { try { return textResult(await vfxCall('vfx_undo')); } catch (e) { return errorResult(e); } });
 server.tool('vfx_redo', 'Redo the last undone VFX Studio change.', {}, async () => { try { return textResult(await vfxCall('vfx_redo')); } catch (e) { return errorResult(e); } });
 
+// ================================================================ the semantic layer
+//
+// Cadence Animation Intelligence — the semantic model, semantic selection, snapshots and
+// provenance. Built to Cadence_Animator_Ultimate_Master_Directive.md; see
+// docs/animation-intelligence/requirements-matrix.md for what is and is not implemented.
+//
+// Every description below opens with its EFFECT — read-only, mutating, or destructive — because
+// directive Part 50 requires a tool to state whether it changes anything before it is called, not
+// after. The 140 pre-existing tools above do not carry that marker yet; these do.
+//
+// These tools return SEMANTIC facts with stable ids, certainty labels and evidence. Prefer them
+// over get_state when the question is "what is this?" rather than "give me the raw data".
+
+server.tool(
+  'inspect_scene',
+  'READ-ONLY. The Scene Graph: every item with a stable id, semantic role, world transform at a frame, dependency edges, and the layer\'s own capability statement. This is the right first call for "what is in this shot?" — it answers with roles and relationships rather than raw part names. Reports what it CANNOT answer (materials, lights, framing) explicitly rather than by omission.',
+  {
+    frame: z.number().optional().describe('Frame at which to resolve world transforms. Defaults to the current playhead.'),
+    includeRig: z.boolean().optional().describe('Include the full Rig Graph per rig item (default true). Set false for a light listing.'),
+    includeTimeline: z.boolean().optional().describe('Include the full Timeline Graph per item (default false — it is the largest part of the payload; inspect_timeline fetches it per item).'),
+    includeKeys: z.boolean().optional().describe('When including timelines, include every keyframe (default false).'),
+  },
+  async (a) => { try { return textResult(await call('inspect_scene', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'inspect_rig',
+  'READ-ONLY. The Rig Graph for one rig: every part and joint with a stable id that survives a rename, a semantic role (hips/chest/wrist/foot…) with the evidence and certainty behind it, mirror partners, FK and IK chain membership, contact capability, motion space, the Roblox mapping back to real part/joint names, and a full rig validation pass (root, cycles, duplicate motors, orphaned parts, rest-pose consistency, mirror completeness, role coverage, export shape). joint_limits is null because Cadence stores none — that means UNKNOWN, not unlimited.',
+  { itemId: z.string().optional().describe('Rig item id. Defaults to the first rig in the project.') },
+  async (a) => { try { return textResult(await call('inspect_rig', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'inspect_timeline',
+  'READ-ONLY. The Timeline Graph for one item: tracks with kind, value type, space, dependency back to the joint they drive, and keyframes with stable ids, exact times, seconds (with the fps used), easing, and any phase/intent annotations. Also the canonical time block (frames are canonical; seconds are derived) and the item\'s markers and key groups. layer/blend_mode/weight and in/out tangents are null because Cadence has neither animation layers nor tangent vectors.',
+  {
+    itemId: z.string().optional().describe('Item id. Defaults to the first item.'),
+    includeKeys: z.boolean().optional().describe('Include every keyframe (default true).'),
+  },
+  async (a) => { try { return textResult(await call('inspect_timeline', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'resolve_semantic',
+  'READ-ONLY. Turn a phrase into concrete entity ids — "the left foot", "the planted foot", "the weapon hand", "the hands", "the active camera" — with the evidence and a certainty level behind each match. Measured answers (the planted foot is derived from world-space foot travel over a frame window) are never reported as certain. When the project genuinely cannot decide, it returns no match and a question rather than guessing. Call selection_vocabulary to see every phrase it understands.',
+  {
+    query: z.string().describe('A phrase such as "the planted foot", "the weapon hand", "the left elbow", "both hands".'),
+    itemId: z.string().optional().describe('Restrict to one item.'),
+    frame: z.number().optional().describe('The frame the question is about. Defaults to the playhead. Used by measured queries.'),
+    window: z.array(z.number()).length(2).optional().describe('[from, to] frame window for measured queries. Defaults to ±3 frames around `frame`.'),
+    kind: z.enum(['part', 'joint', 'item', 'any']).optional().describe('Restrict the kind of entity returned (default any).'),
+  },
+  async (a) => { try { return textResult(await call('resolve_semantic', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'selection_vocabulary',
+  'READ-ONLY. Every role word, side word and special phrase resolve_semantic understands.',
+  {},
+  async () => { try { return textResult(await call('selection_vocabulary')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'set_semantic_role',
+  'MUTATING (undoable). Pin a semantic role onto an item, part or joint, so a rig this layer could not name — a creature, a vehicle, a mechanical rig, a weapon prop — becomes addressable by resolve_semantic. A pinned role always beats inference and is reported as certain. Pass role: null to clear one.',
+  {
+    itemId: z.string(),
+    kind: z.enum(['items', 'parts', 'joints']).describe('Which table the key belongs to.'),
+    key: z.string().describe('The part id, joint name, or item id being pinned.'),
+    role: z.string().nullable().describe('A role from the ROLE vocabulary (hips, chest, hand, foot, weapon, target, …). null clears the pin.'),
+    side: z.enum(['left', 'right', 'centre']).nullable().optional(),
+    reason: z.string().optional().describe('Why — kept with the pin and recorded in provenance.'),
+  },
+  async (a) => { try { return textResult(await call('set_semantic_role', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'snapshot_scene',
+  'MUTATING (records provenance only; the project itself is untouched). Capture an immutable, content-addressed snapshot of the current project. Identical content is deduplicated, so snapshotting before every edit is cheap. Pin a snapshot to protect it from eviction. The store is IN MEMORY and does not survive an app restart.',
+  {
+    reason: z.string().optional().describe('Why this state is worth keeping.'),
+    author: z.string().optional().describe("'user' | 'ai' | a tool name (default 'ai')."),
+    pinned: z.boolean().optional().describe('Never evict this one — use for a baseline or a transaction before-state.'),
+  },
+  async (a) => { try { return textResult(await call('snapshot_scene', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'list_snapshots',
+  'READ-ONLY. Every snapshot currently held, with its hash, reason, author and pin state, plus store statistics.',
+  {},
+  async () => { try { return textResult(await call('list_snapshots')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'restore_snapshot',
+  'DESTRUCTIVE (undoable). Replace the whole project with a held snapshot. A snapshot of the pre-restore state is taken and pinned first, and the restore itself goes on the undo stack, so it can be reversed two ways. Returns the diff that was applied.',
+  { id: z.string().describe('Snapshot id or hash, from list_snapshots.') },
+  async (a) => { try { return textResult(await call('restore_snapshot', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'diff_snapshots',
+  'READ-ONLY. Structural difference between two project states, down to individual keyframes: items added/removed/changed, tracks with keys added/removed/modified (and which fields changed on each), track space changes, project-level field changes, and the frame range the edits actually touched. Omit either id to compare against the live project.',
+  {
+    from: z.string().optional().describe('Snapshot id. Omit to use the live project.'),
+    to: z.string().optional().describe('Snapshot id. Omit to use the live project.'),
+  },
+  async (a) => { try { return textResult(await call('diff_snapshots', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'record_provenance',
+  'MUTATING (appends to the project). Record a node in the provenance graph: a request, an interpretation, a plan, a tool call, a patch, an analysis, a decision or a lesson, linked to what caused it and to the entity ids it touched. The graph lives inside the project, so it survives save/load and travels with the .cadence file. Record the REQUEST before doing work and the PATCH after, so "why is this keyframe here?" stays answerable later.',
+  {
+    type: z.enum(['request', 'intent', 'plan', 'tool_call', 'patch', 'snapshot', 'render', 'analysis', 'decision', 'lesson', 'note']),
+    summary: z.string().describe('One line, human-readable. Required.'),
+    detail: z.any().optional().describe('Structured payload, kept verbatim.'),
+    parents: z.array(z.string()).optional().describe('Ids of nodes this one was caused by.'),
+    entities: z.array(z.string()).optional().describe('Entity ids this node touched (from inspect_scene / inspect_rig / inspect_timeline).'),
+    links: z.array(z.object({ type: z.string(), target: z.string() })).optional().describe('Extra typed edges: interprets, implements, observes, evaluates, approves, rolls_back, before, after, derived_from.'),
+    author: z.string().optional(),
+  },
+  async (a) => { try { return textResult(await call('record_provenance', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'inspect_provenance',
+  'READ-ONLY. Query the provenance graph. Give a nodeId to get its full causal ancestry and consequences ("why is this built this way?"); an entity id to get everything recorded about it and the request behind each record ("which user request caused this keyframe?"); or neither to list recent records. Reports honestly when the graph has been truncated, so an incomplete ancestry is never mistaken for a complete one.',
+  {
+    nodeId: z.string().optional().describe('Explain one node: its ancestry, consequences and affected entities.'),
+    entity: z.string().optional().describe('Everything recorded about one entity id.'),
+    type: z.string().optional().describe('Filter by node type.'),
+    contains: z.string().optional().describe('Substring match on the summary.'),
+    limit: z.number().optional(),
+  },
+  async (a) => { try { return textResult(await call('inspect_provenance', a)); } catch (e) { return errorResult(e); } },
+);
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

@@ -1991,6 +1991,271 @@
     return fixed;
   });
 
+  // ---------------------------------------------------------------- semantic layer (ai/**)
+  //
+  // The layer itself is unit-tested in plain Node (`node test/aitest.mjs`, 99 checks). What can
+  // ONLY be checked in the app is the boundary: `ai/kinematics.js` reimplements track evaluation
+  // and the FK solve purely, because the originals live in modules that cannot be imported
+  // outside Electron. Two implementations of the same maths drift. These steps are the gate that
+  // catches it — see the header of renderer/js/ai/kinematics.js.
+
+  await step('semantic layer: pure track evaluation agrees with state.js exactly', async () => {
+    const AI = D.AI;
+    S.newProject('cross-check');
+    const item = await D.addBuiltinRig('r15');
+    // Deliberately awkward: several easing styles, a bezier override, uneven spacing, and a
+    // fractional key time — the cases where two evaluators are most likely to disagree.
+    const keys = [
+      { t: 0, v: CF.IDENTITY.slice(), es: 'Cubic', ed: 'Out' },
+      { t: 3.5, v: CF.fromEuler(0.4, 0, 0), es: 'Elastic', ed: 'InOut', ep: { Period: 4 } },
+      { t: 11, v: CF.fromEuler(0, 0.9, 0), es: 'Bounce', ed: 'Out' },
+      { t: 12, v: CF.fromEuler(0.1, -0.3, 0.2), es: 'Linear', ed: 'Out', bez: [0.25, 0.1, 0.25, 1] },
+      { t: 24, v: CF.fromEuler(-0.6, 0, 0.5), es: 'Back', ed: 'In' },
+    ];
+    for (const k of keys) S.setKey(item.id, 'RightShoulder', k.t, k.v, { es: k.es, ed: k.ed, bez: k.bez, ep: k.ep, noUndo: true });
+    S.setKey(item.id, '@fov', 0, 70, { noUndo: true });
+
+    const tracks = S.getTracks(item.id);
+    let worstCF = 0, worstNum = 0, samples = 0;
+    // Fractional steps as well as whole frames: state.js memoises only integer times, so the two
+    // paths are genuinely different code between frames.
+    for (let f = -3; f <= 30; f += 0.25) {
+      const mine = AI.kinematics.evalTrackCF(tracks.RightShoulder, f);
+      const theirs = S.evalTrackCF(item.id, 'RightShoulder', f);
+      for (let i = 0; i < 12; i++) worstCF = Math.max(worstCF, Math.abs(mine[i] - theirs[i]));
+      samples++;
+    }
+    for (let f = -2; f <= 5; f += 0.5) {
+      worstNum = Math.max(worstNum, Math.abs(AI.kinematics.evalTrackNum(tracks['@fov'], f, 0) - S.evalTrackNum(item.id, '@fov', f, 0)));
+    }
+    assert(samples > 100, `expected a real sample grid, got ${samples}`);
+    assert(worstCF === 0, `pure evalTrackCF drifted from state.js by ${worstCF} — ai/kinematics.js and state.js must stay identical`);
+    assert(worstNum === 0, `pure evalTrackNum drifted from state.js by ${worstNum}`);
+    return { samples, worstCF, worstNum };
+  });
+
+  await step('semantic layer: pure forward kinematics agrees with rigbuild.js solvePoseWorlds on every rig', async () => {
+    const AI = D.AI;
+    const results = {};
+    for (const rigType of ['r6', 'r15', 'rthro', 'rthroSlender']) {
+      S.newProject('fk-' + rigType);
+      const item = await D.addBuiltinRig(rigType);
+      const inst = D.getInstance(item.id);
+      assert(inst && inst.solvePoseWorlds, `${rigType}: no instance to compare against`);
+
+      // Pose several joints at once, including a world-space ("unparented") track, so the
+      // comparison covers the branch that bypasses the parent chain rather than only the easy path.
+      const motors = item.rig.joints.filter((j) => j.kind !== 'weld');
+      for (let i = 0; i < motors.length; i += 3) {
+        S.setKey(item.id, motors[i].name, 0, CF.IDENTITY.slice(), { noUndo: true });
+        S.setKey(item.id, motors[i].name, 12, CF.fromEuler(0.3 + i * 0.05, -0.2, 0.15), { noUndo: true });
+      }
+      S.setKey(item.id, '@origin', 0, CF.setPosition(CF.IDENTITY.slice(), 2, 1, -3), { noUndo: true });
+
+      let worst = 0, worstPart = null, compared = 0;
+      for (const f of [0, 4, 7.5, 12, 20]) {
+        const pose = S.evalPose(item, f);
+        const origin = S.evalTrackCF(item.id, '@origin', f, item.origin);
+        const theirs = inst.solvePoseWorlds(pose, origin, S.unparentedSet(item.id));
+
+        const plan = AI.kinematics.buildSolvePlan(item.rig);
+        const mine = AI.kinematics.solveWorlds(plan, AI.kinematics.evalPose(S.getTracks(item.id), f), origin, AI.kinematics.unparentedSet(S.getTracks(item.id)));
+
+        for (const p of item.rig.parts) {
+          const a = mine.get(p.id), b = theirs.get(p.id);
+          assert(a && b, `${rigType}: ${p.id} missing from one solver at frame ${f}`);
+          for (let i = 0; i < 12; i++) {
+            const d = Math.abs(a[i] - b[i]);
+            if (d > worst) { worst = d; worstPart = `${p.id}@${f}`; }
+          }
+          compared++;
+        }
+      }
+      // Both solvers run the identical sequence of CF.mul calls on identical inputs, so this is an
+      // exact-equality check, not a tolerance. A non-zero result means the two have genuinely
+      // diverged in ORDER or in which joint drives which part — not that floating point drifted.
+      assert(worst === 0, `${rigType}: pure FK drifted from rigbuild.js by ${worst} (worst at ${worstPart})`);
+      results[rigType] = { compared, worst };
+    }
+    return results;
+  });
+
+  await step('semantic layer: the pure evaluator handles a world-space (unparented) track the same way', async () => {
+    const AI = D.AI;
+    S.newProject('unparented-cross-check');
+    const item = await D.addBuiltinRig('r15');
+    const inst = D.getInstance(item.id);
+    S.setKey(item.id, 'RightWrist', 0, CF.IDENTITY.slice(), { noUndo: true });
+    S.setKey(item.id, 'RightWrist', 10, CF.fromEuler(0.5, 0, 0), { noUndo: true });
+    D.setUnparented(item.id, 'RightWrist', true);
+    assert(S.trackSpace(item.id, 'RightWrist') === 'world', 'the track should now be in world space');
+
+    let worst = 0;
+    for (const f of [0, 5, 10]) {
+      const theirs = inst.solvePoseWorlds(S.evalPose(item, f), S.evalTrackCF(item.id, '@origin', f, item.origin), S.unparentedSet(item.id));
+      const tracks = S.getTracks(item.id);
+      const mine = AI.kinematics.solveWorlds(
+        AI.kinematics.buildSolvePlan(item.rig),
+        AI.kinematics.evalPose(tracks, f),
+        S.evalTrackCF(item.id, '@origin', f, item.origin),
+        AI.kinematics.unparentedSet(tracks),
+      );
+      for (const p of item.rig.parts) {
+        for (let i = 0; i < 12; i++) worst = Math.max(worst, Math.abs(mine.get(p.id)[i] - theirs.get(p.id)[i]));
+      }
+    }
+    assert(worst === 0, `unparented solve drifted by ${worst}`);
+    return { worst };
+  });
+
+  await step('semantic layer: every new MCP handler runs against the live project and returns its documented shape', async () => {
+    S.newProject('mcp-semantic');
+    const item = await D.addBuiltinRig('r15');
+    S.setKey(item.id, 'RightHip', 0, CF.IDENTITY.slice(), { noUndo: true });
+    S.setKey(item.id, 'RightHip', 10, CF.fromEuler(0.9, 0, 0), { noUndo: true });
+    S.setKey(item.id, 'RightHip', 20, CF.IDENTITY.slice(), { noUndo: true });
+    D.addCamera();
+
+    const out = {};
+    const scene = D.mcp('inspect_scene', { frame: 10 });
+    assert(scene.objects.length === 2, `expected 2 objects, got ${scene.objects.length}`);
+    assert(scene.capabilities.cannot.length >= 5, 'inspect_scene must report what the layer cannot do');
+    assert(scene.objects[0].semantic_role === 'character', 'a rig should read as a character');
+    out.scene = { objects: scene.objects.length, edges: scene.dependency_graph.edges.length };
+
+    const rig = D.mcp('inspect_rig', {});
+    assert(rig.counts.motors === 15, `expected 15 motors, got ${rig.counts.motors}`);
+    assert(rig.validation.findings.length === 0, `r15 should validate clean, got: ${rig.validation.findings.map((f) => f.id).join(', ')}`);
+    assert(rig.components.every((c) => c.joint_limits === null), 'joint_limits must be null (unknown), never a default');
+    out.rig = { motors: rig.counts.motors, ikChains: rig.ik_chains.length };
+
+    const tl = D.mcp('inspect_timeline', { itemId: item.id });
+    assert(tl.time.fps === S.state.project.fps, 'the timeline must report the fps its seconds were derived with');
+    assert(tl.counts.keys === 3, `expected 3 keys, got ${tl.counts.keys}`);
+    out.timeline = tl.counts;
+
+    const planted = D.mcp('resolve_semantic', { query: 'the planted foot', frame: 10 });
+    assert(planted.matches.length === 1, 'the planted foot should resolve to exactly one part');
+    assert(planted.matches[0].entityId === `part:${item.id}/LeftFoot`, `expected the left foot, got ${planted.matches[0].entityId}`);
+    assert(planted.matches[0].certainty === 'highly_likely', 'a measured contact inference must never be reported as certain');
+    out.planted = planted.matches[0].entityId;
+
+    const weapon = D.mcp('resolve_semantic', { query: 'the weapon hand' });
+    assert(weapon.resolved === false && weapon.question, 'with nothing held, the weapon hand must ask rather than guess');
+
+    D.mcp('set_semantic_role', { itemId: item.id, kind: 'parts', key: 'RightHand', role: 'weapon', reason: 'smoketest' });
+    const pinned = D.mcp('resolve_semantic', { query: 'the weapon' });
+    assert(pinned.matches.length === 1 && pinned.matches[0].certainty === 'certain', 'a pinned role must resolve as certain');
+
+    // snapshot → edit → diff → restore, the whole recoverable loop
+    const snap = D.mcp('snapshot_scene', { reason: 'smoketest baseline', pinned: true });
+    assert(D.mcp('snapshot_scene', { reason: 'again' }).deduplicated === true, 'an unchanged project must deduplicate');
+    S.setKey(item.id, 'RightHip', 10, CF.fromEuler(0.2, 0, 0));
+    const diff = D.mcp('diff_snapshots', { from: snap.id });
+    assert(diff.tracks.length === 1 && diff.tracks[0].keys_modified.length === 1, `expected exactly one modified key, got ${JSON.stringify(diff.tracks)}`);
+    assert(diff.changed_frame_range.start === 10 && diff.changed_frame_range.end === 10, 'the changed frame range must be exactly frame 10');
+    const restored = D.mcp('restore_snapshot', { id: snap.id });
+    assert(D.mcp('diff_snapshots', { from: snap.id }).identical, 'the project must match the snapshot exactly after a restore');
+    assert(S.getItem(item.id), 'the restored project must still hold the rig');
+    out.restore = { changes: restored.changes };
+
+    // provenance survives the restore, because it lives inside the project
+    const prov = D.mcp('inspect_provenance', {});
+    assert(prov.nodes.length > 0, 'snapshot_scene and set_semantic_role should both have recorded provenance');
+    const req = D.mcp('record_provenance', { type: 'request', summary: 'smoketest request' });
+    const patch = D.mcp('record_provenance', { type: 'patch', summary: 'smoketest patch', parents: [req.id], entities: [`track:${item.id}/RightHip`] });
+    const why = D.mcp('inspect_provenance', { nodeId: patch.id });
+    assert(why.caused_by.some((n) => n.summary === 'smoketest request'), 'a patch must trace back to its request');
+    const hist = D.mcp('inspect_provenance', { entity: `track:${item.id}/RightHip` });
+    assert(hist.origins[0].request === 'smoketest request', 'historyOf must name the originating request');
+    out.provenance = { nodes: prov.nodes.length };
+
+    return out;
+  });
+
+  await step('semantic layer: project.semantics is undoable, but the provenance log inside it is not', async () => {
+    // Regression guard for a real bug found while wiring set_semantic_role: state.js's snapshot()
+    // clones an explicit field ALLOWLIST, `semantics` was not in it, and applySnapshot uses
+    // Object.assign (which never deletes) -- so pushUndo() ran, changed nothing, and `undo` left
+    // the role pin in place. The fix also has to get the OPPOSITE case right: provenance is
+    // append-only history and must survive an undo, or undoing a change erases the record of the
+    // change being undone.
+    S.newProject('undo-semantics');
+    const item = await D.addBuiltinRig('r15');
+    const out = {};
+
+    assert(!S.state.project.semantics || !S.state.project.semantics.roles, 'a fresh project should carry no role pins');
+    D.mcp('set_semantic_role', { itemId: item.id, kind: 'parts', key: 'RightHand', role: 'weapon', reason: 'smoketest' });
+    assert(D.mcp('resolve_semantic', { query: 'the weapon' }).matches[0].certainty === 'certain', 'the pin should resolve as certain');
+    S.undo();
+    assert(D.mcp('resolve_semantic', { query: 'the weapon' }).resolved === false,
+      `undo must remove the pinned role, still saw ${JSON.stringify(S.state.project.semantics?.roles ?? null)}`);
+    S.redo();
+    assert(D.mcp('resolve_semantic', { query: 'the weapon' }).matches.length === 1, 'redo must restore the pinned role');
+
+    // Undo must step back to the PREVIOUS pin, not clear everything.
+    D.mcp('set_semantic_role', { itemId: item.id, kind: 'parts', key: 'LeftFoot', role: 'target' });
+    assert(D.AI.roles.listOverrides(S.state.project).length === 2, 'two pins should be held');
+    S.undo();
+    const after = D.AI.roles.listOverrides(S.state.project);
+    assert(after.length === 1 && after[0].key === 'RightHand', `undo should drop only the second pin, got ${JSON.stringify(after)}`);
+
+    // Provenance survives an undo; the keyframe edit does not.
+    const before = D.mcp('inspect_provenance', {}).stats.nodes;
+    D.mcp('record_provenance', { type: 'note', summary: 'must survive an undo' });
+    S.setKey(item.id, 'RightElbow', 5, CF.fromEuler(0.2, 0, 0));
+    S.undo();
+    assert(D.mcp('inspect_provenance', {}).stats.nodes >= before + 1, 'provenance must not be rewound by undo');
+    assert(D.mcp('inspect_provenance', { contains: 'must survive' }).nodes.length === 1, 'the recorded node must still be findable');
+    assert((S.getTrack(item.id, 'RightElbow')?.keys ?? []).every((k) => k.t !== 5), 'the keyframe edit itself must still be undone');
+    out.provenance = { before, after: D.mcp('inspect_provenance', {}).stats.nodes };
+
+    // Key annotations live under semantics too, and must undo the same way.
+    S.pushUndo();
+    S.state.project.semantics = S.state.project.semantics || {};
+    S.state.project.semantics.annotations = { [item.id]: { RightElbow: { 5: { phase: 'impact' } } } };
+    S.undo();
+    assert(!S.state.project.semantics?.annotations, 'undo must remove a key annotation');
+    assert(!!S.state.project.semantics?.provenance, 'that same undo must leave provenance intact');
+
+    // A cleared pin must not come back on a later, unrelated undo.
+    D.mcp('set_semantic_role', { itemId: item.id, kind: 'parts', key: 'RightHand', role: null });
+    S.setKey(item.id, 'RightElbow', 9, CF.fromEuler(0.3, 0, 0));
+    S.undo();
+    assert(!D.AI.roles.listOverrides(S.state.project).some((o) => o.key === 'RightHand'),
+      'an unrelated undo must not resurrect a cleared pin');
+    return out;
+  });
+
+  await step('semantic layer: entity ids round-trip back to the live objects they name', async () => {
+    const AI = D.AI;
+    S.newProject('id-roundtrip');
+    const item = await D.addBuiltinRig('r15');
+    S.setKey(item.id, 'LeftElbow', 5, CF.fromEuler(0.3, 0, 0), { noUndo: true });
+    const p = D.liveProject();
+    const rig = D.mcp('inspect_rig', {});
+
+    for (const node of rig.parts) {
+      const back = AI.resolveEntity(p, node.id);
+      assert(back && back.part.id === node.roblox_mapping.partId, `part id ${node.id} did not resolve back`);
+    }
+    for (const node of rig.components) {
+      const back = AI.resolveEntity(p, node.id);
+      assert(back && back.joint.name === node.roblox_mapping.jointName, `joint id ${node.id} did not resolve back`);
+    }
+    const keyBack = AI.resolveEntity(p, AI.ids.keyId(item.id, 'LeftElbow', 5));
+    assert(keyBack && keyBack.key.t === 5, 'a key id must resolve back to the key');
+
+    // The point of a derived joint id: it survives a rename, where a name-based id would not.
+    const before = rig.components.find((c) => c.name === 'LeftElbow').id;
+    const joint = item.rig.joints.find((j) => j.name === 'LeftElbow');
+    joint.name = 'ElbowL_renamed';
+    const after = D.mcp('inspect_rig', {}).components.find((c) => c.roblox_mapping.jointName === 'ElbowL_renamed').id;
+    assert(before === after, `a joint id must survive a rename: ${before} became ${after}`);
+    joint.name = 'LeftElbow';
+    return { parts: rig.parts.length, joints: rig.components.length };
+  });
+
   // ---------------------------------------------------------------- MCP registration coverage
   // Regression guard for a real bug found 2026-07-22: solve_ik/create_joint/remove_joint/
   // convert_joint/set_track_space/get_track_space were fully implemented in MCP_HANDLERS (built

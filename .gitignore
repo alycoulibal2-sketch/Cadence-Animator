@@ -5,5 +5,8 @@ dist/
 Thumbs.db
 test-output/
 
+# transient git worktrees created by AI agent tooling
+.claude/worktrees/
+
 # the generated sheet is committed; its artifact twin is not
 brand/preview.artifact.html
