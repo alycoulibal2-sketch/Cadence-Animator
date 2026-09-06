@@ -1,3 +1,5 @@
+// Run it with the command in site/README.md ("Re-capture the hero screenshot"): 960x510 at a 2x
+// device scale factor gives the 1920x1020 image index.html declares.
 // Builds a real, populated animation scene and leaves the app on a good-looking frame, so the
 // screenshot harness captures the actual product rather than an empty startup state.
 (async () => {
