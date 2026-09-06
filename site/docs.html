@@ -4,19 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Documentation — Cadence Animator</title>
-<meta name="description" content="How to install Cadence Animator, connect Roblox Studio, animate your first rig, export a KeyframeSequence, set up the MCP server for Claude, and every keyboard shortcut.">
+<meta name="description" content="How to install Cadence Animator, connect Roblox Studio, animate your first rig, export a KeyframeSequence, set up the MCP server for Claude, enter a Pro key, and every keyboard shortcut.">
 <meta name="theme-color" content="#0a0a0e">
-<link rel="canonical" href="https://cadenceanimator.js.org/docs.html">
+<link rel="canonical" href="https://alycoulibal2-sketch.github.io/Cadence-Animator/docs.html">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Documentation — Cadence Animator">
 <meta property="og:description" content="Install, connect Studio, animate, export, and drive Cadence from Claude.">
-<meta property="og:url" content="https://cadenceanimator.js.org/docs.html">
+<meta property="og:url" content="https://alycoulibal2-sketch.github.io/Cadence-Animator/docs.html">
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<script>(function(){try{var t=localStorage.getItem('cadence-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t)}}catch(e){}document.documentElement.className+=' js'})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:opsz,wght@14..32,400..700&display=swap">
 <link rel="stylesheet" href="assets/css/site.css">
-<!-- Sets the .js hook before first paint, so the scroll-reveal rules only
-     apply when they can actually be undone. Without JavaScript the page
-     renders fully visible instead of blank below the fold. -->
-<script>document.documentElement.className += ' js';</script>
 </head>
 <body>
 
@@ -36,25 +36,30 @@
 
     <nav aria-label="Primary">
       <ul class="nav-links" id="navLinks">
-        <li><a href="index.html#features">Features</a></li>
-        <li><a href="index.html#studio">Roblox Studio</a></li>
-        <li><a href="index.html#vfx">VFX Studio</a></li>
-        <li><a href="index.html#claude">Claude</a></li>
+        <li><a href="index.html#animate">Animate</a></li>
+        <li><a href="index.html#vfx">VFX</a></li>
+        <li><a href="index.html#studio">Studio + Claude</a></li>
+        <li><a href="index.html#pricing">Pricing</a></li>
+        <li><a href="safety.html">Safety</a></li>
         <li><a href="docs.html" aria-current="page">Docs</a></li>
       </ul>
     </nav>
 
     <div class="nav-actions">
-      <button class="nav-search" id="cmdkOpen" aria-label="Search the site (Control K)">
+      <button class="nav-search" id="cmdkOpen" type="button" aria-label="Search the site (Control K)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <span aria-hidden="true">Search</span>
         <kbd aria-hidden="true">Ctrl K</kbd>
       </button>
+      <button class="icon-btn theme-toggle" id="themeToggle" type="button" aria-label="Switch theme">
+        <svg class="sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+      </button>
       <a class="btn btn-primary btn-sm" href="index.html#download">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 20h16"/></svg>
-        Download
+        <span>Download</span>
       </a>
-      <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
+      <button class="icon-btn nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
     </div>
@@ -98,6 +103,7 @@
       <ul>
         <li><a href="#vfx-guide">VFX Studio</a></li>
         <li><a href="#procedural-guide">Procedural engine</a></li>
+        <li><a href="#engine-additions">What the engine gained</a></li>
       </ul>
 
       <p class="toc-label">Advanced</p>
@@ -105,6 +111,11 @@
         <li><a href="#mcp">Claude &amp; MCP</a></li>
         <li><a href="#mobile">Phone companion</a></li>
         <li><a href="#shortcuts">Shortcuts</a></li>
+      </ul>
+
+      <p class="toc-label">Pro</p>
+      <ul>
+        <li><a href="#pro">Pro and your licence key</a></li>
       </ul>
 
       <p class="toc-label">Keeping it running</p>
@@ -129,7 +140,8 @@
           <span><strong>SmartScreen will probably warn you.</strong> The builds are not code-signed,
           so Windows shows <em>&ldquo;Windows protected your PC&rdquo;</em> for a release it has not
           seen before. Click <em>More info</em>, then <em>Run anyway</em>. If you would rather verify
-          first, the SHA-256 of both files is printed on the download page.</span>
+          first, <a href="safety.html#verify">the safety page hashes your download in the browser</a>
+          and explains <a href="index.html#smartscreen">why the warning appears</a>.</span>
         </div>
         <p>
           There is also a <strong>portable</strong> build — a single <code>.exe</code> that installs
@@ -567,8 +579,10 @@ npm start</code></pre>
 
         <h3>What is not built</h3>
         <p>
-          There is no fluid or pyro solver and no volumetric rendering, so genuinely simulated fire and
-          raymarched clouds are out of reach. A stylised fire is not. Screen-space post-processing
+          In <span data-version>0.10.0</span> there is no fluid or pyro solver and no volumetric rendering, so
+          genuinely simulated fire and raymarched clouds are out of reach; a stylised fire is not. Both
+          landed in the engine after that release and ship next &mdash; see
+          <a href="#engine-additions">what the engine gained</a>. Screen-space post-processing
           &mdash; bloom over the finished frame, motion blur, depth of field &mdash; needs a render
           target the preview does not have; the glow that exists works on a texture you built. Mesh
           editing such as extrude, bevel and boolean needs connectivity the geometry model does not
@@ -578,6 +592,78 @@ npm start</code></pre>
           Where a capability is missing the node for it is missing too. The type system refuses to
           register a node against a subsystem that does not exist, so there is no control that appears
           to work and quietly does nothing.
+        </p>
+      </section>
+
+      <section id="engine-additions">
+        <h2>What the engine gained</h2>
+        <p>
+          Two things the procedural engine could not do at <span data-version>0.10.0</span> are
+          built and green in the test suite, and ship with the next release. They are described here
+          so the download page and the docs say the same thing: <strong>today&rsquo;s download does not
+          have them yet.</strong> Both are part of the <a href="#pro">Pro simulation pack</a>.
+        </p>
+
+        <h3>Neighbours: flocking, keep apart, liquid pressure</h3>
+        <p>
+          Until now a force field was evaluated at a point and knew only about that point. The particle
+          solver now keeps a spatial hash and hands every field a <em>neighbour query</em>, so a force
+          can look at the particles around it. Three forces use it:
+        </p>
+        <ul>
+          <li><strong>Flock</strong> &mdash; Reynolds&rsquo; three rules: do not crowd your neighbours
+            (<em>keep apart</em>, stronger the closer they get inside a personal-space radius), fly the
+            way they fly (<em>match velocity</em>) and stay near the group (<em>stay together</em>).
+            Each rule has its own weight, so zeroing two of them gives a pure separation or a pure
+            gathering force, and the total is clamped so a dense crowd cannot explode.</li>
+          <li><strong>Keep Apart</strong> &mdash; the separation rule on its own, for debris that should
+            not pile up.</li>
+          <li><strong>Liquid Pressure</strong> &mdash; particles resist being squeezed together and drag
+            on each other, which is what makes a stream of them puddle and slosh rather than pass
+            through itself.</li>
+        </ul>
+        <p>
+          They are ordinary vector fields, so they add to gravity, wind and curl noise with an
+          <code>Add</code> node, and their weights can themselves vary per particle. Four reads go with
+          them &mdash; <strong>Neighbour Count</strong>, <strong>Crowding</strong>, <strong>Nearest
+          Neighbour</strong> and <strong>Neighbours&rsquo; Velocity</strong> &mdash; so a look can depend
+          on how packed the particles are: brighter in a crowd, larger when alone.
+        </p>
+        <p class="muted">
+          The neighbourhood is a snapshot taken at the start of each substep, so every particle sees the
+          same picture whatever order they are processed in, and scrubbing stays exact. Roblox particles
+          cannot see each other, so on export this motion is baked per frame.
+        </p>
+
+        <h3>Events and sub-emission</h3>
+        <p>
+          A <strong>Simulate</strong> node now reports everything that happens inside it as an event
+          stream: births, deaths, collisions, a <em>trigger</em> when a condition you write becomes true
+          for a particle (age above a value, speed below one, position past a line), and an
+          <em>interval</em> tick every N seconds per particle.
+        </p>
+        <ul>
+          <li><strong>Particle Events</strong> filters that stream to one kind, optionally keeping only a
+            share of it &mdash; a chance of 0.3 keeps roughly a third, decided per event and per frame so
+            it replays identically.</li>
+          <li>An <strong>Emitter</strong> has a new <em>Spawn from events</em> input, with <em>particles per
+            event</em> and <em>inherit velocity</em>. Feed it deaths for sparks on impact; feed it an
+            interval of 0.05&nbsp;s with inheritance set low for a trail behind every particle.</li>
+        </ul>
+        <p class="muted">
+          Events are recorded per frame on the parent simulation and a child reads that history, so a
+          child never runs inside the parent&rsquo;s step loop and a frame looks the same whether you played
+          into it or jumped to it. Roblox has no sub-emission; child particles are baked per frame on
+          export.
+        </p>
+
+        <h3>Also landed, documented when it ships</h3>
+        <p>
+          Two larger pieces are in the engine as well and get their own sections here with the release
+          that carries them: the <strong>Effect Sheet</strong> &mdash; every effect as a sheet of things you
+          can see, every value with a &ldquo;how does it vary?&rdquo; menu and a live thumbnail, handles on
+          the stage, nodes kept underneath &mdash; and a <strong>grid fluid solver with a volume
+          renderer</strong> for smoke, fire and clouds, baked to flipbooks for Roblox.
         </p>
       </section>
 
@@ -813,6 +899,41 @@ npm start</code></pre>
         </ul>
       </section>
 
+      <section id="pro">
+        <h2>Pro and your licence key</h2>
+        <p>
+          The animator and VFX Studio are free, forever, under MIT. <strong>Pro</strong> is an optional
+          one-time licence key &mdash; $9 for the first 100 (founding) keys, $12 after &mdash; that funds a
+          code-signing certificate and the Studio bridge. It unlocks the procedural simulation pack
+          (flocking, liquids, sub-emission, fire and smoke, volumes &mdash; all built after 0.10.0 and
+          shipping in the next release), Roblox export of any procedural effect, the Pro badge and
+          priority updates. It is not on sale yet;
+          <a href="index.html#pricing">the pricing card</a> says when it opens.
+        </p>
+        <h3>Entering a key</h3>
+        <ol>
+          <li>Pro is the same download as Free. Install Cadence, or keep the copy you have.</li>
+          <li>Open <strong>Settings &rarr; Pro</strong> and paste the key together with the email you
+            paid with. The features switch on in that copy immediately.</li>
+          <li>The key is tied to the email used at checkout, and works on any PC you use.</li>
+        </ol>
+        <h3>Lost or unsure</h3>
+        <ul>
+          <li><a href="account.html">The account page</a> checks an email and key pair and shows its
+            status.</li>
+          <li>The key was shown on the thank-you page after checkout and is in the receipt email. Keep
+            the Stripe receipt: it is the proof this key belongs to.</li>
+          <li>Refunds are 14 days, no questions asked.</li>
+        </ul>
+        <div class="note">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1" stroke-linecap="round"/></svg>
+          <span>A key, not a lock. The Pro code lives in the same public repository as everything else;
+          the official build asks for a key before switching it on, and the MIT licence lets you build it
+          yourself without one. Paying is for the built, updated, soon-signed app and to keep the project
+          going.</span>
+        </div>
+      </section>
+
       <section id="troubleshooting">
         <h2>Troubleshooting</h2>
 
@@ -876,38 +997,51 @@ npm start</code></pre>
           </svg>
           Cadence <span class="brand-sub">Animator</span>
         </a>
-        <p>A standalone Roblox animation suite. Free, MIT-licensed, and built in the open.</p>
+        <p>A free, open-source Roblox animation suite for Windows. Built in the open; nothing leaves your PC.</p>
       </div>
 
       <div>
         <p class="footer-label">Product</p>
         <ul>
-          <li><a href="index.html#features">Features</a></li>
-          <li><a href="index.html#studio">Roblox Studio</a></li>
+          <li><a href="index.html#animate">Animate</a></li>
           <li><a href="index.html#vfx">VFX Studio</a></li>
-          <li><a href="index.html#claude">Claude &amp; MCP</a></li>
+          <li><a href="index.html#studio">Roblox Studio + Claude</a></li>
           <li><a href="index.html#compare">Compared to Moon</a></li>
+          <li><a href="index.html#pricing">Pricing</a></li>
+          <li><a href="index.html#roadmap">Roadmap</a></li>
         </ul>
       </div>
 
       <div>
-        <p class="footer-label">Documentation</p>
+        <p class="footer-label">Docs</p>
         <ul>
           <li><a href="#install">Install</a></li>
           <li><a href="#studio-setup">Connect Studio</a></li>
           <li><a href="#first-animation">First animation</a></li>
           <li><a href="#shortcuts">Shortcuts</a></li>
+          <li><a href="#pro">Pro and your key</a></li>
           <li><a href="#troubleshooting">Troubleshooting</a></li>
         </ul>
       </div>
 
       <div>
-        <p class="footer-label">Project</p>
+        <p class="footer-label">Trust</p>
         <ul>
+          <li><a href="safety.html">Is it safe?</a></li>
+          <li><a href="safety.html#verify">Verify a download</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+          <li><a href="changelog.html">Changelog</a></li>
           <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator">Source code</a></li>
-          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases">All releases</a></li>
-          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/issues">Report an issue</a></li>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/issues">Report a concern</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <p class="footer-label">Account</p>
+        <ul>
+          <li><a href="account.html">Your licence key</a></li>
           <li><a href="index.html#download">Download</a></li>
+          <li><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases">All releases</a></li>
         </ul>
       </div>
     </div>
@@ -934,6 +1068,7 @@ npm start</code></pre>
   </div>
 </div>
 
+<script src="assets/js/config.js"></script>
 <script src="assets/js/site.js" defer></script>
 </body>
 </html>
