@@ -76,6 +76,36 @@ const S = require('./server.js');
   r = await get('/stats', { Origin: 'https://evil.example' });
   assert.equal(r.status, 403, 'an unlisted origin is refused');
 
+  // unconfigured: no Stripe key → the service still starts, /health says so, the key endpoints answer 503
+  await new Promise((resolve, reject) => {
+    const { spawn } = require('child_process');
+    const env = { ...process.env, PORT: '8791' };
+    delete env.STRIPE_SECRET_KEY;
+    const child = spawn(process.execPath, [require('path').join(__dirname, 'server.js')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { out += d; });
+    const t = setTimeout(() => { child.kill(); reject(new Error('unconfigured server did not start: ' + out)); }, 8000);
+    const tryIt = async () => {
+      try {
+        const h = await realFetch('http://127.0.0.1:8791/health');
+        const hb = await h.json();
+        assert.equal(hb.configured, false, 'health reports unconfigured');
+        const v = await realFetch('http://127.0.0.1:8791/verify?email=a@b.c&key=AAAA');
+        assert.equal(v.status, 503, 'verify answers 503 while unconfigured');
+        const vb = await v.json();
+        assert.match(vb.error, /not connected/);
+        const st = await realFetch('http://127.0.0.1:8791/stats');
+        assert.equal(st.status, 503);
+        clearTimeout(t); child.kill(); resolve();
+      } catch (e) {
+        if (/ECONNREFUSED/.test(String(e))) setTimeout(tryIt, 150);
+        else { clearTimeout(t); child.kill(); reject(e); }
+      }
+    };
+    setTimeout(tryIt, 300);
+  });
+
   console.log('licence service: all tests passed');
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

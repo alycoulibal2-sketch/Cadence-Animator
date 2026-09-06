@@ -29,8 +29,12 @@ const FOUNDING_LIMIT = Math.max(1, Number(env('FOUNDING_LIMIT', 100)) || 100);
 const ORIGINS = env('ALLOWED_ORIGINS').split(',').map((s) => s.trim()).filter(Boolean);
 
 if (!SECRET || SECRET.length < 16) { console.error('LICENSE_SECRET (16+ chars) is required'); process.exit(1); }
-if (!STRIPE_KEY) { console.error('STRIPE_SECRET_KEY is required'); process.exit(1); }
+// Without the Stripe key the service still starts (so a deploy is green and /health answers) but
+// says plainly that it is not connected: /stats hides the counter, /license and /verify answer 503.
+const CONFIGURED = !!STRIPE_KEY && !!(FOUNDING_LINK || PRO_LINK);
+if (!STRIPE_KEY) console.warn('STRIPE_SECRET_KEY is not set: running UNCONFIGURED — /license and /verify answer 503 until it is');
 if (!FOUNDING_LINK && !PRO_LINK) console.warn('No payment link ids set: /license will refuse every session');
+const NOT_READY = { error: 'The licence service is not connected to Stripe yet. Keep your receipt and this page; write to support if a key does not arrive.', configured: false };
 
 // ---------------------------------------------------------------- keys
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 symbols, no 0/O/1/I
@@ -150,7 +154,13 @@ const server = http.createServer(async (req, res) => {
   if (!allow(ip)) return send(res, 429, { error: 'slow down' }, origin);
   try {
     switch (url.pathname) {
-      case '/health': return send(res, 200, { ok: true }, origin);
+      case '/health': return send(res, 200, { ok: true, configured: CONFIGURED }, origin);
+      case '/stats': case '/license': case '/verify':
+        if (!CONFIGURED) return send(res, 503, NOT_READY, origin);
+        break;
+      default: break;
+    }
+    switch (url.pathname) {
       case '/stats': {
         const sold = await cached('founding', 60000, foundingSold);
         return send(res, 200, { founding: { sold: Math.min(sold, FOUNDING_LIMIT), limit: FOUNDING_LIMIT } }, origin);
