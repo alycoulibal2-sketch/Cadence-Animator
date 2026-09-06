@@ -321,13 +321,13 @@ export function newStarterGraph(name = 'Untitled Procedural Effect') {
   const emitter = at('cadence.particles.emitter', -652, -160, {
     emitFrom: 'surface', rate: 34, lifetime: 1.6, velocity: [0, 4, 0], burstCount: 0,
   });
-  const gravity = at('cadence.fields.constantDirection', -652, 120, { direction: [0, -1, 0], strength: 6 });
+  const gravity = at('cadence.fields.constantDirection', -652, 200, { direction: [0, -1, 0], strength: 6 });
   const sim = at('cadence.particles.simulate', -324, -120, { maxParticles: 4000, drag: 0.6 });
 
   // Colour and size over life, built the way the engine intends: Normalized Age into a gradient and a
   // curve. This is the pattern that replaces every "over lifetime" property in the engine, so the
   // starter graph demonstrates it rather than describing it.
-  const life = at('cadence.particles.life', -324, 240);
+  const life = at('cadence.particles.life', -324, 310);
   const grad = at('cadence.color.sampleGradient', 4, 60, {
     // White-hot to orange to dark red: the standard cooling ramp, and legible enough that dragging a
     // stop shows immediately what a gradient does.

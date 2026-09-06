@@ -3716,6 +3716,314 @@ check('events: history replays on a scratch copy when a frame was never recorded
   assert.deepEqual(ev.eventsAt(999), [], 'a frame in the future is empty, never a seek');
 });
 
+// ================================================================ the Effect Sheet projection (docs/effect-sheet.md §8)
+const SHEET = await import('../renderer/js/pnx/sheet.js');
+
+check('sheet: the starter graph projects with every node reached and one named value', () => {
+  const g = STUDIO.newStarterGraph('starter');
+  const p = SHEET.projectGraph(g);
+  assert.equal(p.stats.reached, p.stats.nodes, `every node must be reached (${p.stats.reached}/${p.stats.nodes})`);
+  assert.equal(p.things.length, 1, 'one drawn thing: the sprite renderer');
+  assert.ok(p.things[0].drawn, 'it is wired to the output');
+  assert.equal(p.named.length, 1, 'Normalized Age is shared by size and colour');
+  assert.equal(p.named[0].label, 'Normalized Age');
+  assert.equal(p.named[0].usedBy.length, 2);
+  assert.deepEqual(p.unused, []);
+  // the sprite's size row is a source whose variation is read structurally
+  const size = p.things[0].rows.find((r) => r.key === 'size');
+  assert.equal(size.kind, 'source');
+  assert.ok(size.variesWith.includes('Normalized Age'), `size varies with ${size.variesWith}`);
+  // the particles row reaches the simulation, which is time dependent
+  const src = p.things[0].rows.find((r) => r.key === 'source');
+  assert.ok(src.variesWith.includes("the effect's time"));
+  // a mode input is a mode row, a literal is a value row with its unit
+  const mat = p.things[0].rows.find((r) => r.key === 'material').sources[0];
+  assert.equal(mat.rows.find((r) => r.key === 'blend').kind, 'mode');
+  const em = src.sources[0].rows.find((r) => r.key === 'emitter').sources[0];
+  const rate = em.rows.find((r) => r.key === 'rate');
+  assert.equal(rate.kind, 'value'); assert.equal(rate.value, 34); assert.equal(rate.unit, 'per second');
+});
+
+check('sheet: every library recipe projects fully inside its group', () => {
+  for (const r of LIB.listRecipes()) {
+    const g = G.newGraph('r');
+    const res = LIB.buildRecipe(g, r.id);
+    assert.ok(res.ok, `${r.id} builds`);
+    const p = SHEET.projectGraph(g, { scope: res.groupId });
+    assert.equal(p.stats.reached, p.stats.nodes, `${r.name}: ${p.stats.reached}/${p.stats.nodes} reached`);
+    assert.ok(p.things.length === 1 && p.things[0].result, `${r.name}: the group's result is the root`);
+  }
+});
+
+check('sheet: the text view reads the starter as a sentence list with the named value', () => {
+  const text = SHEET.sheetText(SHEET.projectGraph(STUDIO.newStarterGraph('s')));
+  assert.ok(text.includes('• Sprite Renderer'), 'the thing');
+  assert.ok(text.includes('«Normalized Age»'), 'the named value');
+  assert.ok(text.includes('gradient #fff6e0'), 'the gradient literal');
+  assert.ok(text.includes('Rate: 34 per second'), 'a unit');
+  assert.ok(text.includes('Blending: additive ▾'), 'a mode');
+  assert.ok(text.includes('varies with Normalized Age'), 'the variation');
+});
+
+check('sheet: a renderer that is not wired to the output is listed as not drawn, never hidden', () => {
+  const g = STUDIO.newStarterGraph('s');
+  const stray = G.newNode(g, 'cadence.render.point', 0, 0, { id: 'stray' });
+  const p = SHEET.projectGraph(g);
+  const t = p.things.find((x) => x.nodeId === 'stray');
+  assert.ok(t && !t.drawn, 'listed, flagged not drawn');
+  assert.ok(SHEET.sheetText(p).includes('not drawn'));
+  // an orphan maths node is reported as unused, never silently dropped
+  G.newNode(g, 'cadence.math.add', 0, 0, { id: 'orphan' });
+  const p2 = SHEET.projectGraph(g);
+  assert.equal(p2.unused.length, 1);
+  assert.equal(p2.unused[0].nodeId, 'orphan');
+});
+
+check('sheet: feeders for a slot type come from the registry and are never empty for the common types', () => {
+  assert.ok(SHEET.feedersFor('float').length >= 150, 'a number slot has a wide menu');
+  assert.ok(SHEET.feedersFor('field<vector3>').length >= 150);
+  assert.ok(SHEET.feedersFor('geometry').length >= 20);
+  assert.ok(SHEET.feedersFor('texture2d').length >= 15);
+  assert.ok(SHEET.feedersFor('material').length >= 1);
+  assert.ok(SHEET.feedersFor('event').length >= 2, 'events come from Simulate and Particle Events');
+  assert.equal(SHEET.feedersFor('nonsense').length, 0);
+});
+
+check('sheet: summaries list only the values that differ from their defaults', () => {
+  const p = SHEET.projectGraph(STUDIO.newStarterGraph('s'));
+  const em = p.things[0].rows.find((r) => r.key === 'source').sources[0].rows.find((r) => r.key === 'emitter').sources[0];
+  const s = SHEET.summaryOf(em, 8);
+  assert.ok(s.includes('rate 34'), s);
+  assert.ok(!s.includes('mass'), 'mass is at its default and stays out of the summary');
+});
+
+check('sheet: an optional phrase template renders from the rows, and a missing key stays visible', () => {
+  const def = { phrase: '{rate} per second from {shape}, living {lifetime} — {missing}' };
+  const rows = [
+    { key: 'rate', kind: 'value', value: 34, unit: 'per second', innerType: 'float' },
+    { key: 'shape', kind: 'source', sources: [{ label: 'Sphere' }] },
+    { key: 'lifetime', kind: 'value', value: 1.6, unit: 'seconds', innerType: 'float' },
+  ];
+  assert.equal(SHEET.phraseFor(null, null, def, rows), '34 per second per second from Sphere, living 1.6 seconds — {missing}');
+});
+
+// ================================================================ the Effect Sheet's source menus (docs/effect-sheet.md §5.3, §5.5)
+const MENUS = await import('../renderer/js/pnx/menus.js');
+
+// A slot on a node, in a starter graph, for every kind the menus know.
+function slotOn(graph, type, key) {
+  const node = Object.values(graph.nodes).find((n) => n.type.startsWith(type));
+  assert.ok(node, `starter has a ${type}`);
+  const socket = G.socketsOf(graph, node).inputs.find((s) => s.key === key);
+  assert.ok(socket, `${type} has a ${key} input`);
+  return { node, socket };
+}
+
+check('menus: every slot kind is classified from its type and hint', () => {
+  const g = STUDIO.newStarterGraph('m');
+  const kinds = [
+    ['cadence.render.sprite', 'size', 'number'],
+    ['cadence.particles.emitter', 'velocity', 'direction'],
+    ['cadence.particles.emitter', 'shape', 'shape'],
+    ['cadence.particles.emitter', 'events', 'events'],
+    ['cadence.particles.simulate', 'force', 'force'],
+    ['cadence.particles.simulate', 'colliders', 'collider'],
+    ['cadence.particles.simulate', 'emitter', 'emitter'],
+    ['cadence.material.surface', 'baseColor', 'colour'],
+    ['cadence.material.surface', 'texture', 'texture'],
+    ['cadence.material.surface', 'blend', 'mode'],
+    ['cadence.render.sprite', 'material', 'material'],
+    ['cadence.geometry.sphere', 'radius', 'number'],
+  ];
+  for (const [type, key, kind] of kinds) {
+    const { socket } = slotOn(g, type, key);
+    assert.equal(MENUS.slotKindOf(socket), kind, `${type}.${key}`);
+  }
+});
+
+check('menus: every curated entry builds, connects to its slot, and the graph still evaluates', () => {
+  const g0 = STUDIO.newStarterGraph('m');
+  const slots = [
+    ['cadence.render.sprite', 'size'], ['cadence.particles.emitter', 'velocity'], ['cadence.particles.emitter', 'shape'],
+    ['cadence.particles.simulate', 'force'], ['cadence.particles.simulate', 'colliders'], ['cadence.material.surface', 'baseColor'],
+    ['cadence.material.surface', 'texture'], ['cadence.render.sprite', 'material'], ['cadence.particles.simulate', 'emitter'],
+    ['cadence.fields.constantDirection', 'direction'], ['cadence.geometry.sphere', 'radius'],
+  ];
+  let tried = 0;
+  for (const [type, key] of slots) {
+    const base = slotOn(g0, type, key);
+    const menu = MENUS.menuFor(g0, base.node, base.socket);
+    assert.ok(menu.curated.length >= 2, `${type}.${key} (${menu.kind}) has entries`);
+    assert.ok(menu.curated.filter((e) => e.current).length <= 1, 'at most one entry is marked current');
+    for (const entry of menu.curated) {
+      const g = structuredClone(g0);
+      const node = g.nodes[base.node.id];
+      const socket = G.socketsOf(g, node).inputs.find((s) => s.key === key);
+      const before = Object.keys(g.nodes).length;
+      const res = MENUS.applyEntry(g, node, socket, entry);
+      tried++;
+      assert.ok(Array.isArray(res.nodes), `${entry.id} on ${key}: returns the nodes it made`);
+      assert.equal(Object.keys(g.nodes).length, before + res.nodes.length, `${entry.id} on ${key}: node count accounts for every new node`);
+      const wired = G.linksInto(g, node.id, key);
+      if (entry.id === 'fixed' || entry.id === 'none') assert.equal(wired.length, 0, `${entry.id} leaves the slot unwired`);
+      else assert.ok(wired.length >= 1, `${entry.id} on ${key} wires the slot`);
+      // whatever it built, the effect still evaluates to a scene without throwing
+      const out = Object.values(g.nodes).find((n) => n.type.startsWith('cadence.render.output'));
+      const e = new E.Evaluator(g, { fps: 30 });
+      e.setTime(12);
+      const r = e.evaluateSocket(out.id, 'out');
+      assert.ok(r.ok !== undefined, `${entry.id} on ${key}: evaluates`);
+      assert.ok(!r.diagnostics.some((d) => d.severity === 'error'), `${entry.id} on ${key}: no evaluation error (${r.diagnostics.map((d) => d.message).join('; ')})`);
+    }
+  }
+  assert.ok(tried >= 60, `tried ${tried} entries`);
+});
+
+check('menus: events entries appear only when another simulation exists, and wire its events', () => {
+  const g = STUDIO.newStarterGraph('m');
+  const { node: em, socket } = slotOn(g, 'cadence.particles.emitter', 'events');
+  const menu = MENUS.menuFor(g, em, socket);
+  // the starter's own simulation is a valid source for a SECOND emitter, but not for the one feeding it
+  const sim = Object.values(g.nodes).find((n) => n.type.startsWith('cadence.particles.simulate'));
+  const child = G.newNode(g, 'cadence.particles.emitter', 0, 0, { id: 'child', values: { rate: 0 } });
+  const cs = G.socketsOf(g, child).inputs.find((s) => s.key === 'events');
+  const m2 = MENUS.menuFor(g, child, cs);
+  const death = m2.curated.find((e) => e.id.startsWith('death:'));
+  assert.ok(death, 'a "when those particles die" entry exists');
+  const res = MENUS.applyEntry(g, child, cs, death);
+  assert.equal(res.nodes.length, 1);
+  const filt = g.nodes[res.nodes[0]];
+  assert.ok(filt.type.startsWith('cadence.particles.events'));
+  assert.equal(G.linksInto(g, filt.id, 'events')[0].fromNode, sim.id, 'the filter reads the simulation');
+  assert.equal(G.linksInto(g, child.id, 'events')[0].fromNode, filt.id, 'the child emitter reads the filter');
+  void menu;
+});
+
+check('menus: existing sources list the values already in the effect, and applying one wires without new nodes', () => {
+  const g = STUDIO.newStarterGraph('m');
+  const { node: spr, socket } = slotOn(g, 'cadence.render.sprite', 'rotation');
+  const ex = MENUS.existingSources(g, spr, socket);
+  const life = ex.find((s) => s.label.startsWith('Normalized Age'));
+  assert.ok(life, 'Normalized Age fits a number slot');
+  assert.ok(!ex.some((s) => s.nodeId === spr.id), 'never itself');
+  const before = Object.keys(g.nodes).length;
+  MENUS.applyExisting(g, spr, socket, life);
+  assert.equal(Object.keys(g.nodes).length, before);
+  assert.equal(G.linksInto(g, spr.id, 'rotation')[0].fromNode, life.nodeId);
+});
+
+check('menus: "anything else" applies any registry node that fits', () => {
+  const g = STUDIO.newStarterGraph('m');
+  const { node: spr, socket } = slotOn(g, 'cadence.render.sprite', 'size');
+  const res = MENUS.applyNodeType(g, spr, socket, 'cadence.noise.perlin');
+  assert.equal(res.nodes.length, 1);
+  assert.ok(g.nodes[res.nodes[0]].type.startsWith('cadence.noise.perlin'));
+  assert.throws(() => MENUS.applyNodeType(g, spr, socket, 'cadence.render.output'), /no output that fits/);
+});
+
+check('menus: every "add a thing" entry builds a drawn thing that evaluates, and removeThing takes only what it owned', () => {
+  for (const t of MENUS.THINGS) {
+    const g = STUDIO.newStarterGraph('m');
+    const before = Object.keys(g.nodes).length;
+    const res = MENUS.addThing(g, t.id);
+    assert.ok(g.nodes[res.thing], `${t.id} returns its renderer`);
+    const out = Object.values(g.nodes).find((n) => n.type.startsWith('cadence.render.output'));
+    assert.ok(G.linksInto(g, out.id, 'passes').some((l) => l.fromNode === res.thing), `${t.id} is wired to the output`);
+    const p = SHEET.projectGraph(g);
+    assert.equal(p.stats.reached, p.stats.nodes, `${t.id}: sheet reaches every node`);
+    assert.equal(p.things.length, 2, `${t.id}: two things on the sheet`);
+    const e = new E.Evaluator(g, { fps: 30 });
+    e.setTime(20);
+    const r = e.evaluateSocket(out.id, 'out');
+    assert.ok(!r.diagnostics.some((d) => d.severity === 'error'), `${t.id} evaluates: ${r.diagnostics.map((d) => d.message).join('; ')}`);
+    // remove it: back to the starter's node count, starter untouched
+    MENUS.removeThing(g, res.thing);
+    assert.equal(Object.keys(g.nodes).length, before, `${t.id}: removal is exact`);
+    assert.equal(SHEET.projectGraph(g).things.length, 1);
+  }
+});
+
+check('menus: the starter sprite\'s "over its life" size is recognised so the fixed entry is not marked current', () => {
+  const g = STUDIO.newStarterGraph('m');
+  const { node: spr, socket } = slotOn(g, 'cadence.render.sprite', 'size');
+  const menu = MENUS.menuFor(g, spr, socket);
+  assert.ok(menu.current, 'the slot is wired');
+  assert.ok(!menu.curated.find((e) => e.id === 'fixed').current);
+});
+
+// ================================================================ Parts 31–32: the grid fluid solver (smoke and fire)
+const FLUID = await import('../renderer/js/pnx/fluid.js');
+
+function smokeSpec(extra = {}) {
+  return {
+    sources: [{ points: new Float32Array([0, 0.6, 0]), radius: 0.5, sdf: null, density: 6, temperature: 1.5, fuel: 0, velocity: null }],
+    buoyancy: 2.5, weight: 0.2, cooling: 0.4, dissipation: 0.1, vorticity: 0.6, iterations: 20,
+    ignition: 0, burnRate: 0, heatRelease: 0, soot: 0, wind: null, boundary: 'open',
+    ...extra,
+  };
+}
+
+check('fluid: a hot source rises — the density centre of mass climbs frame over frame', () => {
+  const sim = new FLUID.FluidSimulation(smokeSpec(), { fps: 30, resolution: 20, center: [0, 2, 0], size: [4, 4, 4] });
+  const early = FLUID.totals(sim.seek(6));
+  const late = FLUID.totals(sim.seek(40));
+  assert.ok(early.density > 0, 'the source deposited density');
+  assert.ok(late.density > early.density, 'density keeps accumulating while the source runs');
+  assert.ok(late.densityCentreY > early.densityCentreY + 1, `smoke rose: centre y ${early.densityCentreY.toFixed(2)} -> ${late.densityCentreY.toFixed(2)} cells`);
+});
+
+check('fluid: the projection leaves the velocity nearly divergence-free', () => {
+  const sim = new FLUID.FluidSimulation(smokeSpec({ iterations: 40 }), { fps: 30, resolution: 20 });
+  const s = sim.seek(20);
+  const div = FLUID.meanAbsDivergence(s);
+  let speed = 0;
+  for (let i = 0; i < s.u.length; i++) speed = Math.max(speed, Math.abs(s.v[i]));
+  assert.ok(speed > 0.05, `the fluid is moving (max |v| ${speed.toFixed(3)} cells/s)`);
+  assert.ok(div < speed * 0.05, `divergence ${div.toExponential(2)} is small next to the speed ${speed.toFixed(3)}`);
+});
+
+check('fluid: fire burns fuel into heat and soot, and only above the ignition temperature', () => {
+  const cold = new FLUID.FluidSimulation(smokeSpec({ sources: [{ points: new Float32Array([0, 0.6, 0]), radius: 0.5, density: 0, temperature: 0.2, fuel: 4, velocity: null }], ignition: 1, burnRate: 3, heatRelease: 2, soot: 0.5 }), { fps: 30, resolution: 16 });
+  const hot = new FLUID.FluidSimulation(smokeSpec({ sources: [{ points: new Float32Array([0, 0.6, 0]), radius: 0.5, density: 0, temperature: 2, fuel: 4, velocity: null }], ignition: 1, burnRate: 3, heatRelease: 2, soot: 0.5 }), { fps: 30, resolution: 16 });
+  const c = cold.seek(20), h = hot.seek(20);
+  assert.equal(c.stats.burned, 0, 'below ignition nothing burns');
+  assert.ok(h.stats.burned > 0, 'above ignition fuel burns');
+  const tc = FLUID.totals(c), th = FLUID.totals(h);
+  assert.ok(th.density > tc.density, 'burning makes smoke (soot)');
+  assert.ok(th.temperature > tc.temperature, 'burning releases heat');
+});
+
+check('fluid: scrubbing is deterministic — the same frame is identical however it is reached', () => {
+  const setup = () => new FLUID.FluidSimulation(smokeSpec({ vorticity: 1.2 }), { fps: 30, resolution: 14, checkpointEvery: 4 });
+  const snap = (s) => { let h = 0; for (let i = 0; i < s.density.length; i++) h = (h * 31 + Math.round((s.density[i] + s.v[i] * 7 + s.temperature[i] * 3) * 1e5)) >>> 0; return `${h}:${s.frame}`; };
+  const a = setup(); const forwards = snap(a.seek(23));
+  const b = setup(); b.seek(45); assert.equal(snap(b.seek(23)), forwards, 'backwards differs');
+  const c = setup(); for (const f of [5, 30, 12, 40, 3, 23]) c.seek(f); assert.equal(snap(c.seek(23)), forwards, 'jittery differs');
+  const d = setup(); assert.equal(snap(d.seek(23)), forwards, 'fresh differs');
+  assert.ok(b.lastSeek.steps <= 4, `a checkpoint every 4 frames means at most 4 replay steps (${b.lastSeek.steps})`);
+});
+
+check('fluid: a wind field made of PNX nodes pushes the smoke sideways', () => {
+  const wind = F.makeField('vector3', () => [30, 0, 0]);
+  const calm = new FLUID.FluidSimulation(smokeSpec(), { fps: 30, resolution: 16 });
+  const windy = new FLUID.FluidSimulation(smokeSpec({ wind }), { fps: 30, resolution: 16 });
+  const xOf = (s) => { let d = 0, dx = 0; const r = s.resolution; for (let z = 0; z < r; z++) for (let y = 0; y < r; y++) for (let x = 0; x < r; x++) { const v = s.density[(z * r + y) * r + x]; d += v; dx += v * x; } return dx / Math.max(1e-9, d); };
+  const xc = xOf(calm.seek(30)), xw = xOf(windy.seek(30));
+  assert.ok(xw > xc + 1, `wind moved the smoke: centre x ${xc.toFixed(2)} -> ${xw.toFixed(2)} cells`);
+});
+
+check('fluid: velocity sampled in world units matches the grid, and a step at 32³ is affordable', () => {
+  const sim = new FLUID.FluidSimulation(smokeSpec(), { fps: 30, resolution: 32, center: [0, 2, 0], size: [4, 4, 4] });
+  sim.seek(10);
+  const t0 = performance.now();
+  sim.seek(15);
+  const ms = (performance.now() - t0) / 5;
+  const v = FLUID.velocityAtWorld(sim.state, [0, 2.5, 0]);
+  assert.ok(v[1] > 0, `above the source the smoke moves up (${v[1].toFixed(3)} studs/s)`);
+  assert.ok(ms < 400, `a 32³ step took ${ms.toFixed(1)} ms — far too slow for a preview`);
+  console.log(`      (fluid step at 32³: ${ms.toFixed(1)} ms; at 20³ the earlier tests ran in a fraction of that)`);
+});
+
 // ================================================================
 console.log(`\nPNX: ${passed} passed, ${failed} failed  (${R.nodeCount()} node types registered)`);
 if (failed) {

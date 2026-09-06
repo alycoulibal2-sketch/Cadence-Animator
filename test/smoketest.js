@@ -1060,6 +1060,81 @@
     return { ok: true, total: all.results, swirl: swirl.labels.slice(0, 3) };
   });
 
+  // ---------------------------------------------------------------- the Effect Sheet (docs/effect-sheet.md)
+  await step('Effect Sheet: the procedural inspector shows things, properties and vary menus', async () => {
+    await vfxCall('pnx_new', { name: 'Sheet Smoketest' });
+    await new Promise((r) => setTimeout(r, 400));
+    const dom = await vfxCall('pnx_test_sheet_dom');
+    assert(dom.mounted, 'the sheet is mounted in the inspector in procedural mode');
+    assert(dom.cards === 1, `the starter draws one thing, got ${dom.cards}: ${dom.cardTitles}`);
+    assert(/Sprite/.test(dom.cardTitles[0]), `the thing is the sprite renderer: ${dom.cardTitles[0]}`);
+    assert(dom.rows >= 8, `rows for its properties, got ${dom.rows}`);
+    assert(dom.varyButtons >= 6, `every value carries a vary menu, got ${dom.varyButtons}`);
+    assert(dom.wiredVary >= 2, `wired slots (size, colour) are marked, got ${dom.wiredVary}`);
+    assert(dom.named === 1, `Normalized Age is named once, got ${dom.named}`);
+    assert(dom.clipped.length === 0, `labels must not clip: ${dom.clipped}`);
+    assert(dom.overflow === 0, `${dom.overflow} elements overflow the panel width`);
+    assert(/nodes/.test(dom.foot), `the foot line reports counts: ${dom.foot}`);
+    // the same projection is what Claude reads
+    const sheet = await vfxCall('pnx_sheet');
+    assert(sheet.things.length === 1 && sheet.stats.reached === sheet.stats.nodes, `pnx_sheet reaches every node: ${JSON.stringify(sheet.stats)}`);
+    assert(typeof sheet.text === 'string' && sheet.text.includes('«Normalized Age»'), 'the text view names the shared value');
+    return { ok: true, rows: dom.rows, vary: dom.varyButtons };
+  });
+
+  await step('Effect Sheet: a menu choice builds real nodes, shows live thumbnails, and undoes', async () => {
+    const sheet = await vfxCall('pnx_sheet', { text: false });
+    const spr = sheet.things[0];
+    const size = spr.rows.find((r) => r.key === 'size');
+    assert(size && size.kind === 'source', 'the starter size is driven over life');
+    const menu = await vfxCall('pnx_sheet_menu', { nodeId: spr.nodeId, socket: 'size' });
+    assert(menu.kind === 'number', `size is a number slot: ${menu.kind}`);
+    assert(menu.curated.length >= 8, `a number slot has a wide menu, got ${menu.curated.length}`);
+    assert(menu.curated.some((e) => e.id === 'random') && menu.curated.some((e) => e.id === 'bySpeed'), 'random and by-speed are offered');
+    assert(menu.curated.every((e) => e.roblox === null || typeof e.roblox === 'string'), 'every entry states its Roblox level');
+    assert(menu.existing.some((x) => /Normalized Age/.test(x.label)), 'values already in the effect are offered');
+    const before = (await vfxCall('pnx_get_graph')).nodes.length;
+    const applied = await vfxCall('pnx_sheet_apply', { nodeId: spr.nodeId, socket: 'size', entry: 'random' });
+    assert(applied.ok, `applying failed: ${JSON.stringify(applied.diagnostics)}`);
+    const after = await vfxCall('pnx_get_graph');
+    assert(after.nodes.length === before + 1 - 2 || after.nodes.length === before + 1, `random replaces the two life nodes with one random node (before ${before}, after ${after.nodes.length})`);
+    const sheet2 = await vfxCall('pnx_sheet', { text: false });
+    const size2 = sheet2.things[0].rows.find((r) => r.key === 'size');
+    assert(size2.kind === 'source' && size2.variesWith.includes('random per particle'), `size now varies randomly: ${JSON.stringify(size2.variesWith)}`);
+    // the menu a person sees: thumbnails are real renders of this effect with each choice applied
+    await new Promise((r) => setTimeout(r, 300));
+    const dom = await vfxCall('pnx_test_sheet_dom', { openMenu: true, waitMs: 900 });
+    assert(dom.menu, 'clicking a vary button opens the source menu');
+    assert(dom.menu.entries >= 6, `the menu has entries, got ${dom.menu.entries}`);
+    assert(dom.menu.thumbs === dom.menu.entries, 'every entry has a thumbnail canvas');
+    assert(dom.menu.lit >= Math.floor(dom.menu.entries / 2), `thumbnails must actually render (lit ${dom.menu.lit} of ${dom.menu.thumbs})`);
+    assert(dom.menu.hasSearch, 'the anything-else search is present');
+    assert(dom.menu.badges.length >= 4, 'entries carry Roblox badges');
+    // one undo step
+    await vfxCall('vfx_undo');
+    const sheet3 = await vfxCall('pnx_sheet', { text: false });
+    const size3 = sheet3.things[0].rows.find((r) => r.key === 'size');
+    assert(size3.variesWith.includes('Normalized Age'), 'Ctrl+Z restores the over-life size');
+    return { ok: true, entries: dom.menu.entries, lit: dom.menu.lit };
+  });
+
+  await step('Effect Sheet: adding a thing puts a second drawn thing on the sheet and on screen', async () => {
+    const added = await vfxCall('pnx_sheet_add_thing', { thing: 'ring' });
+    assert(added.ok && added.made && added.made.thing, `add thing failed: ${JSON.stringify(added.diagnostics)}`);
+    const sheet = await vfxCall('pnx_sheet', { text: false });
+    assert(sheet.things.length === 2, `two things now, got ${sheet.things.length}`);
+    assert(sheet.things.every((t) => t.drawn), 'both are wired to the output');
+    assert(sheet.stats.reached === sheet.stats.nodes, `every node reached: ${JSON.stringify(sheet.stats)}`);
+    await vfxCall('pnx_scrub', { frame: 30 });
+    await new Promise((r) => setTimeout(r, 250));
+    const st = await vfxCall('pnx_get_state');
+    assert(st.drawn && st.drawn.triangles > 0, `the ring draws triangles: ${JSON.stringify(st.drawn)}`);
+    await new Promise((r) => setTimeout(r, 300));
+    const dom = await vfxCall('pnx_test_sheet_dom');
+    assert(dom.cards === 2, `two cards on the sheet, got ${dom.cards}`);
+    await vfxCall('vfx_undo');
+    return { ok: true, triangles: st.drawn.triangles };
+  });
   await step('PNX: switching back to a layer-based effect leaves no procedural objects behind', async () => {
     await vfxCall('pnx_close');
     const after = await vfxCall('pnx_get_state');

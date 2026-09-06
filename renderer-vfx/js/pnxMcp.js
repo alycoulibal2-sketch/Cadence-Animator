@@ -27,6 +27,8 @@ import * as PGROUPS from '../../renderer/js/pnx/groups.js';
 import * as PLIB from '../../renderer/js/pnx/library.js';
 import { openPnxNodeEditor, closePnxNodeEditor, isPnxEditorOpen, pnxEditorRoot } from './pnxNodeEditor.js';
 import * as REG from '../../renderer/js/pnx/registry.js';
+import * as SHEET from '../../renderer/js/pnx/sheet.js';
+import * as MENUS from '../../renderer/js/pnx/menus.js';
 import * as RENDER from '../../renderer/js/pnx/render.js';
 import { formatType } from '../../renderer/js/pnx/types.js';
 import '../../renderer/js/pnx/nodes/index.js';
@@ -296,6 +298,66 @@ export const PNX_HANDLERS = {
     return { ok: true, ids: made };
   },
 
+  // The Effect Sheet, read off the inspector's DOM: what a person sees, not what the projection says.
+  // `openMenu` clicks the first vary button and reports the menu it opened — thumbnails included, read
+  // back from the canvases after a short wait so a blank thumbnail is caught as blank.
+  async pnx_test_sheet_dom({ openMenu = false, waitMs = 700 } = {}) {
+    requirePnx();
+    const body = document.getElementById('vfxInspectorBody');
+    const sheet = body ? body.querySelector('.sheet') : null;
+    if (!sheet) return { mounted: false };
+    const cards = [...sheet.querySelectorAll('.sheet-card')];
+    const rows = [...sheet.querySelectorAll('.sheet-row')];
+    const vary = [...sheet.querySelectorAll('.sheet-vary')];
+    const labels = [...sheet.querySelectorAll('.sheet-k')];
+    const clipped = labels.filter((l) => l.scrollWidth > l.clientWidth + 1).map((l) => l.textContent);
+    const out = {
+      mounted: true,
+      cards: cards.length,
+      cardTitles: cards.map((c) => c.querySelector('b')?.textContent || ''),
+      rows: rows.length,
+      varyButtons: vary.length,
+      wiredVary: vary.filter((v) => v.classList.contains('wired')).length,
+      named: sheet.querySelectorAll('.sheet-named-card').length,
+      controls: sheet.querySelectorAll('.pnx-ctrl, .pnx-swatch, .pnx-mini, .pnx-ctrl-check, select.fld').length,
+      clipped,
+      foot: sheet.querySelector('.sheet-foot')?.textContent || '',
+      badge: sheet.querySelector('.sheet-head .sheet-badge')?.textContent || null,
+      width: sheet.offsetWidth,
+      overflow: [...sheet.querySelectorAll('*')].filter((e) => e.scrollWidth > sheet.clientWidth + 2).length,
+    };
+    if (!openMenu) return out;
+    // The vary button of the first "source" row (a wired slot), or the first button if none.
+    const target = vary.find((v) => v.classList.contains('wired')) || vary[0];
+    if (!target) return { ...out, menu: null };
+    target.click();
+    await new Promise((r) => setTimeout(r, waitMs));
+    const menu = document.querySelector('.sheet-menu');
+    if (!menu) return { ...out, menu: null };
+    const thumbs = [...menu.querySelectorAll('.sheet-mi-thumb')];
+    // A thumbnail that rendered has pixels brighter than the stage background somewhere.
+    const lit = thumbs.filter((cv) => {
+      try {
+        const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+        for (let i = 0; i < d.length; i += 16) if (d[i] + d[i + 1] + d[i + 2] > 120) return true;
+      } catch (_) { /* tainted or empty */ }
+      return false;
+    }).length;
+    const result = {
+      ...out,
+      menu: {
+        title: menu.querySelector('.sheet-menu-head b')?.textContent || '',
+        entries: menu.querySelectorAll('.sheet-mi').length,
+        thumbs: thumbs.length,
+        lit,
+        existing: menu.querySelectorAll('.sheet-menu-line').length,
+        hasSearch: !!menu.querySelector('.sheet-menu-search'),
+        badges: [...menu.querySelectorAll('.sheet-mi .sheet-badge')].map((b) => b.textContent),
+      },
+    };
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    return result;
+  },
   // Opens the real canvas and reports what it actually drew, so the claim "a human can see and edit
   // this graph" is checked against the DOM rather than asserted.
   pnx_test_open_editor() {
@@ -438,6 +500,61 @@ export const PNX_HANDLERS = {
   },
 
   // ---------------------------------------------------------------- introspection (Part 60)
+  // ---------------------------------------------------------------- the Effect Sheet (docs/effect-sheet.md)
+  // The same projection the human panel renders: things → properties → sources, named values, unused
+  // nodes. Structured for a tool, plus the indented text a person would read.
+  pnx_sheet({ scope = null, text = true } = {}) {
+    const g = requirePnx();
+    const p = SHEET.projectGraph(g, scope ? { scope } : {});
+    return { ok: true, ...p, text: text ? SHEET.sheetText(p) : undefined };
+  },
+
+  // The source menu for one slot, as the sheet would show it: curated entries with their Roblox level,
+  // values already in the effect, and how many registry nodes fit. Apply one with pnx_sheet_apply.
+  pnx_sheet_menu({ nodeId, socket } = {}) {
+    const g = requirePnx();
+    const node = requireNode(nodeId);
+    const s = PGRAPH.socketsOf(g, node).inputs.find((x) => x.key === socket);
+    if (!s) throw new Error(`"${socket}" is not an input of that node`);
+    const m = MENUS.menuFor(g, node, s);
+    return {
+      ok: true, kind: m.kind, searchable: m.searchable,
+      current: m.current ? { nodeId: m.current.node.id, socket: m.current.socket } : null,
+      curated: m.curated.map((e) => ({ id: e.id, label: e.label, teach: e.teach, roblox: e.roblox, current: !!e.current })),
+      existing: m.existing,
+    };
+  },
+
+  // Apply a menu entry (by id), an existing value (by nodeId+socket) or any node type to a slot —
+  // exactly what clicking it on the sheet does, through the same mutator.
+  pnx_sheet_apply({ nodeId, socket, entry = null, sourceNodeId = null, sourceSocket = null, type = null } = {}) {
+    const node = requireNode(nodeId);
+    let made = null;
+    ST.mutatePnx((g) => {
+      const n = g.nodes[nodeId];
+      const s = PGRAPH.socketsOf(g, n).inputs.find((x) => x.key === socket);
+      if (!s) throw new Error(`"${socket}" is not an input of that node`);
+      if (entry) {
+        const m = MENUS.menuFor(g, n, s);
+        const e = m.curated.find((x) => x.id === entry);
+        if (!e) throw new Error(`no menu entry "${entry}" for ${s.label}; call pnx_sheet_menu to see them`);
+        made = MENUS.applyEntry(g, n, s, e);
+      } else if (sourceNodeId) {
+        made = MENUS.applyExisting(g, n, s, { nodeId: sourceNodeId, socket: sourceSocket || 'out' });
+      } else if (type) {
+        made = MENUS.applyNodeType(g, n, s, type);
+      } else throw new Error('give one of: entry, sourceNodeId, type');
+    }, { structural: true });
+    void node;
+    return writeResult({ made });
+  },
+
+  pnx_sheet_add_thing({ thing } = {}) {
+    requirePnx();
+    let made = null;
+    ST.mutatePnx((g) => { made = MENUS.addThing(g, thing); }, { structural: true });
+    return writeResult({ made, things: MENUS.THINGS.map((t) => t.id) });
+  },
   pnx_catalogue({ category = null } = {}) {
     const all = REG.catalogue();
     const rows = category ? all.filter((n) => n.category === category) : all;
