@@ -8,14 +8,16 @@
 //   node site/tools/sync-release.js --check   # report drift, change nothing
 //   node site/tools/sync-release.js --tag v0.8.0
 //
-// Run it as step 2 of the release checklist in site/README.md.
+// Run it as step 2 of the release checklist in site/README.md. It rewrites
+// index.html, docs.html and safety.html; every element it touches is listed
+// there under "What the scripts rewrite".
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
 const REPO = 'alycoulibal2-sketch/Cadence-Animator';
 const ROOT = path.resolve(__dirname, '..', '..');
-const FILES = ['index.html', 'docs.html'].map((f) => path.join(ROOT, 'site', f));
+const FILES = ['index.html', 'docs.html', 'safety.html'].map((f) => path.join(ROOT, 'site', f));
 
 const check = process.argv.includes('--check');
 const tagArg = (() => {
@@ -103,6 +105,7 @@ const mb = (bytes) => (bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '') + '
 
   const info = {
     version,
+    tagUrl: release.html_url,
     installer: {
       name: installer.name,
       url: installer.browser_download_url,
@@ -158,6 +161,26 @@ const mb = (bytes) => (bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '') + '
     out = out.replace(
       /<code>Cadence-Animator-(?!Setup)[0-9][^<]*<\/code>/g,
       `<code>${info.portable.name}</code>`
+    );
+
+    // Filenames written as text elsewhere (the SmartScreen mock-up, the verify
+    // tool, the PowerShell one-liner) carry a data-file attribute.
+    out = out.replace(/(<(?:span|code) data-file="installer">)[^<]*(<\/(?:span|code)>)/g, `$1${info.installer.name}$2`);
+    out = out.replace(/(<(?:span|code) data-file="portable">)[^<]*(<\/(?:span|code)>)/g, `$1${info.portable.name}$2`);
+
+    // VirusTotal links embed the hash, and the "tagged on GitHub" link names
+    // the release page.
+    out = out.replace(
+      /<a([^>]*?)href="[^"]*"([^>]*?)data-vt="installer"/g,
+      `<a$1href="https://www.virustotal.com/gui/file/${info.installer.sha}"$2data-vt="installer"`
+    );
+    out = out.replace(
+      /<a([^>]*?)href="[^"]*"([^>]*?)data-vt="portable"/g,
+      `<a$1href="https://www.virustotal.com/gui/file/${info.portable.sha}"$2data-vt="portable"`
+    );
+    out = out.replace(
+      /<a([^>]*?)href="[^"]*"([^>]*?)data-release-tag/g,
+      `<a$1href="${info.tagUrl}"$2data-release-tag`
     );
 
     // The two <details> hash blocks, in document order: installer then portable.
