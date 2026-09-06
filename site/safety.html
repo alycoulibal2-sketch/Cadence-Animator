@@ -76,7 +76,7 @@
         trust anything: every statement links to the exact file on GitHub that makes it true, and the
         hash checker below works on the file you just downloaded, in your browser, with nothing uploaded.
       </p>
-      <p class="small muted">Written against Cadence <span data-version>0.10.0</span>. If any line here stops being true, <a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/issues">that is a bug in the open</a>.</p>
+      <p class="small muted">Written against Cadence <span data-version>0.11.0</span>. If any line here stops being true, <a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/issues">that is a bug in the open</a>.</p>
     </div>
 
     <div class="proof-grid">
@@ -87,7 +87,7 @@
           The desktop app, the Roblox Studio plugin, the MCP server, the tests and this website are one
           public repository. There is no private component, no obfuscated bundle and no server the app
           depends on. Each release is tagged on GitHub
-          (<a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases/tag/v0.10.0" data-release-tag>v<span data-version>0.10.0</span></a>)
+          (<a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/releases/tag/v0.11.0" data-release-tag>v<span data-version>0.11.0</span></a>)
           next to the files you download, and the whole thing builds with two commands:
         </p>
         <pre><code>git clone https://github.com/alycoulibal2-sketch/Cadence-Animator
@@ -163,17 +163,17 @@ font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'n
         <p>These are the published SHA-256 hashes of the current builds. The same numbers are on <a href="index.html#download">the download page</a> and on the GitHub release.</p>
         <div class="grid grid-2" style="margin-bottom:16px">
           <div class="panel" style="padding:18px 20px">
-            <b style="color:var(--text-0)">Installer</b> &middot; <code data-file="installer">Cadence-Animator-Setup-0.10.0.exe</code> &middot; <span data-size-installer>97.4 MB</span>
+            <b style="color:var(--text-0)">Installer</b> &middot; <code data-file="installer">Cadence-Animator-Setup-0.11.0.exe</code> &middot; <span data-size-installer>97.4 MB</span>
             <details class="hash" data-build="installer" open>
               <summary>Verify this file (SHA-256)</summary>
-              <code>6bf8b24c8274771ab3c5c5101fb894320fce9186b10d4934cee3553b70527e87</code>
+              <code>8e604fe425db5144a678694a38bf2dca17108d1a10538aec423ff74070172aa9</code>
             </details>
           </div>
           <div class="panel" style="padding:18px 20px">
-            <b style="color:var(--text-0)">Portable</b> &middot; <code data-file="portable">Cadence-Animator-0.10.0.exe</code> &middot; <span data-size-portable>97.2 MB</span>
+            <b style="color:var(--text-0)">Portable</b> &middot; <code data-file="portable">Cadence-Animator-0.11.0.exe</code> &middot; <span data-size-portable>97.2 MB</span>
             <details class="hash" data-build="portable" open>
               <summary>Verify this file (SHA-256)</summary>
-              <code>d0c347ecbdf97e6d0be817cf12a6dbefde337fa686e72e8d21063b8a85af8b91</code>
+              <code>d1092bbb3ef0af5c2487997e94471474868183d91097db3b8ecdde5cc5f13560</code>
             </details>
           </div>
         </div>
@@ -181,13 +181,13 @@ font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'n
         <div class="verify" id="verify">
           <label class="dropzone" id="dropzone" for="verifyFile">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
-            <b>Drag your downloaded <span data-file="installer">Cadence-Animator-Setup-0.10.0.exe</span> here, or click to choose it</b>
+            <b>Drag your downloaded <span data-file="installer">Cadence-Animator-Setup-0.11.0.exe</span> here, or click to choose it</b>
             <small>SHA-256 is computed locally with WebCrypto and compared with the hashes above. This page has no server to send your file to; you can pull the network cable first and it works the same.</small>
             <input type="file" id="verifyFile" accept=".exe,application/octet-stream">
           </label>
           <div class="note verify-result" id="verifyResult" aria-live="polite"></div>
           <p class="small muted">Prefer the command line? In PowerShell, in your Downloads folder:</p>
-          <pre><code>Get-FileHash .\<span data-file="installer">Cadence-Animator-Setup-0.10.0.exe</span> -Algorithm SHA256</code></pre>
+          <pre><code>Get-FileHash .\<span data-file="installer">Cadence-Animator-Setup-0.11.0.exe</span> -Algorithm SHA256</code></pre>
           <p class="small muted">The 64 hex characters it prints must equal the installer hash above, letter for letter (case does not matter). If they differ, do not run the file: delete it and download again from this site.</p>
         </div>
       </article>
@@ -197,8 +197,8 @@ font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'n
         <h2>Look the file up by its hash.</h2>
         <p>These links open VirusTotal&rsquo;s report for each build&rsquo;s exact SHA-256 &mdash; the same hash you just verified. They resolve to an analysis once someone, anyone, has submitted that file; if nobody has yet, VirusTotal offers to scan your copy, which takes a minute.</p>
         <ul>
-          <li><a href="https://www.virustotal.com/gui/file/6bf8b24c8274771ab3c5c5101fb894320fce9186b10d4934cee3553b70527e87" data-vt="installer">Installer on VirusTotal</a></li>
-          <li><a href="https://www.virustotal.com/gui/file/d0c347ecbdf97e6d0be817cf12a6dbefde337fa686e72e8d21063b8a85af8b91" data-vt="portable">Portable build on VirusTotal</a></li>
+          <li><a href="https://www.virustotal.com/gui/file/8e604fe425db5144a678694a38bf2dca17108d1a10538aec423ff74070172aa9" data-vt="installer">Installer on VirusTotal</a></li>
+          <li><a href="https://www.virustotal.com/gui/file/d1092bbb3ef0af5c2487997e94471474868183d91097db3b8ecdde5cc5f13560" data-vt="portable">Portable build on VirusTotal</a></li>
         </ul>
         <p class="src">An unsigned Electron app can pick up a heuristic flag from one scanner among seventy; that is what &ldquo;unsigned&rdquo; costs. The source above is how to settle it, and <a href="index.html#pricing">signing is what Pro pays for</a>.</p>
       </article>
@@ -290,7 +290,7 @@ font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'n
       </div>
     </div>
     <div class="footer-base">
-      <span>Cadence Animator <span data-version>0.10.0</span> &middot; MIT licence</span>
+      <span>Cadence Animator <span data-version>0.11.0</span> &middot; MIT licence</span>
       <span>Not affiliated with Roblox Corporation or Moon Animator.</span>
     </div>
   </div>
