@@ -513,7 +513,7 @@ npm start</code></pre>
         <p>
           On the canvas, in VFX Studio &mdash; press <strong>Nodes</strong>, or
           <strong>Open the node graph</strong> in the inspector. Every node in the catalogue is in the
-          add palette, which is search-first because a nested menu over 354 types is a worse tool than
+          add palette, which is search-first because a nested menu over 389 types is a worse tool than
           a text box: type <em>swirl</em> and Curl Noise comes up. Sockets are coloured by type and
           light up while you drag a wire to show what will accept it, values are edited in place, and
           a node group opens so you can see what it is made of.
@@ -600,10 +600,11 @@ npm start</code></pre>
       <section id="engine-additions">
         <h2>What the engine gained</h2>
         <p>
-          Two things the procedural engine could not do at <span data-version>0.10.0</span> are
+          Six things the procedural engine could not do at <span data-version>0.10.0</span> are
           built and green in the test suite, and ship with the next release. They are described here
           so the download page and the docs say the same thing: <strong>today&rsquo;s download does not
-          have them yet.</strong> Both are part of the <a href="#pro">Pro simulation pack</a>.
+          have them yet.</strong> Neighbours, events, fire and smoke are part of the <a href="#pro">Pro
+          simulation pack</a>; the Effect Sheet, mesh editing and zones are free.
         </p>
 
         <h3>Neighbours: flocking, keep apart, liquid pressure</h3>
@@ -667,6 +668,54 @@ npm start</code></pre>
           the stage, nodes kept underneath &mdash; and a <strong>grid fluid solver with a volume
           renderer</strong> for smoke, fire and clouds, baked to flipbooks for Roblox.
         </p>
+
+        <h3 id="engine-pyro">Fire, smoke and clouds &mdash; a real gas simulation</h3>
+        <p>
+          <strong>Simulate Smoke &amp; Fire</strong> is a grid fluid solver (semi-Lagrangian advection,
+          buoyancy, vorticity confinement, a pressure projection) with combustion: fuel above an ignition
+          temperature burns into heat and soot, and the heat lifts the plume. <strong>Cloud</strong> bakes a
+          lumpy, drifting volume. The <strong>Volume Renderer</strong> draws either as see-through gas &mdash;
+          density absorbs, heat glows through a colour table, one light with self-shadowing &mdash; and the
+          Effect Sheet offers both as <em>Fire &amp; smoke</em> and <em>A cloud</em>. Preview resolutions are
+          16&sup3;&ndash;64&sup3; on the CPU with checkpointed scrubbing.
+        </p>
+        <p class="muted">
+          Roblox cannot render volumes; on export a volume pass is baked to an 8&times;8 flipbook sheet, the
+          way Roblox fire and smoke are made by hand, and the export offers the PNG to save and upload.
+        </p>
+
+        <h3 id="engine-mesh">Mesh editing with real connectivity</h3>
+        <p>
+          A new <strong>Mesh</strong> category: Merge By Distance, Flip Faces, Extrude Faces (region or
+          individual, with <em>top</em> and <em>side</em> selections out), Inset Faces, Subdivide Mesh (Loop
+          smoothing), Smooth Mesh, Mesh Islands, Separate Geometry, Delete Faces, Duplicate Elements,
+          <strong>SDF To Mesh</strong> (marching tetrahedra &mdash; metaballs are a smooth union of spheres
+          fed to it), Volume To Mesh, <strong>Mesh To SDF</strong> (angle-weighted pseudonormals, so the
+          sign is right at corners), Mesh Boolean through distance fields, Curve To Mesh (a twist-free sweep
+          with per-point radius and custom profiles), Fill Curve, Trim Curve, Fillet Curve, Bezier Curve,
+          Spiral, Star, Icosphere and Attribute Statistics. Everything stays a point table plus a face
+          table; each operation derives the adjacency it needs.
+        </p>
+
+        <h3 id="engine-zones">Repeat and simulation zones</h3>
+        <p>
+          Every node group now has two settings: <strong>Repeat</strong> runs the group N times, feeding each
+          output back into the input of the same name (a recursive subdivision, a growth step applied ten
+          times); <strong>Carry over frames</strong> makes each frame start from the previous frame&rsquo;s
+          outputs &mdash; a simulation zone for anything the particle solver does not cover. Scrubbing
+          replays from the nearest checkpoint, and each replayed frame sees its own time.
+        </p>
+
+        <h3 id="engine-sheet">The Effect Sheet</h3>
+        <p>
+          The procedural inspector is now a sheet: every drawn thing, its properties, and for each one a
+          <em>how does it vary</em> menu (over life, over time, by height, by speed, by crowding, noise&hellip;)
+          with live thumbnails rendered by the real engine. Handles on the stage move emitters, directions
+          and radii; a hero-particle strip shows one particle&rsquo;s life. It is a lossless view of the same
+          graph the node editor shows &mdash; nothing is approximated, and <em>Show as nodes</em> is the same
+          object.
+        </p>
+
       </section>
 
       <section id="mcp">
@@ -915,8 +964,8 @@ npm start</code></pre>
         <h3>Entering a key</h3>
         <ol>
           <li>Pro is the same download as Free. Install Cadence, or keep the copy you have.</li>
-          <li>Open <strong>Settings &rarr; Pro</strong> and paste the key together with the email you
-            paid with. The features switch on in that copy immediately.</li>
+          <li>Open the command palette and run <strong>Cadence Pro: enter your key</strong>; paste the key
+            together with the email you paid with. The features switch on in that copy immediately.</li>
           <li>The key is tied to the email used at checkout, and works on any PC you use.</li>
         </ol>
         <h3>Lost or unsure</h3>
