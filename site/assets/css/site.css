@@ -417,7 +417,7 @@ kbd {
   flex-shrink: 0;
 }
 .brand:hover { color: var(--text-0); text-decoration: none; }
-.brand svg { color: var(--accent); }
+.brand svg { color: var(--accent); flex: 0 0 auto; }
 .brand-sub { color: var(--text-quiet); font-weight: 500; font-size: 0.92rem; letter-spacing: 0; }
 
 .nav-links {

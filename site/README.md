@@ -136,6 +136,24 @@ numbers; anything else and it stays hidden. Stripe's success URL should be
 - the code-signing certificate — the SmartScreen panel, the safety page and the FAQ all say
   releases are unsigned; when they are signed, rewrite those three places.
 
+### Re-capture the hero screenshot
+
+The hero (`assets/img/hero-animator.png`, also the `og:image`; `hero-animator.webp` is the same
+pixels, lossless) is a real screenshot of the app at 1920 x 1020, taken at a 2x device scale so the
+UI reads at the size the page shows it. Re-take it whenever the app's chrome changes (the title bar,
+the toolbar, the panel layout), then regenerate the WebP:
+
+```bash
+npx electron . --user-data-dir=test-output/hero-ud --force-device-scale-factor=2 --window-size=960x510 \
+  --screenshot=site/assets/img/hero-animator.png --demo-js-file=site/tools/capture-hero.js
+```
+
+`--window-size` pins the page size and is honoured only on `--screenshot` runs (see `createWindow`
+in `src/main.js`). Look at the result before committing it.
+
+The favicons (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`) are generated from `../brand/` by
+`npm run brand` — never hand-edit them.
+
 ## Verifying counts
 
 Every number on this site was counted from source, not estimated. Run from the repo root:
