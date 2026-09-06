@@ -49,6 +49,8 @@ import './texture.js';
 import './volume.js';
 // Parts 31, 32, 35 (2026-09-06): the grid fluid solver with combustion, and clouds. Drawn by the Volume Renderer.
 import './pyro.js';
+// Parts 22/24/25 (2026-09-06): mesh editing with connectivity, surfaces from fields, curve tools.
+import './mesh.js';
 
 // --- always available: observability and layout
 import './debug.js';

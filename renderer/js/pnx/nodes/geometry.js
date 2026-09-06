@@ -6,14 +6,12 @@
 // beam tube). That is why the primitives below are parameterised the way they are and why sampling
 // (Part 23) matters more than editing.
 //
-// WHAT IS DELIBERATELY NOT HERE. Part 22 lists Extrude, Inset, Bevel, Subdivide, Decimate, Bridge,
-// Boolean Union/Difference/Intersection and friends. Those are mesh-editing operations that need a
-// half-edge or BMesh-style connectivity structure to be correct, and a plausible-looking version
-// built on a bare triangle soup produces cracked normals, duplicated vertices and non-manifold output
-// that only shows up once someone exports. Per Part 78, they are not stubbed: the domain model here
-// (geometry.js's attribute tables) is what a connectivity layer would be built on, and until that
-// layer exists the operations do not appear in the catalogue at all. What IS here is the deformation
-// family (Part 42), which needs no connectivity because it only moves points.
+// WHAT LIVES ELSEWHERE. Part 22's editing operations — Extrude, Inset, Subdivide, Smooth, Weld, Delete
+// Faces, Separate, Islands, Boolean, Curve To Mesh, Fill/Trim/Fillet Curve, SDF/Volume To Mesh, Mesh To
+// SDF — are in nodes/mesh.js over mesh.js (2026-09-06), which derives the connectivity it needs from the
+// corner table per operation. Until that layer existed they were absent rather than stubbed (Part 78).
+// What IS here is the primitive and deformation family (Part 42), which needs no connectivity because it
+// only moves points.
 
 import * as V from '../values.js';
 import * as F from '../fields.js';

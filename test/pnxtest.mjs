@@ -4112,6 +4112,350 @@ check('volumes: the capability table no longer lists the solver or the renderer 
   assert.ok(R.getNode('cadence.pyro.simulate') && R.getNode('cadence.render.volume') && R.getNode('cadence.volume.cloud'));
 });
 
+// ================================================================ Parts 22/24/25/47: mesh editing, surfaces from fields, curve tools, zones
+const MESH = await import('../renderer/js/pnx/mesh.js');
+
+const closedMesh = (g) => { const adj = MESH.buildAdjacency(g); for (const e of adj.edges.values()) if (e.faces.length !== 2) return false; return adj.edges.size > 0; };
+const radii = (g) => { const out = []; const p = [0, 0, 0]; for (let i = 0; i < g.points.count; i++) { GEO.readAttrInto(g.points, 'position', i, p); out.push(Math.hypot(p[0], p[1], p[2])); } return out; };
+const evalMeshNode = (g, id, key, frame = 0) => { const e = new E.Evaluator(g, { fps: 30 }); e.setTime(frame); return e.evaluateSocket(id, key); };
+
+check('mesh: an icosphere is closed, even, and exactly on its radius', () => {
+  const g = MESH.icosphere(2, 2);
+  assert.equal(GEO.faceCount(g), 320);
+  assert.equal(GEO.pointCount(g), 162);
+  assert.ok(closedMesh(g), 'every edge has two faces');
+  for (const r of radii(g)) assert.ok(Math.abs(r - 2) < 1e-5, `radius ${r}`);
+  // normals point outward
+  const n = g.points.attrs.normal.data, p = g.points.attrs.position.data;
+  for (let i = 0; i < g.points.count; i++) assert.ok(n[i * 3] * p[i * 3] + n[i * 3 + 1] * p[i * 3 + 1] + n[i * 3 + 2] * p[i * 3 + 2] > 0);
+});
+
+check('mesh: welding closes the seam of a UV sphere and keeps it a closed surface', () => {
+  const g = G.newGraph('t');
+  const s = G.newNode(g, 'cadence.geometry.sphere', 0, 0, { values: { radius: 1, segments: 12, rings: 6 } });
+  const sphere = evalMeshNode(g, s.id, 'out').value;
+  assert.ok(!closedMesh(sphere), 'a UV sphere has a seam and pole fans, so it is not closed as built');
+  const r = MESH.weld(sphere, 1e-4);
+  assert.ok(r.merged > 0, `merged ${r.merged} points`);
+  assert.ok(closedMesh(r.geometry), 'welded, every edge has exactly two faces');
+  assert.ok(GEO.faceCount(r.geometry) > 0 && GEO.faceCount(r.geometry) <= GEO.faceCount(sphere));
+});
+
+check('mesh: extruding a plane region raises a lid and walls the rim; individual mode walls every face', () => {
+  const g = G.newGraph('t');
+  const pl = G.newNode(g, 'cadence.geometry.plane', 0, 0, { values: { size: [2, 0, 2] } });
+  const plane = evalMeshNode(g, pl.id, 'out').value;
+  assert.equal(GEO.faceCount(plane), 2);
+  const r = MESH.extrudeFaces(plane, () => true, () => 1, { individual: false });
+  assert.equal(r.extruded, 2);
+  assert.equal(GEO.faceCount(r.geometry), 2 + 4 * 2, 'two top triangles plus four rim quads');
+  const b = GEO.bounds(r.geometry);
+  assert.ok(Math.abs(b.max[1] - 1) < 1e-6 && Math.abs(b.min[1]) < 1e-6, `raised by one: ${JSON.stringify(b)}`);
+  const top = r.geometry.faces.table.attrs.top.data, side = r.geometry.faces.table.attrs.side.data;
+  assert.equal(top.reduce((a, v) => a + v, 0), 2); assert.equal(side.reduce((a, v) => a + v, 0), 8);
+  const ind = MESH.extrudeFaces(plane, () => true, () => 0.5, { individual: true });
+  assert.equal(GEO.faceCount(ind.geometry), 2 * 7, 'each face: a top and three walled edges');
+  // walls face outward: every side face's normal points away from the patch centre in the horizontal plane
+  const ig = MESH.extrudeFaces(MESH.icosphere(1, 1), () => true, () => 0.3, { individual: true }).geometry;
+  const tri = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  let outward = 0, total = 0;
+  for (let f = 0; f < GEO.faceCount(ig); f++) {
+    GEO.triangleCorners(ig, f, tri); const n = GEO.faceNormal(tri[0], tri[1], tri[2]);
+    const c = [(tri[0][0] + tri[1][0] + tri[2][0]) / 3, (tri[0][1] + tri[1][1] + tri[2][1]) / 3, (tri[0][2] + tri[1][2] + tri[2][2]) / 3];
+    total++; if (n[0] * c[0] + n[1] * c[1] + n[2] * c[2] > 0) outward++;
+  }
+  assert.ok(outward / total > 0.95, `${outward}/${total} faces face outward`);
+});
+
+check('mesh: inset panels every face; subdivide quadruples and smooth subdivision keeps a sphere round', () => {
+  const g = G.newGraph('t');
+  const pl = G.newNode(g, 'cadence.geometry.plane', 0, 0, { values: { size: [2, 0, 2] } });
+  const plane = evalMeshNode(g, pl.id, 'out').value;
+  const ins = MESH.insetFaces(plane, () => true, () => 0.3, () => 0.2);
+  assert.equal(GEO.faceCount(ins.geometry), 2 * 7);
+  assert.ok(Math.abs(GEO.bounds(ins.geometry).max[1] - 0.2) < 1e-6, 'depth pushed the panels up');
+  const ico = MESH.icosphere(1, 1);
+  const sub = MESH.subdivideMesh(ico, 1, false);
+  assert.equal(GEO.faceCount(sub), GEO.faceCount(ico) * 4);
+  assert.ok(closedMesh(sub));
+  const smooth = MESH.subdivideMesh(ico, 2, true);
+  assert.ok(closedMesh(smooth));
+  for (const r of radii(smooth)) assert.ok(r > 0.85 && r < 1.01, `smooth subdivision stays near the sphere (${r})`);
+  const sm = MESH.smoothMesh(sub, 5, 0.5);
+  assert.ok(closedMesh(sm) && GEO.pointCount(sm) === GEO.pointCount(sub));
+});
+
+check('mesh: islands, separate, delete faces and duplicate keep their topology honest', () => {
+  const a = MESH.icosphere(1, 1), b = MESH.icosphere(0.5, 1);
+  const two = GEO.joinGeometry(a, b);
+  const isl = MESH.islands(two);
+  assert.equal(isl.count, 2);
+  assert.equal(isl.ids[0], 0); assert.equal(isl.ids[two.points.count - 1], 1);
+  const p = [0, 0, 0];
+  const half = MESH.separateByPoints(a, (i) => { GEO.readAttrInto(a.points, 'position', i, p); return p[0] > 0; });
+  assert.ok(GEO.faceCount(half.selected) > 0 && GEO.faceCount(half.inverted) > 0, 'both halves have faces');
+  assert.ok(GEO.faceCount(half.selected) + GEO.faceCount(half.inverted) < GEO.faceCount(a), 'faces straddling the cut are dropped');
+  const bnd = GEO.bounds(half.selected); assert.ok(bnd.min[0] > 0, 'the selected half is all on the positive side');
+  const tri = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  const upper = MESH.deleteFaces(a, (f) => { GEO.triangleCorners(a, f, tri); return GEO.faceNormal(tri[0], tri[1], tri[2])[1] > 0; });
+  assert.ok(GEO.faceCount(upper) > 0 && GEO.faceCount(upper) < GEO.faceCount(a));
+  assert.equal(GEO.pointCount(upper), GEO.pointCount(a), 'points stay when faces go');
+  const dup = MESH.duplicate(a, 3);
+  assert.equal(GEO.pointCount(dup), GEO.pointCount(a) * 3);
+  assert.equal(dup.points.attrs.copy.data[dup.points.count - 1], 2);
+});
+
+check('mesh: marching tetrahedra turns a sphere SDF into a closed, outward-facing mesh on the radius', () => {
+  const g = MESH.marchingTetrahedra((x, y, z) => Math.hypot(x, y, z) - 1, { center: [0, 0, 0], size: [3, 3, 3], resolution: 24, iso: 0 });
+  assert.ok(GEO.faceCount(g) > 200, `faces ${GEO.faceCount(g)}`);
+  assert.ok(closedMesh(g), 'closed');
+  for (const r of radii(g)) assert.ok(Math.abs(r - 1) < 0.08, `vertex radius ${r}`);
+  const n = g.points.attrs.normal.data, p = g.points.attrs.position.data;
+  let outward = 0;
+  for (let i = 0; i < g.points.count; i++) if (n[i * 3] * p[i * 3] + n[i * 3 + 1] * p[i * 3 + 1] + n[i * 3 + 2] * p[i * 3 + 2] > 0) outward++;
+  assert.equal(outward, g.points.count, 'every normal points outward');
+});
+
+check('mesh: a mesh becomes a signed distance — negative inside, positive outside, correct at corners', () => {
+  const ico = MESH.icosphere(1, 3);
+  const md = MESH.meshDistance(ico);
+  assert.ok(md.closed);
+  assert.ok(Math.abs(md.distance([0, 0, 0]) + 1) < 0.03, `centre ${md.distance([0, 0, 0])}`);
+  assert.ok(Math.abs(md.distance([2, 0, 0]) - 1) < 0.03, `outside ${md.distance([2, 0, 0])}`);
+  assert.ok(Math.abs(md.distance([0.5, 0, 0]) + 0.5) < 0.03, `inside ${md.distance([0.5, 0, 0])}`);
+  // a box: the corner region is where a face-normal sign goes wrong and a pseudonormal does not
+  const g = G.newGraph('t');
+  const bx = G.newNode(g, 'cadence.geometry.box', 0, 0, { values: { size: [2, 2, 2] } });
+  const box = MESH.weld(evalMeshNode(g, bx.id, 'out').value).geometry;
+  const bd = MESH.meshDistance(box);
+  assert.ok(bd.closed, 'a welded box is watertight');
+  assert.ok(bd.distance([1.5, 1.5, 1.5]) > 0.8, `outside the corner: ${bd.distance([1.5, 1.5, 1.5])}`);
+  assert.ok(bd.distance([0.9, 0.9, 0.9]) < 0, `inside near the corner: ${bd.distance([0.9, 0.9, 0.9])}`);
+  assert.ok(Math.abs(bd.distance([0, 0, 0]) + 1) < 1e-6);
+  // timing: 5 000 samples must be far cheaper than brute force
+  const t0 = performance.now();
+  for (let i = 0; i < 5000; i++) md.distance([Math.sin(i) * 1.5, Math.cos(i * 0.7) * 1.5, Math.sin(i * 0.3)]);
+  const ms = performance.now() - t0;
+  assert.ok(ms < 800, `5000 samples against 1280 faces took ${ms.toFixed(0)} ms`);
+});
+
+check('mesh: a mesh boolean through SDFs carves one shape out of another', () => {
+  const g = G.newGraph('t');
+  const a = G.newNode(g, 'cadence.geometry.icosphere', 0, 0, { values: { radius: 1.5, subdivisions: 3 } });
+  const b = G.newNode(g, 'cadence.geometry.icosphere', 0, 0, { values: { radius: 1, subdivisions: 3 } });
+  const tr = G.newNode(g, 'cadence.geometry.transform', 0, 0, { values: { translation: [1.5, 0, 0] } });
+  const bool = G.newNode(g, 'cadence.mesh.boolean', 0, 0, { values: { operation: 'difference', resolution: 40 } });
+  assert.ok(G.connect(g, b.id, 'out', tr.id, 'geometry').ok);
+  assert.ok(G.connect(g, a.id, 'out', bool.id, 'a').ok);
+  assert.ok(G.connect(g, tr.id, 'out', bool.id, 'b').ok);
+  const res = evalMeshNode(g, bool.id, 'out');
+  const m = res.value;
+  assert.ok(GEO.faceCount(m) > 100, `faces ${GEO.faceCount(m)}`);
+  // no vertex may sit well inside the subtracted sphere
+  const p = [0, 0, 0];
+  for (let i = 0; i < m.points.count; i++) { GEO.readAttrInto(m.points, 'position', i, p); assert.ok(Math.hypot(p[0] - 1.5, p[1], p[2]) > 0.85, `vertex inside the cut: ${p}`); }
+  const bnd = GEO.bounds(m);
+  assert.ok(Math.abs(bnd.min[0] + 1.5) < 0.1, 'the far side of A is untouched');
+});
+
+check('curves: curve to mesh sweeps a twist-free tube whose radius follows a per-point attribute', () => {
+  const g = G.newGraph('t');
+  const h = G.newNode(g, 'cadence.curveGeometry.helix', 0, 0, { values: { radius: 1, endRadius: 1, height: 2, turns: 2, segments: 40 } });
+  const store = G.newNode(g, 'cadence.geometry.capture', 0, 0, { values: { name: 'radius' } });
+  const t = G.newNode(g, 'cadence.time.effectTime', 0, 0, {});
+  const mapr = G.newNode(g, 'cadence.math.mapRange', 0, 0, { values: { fromMin: 0, fromMax: 1, toMin: 0.3, toMax: 0.05 } });
+  const idx = G.newNode(g, 'cadence.fields.index', 0, 0, {});
+  const div = G.newNode(g, 'cadence.math.divide', 0, 0, { values: { b: 40 } });
+  const tube = G.newNode(g, 'cadence.curveGeometry.toMesh', 0, 0, { values: { segments: 8, caps: true } });
+  const rd = G.newNode(g, 'cadence.attribute.read', 0, 0, { values: { name: 'radius' } });
+  assert.ok(G.connect(g, h.id, 'out', store.id, 'geometry').ok);
+  assert.ok(G.connect(g, idx.id, 'out', div.id, 'a').ok);
+  assert.ok(G.connect(g, div.id, 'out', mapr.id, 'value').ok);
+  assert.ok(G.connect(g, mapr.id, 'out', store.id, 'value').ok);
+  assert.ok(G.connect(g, store.id, 'out', tube.id, 'curve').ok);
+  assert.ok(G.connect(g, rd.id, 'out', tube.id, 'radius').ok);
+  void t;
+  const m = evalMeshNode(g, tube.id, 'out').value;
+  assert.equal(GEO.pointCount(m), 41 * 8 + 2, 'a ring per curve point plus two cap centres');
+  assert.equal(GEO.faceCount(m), 40 * 8 * 2 + 2 * 8);
+  assert.ok(closedMesh(m), 'a capped tube is watertight');
+  // the tube tapers: ring 0 is fat, the last ring thin
+  const ringRadius = (ring) => { let s = 0; const p = [0, 0, 0]; const c = [0, 0, 0]; for (let j = 0; j < 8; j++) { GEO.readAttrInto(m.points, 'position', ring * 8 + j, p); c[0] += p[0] / 8; c[1] += p[1] / 8; c[2] += p[2] / 8; } for (let j = 0; j < 8; j++) { GEO.readAttrInto(m.points, 'position', ring * 8 + j, p); s += Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]) / 8; } return s; };
+  assert.ok(ringRadius(0) > 0.25 && ringRadius(40) < 0.08, `taper ${ringRadius(0).toFixed(3)} -> ${ringRadius(40).toFixed(3)}`);
+  assert.ok(GEO.hasAttr(m.points, 'uv'));
+});
+
+check('curves: fill, trim, fillet, bezier, spiral and star behave', () => {
+  const g = G.newGraph('t');
+  const star = G.newNode(g, 'cadence.curveGeometry.star', 0, 0, { values: { points: 5, innerRadius: 0.5, outerRadius: 1 } });
+  const fill = G.newNode(g, 'cadence.curveGeometry.fill', 0, 0, {});
+  assert.ok(G.connect(g, star.id, 'out', fill.id, 'curve').ok);
+  const card = evalMeshNode(g, fill.id, 'out').value;
+  assert.equal(GEO.faceCount(card), 8, 'a 10-gon fills with 8 triangles');
+  let area = 0; const tri = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  for (let f = 0; f < 8; f++) { GEO.triangleCorners(card, f, tri); area += GEO.triangleArea(tri[0], tri[1], tri[2]); }
+  assert.ok(area > 1.0 && area < 2.0, `star area ${area.toFixed(3)}`);
+  // trim a straight line to its middle half
+  const line = G.newNode(g, 'cadence.curveGeometry.line', 0, 0, { values: { from: [0, 0, 0], to: [4, 0, 0] } });
+  const trim = G.newNode(g, 'cadence.curveGeometry.trim', 0, 0, { values: { start: 0.25, end: 0.75 } });
+  const info = G.newNode(g, 'cadence.curveGeometry.info', 0, 0, {});
+  assert.ok(G.connect(g, line.id, 'out', trim.id, 'curve').ok);
+  assert.ok(G.connect(g, trim.id, 'out', info.id, 'curve').ok);
+  assert.ok(Math.abs(evalMeshNode(g, info.id, 'length').value - 2) < 1e-6, 'trimmed to length 2');
+  // fillet a square: all points stay inside the square and there are segments+1 points per corner
+  const sq = GEO.pointCloud(4);
+  const P = [[-1, 0, -1], [1, 0, -1], [1, 0, 1], [-1, 0, 1]];
+  for (let i = 0; i < 4; i++) GEO.writeAttr(sq.points, 'position', i, P[i]);
+  GEO.setCurves(sq, [0, 4], [1]);
+  const fil = MESH.filletCurves(sq, 0.3, 4);
+  assert.equal(GEO.pointCount(fil), 4 * 5);
+  const b = GEO.bounds(fil);
+  assert.ok(b.min[0] >= -1 - 1e-6 && b.max[0] <= 1 + 1e-6 && b.min[2] >= -1 - 1e-6 && b.max[2] <= 1 + 1e-6, 'rounded corners stay inside');
+  assert.ok(Math.abs(MESH.curveTotalLength(fil, 0) - (8 - 4 * 0.6 + 4 * (Math.PI / 2) * 0.3)) < 0.02, 'perimeter = straight parts plus four quarter arcs');
+  // bezier endpoints; spiral grows; star is cyclic
+  const bz = MESH.bezierPoints([0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0], 10);
+  assert.equal(bz.length, 11); assert.deepEqual(bz[0], [0, 0, 0]); assert.deepEqual(bz[10], [1, 0, 0]);
+  const sp = G.newNode(g, 'cadence.curveGeometry.spiral', 0, 0, { values: { turns: 2, startRadius: 0.1, endRadius: 2, segments: 50 } });
+  const spg = evalMeshNode(g, sp.id, 'out').value;
+  const p0 = GEO.readAttr(spg.points, 'position', 0), p1 = GEO.readAttr(spg.points, 'position', 50);
+  assert.ok(Math.hypot(p1[0], p1[2]) > Math.hypot(p0[0], p0[2]) * 10, 'the spiral grows outward');
+  const stg = evalMeshNode(g, star.id, 'out').value;
+  assert.equal(stg.curves.cyclic[0], 1, 'a star is a closed loop');
+});
+
+check('mesh nodes: extrude\'s Top output selects the lid for a second extrude; SDF To Mesh, Volume To Mesh and Mesh To SDF run through the evaluator', () => {
+  const g = G.newGraph('t');
+  const ico = G.newNode(g, 'cadence.geometry.icosphere', 0, 0, { values: { radius: 1, subdivisions: 1 } });
+  const e1 = G.newNode(g, 'cadence.mesh.extrude', 0, 0, { values: { offset: 0.3, mode: 'individual' } });
+  const e2 = G.newNode(g, 'cadence.mesh.extrude', 0, 0, { values: { offset: 0.2, mode: 'individual' } });
+  assert.ok(G.connect(g, ico.id, 'out', e1.id, 'geometry').ok);
+  assert.ok(G.connect(g, e1.id, 'out', e2.id, 'geometry').ok);
+  assert.ok(G.connect(g, e1.id, 'top', e2.id, 'selection').ok, 'the Top output is a selection field');
+  const once = evalMeshNode(g, e1.id, 'out').value, twice = evalMeshNode(g, e2.id, 'out').value;
+  assert.equal(GEO.faceCount(once), 80 * 7);
+  assert.equal(GEO.faceCount(twice), GEO.faceCount(once) - 80 + 80 * 7, 'only the 80 lids were extruded again');
+  // SDF To Mesh from a smooth union of two spheres (metaballs)
+  const s1 = G.newNode(g, 'cadence.sdf.sphere', 0, 0, { values: { radius: 0.8, center: [-0.5, 0, 0] } });
+  const s2 = G.newNode(g, 'cadence.sdf.sphere', 0, 0, { values: { radius: 0.8, center: [0.5, 0, 0] } });
+  const su = G.newNode(g, 'cadence.sdf.smoothUnion', 0, 0, { values: { smoothing: 0.5 } });
+  const mc = G.newNode(g, 'cadence.mesh.fromSdf', 0, 0, { values: { size: [4, 3, 3], resolution: 28 } });
+  assert.ok(G.connect(g, s1.id, 'out', su.id, 'a').ok && G.connect(g, s2.id, 'out', su.id, 'b').ok);
+  assert.ok(G.connect(g, su.id, 'out', mc.id, 'distance').ok);
+  const blob = evalMeshNode(g, mc.id, 'out').value;
+  assert.ok(GEO.faceCount(blob) > 300 && closedMesh(blob), `metaball mesh: ${GEO.faceCount(blob)} faces`);
+  const bb = GEO.bounds(blob);
+  assert.ok(bb.size[0] > bb.size[1] * 1.3, 'two spheres side by side make a wide blob');
+  // Volume To Mesh from the cloud node
+  const cl = G.newNode(g, 'cadence.volume.cloud', 0, 0, { values: { resolution: 16 } });
+  const vm = G.newNode(g, 'cadence.mesh.fromVolume', 0, 0, { values: { threshold: 0.3 } });
+  assert.ok(G.connect(g, cl.id, 'out', vm.id, 'volume').ok);
+  const cloudMesh = evalMeshNode(g, vm.id, 'out').value;
+  assert.ok(GEO.faceCount(cloudMesh) > 0, 'a cloud has a surface at its threshold');
+  // Mesh To SDF as a field, sampled through Sample Field style usage: inside test
+  const sd = G.newNode(g, 'cadence.mesh.toSdf', 0, 0, {});
+  assert.ok(G.connect(g, ico.id, 'out', sd.id, 'geometry').ok);
+  const fld = evalMeshNode(g, sd.id, 'out').value;
+  assert.ok(F.isField(fld));
+  assert.ok(F.sampleAny(fld, F.newSampleContext({ position: [0, 0, 0] })) < -0.8);
+  assert.ok(F.sampleAny(fld, F.newSampleContext({ position: [3, 0, 0] })) > 1.5);
+  assert.equal(evalMeshNode(g, sd.id, 'closed').value, true);
+});
+
+check('attribute statistics: max, min, mean and median of a field over a geometry, scalar and vector', () => {
+  const g = G.newGraph('t');
+  const ico = G.newNode(g, 'cadence.geometry.icosphere', 0, 0, { values: { radius: 2, subdivisions: 2 } });
+  const pos = G.newNode(g, 'cadence.fields.position', 0, 0, {});
+  const st = G.newNode(g, 'cadence.attribute.statistics', 0, 0, {});
+  assert.ok(G.connect(g, ico.id, 'out', st.id, 'geometry').ok);
+  assert.ok(G.connect(g, pos.id, 'out', st.id, 'value').ok);
+  const mx = evalMeshNode(g, st.id, 'max').value, mn = evalMeshNode(g, st.id, 'min').value, mean = evalMeshNode(g, st.id, 'mean').value;
+  assert.ok(Array.isArray(mx) && Math.abs(mx[1] - 2) < 1e-5 && Math.abs(mn[1] + 2) < 1e-5, `vector stats ${mx} ${mn}`);
+  assert.ok(Math.abs(mean[0]) < 1e-5 && Math.abs(mean[1]) < 1e-5, 'a sphere is centred');
+  assert.equal(evalMeshNode(g, st.id, 'count').value, 162);
+  const sep = G.newNode(g, 'cadence.vector.separate', 0, 0, {});
+  const st2 = G.newNode(g, 'cadence.attribute.statistics', 0, 0, {});
+  assert.ok(G.connect(g, pos.id, 'out', sep.id, 'vector').ok);
+  assert.ok(G.connect(g, ico.id, 'out', st2.id, 'geometry').ok);
+  assert.ok(G.connect(g, sep.id, 'y', st2.id, 'value').ok);
+  assert.ok(Math.abs(evalMeshNode(g, st2.id, 'range').value - 4) < 1e-5, 'scalar range is 4');
+  assert.ok(Math.abs(evalMeshNode(g, st2.id, 'median').value) < 0.05, 'median height is about zero');
+});
+
+// ---------------------------------------------------------------- zones and the invalidation fix
+function plusOneGroup() {
+  const g = G.newGraph('t');
+  const grp = G.newGroupDef(g, 'Plus one', { inputs: [{ key: 'value', label: 'Value', type: 'float', default: 0 }], outputs: [{ key: 'value', label: 'Value', type: 'float' }] });
+  const gin = G.nodesInScope(g, grp.id).find((n) => n.type === G.GROUP_INPUT_TYPE);
+  const gout = G.nodesInScope(g, grp.id).find((n) => n.type === G.GROUP_OUTPUT_TYPE);
+  const add = G.newNode(g, 'cadence.math.add', 0, 0, { scope: grp.id, values: { b: 1 } });
+  assert.ok(G.connect(g, gin.id, 'value', add.id, 'a').ok);
+  assert.ok(G.connect(g, add.id, 'out', gout.id, 'value').ok);
+  const inst = G.newNode(g, G.groupInstanceType(grp.id), 0, 0, { values: { value: 0 } });
+  return { g, grp, inst, add };
+}
+
+check('groups: an upstream value change reaches a group instance\'s interior (the stale-interior bug is fixed)', () => {
+  const g = G.newGraph('t');
+  const a = G.newNode(g, 'cadence.math.add', 0, 0, { values: { a: 1, b: 2 } });
+  const m = G.newNode(g, 'cadence.math.multiply', 200, 0, { values: { b: 10 } });
+  const s = G.newNode(g, 'cadence.math.subtract', 400, 0, { values: { b: 0 } });
+  G.connect(g, a.id, 'out', m.id, 'a'); G.connect(g, m.id, 'out', s.id, 'a');
+  GRP.collapseToGroup(g, [m.id], { name: 'Times ten' });
+  const ev = new E.Evaluator(g, { fps: 30 });
+  assert.equal(ev.evaluateSocket(s.id, 'out').value, 30);
+  a.values.a = 5; ev.invalidateNode(a.id);
+  assert.equal(ev.evaluateSocket(s.id, 'out').value, 70, 'the interior was re-evaluated with the new input');
+});
+
+check('zones: Repeat runs a group N times feeding its output back into the input of the same name', () => {
+  const { g, inst } = plusOneGroup();
+  assert.ok(G.socketsOf(g, inst).inputs.some((s) => s.key === '__repeat'), 'the instance exposes Repeat as a mode');
+  assert.equal(evalMeshNode(g, inst.id, 'value').value, 1);
+  inst.values.__repeat = 5;
+  assert.equal(evalMeshNode(g, inst.id, 'value').value, 5);
+  inst.values.value = 10; inst.values.__repeat = 3;
+  assert.equal(evalMeshNode(g, inst.id, 'value').value, 13);
+  // a repeat inside the evaluator's cache: changing the count invalidates the instance
+  const ev = new E.Evaluator(g, { fps: 30 });
+  assert.equal(ev.evaluateSocket(inst.id, 'value').value, 13);
+  inst.values.__repeat = 4; ev.invalidateNode(inst.id);
+  assert.equal(ev.evaluateSocket(inst.id, 'value').value, 14);
+});
+
+check('zones: Carry over frames makes a simulation zone — sequential, scrubbable, and reset by a structural edit', () => {
+  const { g, inst, add } = plusOneGroup();
+  inst.values.__simulate = true;
+  const ev = new E.Evaluator(g, { fps: 30 });
+  const at = (f) => { ev.setTime(f); return ev.evaluateSocket(inst.id, 'value').value; };
+  assert.equal(at(0), 1);
+  assert.equal(at(1), 2);
+  assert.equal(at(2), 3);
+  assert.equal(at(2), 3, 'asking the same frame twice does not advance');
+  assert.equal(at(20), 21, 'a jump forward replays the frames in between');
+  assert.equal(at(5), 6, 'a scrub backwards replays from a checkpoint');
+  assert.equal(at(6), 7);
+  assert.equal(at(0), 1, 'frame 0 always starts fresh');
+  // the interior sees each replayed frame's own time
+  const g2 = G.newGraph('t');
+  const grp = G.newGroupDef(g2, 'Accumulate time', { inputs: [{ key: 'total', label: 'Total', type: 'float', default: 0 }], outputs: [{ key: 'total', label: 'Total', type: 'float' }] });
+  const gin = G.nodesInScope(g2, grp.id).find((n) => n.type === G.GROUP_INPUT_TYPE);
+  const gout = G.nodesInScope(g2, grp.id).find((n) => n.type === G.GROUP_OUTPUT_TYPE);
+  const t = G.newNode(g2, 'cadence.time.effectTime', 0, 0, { scope: grp.id });
+  const sum = G.newNode(g2, 'cadence.math.add', 0, 0, { scope: grp.id });
+  assert.ok(G.connect(g2, gin.id, 'total', sum.id, 'a').ok);
+  assert.ok(G.connect(g2, t.id, 'frame', sum.id, 'b').ok);
+  assert.ok(G.connect(g2, sum.id, 'out', gout.id, 'total').ok);
+  const inst2 = G.newNode(g2, G.groupInstanceType(grp.id), 0, 0, { values: { total: 0, __simulate: true } });
+  const ev2 = new E.Evaluator(g2, { fps: 30 });
+  ev2.setTime(4);
+  assert.equal(ev2.evaluateSocket(inst2.id, 'total').value, 0 + 1 + 2 + 3 + 4, 'replayed frames each contributed their own frame number');
+  ev2.setTime(2);
+  assert.equal(ev2.evaluateSocket(inst2.id, 'total').value, 3);
+  // a structural edit inside the group resets the carried state
+  add.values.b = 2; ev.invalidateNode(add.id);
+  assert.equal(at(3), 8, 'after the edit, frame 3 is recomputed from frame 0 with the new step');
+});
+
 // ================================================================
 console.log(`\nPNX: ${passed} passed, ${failed} failed  (${R.nodeCount()} node types registered)`);
 if (failed) {

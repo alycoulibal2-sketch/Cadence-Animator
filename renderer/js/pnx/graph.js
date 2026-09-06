@@ -122,12 +122,22 @@ export function setNodeValue(graph, nodeId, socketKey, value) {
 // definition; a group's interior boundary nodes mirror it inside-out — the group's declared INPUTS
 // appear as the Group Input node's OUTPUTS, because that is the direction data flows once you are
 // standing inside the group).
+// Every group instance carries two settings that turn it into a ZONE (spec Part 47): Repeat runs the
+// interior N times feeding each output back into the input of the same name; Carry over frames makes
+// each frame start from the previous frame's outputs, which is a simulation zone. They are modes, not
+// sockets, and they live on the instance rather than the group so one group can be used both ways.
+export const ZONE_INPUTS = [
+  { key: '__repeat', label: 'Repeat', type: 'int', default: 1, min: 1, max: 4096, socket: false, description: 'Run this group that many times in a row, feeding each output back into the input with the same name.' },
+  { key: '__simulate', label: 'Carry over frames', type: 'bool', default: false, socket: false, description: 'Each frame starts from the previous frame\'s outputs (matched by name): a simulation zone. Scrubbing replays from the nearest checkpoint.' },
+];
+export const isZoneKey = (key) => key === '__repeat' || key === '__simulate';
+
 export function socketsOf(graph, node) {
   if (!node) return { inputs: [], outputs: [] };
   if (isGroupInstanceType(node.type)) {
     const g = graph.groups[groupIdOfType(node.type)];
     if (!g) return { inputs: [], outputs: [] };
-    return { inputs: g.inputs.map(normalizeSocket), outputs: g.outputs.map(normalizeSocket) };
+    return { inputs: [...g.inputs.map(normalizeSocket), ...ZONE_INPUTS.map(normalizeSocket)], outputs: g.outputs.map(normalizeSocket) };
   }
   if (isGroupBoundaryType(node.type)) {
     const g = graph.groups[node.scope];

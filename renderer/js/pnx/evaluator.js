@@ -36,7 +36,7 @@ import { getNode as getNodeType } from './registry.js';
 import {
   socketsOf, linksInto, ROOT_SCOPE, topoOrder, downstreamOf,
   isGroupInstanceType, groupIdOfType, GROUP_INPUT_TYPE, GROUP_OUTPUT_TYPE, isGroupBoundaryType,
-  nodesInScope,
+  nodesInScope, isZoneKey,
 } from './graph.js';
 
 const MAX_DEPTH = 64; // group nesting + evaluation depth guard; a real graph never approaches this
@@ -107,15 +107,30 @@ export class Evaluator {
     if (node && node.scope !== ROOT_SCOPE) this._invalidateGroup(node.scope);
   }
 
+  // A path "belongs" to a node when it IS the node, ends at it, or passes THROUGH it — the last case
+  // is a group instance's interior (`inst/inner`) and a zone iteration (`inst#3/inner`). Missing it
+  // left a group's interior cached with stale inputs after an upstream edit (fixed 2026-09-06).
+  _pathBelongs(path, nodeId) {
+    if (path === nodeId) return true;
+    const i = path.indexOf(nodeId);
+    if (i < 0) return false;
+    const before = i === 0 ? '/' : path[i - 1];
+    const after = path[i + nodeId.length];
+    return before === '/' && (after === undefined || after === '/' || after === '#');
+  }
+
   _invalidatePath(nodeId) {
     for (const k of [...this.cache.keys()]) {
       const bar = k.lastIndexOf('|');
-      const path = k.slice(0, bar);
-      if (path === nodeId || path.endsWith(`/${nodeId}`)) this.cache.delete(k);
+      if (this._pathBelongs(k.slice(0, bar), nodeId)) this.cache.delete(k);
     }
     for (const path of [...this.persistent.keys()]) {
-      if (path === nodeId || path.endsWith(`/${nodeId}`)) this.persistent.delete(path);
+      if (this._pathBelongs(path, nodeId)) this.persistent.delete(path);
     }
+  }
+
+  _purgeCachePrefix(prefix) {
+    for (const k of [...this.cache.keys()]) if (k.startsWith(prefix)) this.cache.delete(k);
   }
 
   _invalidateGroup(groupId) {
@@ -456,7 +471,7 @@ export class Evaluator {
     // value you can reshape" and Part 18's field sources composable without being fussy: the wire is
     // available when you want to override, and implied when you do not.
     if (inline === undefined && socket.defaultFrom && !link) {
-      const implied = this._defaultFromContext(socket.defaultFrom);
+      const implied = this._defaultFromContext(socket.defaultFrom, frame);
       if (implied) {
         const want = T.isFieldType(declared) || T.containsGeneric(socket.type) ? declared : implied.type;
         return {
@@ -489,10 +504,11 @@ export class Evaluator {
   //     Sphere SDF, a noise node or a pattern needs no Position wire to be spatial. Defaulting these
   //     to a constant zero instead — the obvious-looking alternative — silently collapses every
   //     spatial node onto the origin, which looks like the node being broken rather than unwired.
-  _defaultFromContext(which) {
+  _defaultFromContext(which, frame = null) {
+    const o = frame && frame.timeOverride;
     switch (which) {
-      case 'time': return { value: this.options.time, type: T.parseType('float'), timeDependent: true };
-      case 'frame': return { value: this.options.frame, type: T.parseType('float'), timeDependent: true };
+      case 'time': return { value: o ? o.time : this.options.time, type: T.parseType('float'), timeDependent: true };
+      case 'frame': return { value: o ? o.frame : this.options.frame, type: T.parseType('float'), timeDependent: true };
       case 'duration': return { value: this.options.duration, type: T.parseType('float'), timeDependent: true };
       case 'position': return sampleSource('vector3', (c) => c.position || [0, 0, 0]);
       case 'normal': return sampleSource('vector3', (c) => c.normal || [0, 1, 0]);
@@ -568,8 +584,10 @@ export class Evaluator {
       groupPath: frame.pathPrefix,
     };
     if (def.timeDependent) {
-      api.time = this.options.time;
-      api.frame = this.options.frame;
+      // A replayed simulation-zone frame evaluates its interior at THAT frame's time, not the playhead's.
+      const o = frame.timeOverride;
+      api.time = o ? o.time : this.options.time;
+      api.frame = o ? o.frame : this.options.frame;
       api.fps = this.options.fps;
       api.duration = this.options.duration;
     }
@@ -590,7 +608,8 @@ export class Evaluator {
       return this._fallback(node, socketKey);
     }
 
-    const { inputs: gIn, outputs: gOut } = socketsOf(this.graph, node);
+    const { inputs: gInAll, outputs: gOut } = socketsOf(this.graph, node);
+    const gIn = gInAll.filter((s) => !isZoneKey(s.key));
     const groupInputs = {};
     let timeDependent = false;
     for (const s of gIn) {
@@ -604,28 +623,105 @@ export class Evaluator {
       if (got.timeDependent) timeDependent = true;
     }
 
-    const innerFrame = { pathPrefix: path, groupInputs };
-    const outNode = nodesInScope(this.graph, groupId).find((n) => n.type === GROUP_OUTPUT_TYPE);
     const outSocket = gOut.find((s) => s.key === socketKey);
     const wantType = outSocket ? this._concreteType(outSocket.type) : T.parseType('float');
-
+    const outNode = nodesInScope(this.graph, groupId).find((n) => n.type === GROUP_OUTPUT_TYPE);
     if (!outNode) {
       this._diag('warning', node.id, `The group "${group.name}" has no output node, so it produces nothing.`);
       return { value: T.defaultValue(wantType), type: wantType, timeDependent };
     }
 
-    const links = linksInto(this.graph, outNode.id, socketKey);
-    if (!links.length) {
-      return { value: outSocket?.default ?? T.defaultValue(wantType), type: wantType, timeDependent };
-    }
-    const src = this.graph.nodes[links[0].fromNode];
-    if (!src) return { value: T.defaultValue(wantType), type: wantType, timeDependent };
-    const got = this._pull(src, links[0].fromSocket, innerFrame);
+    const repeat = Math.max(1, Math.min(4096, Math.round(Number(node.values?.__repeat) || 1)));
+    const simulate = !!node.values?.__simulate;
+    let outs;
+    if (simulate) outs = this._runSimulationZone(node, group, gIn, gOut, outNode, groupInputs, path, frame, repeat);
+    else if (repeat > 1) outs = this._runRepeatZone(gIn, gOut, outNode, groupInputs, path, frame, repeat);
+    else outs = this._runGroupOnce(gOut, outNode, { pathPrefix: path, groupInputs, timeOverride: frame.timeOverride || null });
+    const got = outs[socketKey];
+    if (!got) return { value: outSocket?.default ?? T.defaultValue(wantType), type: wantType, timeDependent: timeDependent || simulate };
     return {
       value: T.convertValue(got.value, got.type, wantType),
       type: wantType,
-      timeDependent: timeDependent || got.timeDependent,
+      timeDependent: timeDependent || got.timeDependent || simulate,
     };
+  }
+
+  // Evaluate EVERY output of a group interior in one nested frame. Returns a map keyed by output socket.
+  _runGroupOnce(gOut, outNode, innerFrame) {
+    const outs = {};
+    for (const s of gOut) {
+      const links = linksInto(this.graph, outNode.id, s.key);
+      const want = this._concreteType(s.type);
+      if (!links.length) { outs[s.key] = { value: s.default ?? T.defaultValue(want), type: want, timeDependent: false }; continue; }
+      const src = this.graph.nodes[links[0].fromNode];
+      if (!src) { outs[s.key] = { value: T.defaultValue(want), type: want, timeDependent: false }; continue; }
+      const got = this._pull(src, links[0].fromSocket, innerFrame);
+      outs[s.key] = { value: T.convertValue(got.value, got.type, want), type: want, timeDependent: !!got.timeDependent };
+    }
+    return outs;
+  }
+
+  // Outputs whose name matches an input feed the next pass; everything else keeps its outside value.
+  _carry(gIn, groupInputs, outs) {
+    const next = { ...groupInputs };
+    for (const s of gIn) {
+      const o = outs[s.key];
+      if (!o) continue;
+      const want = this._concreteType(s.type);
+      next[s.key] = { value: T.convertValue(o.value, o.type, want), type: want, timeDependent: o.timeDependent || (groupInputs[s.key]?.timeDependent ?? false) };
+    }
+    return next;
+  }
+
+  // ---------------------------------------------------------------- zones (Part 47)
+  // Repeat: N passes, each in its own cache namespace (`path#k`) so pass 3 never reads pass 2's values.
+  _runRepeatZone(gIn, gOut, outNode, groupInputs, path, frame, repeat) {
+    let cur = groupInputs, outs = null;
+    for (let k = 0; k < repeat; k++) {
+      outs = this._runGroupOnce(gOut, outNode, { pathPrefix: `${path}#${k}`, groupInputs: cur, timeOverride: frame.timeOverride || null });
+      cur = this._carry(gIn, cur, outs);
+    }
+    return outs;
+  }
+
+  // Simulation: the interior runs once per frame, starting from the previous frame's outputs. State
+  // lives in `persistent` under the instance path (so a structural edit drops it, a scrub does not);
+  // checkpoints every few frames make a backwards scrub a short replay rather than a restart. During a
+  // replay the interior sees each replayed frame's own time; the zone's OUTSIDE inputs are those of the
+  // current playhead, which is the one approximation here and is stated in the node's help.
+  _runSimulationZone(node, group, gIn, gOut, outNode, groupInputs, path, frame, repeat) {
+    const CHECKPOINT_EVERY = 8, MAX_CHECKPOINTS = 512;
+    let st = this.persistent.get(path);
+    if (!st || st.__zone !== true) { st = { __zone: true, frame: -1, carried: null, outs: null, checkpoints: new Map() }; this.persistent.set(path, st); }
+    const fps = this.options.fps || 30;
+    const f = Math.max(0, Math.floor(frame.timeOverride ? frame.timeOverride.frame : this.options.frame));
+    if (st.frame === f && st.outs) return st.outs;
+    let startFrame, carried;
+    if (f === 0) { startFrame = 0; carried = null; }
+    else if (st.frame === f - 1) { startFrame = f; carried = st.carried; }
+    else {
+      let best = -1;
+      for (const cf of st.checkpoints.keys()) if (cf < f && cf > best) best = cf;
+      if (st.frame >= 0 && st.frame < f && st.frame > best) { best = st.frame; carried = st.carried; }
+      else carried = best >= 0 ? st.checkpoints.get(best) : null;
+      startFrame = best + 1;
+    }
+    let outs = null;
+    for (let ff = startFrame; ff <= f; ff++) {
+      this._purgeCachePrefix(`${path}/`);
+      this._purgeCachePrefix(`${path}#`);
+      const inputsNow = carried ? this._carry(gIn, groupInputs, carried) : groupInputs;
+      const override = ff === f && !frame.timeOverride ? null : { frame: ff, time: ff / fps };
+      const inner = { pathPrefix: path, groupInputs: inputsNow, timeOverride: override };
+      outs = repeat > 1 ? this._runRepeatZone(gIn, gOut, outNode, inputsNow, path, inner, repeat) : this._runGroupOnce(gOut, outNode, inner);
+      carried = outs;
+      if (ff % CHECKPOINT_EVERY === 0) {
+        st.checkpoints.set(ff, carried);
+        if (st.checkpoints.size > MAX_CHECKPOINTS) { const oldest = Math.min(...st.checkpoints.keys()); if (oldest > 0) st.checkpoints.delete(oldest); }
+      }
+    }
+    st.frame = f; st.carried = carried; st.outs = outs;
+    return outs;
   }
 }
 
