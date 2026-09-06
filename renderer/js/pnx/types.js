@@ -93,7 +93,9 @@ const TYPES = {
   shader: { label: 'Shader', color: '#c87f6f', implemented: false, phase: 7 },
   light: { label: 'Light', color: '#e0d060', implemented: false, phase: 6 },
   camera: { label: 'Camera', color: '#6fc8b0', implemented: false, phase: 6 },
-  event: { label: 'Event', color: '#e07f7f', implemented: false, phase: 5 },
+  // Events (Part 12 / Part 26): a stream of things that happened inside a simulation — deaths,
+  // collisions, births, triggers — read by frame. Implemented 2026-09-06; see solver.js's history.
+  event: { label: 'Events', color: '#e07f7f', implemented: true },
   state: { label: 'State', color: '#7f7fe0', implemented: false, phase: 5 },
 };
 
@@ -210,6 +212,7 @@ export function defaultValue(t) {
     case 'texture2d': return null;
     case 'volumeGrid': return null;
     case 'material': return null;
+    case 'event': return null;
     case 'any': return null;
     default: return null;
   }

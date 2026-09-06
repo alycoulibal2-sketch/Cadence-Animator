@@ -444,14 +444,18 @@ ask "does Cadence have this effect", but "how do I construct this effect". For 3
   button cannot exist until the raymarching backend does. Decal is absent for the same reason.
 - **Sending a procedural effect to the animator's timeline still refuses** (see above) — that is the
   remaining place where a procedural effect is second-class next to a layer-based one.
-- **Sub-emission is NOT built (Parts 12, 26).** "Spawn On Death" and "Spawn On Collision" need a
-  second simulation driven by the first's events, with its own state, checkpoints and determinism
-  argument. `solver.js` collects deaths and contacts as data and hands them to a sink, because that
-  information exists only inside the step loop — recovering "which particles died this step" from
-  outside would mean diffing two states and guessing. **Nothing sets that sink yet and no node exposes
-  it**, so nothing in the UI claims it works. The general event bus (Send/Receive/Filter/Sequence/Gate)
-  is likewise absent; the `event` type is declared `implemented: false`, which mechanically prevents a
-  node being registered against it.
+- **Sub-emission IS built (Parts 12 and 26, 2026-09-06).** The `event` type is implemented. A Simulate node
+  records every frame's births, deaths, collisions, trigger crossings ("Fire an event when", a `field<bool>`
+  tested on the rising edge with the previous value kept as a core attribute) and interval ticks ("Fire an
+  event every", a per-particle timer) in `Simulation.history`, and exposes them as an ACCESSOR
+  (`events.eventsAt(frame)`) on its `events` output. An Emitter's "Spawn from events" input spawns
+  `perEvent` children per event at the event's position with `inherit` × its velocity plus the emitter's own
+  velocity field (which sees the parent's velocity and custom attributes); the spawn shape becomes an offset
+  around the event. `Particle Events` filters by kind and a deterministic per-event chance. A child never runs
+  inside the parent's step loop; it replays from its own checkpoints by re-reading the parent's history, and
+  a frame the history no longer holds is REPLAYED ON A SCRATCH COPY from the parent's nearest checkpoint, never
+  on the live state a renderer may be reading. Determinism is asserted across three routes for a child system.
+  The general event bus (Send/Receive/Filter/Sequence/Gate) is still absent.
 - **Particle interaction IS built (Part 27, 2026-09-06).** `spatial.js` is a uniform hash grid rebuilt per
   substep from a SNAPSHOT of the state, exposed to every field as `ctx.neighbours(radius, fn)` and
   `ctx.nearestNeighbour()`. Every particle sees the same pre-step picture whatever its row, so flocking is

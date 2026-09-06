@@ -30,8 +30,8 @@ committed locally on its own (never pushed/released without the user).
 | --- | --- | --- | --- |
 | 0 | Baseline + this plan | done | 224 PNX + 41 core green at `6d42a39` |
 | 1 | Neighbours + flocking: spatial hash, `ctx.neighbours` query, Flock / Separation / Density / Neighbour Count / Nearest Neighbour nodes, grid-accelerated nearest point | done | 7 nodes, `spatial.js`, 10 tests; 234 PNX green |
-| 2 | Events + sub-emission: `event` type implemented, Particle Events (death / collision / birth / at age / every N s), Emitter `events` input, deterministic child sims via recorded parent history | in progress | |
-| 3 | The Effect Sheet UI (design §13 phases 1–7): projection module, menu recipes, sheet panel, stage handles, hero strip, add-a-thing gallery, parity test | | biggest item |
+| 2 | Events + sub-emission: `event` type implemented, Particle Events (death / collision / birth / at age / every N s), Emitter `events` input, deterministic child sims via recorded parent history | done | 1 node + 2 Simulate inputs + Emitter inputs; 9 tests; 243 PNX green |
+| 3 | The Effect Sheet UI (design §13 phases 1–7): projection module, menu recipes, sheet panel, stage handles, hero strip, add-a-thing gallery, parity test | in progress | biggest item |
 | 4 | Pyro + volumes: grid fluid solver (smoke/fire), `volume` type, Volume Renderer (three.js raymarch), Cloud node, Bake Volume To Flipbook for Roblox | | "realistic fire and clouds" |
 | 5 | Geometry completeness: connectivity, marching cubes (SDF/volume → mesh), mesh→SDF, curve to mesh (sweep), fill curve, trim/subdivide/fillet/smooth, extrude/inset/subdivide/triangulate/weld/flip, primitives (cone, icosphere, grid, star, spiral, bezier), Simulation Zone + Repeat Zone, attribute statistics, mesh islands, separate/duplicate | | "everything Blender nodes can do" — the honest subset that has a backend |
 | 6 | Post effects + Roblox export upgrades: bloom/colour-grade/blur/vignette as Effect Look → three.js post + native Roblox PostEffects; mesh export as .obj + tween script; thin curve meshes → beam chains; volumes → flipbook | | |

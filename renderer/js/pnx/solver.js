@@ -51,7 +51,52 @@ import { SpatialGrid } from './spatial.js';
 export const CORE_ATTRS = [
   ['position', 3], ['velocity', 3], ['age', 1], ['lifetime', 1],
   ['life', 1], ['id', 1], ['seed', 1], ['mass', 1],
+  // Event bookkeeping (Part 12): the trigger field's last value (for rising-edge detection) and the
+  // per-particle interval timer. Core because the solver reads them every step.
+  ['trigger', 1], ['timer', 1],
 ];
+const CORE_NAMES = new Set(CORE_ATTRS.map(([n]) => n));
+
+// ---------------------------------------------------------------- events
+// An event stream is what a Simulate node's `events` output carries and what an Emitter's `events`
+// input reads: `{ __events: true, eventsAt(frame) -> [record] }`. A record describes one thing that
+// happened during the step INTO `frame`: a birth, a death, a collision, a trigger crossing, or an
+// interval tick, with the particle's position, velocity, age and custom attributes at that moment.
+// The stream is an ACCESSOR rather than a list because a child simulation replaying from a checkpoint
+// needs the parent's events for every frame it re-steps, not only the current one.
+export const EVENT_KINDS = ['birth', 'death', 'collision', 'trigger', 'interval'];
+export const isEvents = (v) => !!v && v.__events === true && typeof v.eventsAt === 'function';
+export const EMPTY_EVENTS = Object.freeze({ __events: true, eventsAt: () => [] });
+
+// The custom (non-core) attributes of one row, copied into a plain object so an event outlives the
+// row it came from. Only rows that produce an event pay for this.
+function customAttrsOf(table, row) {
+  let out = null;
+  for (const name of GEO.attrNames(table)) {
+    if (CORE_NAMES.has(name)) continue;
+    if (!out) out = Object.create(null);
+    out[name] = GEO.readAttr(table, name, row, 0);
+  }
+  return out;
+}
+
+function eventRecord(kind, table, row, state) {
+  return {
+    kind,
+    id: GEO.readAttr(table, 'id', row, 0),
+    position: GEO.readAttr(table, 'position', row, [0, 0, 0]),
+    velocity: GEO.readAttr(table, 'velocity', row, [0, 0, 0]),
+    age: GEO.readAttr(table, 'age', row, 0),
+    life: Math.min(1, GEO.readAttr(table, 'life', row, 0)),
+    time: state.time,
+    attributes: customAttrsOf(table, row),
+  };
+}
+
+// Per-frame event lists are capped so a runaway rate cannot turn history into a memory leak. The cap
+// is far above anything a preview draws; when it is hit the frame's list says so.
+const MAX_EVENTS_PER_FRAME = 20000;
+const MAX_HISTORY_FRAMES = 4096;
 
 export const COLLISION_RESPONSES = ['bounce', 'slide', 'stick', 'kill', 'none'];
 
@@ -161,13 +206,42 @@ function emitNormal(spec, position) {
   return GEO.readAttr(emitter.points, 'normal', bi, [0, 1, 0]);
 }
 
-function doSpawn(state, spec, dt, ctxHolder) {
+// The particles born from EVENTS this frame (Part 26's "spawn on death / on collision", generalised):
+// each source stream is asked for the events of the frame being produced, and every event yields
+// `perEvent` births at the event's position, carrying `inherit` × the event's velocity plus whatever
+// the emitter's own initial-velocity field says. Asked once per frame, on the first substep, so an
+// event spawns exactly once however many substeps the frame has.
+function eventSpawns(spec, state) {
+  const out = [];
+  for (const src of spec.eventSources || []) {
+    if (!src || typeof src.eventsAt !== 'function') continue;
+    const list = src.eventsAt(state.frame + 1) || [];
+    const per = Math.max(0, Math.round(src.perEvent ?? 1));
+    const inherit = Number.isFinite(src.inherit) ? src.inherit : 0;
+    for (const ev of list) {
+      const v = ev.velocity || [0, 0, 0];
+      for (let k = 0; k < per; k++) {
+        out.push({
+          position: ev.position || [0, 0, 0],
+          velocity: [v[0] * inherit, v[1] * inherit, v[2] * inherit],
+          parentVelocity: v,
+          attributes: ev.attributes || null,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+function doSpawn(state, spec, dt, ctxHolder, stepEvents, firstSubstep) {
   const count = spawnCount(spec, state, dt);
-  if (count <= 0) return 0;
+  const fromEvents = firstSubstep ? eventSpawns(spec, state) : [];
+  const wanted = count + fromEvents.length;
+  if (wanted <= 0) return 0;
 
   const limit = Math.max(0, spec.maxParticles);
   const room = Math.max(0, limit - state.table.count);
-  const actual = Math.min(count, room);
+  const actual = Math.min(wanted, room);
   if (actual <= 0) return 0;
 
   const at = state.table.count;
@@ -178,17 +252,32 @@ function doSpawn(state, spec, dt, ctxHolder) {
     const row = at + k;
     const id = state.nextId++;
     const rng = (channel) => spec.random(id, channel);
-    const pos = emitPosition(spec, k, rng);
+    // Event births come first so a full pool still honours them: they are the ones a user wired up
+    // on purpose, while a rate is a background stream.
+    const ev = k < fromEvents.length ? fromEvents[k] : null;
+    let pos;
+    if (ev) {
+      // The spawn shape, when there is one, is an OFFSET around the event: a small sphere at each
+      // death gives a puff rather than a point.
+      const off = spec.emitter ? emitPosition(spec, k, rng) : [0, 0, 0];
+      pos = [ev.position[0] + off[0], ev.position[1] + off[1], ev.position[2] + off[2]];
+    } else {
+      pos = emitPosition(spec, k, rng);
+    }
 
     GEO.writeAttr(state.table, 'id', row, id);
     GEO.writeAttr(state.table, 'seed', row, F.seedFor(spec.path, spec.graphSeed, id) >>> 0);
     GEO.writeAttr(state.table, 'position', row, pos);
     GEO.writeAttr(state.table, 'age', row, 0);
     GEO.writeAttr(state.table, 'life', row, 0);
+    GEO.writeAttr(state.table, 'trigger', row, 0);
+    GEO.writeAttr(state.table, 'timer', row, 0);
 
     // The spawn fields see a context describing the particle being born: its position, its emitter
     // normal, its own index and seed. That is what lets initial velocity be "along the normal, with
-    // a random spread" without any of those being built-in options.
+    // a random spread" without any of those being built-in options. A particle born from an event
+    // also sees the parent's velocity and custom attributes, so "inherit the parent's colour" is a
+    // Read Attribute, not a feature.
     const ctx = ctxHolder;
     ctx.position = pos;
     ctx.index = id;
@@ -196,14 +285,17 @@ function doSpawn(state, spec, dt, ctxHolder) {
     ctx.age = 0;
     ctx.life = 0;
     ctx.time = state.time;
-    ctx.velocity = [0, 0, 0];
-    ctx.normal = emitNormal(spec, pos) || [0, 1, 0];
-    ctx.attributes = null;
+    ctx.velocity = ev ? ev.parentVelocity : [0, 0, 0];
+    const pv = ev ? ev.parentVelocity : null;
+    ctx.normal = (pv && V.vLength(pv) > 1e-6) ? V.vNormalize(pv) : (emitNormal(spec, pos) || [0, 1, 0]);
+    ctx.attributes = ev ? ev.attributes : null;
 
     const lifetime = Math.max(1e-4, Number(F.sampleAny(spec.lifetime, ctx)) || 1);
     GEO.writeAttr(state.table, 'lifetime', row, lifetime);
     GEO.writeAttr(state.table, 'mass', row, Math.max(1e-6, Number(F.sampleAny(spec.mass, ctx)) || 1));
-    GEO.writeAttr(state.table, 'velocity', row, V.toComponents('vector3', F.sampleAny(spec.initialVelocity, ctx)));
+    const iv = V.toComponents('vector3', F.sampleAny(spec.initialVelocity, ctx));
+    const vel = ev ? [iv[0] + ev.velocity[0], iv[1] + ev.velocity[1], iv[2] + ev.velocity[2]] : iv;
+    GEO.writeAttr(state.table, 'velocity', row, vel);
 
     // Initial custom attributes. Created on demand, so a graph that writes `temperature` at spawn
     // gets a temperature column and one that does not pays nothing.
@@ -213,6 +305,7 @@ function doSpawn(state, spec, dt, ctxHolder) {
       GEO.ensureAttr(state.table, w.name, Array.isArray(value) ? value.length : 1);
       GEO.writeAttr(state.table, w.name, row, value);
     }
+    if (stepEvents && stepEvents.length < MAX_EVENTS_PER_FRAME) stepEvents.push(eventRecord('birth', state.table, row, state));
   }
   state.stats.spawned += actual;
   return actual;
@@ -291,10 +384,14 @@ export function stepState(state, spec, dt) {
   const substeps = Math.max(1, Math.min(16, Math.round(spec.substeps || 1)));
   const h = dt / substeps;
   const walkCtx = F.newSampleContext();
+  // Everything that happens during this frame, for the Simulate node's `events` output. Always
+  // collected: recording is a few small objects per birth/death and nothing at all in a quiet frame,
+  // and it is what lets a child emitter replay from a checkpoint identically.
+  const frameEvents = [];
 
   for (let sub = 0; sub < substeps; sub++) {
     // --- SPAWN
-    doSpawn(state, spec, h, walkCtx);
+    doSpawn(state, spec, h, walkCtx, frameEvents, sub === 0);
 
     const count = state.table.count;
     if (count) {
@@ -311,16 +408,13 @@ export function stepState(state, spec, dt) {
       const gridFor = (radius) => grid || (grid = SpatialGrid.fromTable(table, Math.max(1e-3, Number(radius) || 1)));
       walker.ctx.neighbours = (radius, fn) => gridFor(radius).query(walker.ctx.position, radius, walker.ctx.index, fn);
       walker.ctx.nearestNeighbour = (maxRadius) => gridFor(maxRadius).nearest(walker.ctx.position, walker.ctx.index);
-      // EVENT SEAM — Part 12 / Part 26's "Spawn On Death" and "Spawn On Collision".
-      //
-      // Deaths and contacts are collected here as data and handed to `spec.events` if the caller
-      // supplied a sink. NOTHING SETS THAT SINK YET: sub-emission needs a second simulation driven by
-      // the first's events, with its own state, its own checkpoints and its own determinism argument,
-      // and that is the next piece of work rather than a line in this loop. The seam exists because
-      // the information is only available in here — recovering "which particles died this step" from
-      // outside would mean diffing two states and guessing — and because collecting it costs nothing
-      // when no sink is attached. No node exposes it, so nothing in the UI claims it works.
-      const events = spec.events ? [] : null;
+      // EVENTS — Part 12 / Part 26. Deaths, contacts and trigger crossings are collected here as
+      // data (the information exists only inside this loop) and recorded on the Simulation as the
+      // frame's history. A child emitter reads that history by frame; it never runs inside this loop,
+      // which is what keeps the step re-entrant and the determinism argument simple.
+      const events = frameEvents;
+      const hasTrigger = !!spec.triggerWhen;
+      const every = Math.max(0, Number(spec.triggerEvery) || 0);
 
       for (let row = 0; row < count; row++) {
         const ctx = walker.at(row);
@@ -360,14 +454,7 @@ export function stepState(state, spec, dt) {
           if (r === 'kill') { killed = true; break; }
           if (r === 'hit') {
             state.stats.collisions++;
-            if (events) {
-              events.push({
-                kind: 'collision', id: GEO.readAttr(table, 'id', row, 0),
-                position: GEO.readAttr(table, 'position', row, [0, 0, 0]),
-                velocity: GEO.readAttr(table, 'velocity', row, [0, 0, 0]),
-                time: state.time,
-              });
-            }
+            if (events.length < MAX_EVENTS_PER_FRAME) events.push(eventRecord('collision', table, row, state));
           }
         }
 
@@ -378,28 +465,35 @@ export function stepState(state, spec, dt) {
         GEO.writeAttr(table, 'life', row, Math.min(1, age / lifetime));
 
         if (!killed && spec.killByAge !== false && age >= lifetime) killed = true;
-        if (!killed && spec.kill) {
-          // Re-read the context so the kill test sees this step's position and age, not last step's.
+        if (!killed && (spec.kill || hasTrigger)) {
+          // Re-read the context so the tests see this step's position and age, not last step's.
           const post = walker.at(row);
           post.time = state.time;
-          if (F.sampleAny(spec.kill, post)) killed = true;
+          if (spec.kill && F.sampleAny(spec.kill, post)) killed = true;
+          if (!killed && hasTrigger) {
+            // A trigger fires on the RISING EDGE of its condition: once when it becomes true, not on
+            // every step it stays true. The previous value rides along as a core attribute so a replay
+            // from a checkpoint sees the same edges.
+            const on = !!F.sampleAny(spec.triggerWhen, post);
+            const was = GEO.readAttr(table, 'trigger', row, 0) > 0.5;
+            if (on && !was && events.length < MAX_EVENTS_PER_FRAME) events.push(eventRecord('trigger', table, row, state));
+            GEO.writeAttr(table, 'trigger', row, on ? 1 : 0);
+          }
         }
-        if (killed && events) {
-          events.push({
-            kind: 'death', id: GEO.readAttr(table, 'id', row, 0),
-            position: GEO.readAttr(table, 'position', row, [0, 0, 0]),
-            velocity: GEO.readAttr(table, 'velocity', row, [0, 0, 0]),
-            time: state.time,
-          });
+        if (!killed && every > 0) {
+          // A per-particle timer, so "every 0.2 seconds" is measured from each particle's own birth.
+          let t = Number(GEO.readAttr(table, 'timer', row, 0)) + h;
+          while (t >= every) {
+            t -= every;
+            if (events.length < MAX_EVENTS_PER_FRAME) events.push(eventRecord('interval', table, row, state));
+          }
+          GEO.writeAttr(table, 'timer', row, t);
         }
+        if (killed && events.length < MAX_EVENTS_PER_FRAME) events.push(eventRecord('death', table, row, state));
         // Mark for compaction rather than deleting now: removing a row mid-loop would renumber every
         // row after it and silently skip a particle.
         if (killed) GEO.writeAttr(table, 'life', row, 2);   // 2 is the "dead" sentinel; live life is 0..1
       }
-
-      // --- EVENTS. Handed out as data, never acted on here: a sub-emitter is another simulation, and
-      // running one inside this loop would make the step non-reentrant and its determinism unarguable.
-      if (events && events.length) spec.events(events, state);
 
       const before = table.count;
       GEO.compactTable(table, (row) => Number(GEO.readAttr(table, 'life', row, 0)) <= 1);
@@ -409,6 +503,10 @@ export function stepState(state, spec, dt) {
     state.time += h;
   }
   state.frame += 1;
+  // Handed out as data, never acted on here: a sub-emitter is another simulation, and running one
+  // inside this loop would make the step non-reentrant and its determinism unarguable.
+  state.lastEvents = frameEvents;
+  if (typeof spec.events === 'function' && frameEvents.length) spec.events(frameEvents, state);
   return state;
 }
 
@@ -425,13 +523,50 @@ export class Simulation {
     this.maxCatchUpFrames = Math.max(1, options.maxCatchUpFrames || 6000);
     this.state = newState(this.startFrame);
     this.checkpoints = new Map();   // frame -> cloned state
+    this.history = new Map();       // frame -> the events of the step INTO that frame
     this.lastSeek = { frame: null, steps: 0 };
   }
 
   reset() {
     this.state = newState(this.startFrame);
     this.checkpoints.clear();
+    this.history.clear();
     this.spec._areaTable = null;
+  }
+
+  // The events of the step into `frame`, for a child emitter. A hit in the recorded history is free.
+  // A miss for a frame this simulation has already passed is REPLAYED on a scratch copy from the
+  // newest checkpoint before it — never on the live state, which a renderer may be reading through
+  // the shared table — and the frames replayed on the way are recorded too. A frame in the future is
+  // simply empty: the parent is always evaluated first (the child pulls on it), so that only happens
+  // when a child starts earlier than its parent, and then there genuinely were no events.
+  eventsAt(frame) {
+    const f = Math.floor(frame);
+    const hit = this.history.get(f);
+    if (hit) return hit;
+    if (f <= this.startFrame || f > this.state.frame) return [];
+    let bestFrame = -Infinity, best = null;
+    for (const [cf, s] of this.checkpoints) {
+      if (cf < f && cf > bestFrame) { bestFrame = cf; best = s; }
+    }
+    let scratch = best ? cloneState(best) : newState(this.startFrame);
+    const dt = 1 / this.fps;
+    let steps = 0;
+    while (scratch.frame < f && steps < this.maxCatchUpFrames) {
+      stepState(scratch, this.spec, dt);
+      this._record(scratch.frame, scratch.lastEvents);
+      steps++;
+    }
+    return this.history.get(f) || [];
+  }
+
+  _record(frame, events) {
+    this.history.set(frame, events || []);
+    if (this.history.size > MAX_HISTORY_FRAMES) {
+      // Drop the oldest frames; anything a child still needs is reconstructed by eventsAt's replay.
+      const frames = [...this.history.keys()].sort((a, b) => a - b);
+      for (let k = 0; k < frames.length - MAX_HISTORY_FRAMES; k++) this.history.delete(frames[k]);
+    }
   }
 
   // The state at the END of `frame`. This is the function the whole determinism argument rests on:
@@ -458,6 +593,7 @@ export class Simulation {
     const budget = this.maxCatchUpFrames;
     while (this.state.frame < target && steps < budget) {
       stepState(this.state, this.spec, dt);
+      this._record(this.state.frame, this.state.lastEvents);
       steps++;
       if (this.state.frame % this.checkpointEvery === 0) this._checkpoint();
     }

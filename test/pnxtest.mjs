@@ -3571,6 +3571,151 @@ check('nearest point: the grid-accelerated lookup agrees with brute force on a l
   }
 });
 
+// ================================================================ Part 12 / 26: events and sub-emission
+check('events: the event type is implemented and a Simulate node reports births and deaths by frame', () => {
+  assert.ok(T.isImplementedType(T.parseType('event')), 'event must be an implemented type now');
+  const { sim, e } = simGraph({ emitter: { rate: 30, lifetime: 0.5 } });
+  const ev = seekTo(e, sim, 30, 'events').value;
+  assert.ok(SOLVER.isEvents(ev), 'the events output is an event stream');
+  assert.equal(ev.eventsAt(1).filter((x) => x.kind === 'birth').length, 1, 'one birth per frame at 30/s');
+  assert.equal(ev.eventsAt(10).filter((x) => x.kind === 'death').length, 0, 'nothing dies before 0.5 s');
+  let deaths = 0;
+  for (let f = 1; f <= 30; f++) deaths += ev.eventsAt(f).filter((x) => x.kind === 'death').length;
+  assert.ok(deaths >= 14 && deaths <= 16, `about 15 deaths in the first 30 frames, got ${deaths}`);
+  const d = ev.eventsAt(17).concat(ev.eventsAt(16), ev.eventsAt(15)).find((x) => x.kind === 'death');
+  assert.ok(d, 'a death record exists around frame 15-17');
+  assert.ok(Array.isArray(d.position) && Array.isArray(d.velocity) && typeof d.id === 'number');
+  assert.ok(Math.abs(d.age - 0.5) < 0.05, `a death record carries the age at death (${d.age})`);
+});
+
+// Parent → Particle Events (filter) → child Emitter → child Simulate.
+function subGraph({ kind = 'death', chance = 1, perEvent = 3, inherit = 0.5, parent = {}, parentSim = {}, child = {}, withTrigger = false, collider = false } = {}) {
+  const g = G.newGraph('sub');
+  const pem = G.newNode(g, 'cadence.particles.emitter', 0, 0, { id: 'pem', values: { rate: 30, lifetime: 0.5, velocity: [0, 4, 0], ...parent } });
+  if (collider) {
+    const pt = G.newNode(g, 'cadence.geometry.point', 0, 0, { id: 'pt', values: { position: [0, 3, 0] } });
+    assert.ok(G.connect(g, pt.id, 'out', pem.id, 'shape').ok);
+  }
+  const psim = G.newNode(g, 'cadence.particles.simulate', 0, 0, { id: 'psim', values: { maxParticles: 1000, ...parentSim } });
+  assert.ok(G.connect(g, pem.id, 'out', psim.id, 'emitter').ok);
+  if (collider) {
+    const plane = G.newNode(g, 'cadence.sdf.plane', 0, 0, { id: 'plane', values: { normal: [0, 1, 0], point: [0, 0, 0] } });
+    const col = G.newNode(g, 'cadence.particles.collider', 0, 0, { id: 'col', values: { response: 'bounce', restitution: 0.3 } });
+    assert.ok(G.connect(g, plane.id, 'out', col.id, 'shape').ok);
+    assert.ok(G.connect(g, col.id, 'out', psim.id, 'colliders').ok);
+  }
+  if (withTrigger) {
+    const age = G.newNode(g, 'cadence.particles.age', 0, 0, { id: 'age' });
+    const gt = G.newNode(g, 'cadence.math.greaterThan', 0, 0, { id: 'gt', values: { b: 0.3 } });
+    assert.ok(G.connect(g, age.id, 'out', gt.id, 'a').ok);
+    assert.ok(G.connect(g, gt.id, 'out', psim.id, 'triggerWhen').ok, 'a bool field drives the trigger');
+  }
+  const filt = G.newNode(g, 'cadence.particles.events', 0, 0, { id: 'filt', values: { kind, chance } });
+  assert.ok(G.connect(g, psim.id, 'events', filt.id, 'events').ok, 'events wire into the filter');
+  const cem = G.newNode(g, 'cadence.particles.emitter', 0, 0, { id: 'cem', values: { rate: 0, lifetime: 1, perEvent, inherit, ...child } });
+  assert.ok(G.connect(g, filt.id, 'out', cem.id, 'events').ok, 'filtered events wire into the child emitter');
+  const csim = G.newNode(g, 'cadence.particles.simulate', 0, 0, { id: 'csim', values: { maxParticles: 5000 } });
+  assert.ok(G.connect(g, cem.id, 'out', csim.id, 'emitter').ok);
+  return { g, psim, csim, filt, e: new E.Evaluator(g, { fps: 30 }) };
+}
+
+check('sub-emission: every death spawns exactly "particles per event" children', () => {
+  const { psim, csim, e } = subGraph({ kind: 'death', perEvent: 3 });
+  const died = seekTo(e, psim, 30, 'died').value;
+  const children = seekTo(e, csim, 30, 'count').value;
+  assert.ok(died >= 14, `parents must have died by frame 30 (${died})`);
+  assert.equal(children, died * 3, `3 children per death: ${children} vs ${died} deaths`);
+});
+
+check('sub-emission: children are born where the parent died, with the inherited share of its velocity', () => {
+  const { csim, e } = subGraph({ kind: 'death', perEvent: 1, inherit: 0.5 });
+  // Find the first frame with a child and inspect it.
+  let geo = null, frame = 0;
+  for (let f = 10; f <= 25 && !geo; f++) { const r = seekTo(e, csim, f).value; if (GEO.pointCount(r)) { geo = r; frame = f; } }
+  assert.ok(geo, 'children appear within the parent lifetime');
+  const v = GEO.readAttr(geo.points, 'velocity', 0, [0, 0, 0]);
+  nearArr(v, [0, 2, 0], 1e-4);   // parent moved at (0,4,0); inherit 0.5
+  const p = GEO.readAttr(geo.points, 'position', 0, [0, 0, 0]);
+  // the parent rose at 4 studs/s for ~0.5 s, so the child starts about 2 studs up, then moved one step
+  assert.ok(p[1] > 1.8 && p[1] < 2.3, `born near y=2 (${p[1].toFixed(3)}) at frame ${frame}`);
+});
+
+check('sub-emission: collision events place children on the floor', () => {
+  const { psim, csim, e } = subGraph({ kind: 'collision', perEvent: 1, inherit: 0, collider: true, parent: { rate: 0, burstCount: 40, burstTime: 0, lifetime: 5, velocity: [0, 0, 0] }, parentSim: { force: [0, -30, 0] } });
+  // 3 studs under 30 studs/s² hits at t = sqrt(2*3/30) ≈ 0.447 s ≈ frame 14
+  let geo = null;
+  for (let f = 10; f <= 30 && !geo; f++) { const r = seekTo(e, csim, f).value; if (GEO.pointCount(r)) geo = r; }
+  assert.ok(geo, 'collisions produce children');
+  assert.ok(seekTo(e, psim, 30, 'events').value.eventsAt(30) !== undefined);
+  for (let k = 0; k < GEO.pointCount(geo); k++) {
+    const p = GEO.readAttr(geo.points, 'position', k, [0, 0, 0]);
+    assert.ok(Math.abs(p[1]) < 0.25, `a splash child sits on the floor (y=${p[1].toFixed(3)})`);
+  }
+});
+
+check('events: a trigger condition fires exactly once per particle, on the rising edge', () => {
+  const { psim, e } = subGraph({ kind: 'trigger', withTrigger: true });
+  const ev = seekTo(e, psim, 45, 'events').value;
+  let triggers = 0; const ids = new Set();
+  for (let f = 1; f <= 45; f++) for (const x of ev.eventsAt(f)) if (x.kind === 'trigger') { triggers++; ids.add(x.id); }
+  // 30 particles are born in the first 30 frames and each crosses age 0.3 once before dying at 0.5.
+  assert.equal(triggers, ids.size, 'no particle triggers twice');
+  // Particles keep being born to frame 45; those born by frame ~36 have crossed age 0.3 by then.
+  assert.ok(triggers >= 34 && triggers <= 38, `about 36 crossings, got ${triggers}`);
+  const t = ev.eventsAt(12).find((x) => x.kind === 'trigger');
+  assert.ok(t && t.age >= 0.3 && t.age < 0.36, `fires just past the threshold (${t && t.age})`);
+});
+
+check('events: an interval timer ticks per particle at its own cadence', () => {
+  const { psim, e } = subGraph({ kind: 'interval', parentSim: { triggerEvery: 0.2 } });
+  const ev = seekTo(e, psim, 45, 'events').value;
+  let ticks = 0;
+  for (let f = 1; f <= 45; f++) ticks += ev.eventsAt(f).filter((x) => x.kind === 'interval').length;
+  // each 0.5 s particle ticks at 0.2 s and 0.4 s; by frame 45 those born by frame 39 have ticked once and
+  // those born by frame 33 twice: about 72 ticks.
+  assert.ok(ticks >= 68 && ticks <= 76, `about 72 ticks, got ${ticks}`);
+});
+
+check('events: a chance filter keeps a deterministic share', () => {
+  const half = subGraph({ kind: 'death', chance: 0.5, perEvent: 1 });
+  const all = subGraph({ kind: 'death', chance: 1, perEvent: 1 });
+  const a = seekTo(half.e, half.csim, 40, 'count').value;
+  const b = seekTo(all.e, all.csim, 40, 'count').value;
+  assert.ok(b >= 20, 'enough deaths to judge a share');
+  assert.ok(a > b * 0.25 && a < b * 0.75, `about half kept: ${a} of ${b}`);
+  const again = subGraph({ kind: 'death', chance: 0.5, perEvent: 1 });
+  assert.equal(seekTo(again.e, again.csim, 40, 'count').value, a, 'the same share on a fresh evaluator');
+  assert.equal(seekTo(half.e, half.filt, 20, 'count').value, half.filt && seekTo(half.e, half.psim, 20, 'events').value.eventsAt(20).filter((x) => x.kind === 'death').length ? seekTo(half.e, half.filt, 20, 'count').value : 0);
+});
+
+check('sub-emission: a child simulation scrubs deterministically through its parent\'s history', () => {
+  const snap = (r) => {
+    const rows = [];
+    for (let k = 0; k < GEO.pointCount(r.value); k++) rows.push([GEO.readAttr(r.value.points, 'id', k), ...GEO.readAttr(r.value.points, 'position', k), ...GEO.readAttr(r.value.points, 'velocity', k)].map((v) => Math.round(v * 1e6) / 1e6));
+    rows.sort((a, b) => a[0] - b[0]);
+    return JSON.stringify(rows);
+  };
+  const setup = () => subGraph({ kind: 'death', perEvent: 2, inherit: 0.7, parentSim: { force: [0, -8, 0] } });
+  const a = setup(); const forwards = snap(seekTo(a.e, a.csim, 41));
+  assert.ok(forwards.length > 10, 'children exist at frame 41');
+  const b = setup(); seekTo(b.e, b.csim, 90); assert.equal(snap(seekTo(b.e, b.csim, 41)), forwards, 'backwards differs');
+  const c = setup(); for (const f of [5, 60, 12, 88, 30, 71, 2, 41]) seekTo(c.e, c.csim, f); assert.equal(snap(seekTo(c.e, c.csim, 41)), forwards, 'jittery differs');
+});
+
+check('events: history replays on a scratch copy when a frame was never recorded', () => {
+  const { sim, e } = simGraph({ emitter: { rate: 30, lifetime: 0.5 } });
+  const ev = seekTo(e, sim, 40, 'events').value;
+  const before = JSON.stringify(ev.eventsAt(20));
+  // Forget frame 20 and ask again: the answer must be rebuilt identically, and the live state untouched.
+  const s = e.persistent.values().next().value;   // the one Simulation in this evaluator
+  assert.ok(s && s.history, 'the simulation keeps a history');
+  s.history.delete(20);
+  const liveFrame = s.state.frame;
+  assert.equal(JSON.stringify(ev.eventsAt(20)), before, 'a replayed frame matches the recorded one');
+  assert.equal(s.state.frame, liveFrame, 'the live state was not moved by the replay');
+  assert.deepEqual(ev.eventsAt(999), [], 'a frame in the future is empty, never a seek');
+});
+
 // ================================================================
 console.log(`\nPNX: ${passed} passed, ${failed} failed  (${R.nodeCount()} node types registered)`);
 if (failed) {
