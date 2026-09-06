@@ -263,6 +263,7 @@ function openVfxStudioWindow() {
     height: 920,
     minWidth: 980,
     minHeight: 640,
+    icon: APP_ICON,
     backgroundColor: '#0d0d12',
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#0d0d12', symbolColor: '#8a8a96', height: 40 },

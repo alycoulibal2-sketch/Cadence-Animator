@@ -14,7 +14,8 @@
     "dist": "electron-builder --win",
     "prerelease-check": "npm run smoketest && npm run dist",
     "release": "electron-builder --win --publish always",
-    "postinstall": "node ./bin/register-mcp.js"
+    "postinstall": "node ./bin/register-mcp.js",
+    "brand": "electron brand/build-icons.js && node brand/build-sheet.js"
   },
   "author": "alyco",
   "license": "MIT",
@@ -35,6 +36,9 @@
   "build": {
     "appId": "com.alyco.cadenceanimator",
     "productName": "Cadence Animator",
+    "directories": {
+      "buildResources": "brand"
+    },
     "files": [
       "src/**/*",
       "renderer/**/*",
@@ -54,6 +58,7 @@
       "node_modules/**/*"
     ],
     "win": {
+      "icon": "brand/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -73,7 +78,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "installerSidebar": "brand/installerSidebar.bmp"
     },
     "publish": {
       "provider": "github",

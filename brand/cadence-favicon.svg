@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- The mark tuned for 16 px: heavier arc and diamonds on the app's dark tile, so it still
+       reads as a C with keyframes in a browser tab. Copied to site/assets/img/favicon.svg. -->
+  <rect width="32" height="32" rx="8" fill="#0a0a0e"/>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="7.5" fill="none" stroke="#7c8cff" stroke-opacity="0.32"/>
+  <path d="M21.79 9.11A9 9 0 1 0 21.79 22.89" fill="none" stroke="#7c8cff" stroke-width="4.6"/>
+  <path d="M21.79 4.51 26.39 9.11 21.79 13.71 17.19 9.11Z" fill="#c3caff"/>
+  <path d="M21.79 18.29 26.39 22.89 21.79 27.49 17.19 22.89Z" fill="#c3caff"/>
+</svg>

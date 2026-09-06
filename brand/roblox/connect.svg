@@ -22,14 +22,12 @@
   <rect id="tile" width="512" height="512" rx="116" fill="url(#bg)"/>
   <rect id="tileGlow" width="512" height="512" rx="116" fill="url(#glow)"/>
   <rect id="edge" x="2" y="2" width="508" height="508" rx="114" fill="none" stroke="#8d9bff" stroke-opacity="0.22" stroke-width="4"/>
-  <g id="mark" transform="translate(259 256) scale(7.2) translate(-32 -32)">
-    <g filter="url(#soft)" opacity="0.6">
-      <path d="M43.57 18.21A18 18 0 1 0 43.57 45.79" fill="none" stroke="#7c8cff" stroke-width="8"/>
-      <path d="M43.57 10.21 51.57 18.21 43.57 26.21 35.57 18.21Z" fill="#c3caff"/>
-      <path d="M43.57 37.79 51.57 45.79 43.57 53.79 35.57 45.79Z" fill="#c3caff"/>
-    </g>
-    <path d="M43.57 18.21A18 18 0 1 0 43.57 45.79" fill="none" stroke="url(#arc)" stroke-width="8"/>
-    <path d="M43.57 10.21 51.57 18.21 43.57 26.21 35.57 18.21Z" fill="#e6e9ff"/>
-    <path d="M43.57 37.79 51.57 45.79 43.57 53.79 35.57 45.79Z" fill="#e6e9ff"/>
+  <g id="glyph">
+  <g filter="url(#soft)" opacity="0.55" transform="translate(256 256) scale(14.1667) translate(-12 -12)" fill="none" stroke="#7c8cff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="9" y1="2.6" x2="9" y2="7"/><line x1="15" y1="2.6" x2="15" y2="7"/><path d="M5.8 7h12.4v2.6a6.2 6.2 0 0 1-12.4 0V7z"/><line x1="12" y1="15.8" x2="12" y2="21.4"/>
+  </g>
+  <g transform="translate(256 256) scale(14.1667) translate(-12 -12)" fill="none" stroke="url(#arc)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="9" y1="2.6" x2="9" y2="7"/><line x1="15" y1="2.6" x2="15" y2="7"/><path d="M5.8 7h12.4v2.6a6.2 6.2 0 0 1-12.4 0V7z"/><line x1="12" y1="15.8" x2="12" y2="21.4"/>
+  </g>
   </g>
 </svg>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none" aria-hidden="true" focusable="false">
+  <!-- The Cadence mark: a motion path shaped like a C that arrives at two keyframe diamonds.
+       Monochrome; inherits its colour from CSS through currentColor. Source of truth for the
+       inline copies in the site header/footer and the app title bars. -->
+  <path d="M43.57 18.21A18 18 0 1 0 43.57 45.79" stroke="currentColor" stroke-width="8"/>
+  <path d="M43.57 10.21 51.57 18.21 43.57 26.21 35.57 18.21Z" fill="currentColor"/>
+  <path d="M43.57 37.79 51.57 45.79 43.57 53.79 35.57 45.79Z" fill="currentColor"/>
+</svg>

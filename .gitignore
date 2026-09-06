@@ -4,3 +4,6 @@ dist/
 .DS_Store
 Thumbs.db
 test-output/
+
+# the generated sheet is committed; its artifact twin is not
+brand/preview.artifact.html

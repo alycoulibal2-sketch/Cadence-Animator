@@ -964,14 +964,31 @@ helpText.Parent = root
 
 local toolbar = plugin:CreateToolbar("Cadence Animator")
 
--- iconname ("") is intentionally empty — a real custom icon needs an asset uploaded to Roblox,
--- which requires an authenticated Roblox account this app has no way to act as. Per Roblox's own
--- docs, when iconname is unset the button falls back to displaying `text` instead, so we pass an
--- explicit emoji-prefixed label there rather than leaving these blank.
-local connectBtn = toolbar:CreateButton("Connect", "Connect to / disconnect from the Cadence Animator desktop app", "", "🔌 Connect")
-local statusBtn = toolbar:CreateButton("Status", "Show connection status, port, and place — click to open the Cadence Bridge panel", "", "📶 Status")
-local pushBtn = toolbar:CreateButton("Send Selection", "Send the selected rig to Cadence right now", "", "📤 Send Selection")
-local syncBtn = toolbar:CreateButton("Sync Pose", "Re-read the selected rig's current geometry (after using Studio's Move/Rotate tools) and push the correction to Cadence", "", "🔄 Sync Pose")
+-- Toolbar icons. Roblox draws a button icon only from an uploaded asset, so these ids start empty
+-- and are pasted in once brand/roblox/*.png have been published to a Roblox account — the artwork
+-- and the full upload procedure are in brand/README.md. An empty id is NOT a broken button: per
+-- Roblox's docs a button with no icon displays its `text` instead, which is why every label below
+-- also has an emoji spelling. Filling an id in switches that button to the plain label, so the
+-- emoji and the icon can never show at once.
+--
+-- ⚠ These must be **Image** ids. Uploading a PNG returns a *Decal* id, and a Decal id silently
+-- fails to load here exactly as it does in an ImageLabel. brand/README.md shows how to read the
+-- Image id back out of the Decal.
+local ICONS = {
+	connect = "",
+	status = "",
+	send = "",
+	sync = "",
+}
+
+local function makeButton(id, tooltip, icon, emojiText, plainText)
+	return toolbar:CreateButton(id, tooltip, icon, icon ~= "" and plainText or emojiText)
+end
+
+local connectBtn = makeButton("Connect", "Connect to / disconnect from the Cadence Animator desktop app", ICONS.connect, "🔌 Connect", "Connect")
+local statusBtn = makeButton("Status", "Show connection status, port, and place — click to open the Cadence Bridge panel", ICONS.status, "📶 Status", "Status")
+local pushBtn = makeButton("Send Selection", "Send the selected rig to Cadence right now", ICONS.send, "📤 Send Selection", "Send Selection")
+local syncBtn = makeButton("Sync Pose", "Re-read the selected rig's current geometry (after using Studio's Move/Rotate tools) and push the correction to Cadence", ICONS.sync, "🔄 Sync Pose", "Sync Pose")
 
 local function fmtAgo(clockTime)
 	if not clockTime then

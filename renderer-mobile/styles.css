@@ -16,7 +16,8 @@ body {
   border-bottom: 1px solid #24242e;
   flex: 0 0 auto;
 }
-#topbar .logo { font-weight: 700; color: #7c8cff; }
+#topbar .logo { font-weight: 700; color: #7c8cff; display: inline-flex; align-items: center; gap: 6px; }
+#topbar .logo svg { flex: 0 0 auto; }
 #projectName { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b7b7c2; }
 .conn-status { font-size: 11px; color: #7c7c86; }
 .conn-status.live { color: #58e07a; }
