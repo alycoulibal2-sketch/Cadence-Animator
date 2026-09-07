@@ -2256,6 +2256,330 @@
     return { parts: rig.parts.length, joints: rig.components.length };
   });
 
+  // ---------------------------------------------------------------- safe patch and rollback
+  //
+  // `ai/patch.js` writes into `project.tracks` itself, because `state.js` cannot be imported
+  // outside Electron. That is the same duplication `ai/kinematics.js` carries and the same risk:
+  // two implementations of the same mutation drift. This step is the gate — it makes the same
+  // edits through both paths and compares the resulting project byte for byte.
+
+  await step('semantic layer: the patch applier and state.js produce byte-identical project data', async () => {
+    const AI = D.AI;
+    const results = {};
+
+    // Each case: a description, the state.js calls, and the equivalent patch ops. `noAutoZero` is
+    // passed to state.js wherever a case keys at frame >= 1 on a fresh track, because the patch
+    // layer deliberately does NOT reproduce that affordance and warns instead (see UI_AFFORDANCES).
+    const cases = [
+      {
+        name: 'create keys with explicit easing',
+        viaState: (id) => {
+          S.setKey(id, 'RightShoulder', 0, CF.IDENTITY.slice(), { es: 'Cubic', ed: 'Out', noUndo: true, noAutoZero: true });
+          S.setKey(id, 'RightShoulder', 8, CF.fromEuler(0, 0, 1.2), { es: 'Back', ed: 'In', ep: { Overshoot: 2 }, noUndo: true, noAutoZero: true });
+          S.setKey(id, 'RightShoulder', 16, CF.fromEuler(0, 0, -0.9), { es: 'Elastic', ed: 'InOut', ep: { Period: 4, Amplitude: 1.2 }, noUndo: true, noAutoZero: true });
+        },
+        ops: (id) => [
+          { op: 'set_key', itemId: id, track: 'RightShoulder', t: 0, value: CF.IDENTITY.slice(), es: 'Cubic', ed: 'Out' },
+          { op: 'set_key', itemId: id, track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.2), es: 'Back', ed: 'In', ep: { Overshoot: 2 } },
+          { op: 'set_key', itemId: id, track: 'RightShoulder', t: 16, value: CF.fromEuler(0, 0, -0.9), es: 'Elastic', ed: 'InOut', ep: { Period: 4, Amplitude: 1.2 } },
+        ],
+      },
+      {
+        name: 'modify an existing key, value only',
+        setup: (id) => { S.setKey(id, 'RightHip', 0, CF.IDENTITY.slice(), { noUndo: true }); S.setKey(id, 'RightHip', 10, CF.fromEuler(0.9, 0, 0), { noUndo: true, noAutoZero: true }); },
+        viaState: (id) => S.setKey(id, 'RightHip', 10, CF.fromEuler(0.2, 0, 0), { noUndo: true, noAutoZero: true }),
+        ops: (id) => [{ op: 'set_key', itemId: id, track: 'RightHip', t: 10, value: CF.fromEuler(0.2, 0, 0) }],
+      },
+      {
+        name: 'set easing, including the style-parameter pruning',
+        setup: (id) => { S.setKey(id, 'RightHip', 0, CF.IDENTITY.slice(), { noUndo: true }); S.setKey(id, 'RightHip', 10, CF.fromEuler(0.9, 0, 0), { es: 'Back', ed: 'In', ep: { Overshoot: 3 }, noUndo: true, noAutoZero: true }); },
+        viaState: (id) => S.setEasing([{ itemId: id, track: 'RightHip', t: 10 }], 'Quad', 'Out', undefined, { noUndo: true }),
+        ops: (id) => [{ op: 'set_easing', itemId: id, track: 'RightHip', t: 10, es: 'Quad', ed: 'Out' }],
+      },
+      {
+        name: 'delete a key',
+        setup: (id) => { S.setKey(id, 'RightHip', 0, CF.IDENTITY.slice(), { noUndo: true }); S.setKey(id, 'RightHip', 10, CF.fromEuler(0.9, 0, 0), { noUndo: true, noAutoZero: true }); },
+        viaState: (id) => S.deleteKeys([{ itemId: id, track: 'RightHip', t: 10 }]),
+        ops: (id) => [{ op: 'delete_key', itemId: id, track: 'RightHip', t: 10 }],
+      },
+      {
+        name: 'move a key onto empty space',
+        setup: (id) => { S.setKey(id, 'RightHip', 0, CF.IDENTITY.slice(), { noUndo: true }); S.setKey(id, 'RightHip', 10, CF.fromEuler(0.9, 0, 0), { noUndo: true, noAutoZero: true }); },
+        viaState: (id) => S.moveKeys([{ itemId: id, track: 'RightHip', t: 10 }], 4, { noUndo: true }),
+        ops: (id) => [{ op: 'move_key', itemId: id, track: 'RightHip', t: 10, to: 14 }],
+      },
+      {
+        name: 'move a key onto an occupied frame',
+        setup: (id) => {
+          S.setKey(id, 'RightHip', 0, CF.IDENTITY.slice(), { noUndo: true });
+          S.setKey(id, 'RightHip', 10, CF.fromEuler(0.9, 0, 0), { noUndo: true, noAutoZero: true });
+          S.setKey(id, 'RightHip', 14, CF.fromEuler(0.1, 0, 0), { noUndo: true, noAutoZero: true });
+        },
+        viaState: (id) => S.moveKeys([{ itemId: id, track: 'RightHip', t: 10 }], 4, { noUndo: true }),
+        ops: (id) => [{ op: 'move_key', itemId: id, track: 'RightHip', t: 10, to: 14 }],
+      },
+      {
+        name: 'move a key past the end of the timeline (both must clamp)',
+        setup: (id) => { S.setKey(id, 'RightHip', 0, CF.IDENTITY.slice(), { noUndo: true }); S.setKey(id, 'RightHip', 10, CF.fromEuler(0.9, 0, 0), { noUndo: true, noAutoZero: true }); },
+        viaState: (id) => S.moveKeys([{ itemId: id, track: 'RightHip', t: 10 }], 5000, { noUndo: true }),
+        ops: (id) => [{ op: 'move_key', itemId: id, track: 'RightHip', t: 10, to: 5010 }],
+      },
+      {
+        name: 'move a grouped key (both must retarget the group entry)',
+        setup: (id) => {
+          S.setKey(id, 'RightHip', 0, CF.IDENTITY.slice(), { noUndo: true });
+          S.setKey(id, 'RightHip', 10, CF.fromEuler(0.9, 0, 0), { noUndo: true, noAutoZero: true });
+          S.setKey(id, 'RightElbow', 0, CF.IDENTITY.slice(), { noUndo: true });
+          S.setKey(id, 'RightElbow', 10, CF.fromEuler(0.4, 0, 0), { noUndo: true, noAutoZero: true });
+          // Grouped so that state.js's own moveKeys pulls in the sibling — the patch layer moves
+          // only what it names, so this case moves BOTH explicitly to compare like with like.
+          S.groupKeys([{ itemId: id, track: 'RightHip', t: 10 }, { itemId: id, track: 'RightElbow', t: 10 }]);
+        },
+        viaState: (id) => S.moveKeys([{ itemId: id, track: 'RightHip', t: 10 }], 3, { noUndo: true }),
+        ops: (id) => [
+          { op: 'move_key', itemId: id, track: 'RightHip', t: 10, to: 13 },
+          { op: 'move_key', itemId: id, track: 'RightElbow', t: 10, to: 13 },
+        ],
+      },
+      {
+        name: 'remove a track',
+        setup: (id) => { S.setKey(id, 'RightHip', 0, CF.IDENTITY.slice(), { noUndo: true }); S.setKey(id, 'RightHip', 10, CF.fromEuler(0.9, 0, 0), { noUndo: true, noAutoZero: true }); },
+        viaState: (id) => S.removeTrack(id, 'RightHip'),
+        ops: (id) => [{ op: 'remove_track', itemId: id, track: 'RightHip' }],
+      },
+      {
+        name: 'add and edit an event marker',
+        viaState: (id) => { S.addMarker(id, 16, { name: 'impact', width: 2, codeBegin: 'print("hit")' }); S.setMarker(id, 16, { width: 5 }); },
+        ops: (id) => [
+          { op: 'set_marker', itemId: id, t: 16, patch: { name: 'impact', width: 2, codeBegin: 'print("hit")' } },
+          { op: 'set_marker', itemId: id, t: 16, patch: { width: 5 } },
+        ],
+      },
+      {
+        name: 'unparent a track (the flag only — state.js converts values, so none are compared)',
+        setup: (id) => { S.setKey(id, 'RightWrist', 0, CF.IDENTITY.slice(), { noUndo: true }); },
+        viaState: (id) => S.setTrackSpace(id, 'RightWrist', 'world', null),
+        ops: (id) => [{ op: 'set_track_space', itemId: id, track: 'RightWrist', space: 'world' }],
+      },
+    ];
+
+    // Only the animation data is compared, and item UUIDs are replaced by their INDEX first --
+    // every project gets fresh `crypto.randomUUID()` item ids, and the track/marker tables are
+    // keyed by them, so comparing raw would fail on identity rather than on behaviour.
+    const animationData = (p) => {
+      const index = new Map(p.items.map((i, n) => [i.id, `item${n}`]));
+      const rekey = (table) => Object.fromEntries(Object.entries(table || {}).map(([id, v]) => [index.get(id) ?? id, v]));
+      return {
+        tracks: rekey(p.tracks),
+        markers: rekey(p.markers),
+        groups: (p.groups || []).map((g) => ({ keys: (g.keys || []).map((k) => ({ ...k, itemId: index.get(k.itemId) ?? k.itemId })) })),
+        items: p.items.map((i) => ({ name: i.name, kind: i.kind, origin: i.origin, hidden: i.hidden ?? null })),
+        length: p.length, fps: p.fps, loop: p.loop, priority: p.priority,
+      };
+    };
+
+    for (const c of cases) {
+      // Path A: state.js's own mutators.
+      S.newProject('drift-state-' + c.name);
+      const a = await D.addBuiltinRig('r15');
+      if (c.setup) c.setup(a.id);
+      c.viaState(a.id);
+      const viaState = AI.hash.contentHash(animationData(S.state.project));
+
+      // Path B: the same edits as a patch, through plan + commit.
+      S.newProject('drift-patch-' + c.name);
+      const b = await D.addBuiltinRig('r15');
+      if (c.setup) c.setup(b.id);
+      const patch = AI.makePatch({ ops: c.ops(b.id), intent: c.name });
+      const plan = AI.planPatch(S.state.project, patch);
+      assert(plan.applicable, `${c.name}: the patch was refused — ${plan.summary}`);
+      AI.commitPatch(S.state.project, patch, plan);
+      const viaPatch = AI.hash.contentHash(animationData(S.state.project));
+
+      assert(viaState === viaPatch, `${c.name}: ai/patch.js and state.js produced DIFFERENT project data (${viaState} vs ${viaPatch}) — the two implementations of the same mutation have drifted`);
+
+      // …and the inverse must apply cleanly on top of the committed state. (That it restores the
+      // project EXACTLY is asserted by the next step, on a project with more in it.)
+      const invPlan = AI.planPatch(S.state.project, plan.inverse);
+      assert(invPlan.applicable, `${c.name}: the inverse patch does not apply — ${invPlan.summary}`);
+      AI.commitPatch(S.state.project, plan.inverse, invPlan);
+      results[c.name] = { identical: true, inverseApplies: true };
+    }
+    return { cases: Object.keys(results).length };
+  });
+
+  await step('semantic layer: the inverse of a patch restores the project exactly, in the live app', async () => {
+    const AI = D.AI;
+    S.newProject('inverse-roundtrip');
+    const item = await D.addBuiltinRig('r15');
+    D.addCamera();
+    S.setKey(item.id, 'RightShoulder', 0, CF.IDENTITY.slice(), { noUndo: true });
+    S.setKey(item.id, 'RightShoulder', 16, CF.fromEuler(0, 0, 1.2), { es: 'Back', ed: 'In', ep: { Overshoot: 2 }, noUndo: true });
+    S.addMarker(item.id, 16, { name: 'impact', width: 2 });
+
+    const originalName = S.getItem(item.id).name;
+    const origin = AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
+    const patch = AI.makePatch({ intent: 'a bit of everything', ops: [
+      { op: 'set_key', itemId: item.id, track: 'RightShoulder', t: 6, value: CF.fromEuler(0, 0, -0.4) },
+      { op: 'set_easing', itemId: item.id, track: 'RightShoulder', t: 16, es: 'Quad', ed: 'Out' },
+      { op: 'move_key', itemId: item.id, track: 'RightShoulder', t: 16, to: 18 },
+      { op: 'set_marker', itemId: item.id, t: 16, patch: { name: 'IMPACT' } },
+      { op: 'set_item_field', itemId: item.id, path: 'name', value: 'Hero (heavy)' },
+      { op: 'set_project_field', path: 'length', value: 120 },
+    ] });
+    const plan = AI.planPatch(S.state.project, patch);
+    assert(plan.applicable, plan.summary);
+    AI.commitPatch(S.state.project, patch, plan);
+    assert(AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project)) === plan.result_hash, 'the committed state must match the planned hash exactly');
+    assert(S.getItem(item.id).name === 'Hero (heavy)', 'the item field must actually have changed');
+
+    const invPlan = AI.planPatch(S.state.project, plan.inverse);
+    AI.commitPatch(S.state.project, plan.inverse, invPlan);
+    const back = AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
+    assert(back === origin, `the inverse did not restore the project exactly (${back} vs ${origin})`);
+    assert(S.getItem(item.id).name === originalName, `the item name must be back (expected "${originalName}", got "${S.getItem(item.id).name}")`);
+    assert(S.state.project.length === 90, 'the timeline length must be back');
+    assert(S.getMarker(item.id, 16).name === 'impact', 'the marker name must be back');
+    assert(S.getKey(item.id, 'RightShoulder', 16).ep.Overshoot === 2, 'the pruned easing parameter must be back');
+    return { operations: patch.ops.length, inverseOperations: plan.inverse.ops.length };
+  });
+
+  await step('semantic layer: preview → refusal → apply → scoped rollback, through the real MCP tools', async () => {
+    S.newProject('phase2-loop');
+    const item = await D.addBuiltinRig('r15');
+    D.addCamera(); // returns nothing; the item is the only camera in this project
+    const cam = S.state.project.items.find((i) => i.kind === 'camera');
+    S.setKey(item.id, 'RightShoulder', 0, CF.IDENTITY.slice(), { noUndo: true });
+    S.setKey(item.id, 'RightShoulder', 16, CF.fromEuler(0, 0, 1.2), { noUndo: true });
+    S.setKey(item.id, 'RightHip', 0, CF.IDENTITY.slice(), { noUndo: true });
+    S.setKey(item.id, 'RightHip', 16, CF.fromEuler(0.6, 0, 0), { noUndo: true });
+    S.addMarker(item.id, 16, { name: 'impact', width: 2, codeBegin: 'print("hit")' });
+    const out = {};
+
+    // 1. A dry run changes nothing, and proves it.
+    const before = D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
+    const constrain = {
+      allow: ['the hips', 'the right shoulder'],
+      protect_frames: [{ frame: 16, tolerance: 1, reason: 'the impact' }],
+      contacts: [{ effector: 'the left foot', from: 12, to: 23, tolerance_studs: 0.07 }],
+      text: 'do not change the camera; make it feel heavier',
+    };
+    const ops = [
+      { op: 'set_key', itemId: item.id, track: 'RightHip', t: 6, value: CF.fromEuler(0.3, 0, 0) },
+      { op: 'set_key', itemId: item.id, track: 'RightShoulder', t: 6, value: CF.fromEuler(0, 0, -0.4) },
+    ];
+    const pv = D.mcp('preview_animation_patch', { ops, intent: 'heavier windup', request: 'make the windup heavier', constrain });
+    assert(pv.state_unchanged === true, 'a preview must not change the project');
+    assert(D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project)) === before, 'the project hash changed during a preview');
+    assert(pv.blocked === false, `the preview should be allowed: ${pv.summary}`);
+    assert(pv.scope.breadth.verdict === 'local', `expected a local scope, got ${pv.scope.breadth.verdict}`);
+    assert(pv.scope.dependent_parts.length > 0, 'the scope must name the parts that move as a consequence');
+    assert(pv.constraint_compilation.unparsed.length === 1, 'the unrecognised constraint line must be reported, not swallowed');
+    assert(pv.constraints_checked.not_checked.some((s) => /contact_drift/.test(s)), 'the unverifiable contact constraint must be named in not_checked');
+    out.preview = { txn: pv.transaction_id, scope: pv.scope.summary };
+
+    // 2. A patch that breaks a compiled constraint is refused, and nothing changes.
+    const badOps = [{ op: 'set_key', itemId: cam.id, track: '@fov', t: 6, value: 40 }];
+    const refused = D.mcp('apply_animation_patch', { ops: badOps, intent: 'push in', constrain });
+    assert(refused.applied === false && refused.refused === true, 'a camera edit must be refused under "do not change the camera"');
+    assert(refused.failure_behaviour.state_preserved === true && refused.failure_behaviour.partial_result_applied === false);
+    assert(D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project)) === before, 'a refused apply must leave the project untouched');
+    out.refused = refused.reason;
+
+    // 3. The allowed patch applies, transactionally.
+    const applied = D.mcp('apply_animation_patch', { ops, intent: 'heavier windup', request: 'make the windup heavier', constrain });
+    assert(applied.applied === true, `the apply should have succeeded: ${applied.summary}`);
+    assert(applied.validation.committed_hash_matches_plan === true, 'the committed state must match the plan');
+    assert(applied.rollback.available === true && applied.rollback.tool.includes(applied.transaction_id));
+    assert(S.getKey(item.id, 'RightHip', 6), 'the hip key must exist after the apply');
+    assert(S.getKey(item.id, 'RightShoulder', 6), 'the shoulder key must exist after the apply');
+    assert(applied.before_snapshot, 'the before-state must have been snapshotted');
+    out.applied = { txn: applied.transaction_id, frames: applied.changed_frame_range };
+
+    // 4. Provenance recorded it, and the transaction is inspectable.
+    const prov = D.mcp('inspect_provenance', { type: 'patch' });
+    assert(prov.nodes.some((n) => n.summary.includes(applied.transaction_id)), 'the apply must be recorded in provenance');
+    const insp = D.mcp('inspect_transaction', { transactionId: applied.transaction_id, compareSnapshots: true });
+    assert(insp.inverse_operations.length === 2, `expected 2 inverse operations, got ${insp.inverse_operations.length}`);
+    assert(insp.baseline_comparison.compared === false && /REG-001/.test(insp.baseline_comparison.blocked_on), 'an absent baseline must say what unblocks it');
+    assert(insp.comparison.tracks.length === 2, 'the before/after snapshots must differ on both tracks');
+    assert(insp.comparison.methods_unavailable.length >= 3, 'the comparison must name the methods it could not use');
+
+    // 5. Scoped rollback: the hip only.
+    const partial = D.mcp('rollback_transaction', { transactionId: applied.transaction_id, track: 'RightHip' });
+    assert(partial.rolled_back === true && partial.complete === false, 'a scoped rollback must report itself as incomplete');
+    assert(!S.getKey(item.id, 'RightHip', 6), 'the hip key must be gone');
+    assert(S.getKey(item.id, 'RightShoulder', 6), 'the shoulder key must remain');
+    assert(partial.still_applied.length === 1, 'the report must name what is still applied');
+    out.scopedRollback = { undone: partial.undone, stillApplied: partial.still_applied };
+
+    // 6. Roll back the rest, and land exactly where we started.
+    const rest = D.mcp('rollback_transaction', { transactionId: applied.transaction_id });
+    assert(rest.rolled_back === true && rest.complete === true, 'the remainder must roll back');
+    assert(D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project)) === before, 'after a full rollback the project must be byte-identical to its pre-patch state');
+    assert(D.mcp('list_transactions', {}).transactions.some((t) => t.transaction_id === applied.transaction_id && t.status === 'rolled_back'));
+
+    // 7. …and Ctrl+Z still works on top of all of it, coarsely.
+    // The last operation was the remainder-rollback, which removed the SHOULDER key (the hip one
+    // was already gone from the scoped rollback before it). Undo steps back exactly one operation.
+    S.undo();
+    assert(S.getKey(item.id, 'RightShoulder', 6), 'whole-project undo must reverse the last rollback');
+    assert(!S.getKey(item.id, 'RightHip', 6), 'undo steps back one operation, not two');
+    S.redo();
+    assert(!S.getKey(item.id, 'RightShoulder', 6), 'redo must re-apply the rollback');
+    return out;
+  });
+
+  await step('semantic layer: a persisted lock survives save/load, blocks a patch, and is undoable', async () => {
+    S.newProject('locks');
+    await D.addBuiltinRig('r15');
+    D.addCamera();
+    const cam = S.state.project.items.find((i) => i.kind === 'camera');
+    S.setKey(cam.id, '@fov', 0, 70, { noUndo: true });
+    const out = {};
+
+    const locked = D.mcp('lock_constraint', { query: 'the camera', reason: 'framing approved' });
+    assert(locked.created === true, 'the lock should have been created');
+    assert(locked.resolves_to.tracks.length > 0, 'a lock must resolve to something concrete or be refused');
+    out.lock = locked.constraint.id;
+
+    // It shows up on the Scene Graph, so a caller inspecting the scene sees it without asking.
+    const node = D.mcp('inspect_scene', {}).objects.find((o) => o.id === `item:${cam.id}`);
+    assert(node.lock_state.locked === true && node.lock_state.reason === 'framing approved', 'the Scene Graph must report the lock');
+    assert(node.constraint_ids.includes(locked.constraint.id), 'the Scene Graph must name the constraint');
+
+    // Enforced with NO constraint set passed in — that is the point of persisting it.
+    const blocked = D.mcp('apply_animation_patch', { ops: [{ op: 'set_key', itemId: cam.id, track: '@fov', t: 8, value: 40 }], intent: 'push in' });
+    assert(blocked.applied === false, 'the persisted lock must block the patch on its own');
+    assert(blocked.constraints_checked.violations[0].constraint_type === 'lock');
+    assert(blocked.constraints_checked.violations[0].priority === D.AI.constraints.PRIORITY.USER_LOCK);
+
+    // force records the override rather than hiding the violation.
+    const forced = D.mcp('apply_animation_patch', { ops: [{ op: 'set_key', itemId: cam.id, track: '@fov', t: 8, value: 40 }], intent: 'push in', force: true });
+    assert(forced.applied === true && forced.validation.overridden.length === 1, 'a forced apply must record the override');
+    D.mcp('rollback_transaction', { transactionId: forced.transaction_id });
+
+    // The lock survives a save/load round trip, because it lives inside the project.
+    const json = S.serialize();
+    S.loadProject(json);
+    assert(D.mcp('inspect_constraints', {}).persisted_locks.length === 1, 'the lock must survive save/load');
+    assert(D.mcp('apply_animation_patch', { ops: [{ op: 'set_key', itemId: cam.id, track: '@fov', t: 9, value: 30 }] }).applied === false,
+      'the reloaded lock must still be enforced');
+
+    // Unlocking is explicit and undoable.
+    const removed = D.mcp('unlock_constraint', { id: locked.constraint.id });
+    assert(removed.locks_held === 0);
+    assert(D.mcp('apply_animation_patch', { ops: [{ op: 'set_key', itemId: cam.id, track: '@fov', t: 9, value: 30 }] }).applied === true,
+      'with the lock gone the same patch must go through');
+    S.undo(); // undo the patch
+    S.undo(); // undo the unlock
+    assert(D.mcp('inspect_constraints', {}).persisted_locks.length === 1, 'undo must bring the lock back');
+    let threw = false;
+    try { D.mcp('unlock_constraint', { id: 'constraint:nope' }); } catch { threw = true; }
+    assert(threw, 'unlocking something that is not locked must fail loudly');
+    return out;
+  });
+
   // ---------------------------------------------------------------- MCP registration coverage
   // Regression guard for a real bug found 2026-07-22: solve_ik/create_joint/remove_joint/
   // convert_joint/set_track_space/get_track_space were fully implemented in MCP_HANDLERS (built

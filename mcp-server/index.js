@@ -1192,6 +1192,142 @@ server.tool(
   async (a) => { try { return textResult(await call('inspect_provenance', a)); } catch (e) { return errorResult(e); } },
 );
 
+// ================================================================ safe patch and rollback
+//
+// Directive Parts 54 (semantic constraints and safe change control) and 55 (transaction, undo,
+// rollback and failure recovery). The two-phase contract matters and is worth stating once:
+// PREVIEW plans on a clone and changes nothing; APPLY re-plans, refuses a violated constraint,
+// commits, and verifies the committed state's hash against the plan's. Rollback then works from
+// the recorded inverse, so it can be scoped to one property or one frame range — which whole-
+// project undo, still available and still correct, cannot do.
+
+const PATCH_OPS_SCHEMA = z.array(z.object({
+  op: z.enum(['set_key', 'restore_key', 'delete_key', 'move_key', 'set_easing', 'set_track_space', 'remove_track', 'set_item_field', 'set_project_field', 'set_marker', 'delete_marker']),
+  itemId: z.string().optional(),
+  track: z.string().optional().describe('Track name: a joint name, "@origin", "@fov", a property name, or "@act:Sound.Play".'),
+  t: z.number().optional().describe('Frame. For set_marker/delete_marker it is rounded to a whole frame, as in the editor.'),
+  to: z.number().optional().describe('move_key only: the destination frame. Clamped to the timeline, and the clamp is reported.'),
+  value: z.any().optional().describe('set_key: a 12-number CFrame array, or a number for a numeric track. Required when the key does not exist yet.'),
+  es: z.string().optional().describe('Easing style (Cubic, Quad, Elastic, Bounce, Back, Linear, …).'),
+  ed: z.string().optional().describe('Easing direction (In, Out, InOut).'),
+  bez: z.any().optional().describe('Bezier override [x1,y1,x2,y2], or null to clear.'),
+  ep: z.any().optional().describe("Style parameters (Back's Overshoot, Elastic's Amplitude/Period). Pruned to what the style accepts, as in the editor."),
+  key: z.any().optional().describe('restore_key only: the whole key object to write verbatim.'),
+  space: z.enum(['local', 'world']).optional(),
+  path: z.string().optional().describe('set_item_field / set_project_field: the field name.'),
+  patch: z.any().optional().describe('set_marker only: { name?, width?, codeBegin?, codeEnd?, kf? }.'),
+})).describe('The operations, in order. Later operations see the effect of earlier ones.');
+
+const CONSTRAIN_SCHEMA = z.object({
+  preserve: z.array(z.any()).optional().describe('Phrases ("the camera", "the left arm") or selectors that must not change.'),
+  lock: z.array(z.any()).optional().describe('Same, at lock priority, for this request only. lock_constraint persists one instead.'),
+  allow: z.array(z.any()).optional().describe('The ONLY things the patch may touch. Compiles to a protection over everything else — this is how "change the arms and nothing else" is expressed.'),
+  avoid: z.array(z.any()).optional(),
+  aspect: z.any().optional().describe("Which aspect to protect: 'timing', 'value', 'easing', 'space', 'existence', an array of those, or omit for all. 'timing' + allow is how \"heavier without changing timing\" is expressed."),
+  protect_frames: z.array(z.object({ frame: z.number(), tolerance: z.number().optional(), reason: z.string().optional() })).optional().describe('Protected moments, e.g. the impact frame.'),
+  contacts: z.array(z.object({ effector: z.any(), from: z.number(), to: z.number(), tolerance_studs: z.number(), reason: z.string().optional() })).optional().describe('Declared contacts. RECORDED and reported, but NOT yet verifiable — contact-drift measurement is Phase 5, and the result says so in coverage.notRun.'),
+  budgets: z.array(z.object({ countable: z.enum(['keys', 'markers']).optional(), max: z.number() })).optional(),
+  text: z.string().optional().describe('Lines in a small closed grammar ("do not change timing", "keep frame 16 within 1 frame", "lock the camera", "at most 200 keys"). Anything it does not recognise is returned in `unparsed` and is NOT enforced — call inspect_constraints to see the grammar.'),
+  reason: z.string().optional(),
+  source: z.enum(['user', 'project', 'character', 'style', 'ai', 'platform']).optional().describe('Sets the default priority on Part 54\'s ladder.'),
+}).describe('A change request compiled into ConstraintSpecs.');
+
+server.tool(
+  'preview_animation_patch',
+  'READ-ONLY (a dry run). Plan an animation patch without touching the project: what each operation would do, the exact diff, the frames affected, which parts/props/effects move as a consequence, whether it violates a constraint or a lock, and whether Part 54 calls it a local correction or a broad rewrite. Returns a transaction id in state "previewed" and proves it changed nothing via `state_unchanged`. Call this before apply_animation_patch — apply refuses a patch that was not planned.',
+  {
+    ops: PATCH_OPS_SCHEMA,
+    intent: z.string().optional().describe('What this patch is for, in one line. Kept on the transaction and in provenance.'),
+    request: z.string().optional().describe("The user's own words, verbatim."),
+    strict: z.boolean().optional().describe('Treat every warning as a refusal (default false). Rollback patches use this internally.'),
+    constrain: CONSTRAIN_SCHEMA.optional(),
+    frame: z.number().optional().describe('Frame at which semantic constraint targets are resolved. Defaults to the playhead.'),
+  },
+  async (a) => { try { return textResult(await call('preview_animation_patch', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'apply_animation_patch',
+  'MUTATING (transactional, undoable, rollback-capable). Apply an animation patch atomically. Refuses when a constraint whose response is "refuse" is violated, and refuses without applying anything partial — the committed state\'s content hash is verified against the plan\'s, and a mismatch restores the previous state. Snapshots and pins the before-state, records provenance, and returns a transaction id you can roll back whole or scoped to one property or frame range. Pass force: true to override your own constraint; the override is recorded on the transaction rather than hidden.',
+  {
+    ops: PATCH_OPS_SCHEMA,
+    intent: z.string().optional(),
+    request: z.string().optional(),
+    strict: z.boolean().optional(),
+    constrain: CONSTRAIN_SCHEMA.optional(),
+    frame: z.number().optional(),
+    force: z.boolean().optional().describe('Apply despite a refusing constraint. The violation is recorded as a user override, not discarded.'),
+    snapshotFirst: z.boolean().optional().describe('Snapshot and pin the before-state (default true). Turning this off removes the rollback of last resort.'),
+  },
+  async (a) => { try { return textResult(await call('apply_animation_patch', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'rollback_transaction',
+  'MUTATING (undoable). Reverse an applied patch using its recorded inverse — the whole thing, or scoped to one property, one item, one track, or one frame range. A scoped rollback reports what it did NOT undo (`not_undone`) and what of the transaction is still applied (`still_applied`), and a later call with no scope reverses the rest. Refuses honestly when the project has moved on in a way that consumed what the inverse expected, rather than half-applying.',
+  {
+    transactionId: z.string().describe('From apply_animation_patch or list_transactions.'),
+    property: z.string().optional().describe('Track entity id (e.g. "track:<itemId>/RightShoulder") to roll back only that property.'),
+    itemId: z.string().optional().describe('Roll back only operations on this item.'),
+    track: z.string().optional().describe('Roll back only operations on this track name.'),
+    timeRange: z.array(z.number()).length(2).optional().describe('[from, to] — roll back only operations entirely inside this frame range.'),
+  },
+  async (a) => { try { return textResult(await call('rollback_transaction', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'list_transactions',
+  'READ-ONLY. Every transaction this session holds, with its request, intent, operations, changed entities and properties, changed frame range, constraint set, validation result and whether a rollback is still available. The ledger is IN MEMORY and does not survive a restart; the durable record is the provenance graph inside the project.',
+  {
+    limit: z.number().optional(),
+    status: z.enum(['previewed', 'applied', 'accepted', 'rejected', 'rolled_back', 'failed']).optional(),
+  },
+  async (a) => { try { return textResult(await call('list_transactions', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'inspect_transaction',
+  'READ-ONLY. One transaction in full, including the inverse operations that would undo it, which of them have already been rolled back, and the honest nulls: `baseline_comparison` and `expected_visual_effect` say why they are empty and what unblocks them. Set compareSnapshots to diff the before and after snapshots.',
+  {
+    transactionId: z.string(),
+    compareSnapshots: z.boolean().optional().describe('Also diff the before/after snapshots (data-side methods only — no image comparison exists yet).'),
+  },
+  async (a) => { try { return textResult(await call('inspect_transaction', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'inspect_constraints',
+  'READ-ONLY. Every persisted lock with what it resolves to right now, plus — if you pass a request — how that request compiles into ConstraintSpecs, which lines were NOT understood, and Part 54\'s priority ladder applied to them. Also returns the constraint vocabulary (types, aspects, selector kinds, which checks are actually implemented and which are blocked on a later phase) and exactly what a patch can and cannot express. Read this before writing a constraint.',
+  {
+    constrain: CONSTRAIN_SCHEMA.optional().describe('Optional: compile this request and show the result without applying anything.'),
+    frame: z.number().optional(),
+  },
+  async (a) => { try { return textResult(await call('inspect_constraints', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'lock_constraint',
+  'MUTATING (undoable). Persist a lock into the project, so every later patch is checked against it — a camera that must not move, an impact frame that must stay put, an arm that is finished. Refuses if the target does not resolve, because a lock over nothing is worse than no lock. Locks live at project.semantics.locks, so they survive save/load and travel with the .cadence file, and they appear as `lock_state` on the Scene Graph.',
+  {
+    query: z.string().optional().describe('A phrase: "the camera", "the left foot", "the weapon hand".'),
+    target: z.any().optional().describe('Or a selector: { kind: "track"|"item"|"key"|"frame"|"marker"|"item_field"|"project_field"|"everything"|"complement"|"semantic", … }.'),
+    itemId: z.string().optional(),
+    track: z.string().optional(),
+    t: z.number().optional().describe('Lock a frame (a protected moment).'),
+    aspect: z.any().optional().describe("Lock only one aspect: 'timing', 'value', 'easing', 'space', 'existence', or an array. Omit to lock everything about the target."),
+    timeRange: z.array(z.number()).length(2).optional().describe('[from, to] — the lock only bites inside this frame range.'),
+    reason: z.string().optional().describe('Why. Reported with the lock; a lock nobody can explain is a lock somebody removes.'),
+  },
+  async (a) => { try { return textResult(await call('lock_constraint', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'unlock_constraint',
+  'MUTATING (undoable). Remove a persisted lock by id. Explicit by design: a patch is never allowed to quietly drop a lock in order to succeed — it refuses, and removing the lock is a separate, recorded decision.',
+  { id: z.string().describe('Constraint id from inspect_constraints.') },
+  async (a) => { try { return textResult(await call('unlock_constraint', a)); } catch (e) { return errorResult(e); } },
+);
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

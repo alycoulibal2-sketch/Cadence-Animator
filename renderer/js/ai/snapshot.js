@@ -85,8 +85,12 @@ function deepFreeze(value, seen = new WeakSet()) {
  *
  * Role overrides, annotations and locks are NOT excluded: those are project state that an edit
  * can change and a restore should genuinely bring back.
+ *
+ * Exported because it defines what this layer means by "the state" — `ai/patch.js` verifies a
+ * commit landed where the plan said by comparing the hash of exactly this projection, and a
+ * provenance record written between plan and commit must not be able to invalidate that check.
  */
-function withoutHistory(project) {
+export function withoutHistory(project) {
   if (!project || !project.semantics || !project.semantics.provenance) return project;
   const { provenance, ...restSemantics } = project.semantics;
   // If provenance was the ONLY thing in `semantics`, drop the key entirely rather than leaving an

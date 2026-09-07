@@ -30,6 +30,10 @@ const SG = await import('../renderer/js/ai/scenegraph.js');
 const SEL = await import('../renderer/js/ai/select.js');
 const SNAP = await import('../renderer/js/ai/snapshot.js');
 const PRV = await import('../renderer/js/ai/provenance.js');
+const PATCH = await import('../renderer/js/ai/patch.js');
+const CON = await import('../renderer/js/ai/constraints.js');
+const SCOPE = await import('../renderer/js/ai/scope.js');
+const TXN = await import('../renderer/js/ai/transaction.js');
 const CF = await import('../renderer/js/cf.js');
 
 let passed = 0, failed = 0;
@@ -82,10 +86,19 @@ console.log('\n— purity —');
 check('purity: every ai/ module imports in plain Node with no renderer globals', () => {
   // Reaching this line at all means all 12 imports at the top of this file succeeded. Asserting a
   // symbol from each one keeps a future tree-shaking or re-export mistake from making that vacuous.
-  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV })) {
+  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN })) {
     assert.ok(Object.keys(mod).length > 0, `${name} exported nothing`);
   }
   assert.equal(typeof AI.SEMANTIC_LAYER_VERSION, 'string');
+});
+
+check('purity: every ai/ module on disk is imported by this file', () => {
+  // The purity gate is only a gate if it covers everything. A new module that nobody imports here
+  // could reach for `window` freely, and the check below that greps the sources would catch the
+  // obvious cases but not a lazy `await import('three')`.
+  const onDisk = fs.readdirSync(path.join(ROOT, 'renderer/js/ai')).filter((n) => n.endsWith('.js') && n !== 'index.js').sort();
+  const imported = ['certainty.js', 'constraints.js', 'hash.js', 'ids.js', 'kinematics.js', 'patch.js', 'provenance.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js'];
+  assert.deepEqual(onDisk, imported, 'a module was added to renderer/js/ai without being imported at the top of test/aitest.mjs');
 });
 
 check('mcp: every semantic-layer tool declares its effect before it is called', () => {
@@ -97,6 +110,9 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     'inspect_scene', 'inspect_rig', 'inspect_timeline', 'resolve_semantic', 'selection_vocabulary',
     'set_semantic_role', 'snapshot_scene', 'list_snapshots', 'restore_snapshot', 'diff_snapshots',
     'record_provenance', 'inspect_provenance',
+    // Phase 2
+    'preview_animation_patch', 'apply_animation_patch', 'rollback_transaction', 'list_transactions',
+    'inspect_transaction', 'inspect_constraints', 'lock_constraint', 'unlock_constraint',
   ];
   const src = fs.readFileSync(path.join(ROOT, 'mcp-server/index.js'), 'utf8');
   const found = new Map();
@@ -112,9 +128,17 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
   assert.ok(found.get('restore_snapshot').startsWith('DESTRUCTIVE'), 'restore_snapshot replaces the whole project and must say DESTRUCTIVE');
   assert.ok(found.get('set_semantic_role').startsWith('MUTATING'), 'set_semantic_role writes to the project');
   assert.ok(found.get('record_provenance').startsWith('MUTATING'), 'record_provenance appends to the project');
-  for (const t of ['inspect_scene', 'inspect_rig', 'inspect_timeline', 'resolve_semantic', 'selection_vocabulary', 'list_snapshots', 'diff_snapshots', 'inspect_provenance']) {
+  for (const t of ['inspect_scene', 'inspect_rig', 'inspect_timeline', 'resolve_semantic', 'selection_vocabulary', 'list_snapshots', 'diff_snapshots', 'inspect_provenance',
+    // A dry run is read-only, and saying so is the point of preview existing at all.
+    'preview_animation_patch', 'list_transactions', 'inspect_transaction', 'inspect_constraints']) {
     assert.ok(found.get(t).startsWith('READ-ONLY'), `${t} must be declared READ-ONLY`);
   }
+  for (const t of ['apply_animation_patch', 'rollback_transaction', 'lock_constraint', 'unlock_constraint']) {
+    assert.ok(found.get(t).startsWith('MUTATING'), `${t} changes the project and must say MUTATING`);
+  }
+  // Part 50 also wants rollback capability declared. For the mutating patch tools that is the
+  // whole promise, so the word has to be in the description a caller reads before calling.
+  assert.ok(/rollback/i.test(found.get('apply_animation_patch')), 'apply_animation_patch must state that it is rollback-capable');
 });
 
 check('purity: no ai/ source mentions window, document or three.js', () => {
@@ -925,6 +949,1005 @@ check('provenance: an empty project reports an empty graph rather than throwing'
 });
 
 console.log('\n— layer surface —');
+
+console.log('\n— patch —');
+
+// A fixture with the awkward cases a patch has to survive: a key with no easing fields at all
+// (as an imported animation genuinely has), a Back key carrying style parameters, and a group.
+function patchFixture() {
+  const p = fixture();
+  p.tracks.hero.RightShoulder.keys[2] = { t: 16, v: CF.fromEuler(0, 0, -0.9), es: 'Back', ed: 'In', bez: null, ep: { Overshoot: 2 } };
+  p.tracks.hero.Bare = { keys: [{ t: 0, v: I() }, { t: 12, v: CF.fromEuler(0.5, 0, 0) }] };
+  p.groups = [{ id: 'g1', keys: [{ itemId: 'hero', track: 'RightShoulder', t: 8 }, { itemId: 'hero', track: 'RightElbow', t: 16 }] }];
+  return p;
+}
+const opsOf = (patch) => patch.ops.map((o) => o.op);
+
+check('patch: an unknown op, an unknown field or a missing required field fails at build time', () => {
+  assert.throws(() => PATCH.makePatch({ ops: [{ op: 'nope' }] }), /unknown operation/);
+  assert.throws(() => PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'X', frame: 3 }] }), /unknown field/);
+  assert.throws(() => PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'X' }] }), /"t" is required/);
+  assert.throws(() => PATCH.makePatch({ ops: [] }), /at least one operation/);
+});
+
+check('patch: the id is the content hash of the operations, so the same work has the same id', () => {
+  const a = PATCH.makePatch({ ops: [{ op: 'delete_key', itemId: 'hero', track: 'RightHip', t: 10 }] });
+  const b = PATCH.makePatch({ ops: [{ op: 'delete_key', itemId: 'hero', track: 'RightHip', t: 10 }], intent: 'different intent' });
+  const c = PATCH.makePatch({ ops: [{ op: 'delete_key', itemId: 'hero', track: 'RightHip', t: 11 }] });
+  assert.equal(a.id, b.id, 'the intent is metadata, not work');
+  assert.notEqual(a.id, c.id);
+});
+
+check('patch: planPatch does not touch the project it is planning against', () => {
+  const p = patchFixture();
+  const before = H.contentHash(p);
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [
+    { op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 4, value: CF.fromEuler(0, 0, 0.2) },
+    { op: 'delete_key', itemId: 'hero', track: 'RightHip', t: 10 },
+  ] }));
+  assert.ok(plan.applicable);
+  assert.equal(H.contentHash(p), before, 'planning mutated the source project');
+  // …and the plan's result really is the changed state, not another copy of the source.
+  assert.notEqual(H.contentHash(plan.result), before);
+  assert.equal(plan.result_hash, H.contentHash(plan.result));
+});
+
+check('patch: planning works against a deep-frozen snapshot', () => {
+  // The property that makes a snapshot usable as a baseline: you can ask "what would this patch do
+  // to the approved state?" without unfreezing it.
+  const store = new SNAP.SnapshotStore();
+  const taken = store.take(patchFixture(), { reason: 'frozen' });
+  const frozen = store.get(taken.id).project;
+  assert.ok(Object.isFrozen(frozen));
+  const plan = PATCH.planPatch(frozen, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 4, value: I() }] }));
+  assert.ok(plan.applicable, `planning against a frozen snapshot failed: ${plan.summary}`);
+});
+
+check('patch: commitPatch refuses a plan that is missing, stale, or for another patch', () => {
+  const p = patchFixture();
+  const a = PATCH.makePatch({ ops: [{ op: 'delete_key', itemId: 'hero', track: 'RightHip', t: 10 }] });
+  const b = PATCH.makePatch({ ops: [{ op: 'delete_key', itemId: 'hero', track: 'RightHip', t: 20 }] });
+  const planA = PATCH.planPatch(p, a);
+  assert.throws(() => PATCH.commitPatch(p, a, null), /plan from planPatch\(\) is required/);
+  assert.throws(() => PATCH.commitPatch(p, b, planA), /computed for/);
+  const refused = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'move_key', itemId: 'hero', track: 'RightHip', t: 99, to: 5 }] }));
+  assert.equal(refused.applicable, false);
+  assert.throws(() => PATCH.commitPatch(p, PATCH.makePatch({ ops: [{ op: 'move_key', itemId: 'hero', track: 'RightHip', t: 99, to: 5 }] }), refused), /refused and must not be applied/);
+});
+
+check('patch: a refused patch leaves the project exactly as it was', () => {
+  const p = patchFixture();
+  const before = H.contentHash(p);
+  // Operation 1 is fine, operation 2 is impossible. Atomicity means neither lands.
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [
+    { op: 'set_key', itemId: 'hero', track: 'RightHip', t: 4, value: I() },
+    { op: 'move_key', itemId: 'hero', track: 'RightHip', t: 77, to: 5 },
+  ] }));
+  assert.equal(plan.applicable, false);
+  assert.equal(plan.problems.length, 1);
+  assert.equal(H.contentHash(p), before);
+  // The first op DID run on the clone before the second failed — proving the clone is what
+  // absorbs a partial application, which is the whole design.
+  assert.equal(plan.ops[0].effect, 'created');
+});
+
+check('patch: a modified key is restored verbatim, including absent easing fields', () => {
+  // The hole a field-by-field inverse would have: `state.js` setKey writes easing conditionally,
+  // so a key that never had `es` cannot be put back by setting `es` to undefined.
+  const p = patchFixture();
+  p.tracks.hero.Bare.keys[1] = { t: 12, v: CF.fromEuler(0.5, 0, 0) }; // no es/ed/bez/ep at all
+  const before = H.contentHash(p);
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'Bare', t: 12, value: I(), es: 'Bounce', ed: 'Out' }] });
+  const plan = PATCH.planPatch(p, patch);
+  PATCH.commitPatch(p, patch, plan);
+  assert.equal(p.tracks.hero.Bare.keys[1].es, 'Bounce');
+  const inv = PATCH.planPatch(p, plan.inverse);
+  PATCH.commitPatch(p, plan.inverse, inv);
+  assert.equal(H.contentHash(p), before, 'the inverse did not restore the key exactly');
+  assert.equal('es' in p.tracks.hero.Bare.keys[1], false, 'the restored key grew an easing field it never had');
+});
+
+check('patch: set_key + set_easing + move_key round-trips exactly', () => {
+  const p = patchFixture();
+  const before = H.contentHash(p);
+  const patch = PATCH.makePatch({ intent: 'heavier', ops: [
+    { op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 6, value: CF.fromEuler(0, 0, -0.4) },
+    { op: 'set_easing', itemId: 'hero', track: 'RightShoulder', t: 16, es: 'Quad', ed: 'Out' },
+    { op: 'move_key', itemId: 'hero', track: 'RightShoulder', t: 16, to: 18 },
+  ] });
+  const plan = PATCH.planPatch(p, patch);
+  PATCH.commitPatch(p, patch, plan);
+  assert.deepEqual(p.tracks.hero.RightShoulder.keys.map((k) => k.t), [0, 6, 8, 18]);
+  assert.equal(p.tracks.hero.RightShoulder.keys.find((k) => k.t === 18).ep, null, 'switching Back→Quad must drop the Overshoot parameter');
+  const inv = PATCH.planPatch(p, plan.inverse);
+  PATCH.commitPatch(p, plan.inverse, inv);
+  assert.equal(H.contentHash(p), before);
+  assert.equal(p.tracks.hero.RightShoulder.keys.find((k) => k.t === 16).ep.Overshoot, 2, 'the pruned Overshoot must come back');
+});
+
+check('patch: the inverse runs in reverse order, so a move over a deleted key round-trips', () => {
+  const p = patchFixture();
+  const before = H.contentHash(p);
+  // Delete the key at 8, then move 16 onto 8. Undoing forwards would restore 8 and then have the
+  // move-back overwrite it; undoing in reverse gets it right.
+  const patch = PATCH.makePatch({ ops: [
+    { op: 'delete_key', itemId: 'hero', track: 'RightShoulder', t: 8 },
+    { op: 'move_key', itemId: 'hero', track: 'RightShoulder', t: 16, to: 8 },
+  ] });
+  const plan = PATCH.planPatch(p, patch);
+  PATCH.commitPatch(p, patch, plan);
+  assert.deepEqual(p.tracks.hero.RightShoulder.keys.map((k) => k.t), [0, 8]);
+  const inv = PATCH.planPatch(p, plan.inverse);
+  PATCH.commitPatch(p, plan.inverse, inv);
+  assert.equal(H.contentHash(p), before);
+});
+
+check('patch: a move onto an occupied frame restores the displaced key', () => {
+  const p = patchFixture();
+  const before = H.contentHash(p);
+  const patch = PATCH.makePatch({ ops: [{ op: 'move_key', itemId: 'hero', track: 'RightShoulder', t: 16, to: 8 }] });
+  const plan = PATCH.planPatch(p, patch);
+  assert.equal(plan.ops[0].before.displaced.t, 8, 'the displaced key must be captured');
+  PATCH.commitPatch(p, patch, plan);
+  assert.deepEqual(p.tracks.hero.RightShoulder.keys.map((k) => k.t), [0, 8]);
+  PATCH.commitPatch(p, plan.inverse, PATCH.planPatch(p, plan.inverse));
+  assert.equal(H.contentHash(p), before);
+});
+
+check('patch: a move retargets the key group, and warns about siblings it did not move', () => {
+  const p = patchFixture();
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'move_key', itemId: 'hero', track: 'RightShoulder', t: 8, to: 9 }] }));
+  const warn = plan.warnings.find((w) => w.id === 'PATCH-GROUP-NOT-EXPANDED');
+  assert.ok(warn, `expected a group warning, got ${plan.warnings.map((w) => w.id).join(', ')}`);
+  assert.equal(plan.result.groups[0].keys.find((k) => k.track === 'RightShoulder').t, 9, 'the group entry must follow the key');
+  assert.equal(plan.result.groups[0].keys.find((k) => k.track === 'RightElbow').t, 16, 'the sibling must not have moved');
+});
+
+check('patch: undoing a move puts the group entry back where it was, not where a re-move would put it', () => {
+  // A real defect the round-trip tests caught: `move_key`'s group retarget is STATE-dependent, so
+  // "move back and let it retarget again" is not the inverse. The inverse moves back with
+  // retargeting off and restores exactly the entries the forward move changed.
+  const p = patchFixture();
+  const before = H.contentHash(p);
+  const patch = PATCH.makePatch({ ops: [{ op: 'move_key', itemId: 'hero', track: 'RightShoulder', t: 8, to: 9 }] });
+  const plan = PATCH.planPatch(p, patch);
+  assert.deepEqual(opsOf(plan.inverse), ['move_key', 'restore_group_entry']);
+  assert.equal(plan.inverse.ops[0].retargetGroups, false);
+  PATCH.commitPatch(p, patch, plan);
+  PATCH.commitPatch(p, plan.inverse, PATCH.planPatch(p, plan.inverse));
+  assert.equal(H.contentHash(p), before);
+  assert.equal(p.groups[0].keys.find((k) => k.track === 'RightShoulder').t, 8);
+});
+
+check('patch: a delete leaves the group entry alone, exactly as the editor does, and says so', () => {
+  const p = patchFixture();
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'delete_key', itemId: 'hero', track: 'RightShoulder', t: 8 }] }));
+  assert.ok(plan.warnings.some((w) => w.id === 'PATCH-DANGLING-GROUP-ENTRY'));
+  assert.equal(plan.result.groups[0].keys.length, 2, 'matching state.js means the group entry survives — the warning is the honesty');
+  assert.ok(plan.ui_affordances_not_applied.some((a) => a.id === 'group_cleanup_on_delete'));
+});
+
+check('patch: creating a key on a track with no frame-0 key warns instead of inventing a rest pose', () => {
+  const p = patchFixture();
+  delete p.tracks.hero.RightHip;
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 12, value: CF.fromEuler(0.4, 0, 0) }] }));
+  assert.ok(plan.applicable);
+  assert.ok(plan.warnings.some((w) => w.id === 'PATCH-NO-FRAME-ZERO-KEY'));
+  assert.ok(plan.ui_affordances_not_applied.some((a) => a.id === 'auto_zero_key'));
+  // A brand-new track's inverse removes the track, not just the key — otherwise the round trip
+  // would leave an empty track behind, which is a different project.
+  assert.deepEqual(opsOf(plan.inverse), ['remove_track']);
+  const p2 = patchFixture();
+  delete p2.tracks.hero.RightHip;
+  const b = H.contentHash(p2);
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 12, value: CF.fromEuler(0.4, 0, 0) }] });
+  const pl = PATCH.planPatch(p2, patch);
+  PATCH.commitPatch(p2, patch, pl);
+  PATCH.commitPatch(p2, pl.inverse, PATCH.planPatch(p2, pl.inverse));
+  assert.equal(H.contentHash(p2), b);
+});
+
+check('patch: set_key without a value refuses to create a key, and says why', () => {
+  const p = patchFixture();
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 7, es: 'Linear' }] }));
+  assert.equal(plan.applicable, false);
+  assert.equal(plan.problems[0].id, 'PATCH-NO-VALUE');
+  assert.ok(/set_easing/.test(plan.problems[0].suggestion.text));
+});
+
+check('patch: an op that changes nothing is reported as a no_op and not counted as a change', () => {
+  const p = patchFixture();
+  const k = p.tracks.hero.RightHip.keys[1];
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: k.t, value: k.v }] }));
+  assert.equal(plan.ops[0].effect, 'no_op');
+  assert.deepEqual(plan.changed_entities, []);
+  assert.equal(plan.changed_frame_range, null);
+  assert.equal(plan.inverse, null);
+  assert.ok(plan.diff.identical);
+});
+
+check('patch: strict mode turns a warning into a refusal', () => {
+  const p = patchFixture();
+  const ops = [{ op: 'delete_key', itemId: 'hero', track: 'RightHip', t: 999 }];
+  assert.equal(PATCH.planPatch(p, PATCH.makePatch({ ops })).applicable, true, 'deleting an absent key is idempotent, not an error');
+  const strict = PATCH.planPatch(p, PATCH.makePatch({ ops, strict: true }));
+  assert.equal(strict.applicable, false);
+  assert.ok(/strict mode/.test(strict.problems[0].statement));
+});
+
+check('patch: a clamped move is reported rather than silently relocated', () => {
+  const p = patchFixture();
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'move_key', itemId: 'hero', track: 'RightHip', t: 10, to: 500 }] }));
+  const w = plan.warnings.find((x) => x.id === 'PATCH-MOVE-CLAMPED');
+  assert.ok(w && /frame 60/.test(w.statement), `expected a clamp to the 60-frame timeline, got ${w && w.statement}`);
+});
+
+check('patch: item and project fields are allow-listed, and a refusal explains itself', () => {
+  const p = patchFixture();
+  const bad = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_item_field', itemId: 'hero', path: 'rig', value: {} }] }));
+  assert.equal(bad.applicable, false);
+  assert.ok(/rig topology/.test(bad.problems[0].statement));
+  const bad2 = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_project_field', path: 'tracks', value: {} }] }));
+  assert.equal(bad2.applicable, false);
+  assert.ok(/keyframe operations/.test(bad2.problems[0].statement));
+});
+
+check('patch: an absent field is restored by removal, not by writing undefined', () => {
+  const p = patchFixture();
+  delete p.items[0].tags;
+  const before = H.contentHash(p);
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_item_field', itemId: 'hero', path: 'tags', value: ['hero'] }] });
+  const plan = PATCH.planPatch(p, patch);
+  assert.equal(plan.ops[0].effect, 'created');
+  PATCH.commitPatch(p, patch, plan);
+  assert.deepEqual(p.items[0].tags, ['hero']);
+  PATCH.commitPatch(p, plan.inverse, PATCH.planPatch(p, plan.inverse));
+  assert.equal('tags' in p.items[0], false);
+  assert.equal(H.contentHash(p), before);
+});
+
+check('patch: changing fps warns that the animation retimes, and shortening warns about orphans', () => {
+  const p = patchFixture();
+  const fps = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_project_field', path: 'fps', value: 60 }] }));
+  assert.ok(fps.warnings.some((w) => w.id === 'PATCH-FPS-RETIMES'));
+  const len = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_project_field', path: 'length', value: 10 }] }));
+  const w = len.warnings.find((x) => x.id === 'PATCH-LENGTH-ORPHANS-KEYS');
+  assert.ok(w && /never played/.test(w.statement));
+});
+
+check('patch: set_track_space changes the flag, warns that values were not converted, and round-trips', () => {
+  const p = patchFixture();
+  const before = H.contentHash(p);
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_track_space', itemId: 'hero', track: 'RightShoulder', space: 'world' }] });
+  const plan = PATCH.planPatch(p, patch);
+  assert.ok(plan.warnings.some((w) => w.id === 'PATCH-SPACE-NOT-CONVERTED'));
+  PATCH.commitPatch(p, patch, plan);
+  assert.equal(p.tracks.hero.RightShoulder.space, 'world');
+  PATCH.commitPatch(p, plan.inverse, PATCH.planPatch(p, plan.inverse));
+  assert.equal(H.contentHash(p), before);
+  assert.equal('space' in p.tracks.hero.RightShoulder, false, "'local' must be the absence of the flag, as in state.js");
+});
+
+check('patch: removing a track rebuilds it key-for-key, and an EMPTY track admits it cannot', () => {
+  const p = patchFixture();
+  const before = H.contentHash(p);
+  const patch = PATCH.makePatch({ ops: [{ op: 'remove_track', itemId: 'hero', track: 'Bare' }] });
+  const plan = PATCH.planPatch(p, patch);
+  assert.deepEqual(opsOf(plan.inverse), ['restore_key', 'restore_key']);
+  PATCH.commitPatch(p, patch, plan);
+  assert.equal(p.tracks.hero.Bare, undefined);
+  PATCH.commitPatch(p, plan.inverse, PATCH.planPatch(p, plan.inverse));
+  assert.equal(H.contentHash(p), before);
+
+  p.tracks.hero.Empty = { keys: [] };
+  const empty = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'remove_track', itemId: 'hero', track: 'Empty' }] }));
+  const w = empty.warnings.find((x) => x.id === 'PATCH-EMPTY-TRACK-NOT-RESTORABLE');
+  assert.ok(w && w.suggestion.reversible === false, 'an unreversible operation must say so rather than imply a rollback');
+  assert.equal(empty.inverse, null);
+});
+
+check('patch: markers are patchable, and both directions round-trip', () => {
+  const p = patchFixture();
+  const before = H.contentHash(p);
+  const patch = PATCH.makePatch({ ops: [
+    { op: 'set_marker', itemId: 'hero', t: 30, patch: { name: 'recover', width: 4 } },
+    { op: 'set_marker', itemId: 'hero', t: 16, patch: { name: 'IMPACT' } },
+    { op: 'delete_marker', itemId: 'hero', t: 16 },
+  ] });
+  const plan = PATCH.planPatch(p, patch);
+  assert.ok(plan.applicable, plan.summary);
+  assert.equal(plan.result.markers.hero.length, 1);
+  PATCH.commitPatch(p, patch, plan);
+  PATCH.commitPatch(p, plan.inverse, PATCH.planPatch(p, plan.inverse));
+  assert.equal(H.contentHash(p), before);
+  assert.equal(p.markers.hero[0].name, 'impact', 'the renamed-then-deleted marker must come back with its original name');
+});
+
+check('patch: marker width clamps on a MODIFY exactly as the editor does, and not on a create', () => {
+  // Reproducing state.js faithfully includes reproducing where it does not clamp: `addMarker`
+  // takes the requested width as given, and only `setMarker` caps it at the next marker's start.
+  const p = patchFixture();
+  const created = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_marker', itemId: 'hero', t: 30, patch: { width: 400 } }] }));
+  assert.equal(created.result.markers.hero.find((m) => m.t === 30).width, 400, 'creating a marker does not clamp — state.js addMarker does not either');
+
+  const widened = PATCH.planPatch(p, PATCH.makePatch({ ops: [
+    { op: 'set_marker', itemId: 'hero', t: 30, patch: { width: 0 } },
+    { op: 'set_marker', itemId: 'hero', t: 30, patch: { width: 400 } },
+  ] }));
+  assert.equal(widened.result.markers.hero.find((m) => m.t === 30).width, 30, 'modifying clamps to the timeline end (60 - 30)');
+  const squeezed = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_marker', itemId: 'hero', t: 16, patch: { width: 400 } }] }));
+  assert.equal(squeezed.result.markers.hero.find((m) => m.t === 16).width, 44, 'with no marker after it, the cap is the timeline end (60 - 16)');
+  const blocked = PATCH.planPatch(p, PATCH.makePatch({ ops: [
+    { op: 'set_marker', itemId: 'hero', t: 30, patch: { name: 'recover' } },
+    { op: 'set_marker', itemId: 'hero', t: 16, patch: { width: 400 } },
+  ] }));
+  assert.equal(blocked.result.markers.hero.find((m) => m.t === 16).width, 13, "Moon's rule: a marker's width stops one frame short of the next marker's start (30 - 16 - 1)");
+});
+
+check('patch: filterOps keeps order and reports what a scope drops', () => {
+  const ops = [
+    { op: 'delete_key', itemId: 'hero', track: 'RightHip', t: 4 },
+    { op: 'delete_key', itemId: 'hero', track: 'RightShoulder', t: 6 },
+    { op: 'set_project_field', path: 'length', value: 60 },
+  ];
+  const byTrack = PATCH.filterOps(ops, { track: 'RightHip' });
+  assert.equal(byTrack.ops.length, 1);
+  assert.equal(byTrack.dropped.length, 2);
+  const byTime = PATCH.filterOps(ops, { timeRange: [0, 5] });
+  assert.deepEqual(byTime.ops.map((o) => o.t), [4]);
+  // A timeless op is not inside any frame range, so a time-scoped rollback leaves it alone.
+  assert.ok(byTime.dropped.some((o) => o.op === 'set_project_field'));
+  const byProperty = PATCH.filterOps(ops, { property: IDS.trackId('hero', 'RightShoulder') });
+  assert.deepEqual(byProperty.ops.map((o) => o.track), ['RightShoulder']);
+});
+
+check('patch: patchLimitations names what a patch cannot express, with a reason each', () => {
+  const l = PATCH.patchLimitations();
+  assert.ok(l.can_express.includes('set_key'));
+  assert.ok(l.cannot_express.length >= 5);
+  assert.ok(l.cannot_express.every((c) => c.thing && c.reason), 'every limitation needs a reason, not just a name');
+  assert.ok(l.ui_affordances_not_reproduced.every((a) => a.state_js && a.here));
+});
+
+console.log('\n— constraints —');
+
+check('constraints: an unknown type or aspect cannot be constructed', () => {
+  assert.throws(() => CON.constraintSpec({ constraint_type: 'vibes', target: { kind: 'everything' } }), /constraint_type must be one of/);
+  assert.throws(() => CON.constraintSpec({ constraint_type: 'preserve', target: { kind: 'everything' }, aspect: 'mood' }), /unknown aspect/);
+  assert.throws(() => CON.constraintSpec({ constraint_type: 'preserve' }), /at least one target/);
+});
+
+check('constraints: the priority ladder is Part 54\'s, in order', () => {
+  assert.deepEqual(Object.values(CON.PRIORITY), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.equal(CON.PRIORITY.DATA_SAFETY, 1);
+  assert.equal(CON.PRIORITY.USER_LOCK, 2);
+  assert.equal(CON.PRIORITY.AI_SUGGESTION, 9);
+  // A lock outranks a style preference without anyone having to argue it each time.
+  assert.ok(CON.constraintSpec({ constraint_type: 'lock', target: { kind: 'everything' } }).priority
+    < CON.constraintSpec({ constraint_type: 'preserve', target: { kind: 'everything' }, source: 'style' }).priority);
+});
+
+check('constraints: a protected part protects the track that MOVES it', () => {
+  // Protecting "the left foot" has to mean protecting the ankle motor, or the constraint is
+  // unenforceable in exactly the case it exists for.
+  const p = fixture();
+  const r = CON.resolveTarget(p, { kind: 'semantic', query: 'the left foot' });
+  assert.ok(r.tracks.includes(IDS.trackId('hero', 'LeftAnkle')), `expected the LeftAnkle track, got ${r.tracks.join(', ')}`);
+  assert.equal(r.unresolved.length, 0);
+});
+
+check('constraints: an unresolvable target does NOT silently permit everything', () => {
+  const p = fixture();
+  const r = CON.resolveTarget(p, { kind: 'semantic', query: 'the impact target' });
+  assert.equal(r.tracks.length, 0);
+  assert.equal(r.unresolved.length, 1);
+  assert.ok(r.question);
+  assert.equal(r.certainty, C.CERTAINTY.USER_INTENT_REQUIRED);
+
+  const spec = CON.constraintSpec({ constraint_type: 'preserve', target: { kind: 'semantic', query: 'the impact target' } });
+  const patch = PATCH.makePatch({ ops: [{ op: 'delete_key', itemId: 'hero', track: 'RightHip', t: 10 }] });
+  const chk = CON.checkPatch(p, patch, [spec]);
+  assert.equal(chk.violations.length, 0, 'it cannot report a violation of a target it never resolved');
+  assert.equal(chk.unresolved_targets.length, 1);
+  assert.ok(chk.coverage.notRun.some((s) => /NOT enforced/.test(s)), 'the un-enforced constraint must be named in notRun');
+});
+
+check('constraints: a measured target caps the violation\'s certainty', () => {
+  const p = fixture();
+  const spec = CON.constraintSpec({ constraint_type: 'preserve', target: { kind: 'semantic', query: 'the planted foot' } });
+  const r = CON.resolveTarget(p, spec.target[0], { frame: 10 });
+  assert.equal(r.certainty, C.CERTAINTY.HIGHLY_LIKELY, 'planting is measured, never certain');
+  const track = IDS.parseId(r.tracks[0]).track;
+  const chk = CON.checkPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track, t: 10, value: I() }] }), [spec], { frame: 10 });
+  assert.equal(chk.violations.length, 1);
+  assert.equal(chk.violations[0].finding.certainty, C.CERTAINTY.HIGHLY_LIKELY);
+});
+
+check('constraints: aspects separate "do not change timing" from "do not change poses"', () => {
+  const p = fixture();
+  const timing = CON.compileConstraints({ text: 'do not change timing' }, p).constraints;
+  const poses = CON.compileConstraints({ text: 'do not change poses' }, p).constraints;
+  const move = PATCH.makePatch({ ops: [{ op: 'move_key', itemId: 'hero', track: 'RightHip', t: 10, to: 12 }] });
+  const repose = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 10, value: CF.fromEuler(0.2, 0, 0) }] });
+
+  assert.equal(CON.checkPatch(p, move, timing).violations.length, 1, 'a retime must violate a timing lock');
+  assert.equal(CON.checkPatch(p, repose, timing).violations.length, 0, 'a repose must NOT violate a timing lock');
+  assert.equal(CON.checkPatch(p, repose, poses).violations.length, 1, 'a repose must violate a pose lock');
+  assert.equal(CON.checkPatch(p, move, poses).violations.length, 0, 'a retime must NOT violate a pose lock');
+});
+
+check('constraints: opAspects covers every patch op kind', () => {
+  for (const op of PATCH.OP_KINDS) {
+    const a = CON.opAspects({ op, value: 1, path: 'name' });
+    assert.ok(Array.isArray(a) && a.length, `${op} has no declared aspects`);
+    assert.ok(a.every((x) => CON.ASPECTS.includes(x)), `${op} declares an unknown aspect: ${a.join(', ')}`);
+  }
+});
+
+check('constraints: an allow-list protects everything it does not name', () => {
+  const p = fixture();
+  const c = CON.compileConstraints({ allow: ['the hips', 'the right shoulder'] }, p).constraints;
+  const inside = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() }] });
+  const outside = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'cam', track: '@fov', t: 5, value: 40 }] });
+  assert.equal(CON.checkPatch(p, inside, c).violations.length, 0, 'an allowed track must pass');
+  const out = CON.checkPatch(p, outside, c);
+  assert.equal(out.violations.length, 1);
+  assert.ok(/not in the allowed scope/.test(out.violations[0].reason));
+});
+
+check('constraints: a protected frame catches an edit landing on it from any track', () => {
+  const p = fixture();
+  const c = CON.compileConstraints({ text: 'keep frame 16 within 1 frame' }, p).constraints;
+  assert.equal(c[0].priority, CON.PRIORITY.SHOT_EVENT);
+  const onIt = PATCH.makePatch({ ops: [{ op: 'move_key', itemId: 'hero', track: 'RightElbow', t: 16, to: 20 }] });
+  const nearIt = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 17, value: I() }] });
+  const farFrom = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 3, value: I() }] });
+  assert.equal(CON.checkPatch(p, onIt, c).violations.length, 1);
+  assert.equal(CON.checkPatch(p, nearIt, c).violations.length, 1, 'the ±1 tolerance window must bite at 17');
+  assert.equal(CON.checkPatch(p, farFrom, c).violations.length, 0);
+});
+
+check('constraints: a time-ranged constraint only bites inside its range', () => {
+  const p = fixture();
+  const spec = CON.constraintSpec({ constraint_type: 'preserve', target: { kind: 'track', itemId: 'hero', track: 'RightHip' }, timeRange: [8, 12] });
+  const inside = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 10, value: I() }] });
+  const outside = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 30, value: I() }] });
+  assert.equal(CON.checkPatch(p, inside, [spec]).violations.length, 1);
+  assert.equal(CON.checkPatch(p, outside, [spec]).violations.length, 0);
+});
+
+check('constraints: an unimplemented check is reported as not run, never as satisfied', () => {
+  // Part 54's own worked example includes a foot-contact tolerance, and Cadence cannot measure it
+  // until Phase 5. This is the check that keeps that honest.
+  const p = fixture();
+  const comp = CON.compileConstraints({ contacts: [{ effector: 'the left foot', from: 12, to: 23, tolerance_studs: 0.07 }] }, p);
+  assert.equal(comp.constraints.length, 1);
+  assert.ok(comp.notes.some((n) => /cannot be verified yet/.test(n)));
+  const chk = CON.checkPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftAnkle', t: 15, value: CF.fromEuler(0.5, 0, 0) }] }), comp.constraints);
+  assert.equal(chk.violations.length, 0);
+  assert.ok(chk.coverage.notRun.some((s) => /contact_drift/.test(s) && /MOT-008/.test(s)));
+  assert.ok(/see coverage.notRun/.test(chk.recommendation), 'the recommendation must not read as a clean pass');
+  assert.equal(CON.CHECKS.contact_drift.implemented, false);
+});
+
+check('constraints: implemented conditions really evaluate the planned result', () => {
+  const p = fixture();
+  const budget = CON.compileConstraints({ text: 'at most 8 keys' }, p).constraints;
+  const patch = PATCH.makePatch({ ops: [
+    { op: 'set_key', itemId: 'hero', track: 'RightHip', t: 3, value: I() },
+    { op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() },
+  ] });
+  const plan = PATCH.planPatch(p, patch);
+  const withResult = CON.checkPatch(p, patch, budget, { result: plan.result });
+  assert.equal(withResult.violations.length, 1, 'the project has 9 keys before the patch and 11 after, over the budget of 8');
+  assert.ok(/over the budget/.test(withResult.violations[0].reason));
+  // Without the planned result it says it could not evaluate, instead of guessing.
+  const noResult = CON.checkPatch(p, patch, budget);
+  assert.equal(noResult.violations[0].finding.id, 'CONSTRAINT-NO-RESULT');
+});
+
+check('constraints: frame_within and max_keys read the post-patch state', () => {
+  const p = fixture();
+  const keep = CON.constraintSpec({
+    constraint_type: 'limit', target: { kind: 'track', itemId: 'hero', track: 'RightElbow' },
+    condition: { check: 'frame_within', frame: 16, tolerance: 0 },
+  });
+  const move = PATCH.makePatch({ ops: [{ op: 'move_key', itemId: 'hero', track: 'RightElbow', t: 16, to: 18 }] });
+  const plan = PATCH.planPatch(p, move);
+  assert.equal(CON.checkPatch(p, move, [keep], { result: plan.result }).violations.length, 1);
+
+  const cap = CON.constraintSpec({
+    constraint_type: 'limit', target: { kind: 'track', itemId: 'hero', track: 'RightHip' },
+    condition: { check: 'max_keys', max: 3 },
+  });
+  const add = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() }] });
+  const addPlan = PATCH.planPatch(p, add);
+  assert.equal(CON.checkPatch(p, add, [cap], { result: addPlan.result }).violations.length, 1, 'RightHip would hold 4 keys');
+});
+
+check('constraints: a conflict is reported with both priorities and never resolved', () => {
+  const p = fixture();
+  const a = CON.constraintSpec({ constraint_type: 'budget', target: { kind: 'everything' }, condition: { check: 'budget_keys', max: 100 } });
+  const b = CON.constraintSpec({ constraint_type: 'budget', target: { kind: 'everything' }, condition: { check: 'budget_keys', max: 40 }, source: 'style' });
+  const chk = CON.checkPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() }] }), [a, b]);
+  const c = chk.conflicts.find((x) => x.id === 'BUDGET-SHADOWED');
+  assert.ok(c, `expected a shadowed-budget conflict, got ${chk.conflicts.map((x) => x.id).join(', ')}`);
+  assert.equal(c.resolved_automatically, false);
+  assert.ok(c.alternatives.length >= 2, 'Part 54 requires alternatives to be offered');
+  assert.equal(c.constraints.length, 2);
+  assert.ok(c.constraints.every((x) => typeof x.priority === 'number'));
+});
+
+check('constraints: disjoint numeric ranges on one track are unsatisfiable and say so', () => {
+  const p = fixture();
+  const t = { kind: 'track', itemId: 'cam', track: '@fov' };
+  const a = CON.constraintSpec({ constraint_type: 'limit', target: t, condition: { check: 'value_range', min: 20, max: 40 } });
+  const b = CON.constraintSpec({ constraint_type: 'limit', target: t, condition: { check: 'value_range', min: 60, max: 90 } });
+  const chk = CON.checkPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'cam', track: '@fov', t: 8, value: 50 }] }), [a, b]);
+  assert.ok(chk.conflicts.some((x) => x.id === 'RANGE-DISJOINT'));
+});
+
+check('constraints: the text grammar is closed, and an unparsed line is not enforced', () => {
+  const p = fixture();
+  const comp = CON.compileConstraints({ text: 'do not change timing; make it feel heavier; lock the camera' }, p);
+  assert.equal(comp.constraints.length, 2);
+  assert.deepEqual(comp.unparsed, ['make it feel heavier']);
+  assert.equal(comp.questions.length, 1);
+  assert.ok(/NOT enforced/.test(comp.summary), 'the summary must say a line went unenforced');
+  assert.ok(comp.grammar.length >= 8, 'the recognised forms are returned as documentation');
+});
+
+check('constraints: identical constraints collapse to one, and differently-worded ones do not', () => {
+  const p = fixture();
+  assert.equal(CON.compileConstraints({ preserve: ['the camera', 'the camera'] }, p).constraints.length, 1,
+    'the same protection listed twice is one constraint — the id is a content hash');
+  // Two DIFFERENT phrasings stay two constraints, on purpose: they carry different rule text, and
+  // collapsing them would lose the wording a human would recognise in a violation report.
+  const both = CON.compileConstraints({ preserve: ['the camera'], text: 'do not change the camera' }, p);
+  assert.equal(both.constraints.length, 2);
+  assert.equal(new Set(both.constraints.map((c) => c.property_or_semantic_rule)).size, 2);
+});
+
+check('constraints: cm and m in the grammar convert to studs', () => {
+  const p = fixture();
+  const cm = CON.compileConstraints({ text: 'keep the left foot within 2 cm from frame 12 to 23' }, p).constraints[0];
+  assert.ok(Math.abs(cm.condition.tolerance_studs - 2 / 28) < 1e-9, `2 cm should be ~0.0714 studs, got ${cm.condition.tolerance_studs}`);
+  assert.deepEqual(cm.time_range, [12, 23]);
+});
+
+check('constraints: a lock persists inside the project, is idempotent, and is enforced', () => {
+  const p = fixture();
+  const first = CON.lock(p, { target: { kind: 'semantic', query: 'the camera' }, reason: 'shot approved' });
+  assert.equal(first.created, true);
+  assert.equal(CON.lock(p, { target: { kind: 'semantic', query: 'the camera' }, reason: 'shot approved' }).created, false);
+  assert.equal(CON.listLocks(p).length, 1);
+  assert.equal(p.semantics.locks.entries.length, 1, 'a lock lives under project.semantics so it survives save/load');
+
+  // Enforced with NO constraint set supplied — that is the point of persisting it.
+  const chk = CON.checkPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'cam', track: '@fov', t: 5, value: 40 }] }), []);
+  assert.equal(chk.violations.length, 1);
+  assert.equal(chk.violations[0].constraint_type, 'lock');
+  assert.equal(chk.violations[0].priority, CON.PRIORITY.USER_LOCK);
+  assert.ok(/unlock_constraint/.test(chk.violations[0].finding.suggestion.text));
+
+  assert.ok(CON.unlock(p, first.entry.id));
+  assert.equal(CON.listLocks(p).length, 0);
+  // Removing the last lock must leave NO empty container: `{}` and absent hash differently, so an
+  // empty `semantics` would make the next save/load read as an edit.
+  assert.equal(p.semantics, undefined, 'the last lock removed should leave no empty container behind');
+  assert.equal(CON.unlock(p, first.entry.id), null);
+});
+
+check('constraints: a lock round-trips through JSON, ids and all', () => {
+  const p = fixture();
+  const { entry } = CON.lock(p, { target: { kind: 'track', itemId: 'hero', track: 'RightHip' }, aspect: ['timing'], reason: 'retimed already' });
+  const back = JSON.parse(JSON.stringify(p));
+  assert.deepEqual(CON.listLocks(back)[0], entry);
+  const chk = CON.checkPatch(back, PATCH.makePatch({ ops: [{ op: 'move_key', itemId: 'hero', track: 'RightHip', t: 10, to: 12 }] }), []);
+  assert.equal(chk.violations.length, 1);
+  const pose = CON.checkPatch(back, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 10, value: I() }] }), []);
+  assert.equal(pose.violations.length, 0, 'a timing-only lock must leave a repose alone');
+});
+
+check('constraints: lockStateOf resolves a phrase-based lock back to the item it covers', () => {
+  const p = fixture();
+  CON.lock(p, { target: { kind: 'semantic', query: 'the camera' }, reason: 'shot approved' });
+  const cam = CON.lockStateOf(p, 'cam');
+  assert.equal(cam.locked, true);
+  assert.equal(cam.scope, 'item');
+  assert.equal(cam.reason, 'shot approved');
+  assert.ok(cam.constraints[0].tracks.length > 0, 'the report must name the tracks the lock covers on this item');
+  assert.equal(CON.lockStateOf(p, 'hero').locked, false);
+  // …and the Scene Graph reads the same store, so a report and an enforcement cannot disagree.
+  const node = SG.sceneGraph(p, { frame: 0 }).objects.find((o) => o.name === 'Camera 1');
+  assert.equal(node.lock_state.locked, true);
+  assert.deepEqual(node.constraint_ids, cam.constraints.map((c) => c.id));
+});
+
+check('constraints: the vocabulary says which checks are real', () => {
+  const v = CON.constraintVocabulary();
+  assert.deepEqual(v.types, CON.CONSTRAINT_TYPES);
+  const unimplemented = v.checks.filter((c) => !c.implemented);
+  assert.ok(unimplemented.length >= 3);
+  assert.ok(unimplemented.every((c) => c.blocked_on), 'an unimplemented check must name what unblocks it');
+  assert.ok(v.checks.filter((c) => c.implemented).length >= 6);
+});
+
+console.log('\n— scope —');
+
+check('scope: a local edit is classified local, with its thresholds declared', () => {
+  const p = fixture();
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() }] }));
+  const s = SCOPE.analyseScope(p, plan);
+  assert.equal(s.breadth.verdict, 'local');
+  assert.equal(s.breadth.requires_explicit_reason, false);
+  assert.ok(s.breadth.thresholds.local_max_tracks > 0, 'the thresholds must be reported, not hidden in a condition');
+  assert.equal(s.breadth.finding.evidence.some((e) => e.kind === 'assumption'), true, 'a declared convention must be labelled as an assumption');
+});
+
+check('scope: a wide edit is classified broad and demands an explicit reason', () => {
+  const p = fixture();
+  const ops = Object.keys(p.tracks.hero).map((track) => ({ op: 'set_key', itemId: 'hero', track, t: 5, value: track === '@origin' ? I() : I() }));
+  ops.push({ op: 'set_key', itemId: 'cam', track: '@fov', t: 5, value: 44 });
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops }));
+  const s = SCOPE.analyseScope(p, plan);
+  assert.equal(s.breadth.verdict, 'broad');
+  assert.equal(s.breadth.requires_explicit_reason, true);
+  assert.ok(/broad rewrite/.test(s.breadth.finding.statement));
+});
+
+check('scope: consequences propagate down the rig and through attachment', () => {
+  const p = fixture();
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 5, value: CF.fromEuler(0, 0, 0.4) }] }));
+  const s = SCOPE.analyseScope(p, plan);
+  const parts = s.dependent_parts.map((x) => x.partId);
+  assert.ok(parts.includes('RightUpperArm') && parts.includes('RightHand'), `expected the arm chain, got ${parts.join(', ')}`);
+  assert.ok(s.dependent_objects.some((d) => d.itemId === 'sword'), 'the sword is attached to the right hand and must be listed');
+  assert.ok(/attached to RightHand/.test(s.dependent_objects.find((d) => d.itemId === 'sword').reason));
+});
+
+check('scope: touching @origin propagates to the whole rig', () => {
+  const p = fixture();
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: '@origin', t: 5, value: CF.setPosition(I(), 3, 0, 0) }] }));
+  const s = SCOPE.analyseScope(p, plan);
+  assert.equal(s.dependent_parts.length, p.items[0].rig.parts.length, 'the @origin track places the root, and therefore every part');
+});
+
+check('scope: an event marker inside the changed range is reported, and code on it escalates', () => {
+  const p = fixture();
+  p.markers.hero[0].codeBegin = 'print("hit")';
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'move_key', itemId: 'hero', track: 'RightElbow', t: 16, to: 17 }] }));
+  const s = SCOPE.analyseScope(p, plan);
+  assert.equal(s.event_implications.overlapping.length, 1);
+  const e = s.event_implications.overlapping[0];
+  assert.equal(e.name, 'impact');
+  assert.equal(e.has_code, true);
+  assert.ok(/gameplay event/.test(e.implication));
+  assert.ok(s.regression_test_requirement.unavailable.some((u) => /Luau/.test(u)));
+});
+
+check('scope: an edit away from every marker reports no event implication', () => {
+  const p = fixture();
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 3, value: I() }] }));
+  const s = SCOPE.analyseScope(p, plan);
+  assert.equal(s.event_implications.overlapping.length, 0);
+  assert.ok(/no event marker/.test(s.event_implications.note));
+});
+
+check('scope: the two rows that need later phases are null WITH a reason', () => {
+  const p = fixture();
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() }] }));
+  const s = SCOPE.analyseScope(p, plan);
+  assert.equal(s.expected_visual_region.region, null);
+  assert.ok(/OBS-002/.test(s.expected_visual_region.blocked_on));
+  assert.equal(s.camera_implications.framing_effect, null);
+  assert.ok(/SHOT-00/.test(s.camera_implications.blocked_on));
+  assert.equal(s.camera_implications.cameras_in_project.length, 1, 'the camera that DOES exist is still reported');
+  assert.equal(s.regression_test_requirement.can_fully_validate, false);
+  assert.ok(s.regression_test_requirement.available.length >= 3);
+  assert.ok(s.regression_test_requirement.unavailable.length >= 3);
+  assert.ok(s.coverage.notRun.length >= 4);
+});
+
+check('scope: the frames to re-validate reach one frame either side of the edit', () => {
+  const p = fixture();
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 12, value: I() }] }));
+  const s = SCOPE.analyseScope(p, plan);
+  assert.deepEqual(s.regression_test_requirement.frames_to_revalidate, { start: 11, end: 13 });
+});
+
+check('scope: a constraint violation surfaces as protected-state conflict risk', () => {
+  const p = fixture();
+  const c = CON.compileConstraints({ text: 'do not change the camera' }, p).constraints;
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'cam', track: '@fov', t: 5, value: 40 }] }));
+  const s = SCOPE.analyseScope(p, plan, { constraints: c });
+  assert.equal(s.protected_state_conflict_risk.violations, 1);
+  assert.equal(s.protected_state_conflict_risk.allowed, false);
+  assert.equal(s.protected_state_conflict_risk.highest_priority_violated, CON.PRIORITY.USER_PRESERVE);
+});
+
+console.log('\n— transaction —');
+
+check('transaction: a record carries Part 55\'s field list, with honest nulls', () => {
+  const ledger = new TXN.TransactionLedger();
+  const txn = ledger.open({ request: 'make it heavier', tool: 'test', timestamp: '2026-09-07T00:00:00Z' });
+  for (const f of ['transaction_id', 'parent_transaction_id', 'user_request', 'interpreted_intent', 'tool',
+    'plan_reference', 'constraint_set', 'before_snapshot', 'after_snapshot', 'changed_entities',
+    'changed_properties', 'changed_frame_range', 'expected_visual_effect', 'validation_results',
+    'baseline_comparison', 'approval_status', 'rollback_method', 'author', 'timestamp']) {
+    assert.ok(f in txn, `the transaction record is missing Part 55's "${f}"`);
+  }
+  assert.equal(txn.baseline_comparison.compared, false);
+  assert.ok(/REG-001/.test(txn.baseline_comparison.blocked_on), 'an empty baseline comparison must say what unblocks it');
+  assert.ok(/render/.test(txn.expected_visual_effect.reason));
+  assert.equal(txn.approval_status, 'not_requested', 'applying is not accepting');
+});
+
+check('transaction: preview changes nothing and proves it', () => {
+  const p = fixture();
+  const before = H.contentHash(p);
+  const ledger = new TXN.TransactionLedger();
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() }] });
+  const out = TXN.preview(p, patch, {
+    ledger, request: 'r', tool: 'preview_animation_patch',
+    check: (proj, pt, plan) => CON.checkPatch(proj, pt, [], { result: plan.result }),
+    scope: (proj, plan) => SCOPE.analyseScope(proj, plan),
+  });
+  assert.equal(out.state_unchanged, true);
+  assert.equal(H.contentHash(p), before);
+  assert.equal(out.applied, false);
+  assert.equal(out.status, 'previewed');
+  assert.ok(out.diff_if_applied.tracks.length === 1);
+  assert.ok(out.scope.breadth.verdict);
+  assert.ok(out.rollback.available, 'a preview can always be discarded, which is the trivial rollback');
+});
+
+check('transaction: a mutating result carries every field Part 50 requires', () => {
+  const p = fixture();
+  const ledger = new TXN.TransactionLedger();
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() }] });
+  const plan = PATCH.planPatch(p, patch);
+  const out = TXN.apply(p, patch, plan, { ledger, constraintReport: CON.checkPatch(p, patch, [], { result: plan.result }), timestamp: 'T' });
+  for (const f of ['transaction_id', 'changed_entities', 'changed_properties', 'changed_frame_range',
+    'constraints_checked', 'baseline_relationship', 'validation', 'rollback', 'warnings']) {
+    assert.ok(f in out, `a mutating result is missing Part 50's "${f}"`);
+  }
+  assert.equal(out.applied, true);
+  assert.equal(out.rollback.available, true);
+  assert.ok(out.rollback.tool.includes(out.transaction_id));
+  assert.equal(out.validation.committed_hash_matches_plan, true);
+});
+
+check('transaction: a refusing constraint blocks the apply and preserves the state', () => {
+  const p = fixture();
+  const before = H.contentHash(p);
+  const ledger = new TXN.TransactionLedger();
+  const c = CON.compileConstraints({ text: 'do not change the camera' }, p).constraints;
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'cam', track: '@fov', t: 5, value: 40 }] });
+  const plan = PATCH.planPatch(p, patch);
+  const report = CON.checkPatch(p, patch, c, { result: plan.result });
+  const out = TXN.apply(p, patch, plan, { ledger, constraintReport: report, timestamp: 'T' });
+  assert.equal(out.applied, false);
+  assert.equal(out.refused, true);
+  assert.equal(H.contentHash(p), before);
+  assert.equal(out.failure_behaviour.partial_result_applied, false);
+  assert.equal(out.failure_behaviour.state_preserved, true);
+  assert.ok(out.failure_behaviour.safe_recovery_actions.length >= 3, 'Part 55 requires safe recovery actions to be offered');
+  assert.equal(ledger.get(out.transaction_id).status, 'failed');
+  // A refusal has to say WHICH constraint refused it. This was genuinely missing at first: `fail`
+  // built its result without the constraint report, so a blocked apply came back claiming zero
+  // constraints were checked — the least useful possible answer.
+  assert.equal(out.constraints_checked.count, 1);
+  assert.equal(out.constraints_checked.violations.length, 1);
+  assert.equal(out.constraints_checked.violations[0].constraint_type, 'preserve');
+  assert.ok(/camera/.test(out.constraints_checked.violations[0].rule));
+});
+
+check('transaction: force records the override instead of hiding the violation', () => {
+  const p = fixture();
+  const ledger = new TXN.TransactionLedger();
+  const c = CON.compileConstraints({ text: 'do not change the camera' }, p).constraints;
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'cam', track: '@fov', t: 5, value: 40 }] });
+  const plan = PATCH.planPatch(p, patch);
+  const report = CON.checkPatch(p, patch, c, { result: plan.result });
+  const out = TXN.apply(p, patch, plan, { ledger, constraintReport: report, force: true, timestamp: 'T' });
+  assert.equal(out.applied, true);
+  assert.equal(out.validation.overridden.length, 1);
+  assert.equal(ledger.get(out.transaction_id).approval_status, 'user_override');
+  assert.equal(out.constraints_checked.violations.length, 1, 'the violation is still reported, not erased by the override');
+});
+
+check('transaction: a whole rollback returns the project to its exact prior state', () => {
+  const p = fixture();
+  const before = H.contentHash(p);
+  const ledger = new TXN.TransactionLedger();
+  const patch = PATCH.makePatch({ ops: [
+    { op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: CF.fromEuler(0.2, 0, 0) },
+    { op: 'set_easing', itemId: 'hero', track: 'RightShoulder', t: 8, es: 'Linear', ed: 'Out' },
+  ] });
+  const plan = PATCH.planPatch(p, patch);
+  const applied = TXN.apply(p, patch, plan, { ledger, timestamp: 'T' });
+  assert.notEqual(H.contentHash(p), before);
+  const rb = TXN.rollback(p, ledger, applied.transaction_id, { timestamp: 'T2' });
+  assert.equal(rb.rolled_back, true);
+  assert.equal(rb.complete, true);
+  assert.equal(H.contentHash(p), before);
+  assert.equal(ledger.get(applied.transaction_id).status, 'rolled_back');
+  // A rollback is itself a transaction, so it can be rolled back in turn (Part 55).
+  assert.notEqual(rb.rollback_transaction_id, applied.transaction_id);
+  const redo = TXN.rollback(p, ledger, rb.rollback_transaction_id, { timestamp: 'T3' });
+  assert.equal(redo.rolled_back, true);
+  assert.equal(H.contentHash(p), plan.result_hash);
+});
+
+check('transaction: a scoped rollback undoes one property and reports the rest', () => {
+  const p = fixture();
+  const before = H.contentHash(p);
+  const ledger = new TXN.TransactionLedger();
+  const patch = PATCH.makePatch({ ops: [
+    { op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: CF.fromEuler(0.2, 0, 0) },
+    { op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 5, value: CF.fromEuler(0, 0, 0.3) },
+  ] });
+  const plan = PATCH.planPatch(p, patch);
+  const applied = TXN.apply(p, patch, plan, { ledger, timestamp: 'T' });
+
+  const partial = TXN.rollback(p, ledger, applied.transaction_id, { scope: { track: 'RightHip' }, timestamp: 'T2' });
+  assert.equal(partial.rolled_back, true);
+  assert.equal(partial.complete, false);
+  assert.equal(partial.undone.length, 1);
+  assert.equal(partial.still_applied.length, 1);
+  assert.ok(/RightShoulder/.test(partial.still_applied[0]));
+  assert.ok(!p.tracks.hero.RightHip.keys.some((k) => k.t === 5), 'the hip key must be gone');
+  assert.ok(p.tracks.hero.RightShoulder.keys.some((k) => k.t === 5), 'the shoulder key must remain');
+
+  // "Roll back the rest" then works, because the ledger tracks what has already been reversed.
+  const rest = TXN.rollback(p, ledger, applied.transaction_id, { timestamp: 'T3' });
+  assert.equal(rest.rolled_back, true);
+  assert.equal(rest.complete, true);
+  assert.equal(H.contentHash(p), before);
+  assert.equal(TXN.rollback(p, ledger, applied.transaction_id, { timestamp: 'T4' }).reason, 'every operation of this transaction has already been rolled back');
+});
+
+check('transaction: a time-scoped rollback reverses only the frames asked for', () => {
+  const p = fixture();
+  const ledger = new TXN.TransactionLedger();
+  const patch = PATCH.makePatch({ ops: [
+    { op: 'set_key', itemId: 'hero', track: 'RightHip', t: 4, value: I() },
+    { op: 'set_key', itemId: 'hero', track: 'RightHip', t: 30, value: I() },
+  ] });
+  const plan = PATCH.planPatch(p, patch);
+  const applied = TXN.apply(p, patch, plan, { ledger, timestamp: 'T' });
+  const rb = TXN.rollback(p, ledger, applied.transaction_id, { scope: { timeRange: [0, 10] }, timestamp: 'T2' });
+  assert.equal(rb.rolled_back, true);
+  assert.equal(rb.complete, false);
+  const times = p.tracks.hero.RightHip.keys.map((k) => k.t);
+  assert.ok(!times.includes(4) && times.includes(30), `expected frame 4 gone and 30 kept, got ${times.join(', ')}`);
+});
+
+check('transaction: a scope that matches nothing rolls nothing back and says what it could have', () => {
+  const p = fixture();
+  const ledger = new TXN.TransactionLedger();
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() }] });
+  const plan = PATCH.planPatch(p, patch);
+  const applied = TXN.apply(p, patch, plan, { ledger, timestamp: 'T' });
+  const rb = TXN.rollback(p, ledger, applied.transaction_id, { scope: { track: 'LeftAnkle' } });
+  assert.equal(rb.rolled_back, false);
+  assert.ok(/matched none/.test(rb.reason));
+  assert.ok(rb.available_properties.some((s) => /RightHip/.test(s)));
+  assert.ok(p.tracks.hero.RightHip.keys.some((k) => k.t === 5), 'nothing may change when a scope matches nothing');
+});
+
+check('transaction: a rollback whose inverse no longer applies refuses instead of half-working', () => {
+  const p = fixture();
+  const ledger = new TXN.TransactionLedger();
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() }] });
+  const plan = PATCH.planPatch(p, patch);
+  const applied = TXN.apply(p, patch, plan, { ledger, timestamp: 'T' });
+  // Somebody else removes the key the rollback intended to remove.
+  p.tracks.hero.RightHip.keys = p.tracks.hero.RightHip.keys.filter((k) => k.t !== 5);
+  const after = H.contentHash(p);
+  const rb = TXN.rollback(p, ledger, applied.transaction_id, { timestamp: 'T2' });
+  assert.equal(rb.rolled_back, false);
+  assert.equal(H.contentHash(p), after, 'a refused rollback must change nothing');
+  assert.ok(/no longer applies/.test(rb.reason));
+  assert.ok(/whole-project undo/.test(rb.hint), 'it must point at a recovery that does still work');
+});
+
+check('transaction: rolling back a previewed or already-rolled-back transaction is refused', () => {
+  const p = fixture();
+  const ledger = new TXN.TransactionLedger();
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() }] });
+  const pv = TXN.preview(p, patch, { ledger, tool: 't' });
+  assert.throws(() => TXN.rollback(p, ledger, pv.transaction_id), /not applied/);
+  assert.throws(() => TXN.rollback(p, ledger, 'txn:nope'), /no transaction/);
+});
+
+check('transaction: a decision is explicit, and applying is never accepting', () => {
+  const p = fixture();
+  const ledger = new TXN.TransactionLedger();
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() }] });
+  const applied = TXN.apply(p, patch, PATCH.planPatch(p, patch), { ledger, timestamp: 'T' });
+  assert.equal(ledger.get(applied.transaction_id).status, 'applied');
+  assert.equal(ledger.get(applied.transaction_id).approval_status, 'not_requested');
+  const d = TXN.decide(ledger, applied.transaction_id, 'accepted', { author: 'user', reason: 'looks right' });
+  assert.equal(d.status, 'accepted');
+  assert.equal(d.approval_status, 'accepted');
+  assert.throws(() => TXN.decide(ledger, applied.transaction_id, 'maybe'), /must be 'accepted' or 'rejected'/);
+});
+
+check('transaction: the ledger never evicts something still rollback-able', () => {
+  const p = fixture();
+  const ledger = new TXN.TransactionLedger({ capacity: 3 });
+  const ids = [];
+  for (let i = 0; i < 3; i++) {
+    const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 20 + i, value: I() }] });
+    ids.push(TXN.apply(p, patch, PATCH.planPatch(p, patch), { ledger, timestamp: 'T' }).transaction_id);
+  }
+  for (let i = 0; i < 5; i++) TXN.preview(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 40 + i, value: I() }] }), { ledger, tool: 't' });
+  assert.ok(ledger.dropped > 0, 'the capacity should have bitten');
+  for (const id of ids) assert.ok(ledger.get(id), `applied transaction ${id} was evicted despite being rollback-able`);
+});
+
+check('transaction: compareStates names the comparison methods it did NOT use', () => {
+  const p = fixture();
+  const q = SNAP.cloneProject(p);
+  q.tracks.hero.RightHip.keys[1].v = CF.fromEuler(0.1, 0, 0);
+  const c = TXN.compareStates(p, q);
+  assert.equal(c.tracks.length, 1);
+  assert.ok(c.methods_used.length === 2);
+  assert.ok(c.methods_unavailable.length >= 3);
+  assert.ok(c.methods_unavailable.every((s) => /Phase 4/.test(s)));
+});
+
+check('transaction: the full Phase 2 loop runs end to end on one project', () => {
+  // Part 62's success condition for this phase, as a single test: "a local animation edit can be
+  // previewed, validated, and fully reversed."
+  const p = fixture();
+  const origin = H.contentHash(p);
+  const ledger = new TXN.TransactionLedger();
+  CON.lock(p, { target: { kind: 'semantic', query: 'the camera' }, reason: 'framing approved' });
+
+  const comp = CON.compileConstraints({
+    allow: ['the hips', 'the right shoulder'],
+    protect_frames: [{ frame: 16, tolerance: 1, reason: 'the impact' }],
+    contacts: [{ effector: 'the left foot', from: 12, to: 23, tolerance_studs: 0.07 }],
+  }, p);
+  const patch = PATCH.makePatch({ intent: 'heavier windup', ops: [
+    { op: 'set_key', itemId: 'hero', track: 'RightHip', t: 6, value: CF.fromEuler(0.3, 0, 0) },
+    { op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 6, value: CF.fromEuler(0, 0, -0.4) },
+  ] });
+
+  const pv = TXN.preview(p, patch, {
+    ledger, request: 'make the windup heavier', intent: 'heavier windup', tool: 'preview_animation_patch',
+    constraints: comp.constraints, timestamp: 'T0',
+    check: (proj, pt, plan) => CON.checkPatch(proj, pt, comp.constraints, { result: plan.result }),
+    scope: (proj, plan) => SCOPE.analyseScope(proj, plan, { constraints: comp.constraints }),
+  });
+  assert.equal(pv.state_unchanged, true);
+  assert.equal(pv.blocked, false);
+  assert.equal(pv.scope.breadth.verdict, 'local');
+  assert.ok(pv.constraints_checked.not_checked.some((s) => /contact_drift/.test(s)));
+
+  const plan = PATCH.planPatch(p, patch);
+  const report = CON.checkPatch(p, patch, comp.constraints, { result: plan.result });
+  const applied = TXN.apply(p, patch, plan, { ledger, constraintReport: report, timestamp: 'T1' });
+  assert.equal(applied.applied, true);
+  assert.deepEqual(applied.changed_frame_range, { start: 6, end: 6 });
+
+  // …and a patch that breaks the lock is refused even though the same request compiled fine.
+  const bad = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'cam', track: '@fov', t: 6, value: 40 }] });
+  const badPlan = PATCH.planPatch(p, bad);
+  const badReport = CON.checkPatch(p, bad, comp.constraints, { result: badPlan.result });
+  assert.equal(badReport.violations.length, 2, 'the persisted lock AND the allow-list both catch it');
+  assert.equal(TXN.apply(p, bad, badPlan, { ledger, constraintReport: badReport, timestamp: 'T2' }).applied, false);
+
+  const rb = TXN.rollback(p, ledger, applied.transaction_id, { timestamp: 'T3' });
+  assert.equal(rb.complete, true);
+  // The lock is project state and legitimately survives the rollback of an unrelated patch.
+  assert.equal(CON.listLocks(p).length, 1);
+  CON.unlock(p, CON.listLocks(p)[0].id);
+  assert.equal(H.contentHash(p), origin, 'the project must be exactly where it started');
+});
 
 check('layer: capabilities() states both what it can and cannot do', () => {
   const c = AI.capabilities();

@@ -14,6 +14,7 @@
 import * as CF from '../cf.js';
 import * as ids from './ids.js';
 import * as roles from './roles.js';
+import * as constraints from './constraints.js';
 import { contentHash } from './hash.js';
 import { rigGraph } from './riggraph.js';
 import { timelineGraph } from './timelinegraph.js';
@@ -48,6 +49,7 @@ export function sceneGraph(project, { frame = 0, includeRig = true, includeTimel
     const tracks = tracksOf(project, item.id);
     const worlds = item.rig ? solveItemWorlds(project, item, frame) : null;
     const origin = safeOrigin(project, item, frame);
+    const locks = constraints.lockStateOf(project, item.id);
 
     const node = {
       id: ids.itemId(item),
@@ -71,7 +73,7 @@ export function sceneGraph(project, { frame = 0, includeRig = true, includeTimel
       visibility: item.hidden === true ? false : true,
       render_visibility: item.hidden === true ? false : true,
       selection_state: selectionOf(project, item.id),
-      lock_state: lockStateOf(project, item.id),
+      lock_state: locks,
 
       // Cadence has no material or light entities at all. Not "none found" — the concept does not
       // exist in the scene model, so a lighting-related acceptance criterion (Part 68) cannot be
@@ -81,7 +83,9 @@ export function sceneGraph(project, { frame = 0, includeRig = true, includeTimel
 
       effect_ids: effectIdsOf(item),
       animation_track_ids: Object.keys(tracks).map((n) => ids.trackId(item.id, n)),
-      constraint_ids: [], // Phase 2
+      // Persisted locks covering this item (CON-005). Per-request constraints are not here on
+      // purpose: they exist for the length of one patch and are not project state.
+      constraint_ids: locks.constraints.map((c) => c.id),
       camera_relationships: cameraRelationshipsOf(project, item),
       dependency_ids: [], // filled in below, once every node exists
       tags: item.tags || [],
@@ -250,11 +254,9 @@ function selectionOf(project, itemId) {
   };
 }
 
-function lockStateOf(project, itemId) {
-  const l = project?.semantics?.locks?.[itemId];
-  if (!l) return { locked: false, scope: null, reason: null };
-  return { locked: !!l.item, scope: l.item ? 'item' : (l.tracks ? 'tracks' : null), reason: l.reason || null };
-}
+// Locks are ConstraintSpecs held at `project.semantics.locks.entries` and are ENFORCED as of
+// Phase 2 (CON-005) — `ai/constraints.js` owns the shape, so reading it here rather than
+// re-deriving it is what keeps the report and the enforcement from drifting apart.
 
 function effectIdsOf(item) {
   if (item.kind === 'effect' && item.effect) return [`effectdoc:${item.id}`];

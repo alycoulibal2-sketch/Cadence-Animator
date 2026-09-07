@@ -3228,6 +3228,59 @@ function resolveItemOrigin(item, frame) {
 // belong on this side of the block.
 const snapshotStore = new AI.SnapshotStore();
 
+// The transaction ledger (ai/transaction.js) is session-scoped for the same reason: a rollback
+// depends on the in-memory before-state, so a ledger that survived a restart would promise a
+// recovery it could not perform. The durable record is the provenance graph inside the project.
+const txnLedger = new AI.TransactionLedger();
+
+// Everything a patch tool needs to be honest, in one place so the preview and the apply path
+// cannot check different things. `constraints` are the per-request ones; persisted locks are
+// always included by checkPatch itself.
+function patchContext(constraints, frame) {
+  const at = frame ?? S.state.playhead;
+  return {
+    check: (proj, patch, plan) => AI.constraints.checkPatch(proj, patch, constraints, { frame: at, result: plan.result }),
+    scope: (proj, plan) => AI.scope.analyseScope(proj, plan, { constraints, frame: at }),
+  };
+}
+
+// A patch tool takes ops in Cadence's own addressing — (itemId, track, t) — and semantic targets
+// are resolved by the caller through resolve_semantic first. Turning a phrase into ops here would
+// hide the resolution's certainty, and Part 12 forbids that.
+function buildPatch({ ops, intent, request, strict }) {
+  if (!Array.isArray(ops) || !ops.length) throw new Error('a patch needs at least one operation — see the `ops` schema, or inspect_constraints for what a patch can and cannot express');
+  for (const op of ops) {
+    if (op.itemId && !S.getItem(op.itemId)) throw new Error(`no item with id "${op.itemId}" (list_items or inspect_scene has the real ids)`);
+  }
+  return AI.makePatch({ ops, intent: intent ?? null, request: request ?? null, strict: !!strict, author: 'ai' });
+}
+
+// Compile a request into constraints, and refuse to proceed silently when a line was not
+// understood: a protection nobody parsed is a protection nobody applied.
+function compileRequestConstraints(constrain) {
+  if (!constrain) return { constraints: [], unparsed: [], questions: [], notes: [], by_priority: [], summary: 'no constraints were supplied' };
+  return AI.compileConstraints(constrain, S.state.project, { source: constrain.source || 'user', author: 'ai', createdAt: new Date().toISOString() });
+}
+
+// After a patch touches the project, the app has to be told. `emit('tracks', {})` with no payload
+// clears every track's evaluation cache (see state.js invalidateTrackCache), which is the correct
+// blunt choice here: a patch can touch several tracks at once and the cache is keyed by object
+// identity, so a per-track clear would need the same list twice.
+// A patch never adds or removes an item, so `syncItems()` is a no-op here — it is called anyway
+// because it is idempotent and cheap, and because leaving it out would make this the one mutation
+// path in the app that does not reconcile.
+function refreshAfterPatch(commit) {
+  S.emit('tracks', {});
+  S.emit('markers', {});
+  S.emit('items');
+  S.emit('groups');
+  S.markDirty();
+  syncItems();
+  updateScene();
+  requestDraw();
+  return commit;
+}
+
 // The live project plus the session state the semantic layer treats as optional (selection and
 // camera view are not project data). Shallow on purpose — `items` and `tracks` move by reference,
 // so this costs nothing even on a project carrying tens of megabytes of baked textures.
@@ -4002,6 +4055,185 @@ const MCP_HANDLERS = {
     }
     if (entity) return AI.provenance.historyOf(p, entity, { limit });
     return { ...AI.provenance.query(p, { type, contains, limit }), stats: AI.provenance.stats(p) };
+  },
+
+  // ------------------------------------------------- safe patch and rollback (Parts 54-55)
+  //
+  // The two-phase contract, and the reason there are two tools rather than one:
+  //
+  //   preview_animation_patch   plans on a CLONE, checks constraints, analyses scope. Returns a
+  //                             transaction id in state `previewed`. The live project is proven
+  //                             untouched by a before/after content hash, not by assertion.
+  //   apply_animation_patch     re-plans, refuses if a `refuse`-response constraint is violated,
+  //                             commits, and verifies the committed hash against the plan's.
+  //
+  // Both go through ai/transaction.js so every mutating result carries Part 50's required fields.
+  // `pushUndo()` is still called, so Ctrl+Z works exactly as a user expects on top of the finer
+  // scoped rollback — the two mechanisms are complementary, not alternatives.
+
+  preview_animation_patch: ({ ops, intent, request, strict, constrain, frame } = {}) => {
+    const patch = buildPatch({ ops, intent, request, strict });
+    const compiled = compileRequestConstraints(constrain);
+    const ctx = patchContext(compiled.constraints, frame);
+    const out = AI.previewPatch(S.state.project, patch, {
+      ledger: txnLedger, request, intent, tool: 'preview_animation_patch',
+      constraints: compiled.constraints, author: 'ai', timestamp: new Date().toISOString(),
+      check: ctx.check, scope: ctx.scope,
+    });
+    return { ...out, patch_id: patch.id, constraint_compilation: compiled };
+  },
+
+  apply_animation_patch: ({ ops, intent, request, strict, constrain, frame, force = false, snapshotFirst = true } = {}) => {
+    const patch = buildPatch({ ops, intent, request, strict });
+    const compiled = compileRequestConstraints(constrain);
+    const at = frame ?? S.state.playhead;
+    const plan = AI.planPatch(S.state.project, patch);
+    const report = AI.constraints.checkPatch(S.state.project, patch, compiled.constraints, { frame: at, result: plan.result });
+    const scopeReport = AI.scope.analyseScope(S.state.project, plan, { constraints: compiled.constraints, frame: at });
+
+    // The before-state is captured BEFORE anything is attempted, and pinned, so a rollback has
+    // somewhere to go even if the ledger is later trimmed. Content addressing makes this free when
+    // the state is one already held.
+    const before = snapshotFirst
+      ? snapshotStore.take(S.state.project, { reason: `before ${patch.id}${intent ? ` — ${intent}` : ''}`, author: 'ai', pinned: true, timestamp: new Date().toISOString() })
+      : null;
+
+    const txn = txnLedger.open({
+      request, intent, tool: 'apply_animation_patch', plan, constraints: compiled.constraints,
+      beforeSnapshot: before ? before.id : null, author: 'ai', timestamp: new Date().toISOString(),
+    });
+
+    const willApply = plan.applicable && (report.allowed || force);
+    if (willApply) S.pushUndo();
+    const out = AI.applyPatch(S.state.project, patch, plan, {
+      ledger: txnLedger, txn, constraintReport: report, force, timestamp: new Date().toISOString(),
+    });
+    if (out.applied) {
+      refreshAfterPatch(out);
+      const after = snapshotStore.take(S.state.project, { reason: `after ${txn.transaction_id}`, author: 'ai', timestamp: new Date().toISOString() });
+      txn.after_snapshot = after.id;
+      AI.provenance.record(S.state.project, {
+        type: 'patch', author: 'ai',
+        summary: `${txn.transaction_id}: ${out.summary}`,
+        detail: {
+          patch_id: patch.id, intent: intent ?? null, operations: txn.operations,
+          constraints_checked: report.checked, violations: report.violations.length,
+          overridden: out.validation?.overridden ?? null,
+          before_snapshot: before ? before.id : null, after_snapshot: after.id,
+        },
+        entities: out.changed_entities,
+        links: [...(before ? [{ type: 'before', target: before.id }] : []), { type: 'after', target: after.id }],
+        timestamp: new Date().toISOString(),
+      });
+    }
+    return { ...out, patch_id: patch.id, before_snapshot: before ? before.id : null, after_snapshot: txn.after_snapshot, scope: scopeReport, constraint_compilation: compiled };
+  },
+
+  // Whole or scoped. Scoped rollback is the recorded inverse patch, filtered — so anything the
+  // scope excludes is reported in `not_undone` and `still_applied` rather than quietly skipped.
+  rollback_transaction: ({ transactionId, property, itemId, track, timeRange } = {}) => {
+    if (!transactionId) throw new Error('rollback_transaction needs a transactionId — list_transactions shows what this session holds');
+    const scope = {};
+    if (property) scope.property = property;
+    if (itemId) scope.itemId = itemId;
+    if (track) scope.track = track;
+    if (Array.isArray(timeRange) && timeRange.length === 2) scope.timeRange = timeRange;
+
+    const txn = txnLedger.get(transactionId);
+    if (txn && (txn.status === 'applied' || txn.status === 'accepted')) S.pushUndo();
+    const out = AI.rollbackTransaction(S.state.project, txnLedger, transactionId, { scope, timestamp: new Date().toISOString(), author: 'ai' });
+    if (out.rolled_back) {
+      refreshAfterPatch(out);
+      AI.provenance.record(S.state.project, {
+        type: 'decision', author: 'ai',
+        summary: `rolled back ${transactionId}${out.complete ? '' : ' (partially)'} — ${out.undone.length} operation(s)`,
+        detail: { scope, undone: out.undone, still_applied: out.still_applied ?? [], complete: out.complete },
+        entities: out.changed_entities || [],
+        links: [{ type: 'rolls_back', target: transactionId }],
+        timestamp: new Date().toISOString(),
+      });
+    }
+    return out;
+  },
+
+  list_transactions: ({ limit, status } = {}) => ({ ...txnLedger.list({ limit, status }), stats: txnLedger.stats() }),
+
+  inspect_transaction: ({ transactionId, compareSnapshots } = {}) => {
+    const txn = txnLedger.get(transactionId);
+    if (!txn) throw new Error(`No transaction "${transactionId}" in this session's ledger (it is in-memory only)`);
+    const out = {
+      ...txn,
+      // The inverse is the interesting part of a transaction record: it is the exact recipe for
+      // undoing it, and a caller deciding whether to roll back should be able to read it.
+      inverse_operations: txn.inverse ? txn.inverse.ops.map(AI.patch.describeOp) : [],
+      already_rolled_back: (txn.rolled_back_ops || []).map((i) => AI.patch.describeOp(txn.inverse.ops[i])),
+    };
+    delete out.inverse;
+    if (compareSnapshots && txn.before_snapshot && txn.after_snapshot) {
+      const a = snapshotStore.get(txn.before_snapshot);
+      const b = snapshotStore.get(txn.after_snapshot);
+      out.comparison = a && b
+        ? AI.transaction.compareStates(a.project, b.project)
+        : { error: 'one of the snapshots has been evicted from the in-memory store' };
+    }
+    return out;
+  },
+
+  inspect_constraints: ({ constrain, frame } = {}) => {
+    const compiled = compileRequestConstraints(constrain);
+    const locks = AI.constraints.listLocks(S.state.project);
+    return {
+      persisted_locks: locks.map((l) => ({
+        id: l.id, rule: l.property_or_semantic_rule, aspect: l.aspect, time_range: l.time_range,
+        priority: l.priority, reason: l.reason, author: l.author, created_at: l.created_at,
+        resolves_to: AI.constraints.resolveTarget(S.state.project, l.target[0], { frame: frame ?? S.state.playhead }),
+      })),
+      compiled_from_request: compiled,
+      vocabulary: AI.constraints.constraintVocabulary(),
+      patch_capability: AI.patch.patchLimitations(),
+    };
+  },
+
+  lock_constraint: ({ target, query, itemId, track, t, aspect, timeRange, reason } = {}) => {
+    // Either a structural selector or a phrase. A phrase is resolved FIRST so a lock on something
+    // that does not resolve is refused loudly rather than stored as a protection over nothing.
+    const sel = target || (query ? { kind: 'semantic', query, itemId } : track ? { kind: 'track', itemId, track } : t !== undefined ? { kind: 'frame', t } : itemId ? { kind: 'item', itemId } : null);
+    if (!sel) throw new Error('lock_constraint needs a target: a selector, a phrase (`query`), an itemId+track, a frame (`t`), or an itemId');
+    const resolved = AI.constraints.resolveTarget(S.state.project, sel, { frame: S.state.playhead });
+    if (resolved.unresolved.length) {
+      throw new Error(`that target could not be resolved, so locking it would protect nothing: ${resolved.question || resolved.unresolved[0].reason}`);
+    }
+    S.pushUndo();
+    const { entry, created } = AI.constraints.lock(S.state.project, {
+      target: sel, aspect, timeRange, reason: reason ?? null, author: 'user', createdAt: new Date().toISOString(),
+    });
+    AI.provenance.record(S.state.project, {
+      type: 'decision', author: 'ai',
+      summary: created ? `locked ${entry.property_or_semantic_rule}` : `lock already held on ${entry.property_or_semantic_rule}`,
+      detail: { constraint: entry, resolves_to: { tracks: resolved.tracks, items: resolved.items, frames: resolved.frames } },
+      entities: [...resolved.tracks, ...resolved.items.map((i) => AI.ids.itemId(i))],
+      timestamp: new Date().toISOString(),
+    });
+    S.emit('items');
+    S.markDirty();
+    return { constraint: entry, created, resolves_to: resolved, locks_held: AI.constraints.listLocks(S.state.project).length };
+  },
+
+  unlock_constraint: ({ id } = {}) => {
+    if (!id) throw new Error('unlock_constraint needs the constraint id — inspect_constraints lists them');
+    // Checked before pushUndo, so a bad id does not leave a no-op entry on the undo stack.
+    if (!AI.constraints.listLocks(S.state.project).some((l) => l.id === id)) throw new Error(`No lock "${id}" is held`);
+    S.pushUndo();
+    const gone = AI.constraints.unlock(S.state.project, id);
+    AI.provenance.record(S.state.project, {
+      type: 'decision', author: 'ai',
+      summary: `unlocked ${gone.property_or_semantic_rule}`,
+      detail: { constraint: gone },
+      timestamp: new Date().toISOString(),
+    });
+    S.emit('items');
+    S.markDirty();
+    return { removed: gone, locks_held: AI.constraints.listLocks(S.state.project).length };
   },
 };
 
