@@ -1,0 +1,45 @@
+name: CI
+
+# The gate an automated pull request has to pass before it may merge.
+#
+# It runs the three headless suites and nothing else, deliberately. The fourth suite —
+# `npm run smoketest` — drives the real Electron app through a GPU renderer and cannot run on a
+# hosted runner; it is the agent's job to run that locally before pushing, and the PR body should
+# say what it returned. Do not add it here and do not let its absence read as "everything passed":
+# a green tick on this workflow means the pure logic is sound, not that anything was rendered.
+#
+# No `npm ci`. All three suites import only Node built-ins and files in this repository, so
+# installing Electron and three.js would add several minutes and a whole class of flake to a job
+# that takes about five seconds.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Semantic layer (test/aitest.mjs)
+        run: node test/aitest.mjs
+
+      - name: Core (test/coretest.mjs)
+        run: node test/coretest.mjs
+
+      - name: PNX engine (test/pnxtest.mjs)
+        run: node test/pnxtest.mjs
+
+      - name: Say what was NOT checked
+        if: always()
+        run: |
+          echo "::notice title=Coverage::The Electron smoketest (test/smoketest.js, 95 steps) did NOT run here."
+          echo "::notice title=Coverage::It needs a GPU renderer. Nothing in this job rendered, exported, or looked at a pixel."
