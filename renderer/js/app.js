@@ -3288,6 +3288,46 @@ function liveProject() {
   return { ...S.state.project, __selection: S.state.selection, __cameraView: S.state.cameraView };
 }
 
+// Shared by plan_motion and apply_motion_plan so the two cannot interpret the same request
+// differently. Accepts either a raw request string or an IntentSpec that a caller already has from
+// interpret_intent and has possibly edited.
+function resolveIntent({ request, intent, itemId, constrain, timeRange, terms, mode }) {
+  if (!request && !intent && !(terms && terms.length)) {
+    throw new Error('needs a `request` (text), an `intent` (an IntentSpec from interpret_intent), or `terms` — see animation_vocabulary for the words that carry meaning');
+  }
+  const compilation = { raw: constrain || null };
+  if (intent && intent.id) {
+    // A supplied IntentSpec already carries its preserve clause; the extra `constrain` argument is
+    // compiled on top rather than replacing it, so editing an intent by hand cannot silently drop a
+    // protection the original interpretation established.
+    const aspects = intent.preserve.filter((p) => p.startsWith('aspect:'));
+    const fromIntent = AI.compileConstraints({
+      preserve: intent.preserve.filter((p) => !p.startsWith('aspect:')),
+      text: aspects.map((p) => `do not change ${p.slice(7) === 'value' ? 'poses' : p.slice(7)}`).join('\n') || undefined,
+      protect_frames: (intent.critical_events || [])
+        .filter((e) => e.expected_time !== null && e.expected_time !== undefined)
+        .map((e) => ({ frame: e.expected_time, tolerance: e.tolerance ?? 0 })),
+    }, S.state.project, { source: 'user' });
+    const extra = compileRequestConstraints(constrain);
+    return {
+      intentSpec: intent,
+      constraints: [...fromIntent.constraints, ...extra.constraints],
+      interpretation: { text: 'the caller supplied an IntentSpec, so no text was re-interpreted', changes: [], preserves: intent.preserve },
+      questions: [...(intent.unresolved_questions || []), ...extra.questions],
+      compilation,
+    };
+  }
+  const out = AI.interpretRequest(liveProject(), { request, itemId, timeRange, terms, mode });
+  const extra = compileRequestConstraints(constrain);
+  return {
+    intentSpec: out.intent,
+    constraints: [...out.constraints.constraints, ...extra.constraints],
+    interpretation: out.interpretation,
+    questions: [...out.questions, ...extra.questions],
+    compilation,
+  };
+}
+
 const MCP_HANDLERS = {
   // Unpacked, so callers still see each part's real customTexture rather than the `@texlib:` refs
   // serialize() now writes to disk — this tool's output shape is unchanged by that optimization.
@@ -4108,11 +4148,12 @@ const MCP_HANDLERS = {
     const out = AI.applyPatch(S.state.project, patch, plan, {
       ledger: txnLedger, txn, constraintReport: report, force, timestamp: new Date().toISOString(),
     });
+    let provenanceId = null;
     if (out.applied) {
       refreshAfterPatch(out);
       const after = snapshotStore.take(S.state.project, { reason: `after ${txn.transaction_id}`, author: 'ai', timestamp: new Date().toISOString() });
       txn.after_snapshot = after.id;
-      AI.provenance.record(S.state.project, {
+      provenanceId = AI.provenance.record(S.state.project, {
         type: 'patch', author: 'ai',
         summary: `${txn.transaction_id}: ${out.summary}`,
         detail: {
@@ -4126,7 +4167,10 @@ const MCP_HANDLERS = {
         timestamp: new Date().toISOString(),
       });
     }
-    return { ...out, patch_id: patch.id, before_snapshot: before ? before.id : null, after_snapshot: txn.after_snapshot, scope: scopeReport, constraint_compilation: compiled };
+    // `provenance_id` is returned so a caller that produced this patch from something larger — a
+    // motion plan, later a shot or a VFX change — can attach the correct typed edge to it. Without
+    // it the only way to relate the two is by timestamp, which is not a relationship.
+    return { ...out, patch_id: patch.id, provenance_id: provenanceId, before_snapshot: before ? before.id : null, after_snapshot: txn.after_snapshot, scope: scopeReport, constraint_compilation: compiled };
   },
 
   // Whole or scoped. Scoped rollback is the recorded inverse patch, filtered — so anything the
@@ -4234,6 +4278,171 @@ const MCP_HANDLERS = {
     S.emit('items');
     S.markDirty();
     return { removed: gone, locks_held: AI.constraints.listLocks(S.state.project).length };
+  },
+
+  // ------------------------------------------------- the formal animation language (Part 20)
+  //
+  // Three read-only steps and one mutating one, in the order the directive's production loop puts
+  // them: UNDERSTAND (interpret_intent) → PLAN (plan_motion) → GENERATE (apply_motion_plan) →
+  // MEASURE (evaluate_acceptance).
+  //
+  // `apply_motion_plan` deliberately re-runs the interpretation and the plan rather than taking a
+  // plan id. The project may have changed since `plan_motion` was called, and a plan compiled
+  // against a stale scene would produce operations addressed at keys that have moved. The patch
+  // layer would catch that, but refusing late is worse than planning fresh.
+
+  animation_vocabulary: ({ itemId, style } = {}) => ({
+    ...AI.vocabulary.vocabulary(S.state.project, { itemId, style }),
+    request_grammar: AI.intent.intentVocabulary(),
+    planner: AI.plan.planLimitations(),
+    language: AI.cal.calLimitations(),
+  }),
+
+  set_vocabulary_term: ({ term, dimensions, scope, scopeId, note, evidence, author } = {}) => {
+    if (!term) throw new Error('set_vocabulary_term needs a `term` — animation_vocabulary lists them');
+    // The evidence requirement is enforced in ai/vocabulary.js and surfaced here so the error a
+    // caller reads names the reason rather than the throwing line.
+    if (!Array.isArray(evidence) || !evidence.length) {
+      throw new Error('set_vocabulary_term needs `evidence`: at least one statement of what the user said or did that justifies this reinterpretation. Part 21 asks for a scoped preference captured WITH its evidence, never a silent redefinition of the shared meaning.');
+    }
+    S.pushUndo();
+    const entry = AI.vocabulary.setTerm(S.state.project, term, {
+      dimensions: dimensions || {}, scope: scope || 'project', scopeId: scopeId ?? null, note: note ?? null,
+      evidence: evidence.map((e) => (typeof e === 'string' ? { kind: 'data', statement: e } : e)),
+      author: author || 'user', createdAt: new Date().toISOString(),
+    });
+    AI.provenance.record(S.state.project, {
+      type: 'lesson', author: 'ai',
+      summary: `"${term}" reinterpreted for this ${entry.scope}${entry.scope_id ? ` (${entry.scope_id})` : ''}`,
+      detail: { entry, global_definition_unchanged: true },
+      timestamp: new Date().toISOString(),
+    });
+    S.markDirty();
+    return { entry, overrides: AI.vocabulary.listOverrides(S.state.project), note: 'the shared definition is unchanged; this is a scoped delta layered on top of it' };
+  },
+
+  interpret_intent: (args = {}) => {
+    const out = AI.interpretRequest(liveProject(), { ...args, itemId: args.itemId ?? null });
+    // `intent` is the artefact the next two tools take. Returned whole so a caller can edit a field
+    // and pass it straight back rather than re-phrasing the sentence.
+    return {
+      intent: out.intent,
+      interpretation: out.interpretation,
+      dimensions: out.vocabulary.dimensions,
+      tensions: out.vocabulary.tensions,
+      overrides_applied: out.vocabulary.overrides_applied,
+      constraints: out.constraints,
+      questions: out.questions,
+      unrecognised: out.unrecognised,
+      parse: out.parse,
+      findings: out.findings,
+      coverage: out.coverage,
+    };
+  },
+
+  plan_motion: ({ request, intent, itemId, boundaries, constrain, timeRange, terms, mode } = {}) => {
+    const { intentSpec, constraints, interpretation, questions } = resolveIntent({ request, intent, itemId, constrain, timeRange, terms, mode });
+    const planned = AI.planMotion(liveProject(), { intent: intentSpec, itemId: itemId ?? intentSpec.target?.itemId, constraints, boundaries });
+    const compiled = AI.compilePlan(liveProject(), planned.plan, planned.ctx, { constraints, frame: S.state.playhead });
+    return {
+      intent: intentSpec,
+      interpretation,
+      plan: planned.plan,
+      description: planned.description,
+      segmentation: { segments: planned.segmentation.segments, source: planned.segmentation.source, findings: planned.segmentation.findings },
+      // The operations are shown but NOT applied. This is the dry run of the dry run: what
+      // apply_motion_plan would hand to preview_animation_patch.
+      would_apply: compiled.ops.map(AI.patch.describeOp),
+      operations: compiled.ops.length,
+      applied_strategies: compiled.applied,
+      blocked: compiled.blocked,
+      lost: compiled.lost,
+      compiler_notes: compiled.notes,
+      skipped: compiled.skipped,
+      acceptance: planned.plan.acceptance_criteria,
+      questions: [...questions, ...planned.questions],
+      findings: [...planned.findings, ...compiled.findings],
+      coverage: planned.coverage,
+    };
+  },
+
+  apply_motion_plan: ({ request, intent, itemId, boundaries, constrain, timeRange, terms, mode, force = false } = {}) => {
+    const { intentSpec, constraints, interpretation, questions, compilation } = resolveIntent({ request, intent, itemId, constrain, timeRange, terms, mode });
+    const planned = AI.planMotion(liveProject(), { intent: intentSpec, itemId: itemId ?? intentSpec.target?.itemId, constraints, boundaries });
+    const compiled = AI.compilePlan(liveProject(), planned.plan, planned.ctx, { constraints, frame: S.state.playhead });
+
+    if (!compiled.ops.length) {
+      // Not an error. A plan every constraint blocks is a legitimate and informative outcome, and
+      // throwing would throw away the explanation of what was lost and why.
+      return {
+        applied: false, reason: compiled.summary, plan: planned.plan, intent: intentSpec, interpretation,
+        blocked: compiled.blocked, lost: compiled.lost, skipped: compiled.skipped,
+        questions: [...questions, ...planned.questions], findings: [...planned.findings, ...compiled.findings],
+      };
+    }
+
+    // `snapshotFirst` is forced on: the acceptance baseline IS the before-snapshot, so turning it
+    // off would mean applying a plan and then having nothing to measure the result against. The
+    // store is content-addressed, so when the state is one it already holds this costs nothing.
+    const result = MCP_HANDLERS.apply_animation_patch({
+      ops: compiled.ops,
+      intent: `${intentSpec.request || intentSpec.id}: ${compiled.applied.map((a) => a.strategy).join(' + ')}`,
+      request: intentSpec.request ?? null,
+      constrain: compilation.raw,
+      force, snapshotFirst: true,
+    });
+
+    const baseline = result.applied && result.before_snapshot ? snapshotStore.get(result.before_snapshot) : null;
+    const acceptance = baseline
+      ? AI.cal.evaluateAcceptance(baseline.project, S.state.project, planned.plan.acceptance_criteria, { itemId: planned.plan.target.itemId })
+      : null;
+
+    if (result.applied) {
+      const planNode = AI.provenance.record(S.state.project, {
+        type: 'plan', author: 'ai',
+        summary: `${planned.plan.id} from ${intentSpec.id}: ${compiled.summary}`,
+        detail: {
+          intent: intentSpec, plan_description: planned.description,
+          applied: compiled.applied, blocked: compiled.blocked, lost: compiled.lost,
+          transaction_id: result.transaction_id,
+          acceptance: acceptance ? { accepted: acceptance.accepted, fully_validated: acceptance.fully_validated, summary: acceptance.summary } : null,
+        },
+        timestamp: new Date().toISOString(),
+      });
+      // The edge runs patch → plan, which is the direction `implements` is defined in. Pointing it
+      // the other way would read as "the plan implements the patch", and a provenance graph whose
+      // edges mean the reverse of what they say is worse than one with no edge at all.
+      if (result.provenance_id) AI.provenance.link(S.state.project, 'implements', result.provenance_id, planNode);
+      S.markDirty();
+    }
+
+    return {
+      ...result,
+      intent: intentSpec,
+      interpretation,
+      plan: planned.plan,
+      description: planned.description,
+      applied_strategies: compiled.applied,
+      blocked: compiled.blocked,
+      lost: compiled.lost,
+      compiler_notes: compiled.notes,
+      skipped: compiled.skipped,
+      acceptance,
+      questions: [...questions, ...planned.questions],
+      findings: [...(result.findings || []), ...planned.findings, ...compiled.findings],
+    };
+  },
+
+  evaluate_acceptance: ({ acceptance, snapshotId, transactionId, itemId } = {}) => {
+    if (!acceptance) throw new Error('evaluate_acceptance needs an `acceptance` spec — plan_motion returns one, or build one with the checks listed in animation_vocabulary.language.acceptance_checks');
+    const id = snapshotId || (transactionId ? txnLedger.get(transactionId)?.before_snapshot : null);
+    if (!id) throw new Error('evaluate_acceptance needs a `snapshotId` to compare against, or a `transactionId` whose before-snapshot it should use');
+    const before = snapshotStore.get(id);
+    if (!before) throw new Error(`No snapshot "${id}" — the store is in-memory and capacity-capped; list_snapshots shows what is held`);
+    return {
+      baseline: id,
+      ...AI.cal.evaluateAcceptance(before.project, S.state.project, acceptance, { itemId }),
+    };
   },
 };
 

@@ -1328,6 +1328,109 @@ server.tool(
   async (a) => { try { return textResult(await call('unlock_constraint', a)); } catch (e) { return errorResult(e); } },
 );
 
+// ---------------------------------------------------------------- the formal animation language
+//
+// Directive Part 20. These four tools are the difference between "write these keyframes" and
+// "make this heavier without changing the timing": a request becomes an IntentSpec, the IntentSpec
+// becomes a phase-structured MotionPlan, the plan compiles to operations, and every candidate
+// change a constraint or a missing capability stopped is reported with what the motion lost.
+//
+// Read `animation_vocabulary` first. The words carry specific, editable meanings, and a word the
+// vocabulary does not know changes nothing rather than being guessed at.
+
+const INTENT_TARGET_SCHEMA = {
+  itemId: z.string().optional().describe('The rig to plan against. Required unless the intent already names one.'),
+  timeRange: z.array(z.number()).length(2).optional().describe('[from, to] in frames. Narrows the edit; without it (or a named phase) the plan applies to the whole keyed span and says so as a risk.'),
+  terms: z.array(z.any()).optional().describe('Bypass the text scanner: ["heavy"] or [{ term: "heavy", weight: 1.4 }]. Negative weight means "less".'),
+  mode: z.string().optional().describe("Part 11's operating mode (create/polish/analyze/fix/experiment/review/ship). Recorded on the intent."),
+};
+
+server.tool(
+  'animation_vocabulary',
+  'READ-ONLY. What the animation words actually mean here. Every term ("heavy", "snappy", "floaty", "panicked", "elegant", "powerful", "weary", …) with the motion dimensions it pulls on, what it deliberately does NOT change (heavy does not mean slow), its counterexamples and common failure modes, and any scoped override this project holds. Also returns the request grammar interpret_intent understands, the compiler strategies and their bounds, and which acceptance checks are real versus blocked on a later phase. Read this before phrasing a request.',
+  {
+    itemId: z.string().optional().describe('Show character-scoped overrides for this item too.'),
+    style: z.string().optional().describe('Show style-scoped overrides for this style profile too.'),
+  },
+  async (a) => { try { return textResult(await call('animation_vocabulary', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'set_vocabulary_term',
+  'MUTATING (undoable). Record that a term means something different for this project, character or style — as a scoped DELTA against the shared definition, never a replacement. Requires `evidence`: at least one statement of what the user said or did that justifies it, because Part 21 asks for a corrected interpretation captured with its reasoning rather than a silent redefinition. The same correction recorded twice increments an observation count instead of duplicating.',
+  {
+    term: z.string().describe('An existing term from animation_vocabulary. Inventing a new word is not supported — a term needs counterexamples and failure modes, not just a number.'),
+    dimensions: z.record(z.number()).optional().describe('Deltas against the default, e.g. { motion_amplitude: -0.2 } for "heavy should not make things bigger on this character". Range [-2, 2].'),
+    scope: z.enum(['project', 'character', 'style']).optional().describe('Default project. "character" and "style" need a scopeId.'),
+    scopeId: z.string().optional().describe('The item id (character scope) or style profile name (style scope).'),
+    note: z.string().optional(),
+    evidence: z.array(z.any()).describe('Required. What was said or observed that justifies the change.'),
+    author: z.string().optional(),
+  },
+  async (a) => { try { return textResult(await call('set_vocabulary_term', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'interpret_intent',
+  'READ-ONLY. Turn a request into an IntentSpec and say out loud what it was taken to mean, before anything is planned or changed. Returns the dimension vector the words produced, a human-readable interpretation naming both what will change and what is protected, the ConstraintSpecs the preserve clause compiles to, any tension between contradictory words, and — importantly — the words that were NOT understood, which changed nothing. The grammar is closed: nothing is guessed from unrecognised text.',
+  {
+    request: z.string().optional().describe('The user\'s own words, e.g. "make the slash heavier without changing timing" or "less floaty, keep the impact on frame 16".'),
+    ...INTENT_TARGET_SCHEMA,
+    actionType: z.enum(['attack', 'locomotion', 'reaction', 'gesture', 'idle', 'cinematic', 'custom']).optional().describe('Overrides what the text implied. Selects the phase template, so getting it wrong shapes the whole plan.'),
+    styleProfile: z.string().optional().describe('realistic | anime | cartoon | game_combat | cinematic | mechanical | horror | fantasy | abstract'),
+    preserve: z.array(z.string()).optional().describe('Extra semantic targets to protect, on top of anything the text asked for.'),
+    preserveAspects: z.array(z.enum(['timing', 'value', 'easing', 'space', 'existence'])).optional().describe("Aspects to protect. 'timing' is how \"without changing timing\" is expressed structurally."),
+    protectFrames: z.array(z.object({ frame: z.number(), tolerance: z.number().optional(), reason: z.string().optional() })).optional(),
+    narrativePurpose: z.string().optional(),
+    realismLevel: z.enum(['stylized', 'hybrid', 'realistic']).optional(),
+    readabilityPriority: z.enum(['low', 'medium', 'high']).optional(),
+    audienceFocus: z.enum(['character', 'weapon', 'target', 'environment', 'camera']).optional(),
+  },
+  async (a) => { try { return textResult(await call('interpret_intent', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'plan_motion',
+  'READ-ONLY (a dry run). Cut the existing animation into phases, choose edit strategies from the intent, and show the operations that WOULD be applied — without touching anything. Every phase says how it was named and how certain that is (a declared boundary is certain, a marker is highly likely, a rate profile is only possible). Every candidate change a constraint refuses or a missing capability blocks appears in `blocked` and `lost`, with what the motion gives up by its absence: "heavier without changing timing" cannot have body-lead offsets, and this is where it says so. Also returns the AcceptanceSpec the change will be judged against.',
+  {
+    request: z.string().optional().describe('The request text. Or pass `intent` from interpret_intent.'),
+    intent: z.any().optional().describe('An IntentSpec from interpret_intent, optionally edited. Its preserve clause is compiled on top of any `constrain` you pass, never replaced by it.'),
+    ...INTENT_TARGET_SCHEMA,
+    boundaries: z.array(z.object({
+      name: z.enum(['preparation', 'anticipation', 'acceleration', 'action', 'impact', 'follow_through', 'recovery', 'settle']),
+      from: z.number(), to: z.number(), purpose: z.string().optional(),
+    })).optional().describe('Declare the phases yourself. Overrides segmentation entirely, and is the fix when the inferred phases are wrong.'),
+    constrain: CONSTRAIN_SCHEMA.optional().describe('Extra constraints on top of whatever the request implied.'),
+  },
+  async (a) => { try { return textResult(await call('plan_motion', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'apply_motion_plan',
+  'MUTATING (transactional, undoable, rollback-capable). Interpret, plan, compile and apply in one call, then evaluate the plan\'s own acceptance criteria against the before-state. Re-plans against the live project rather than trusting an earlier plan_motion, snapshots and pins the before-state, and returns a transaction id that rollback_transaction can reverse whole or scoped. A plan every constraint blocks returns applied:false with the explanation — that is an outcome, not an error. The acceptance report separates `accepted` from `fully_validated`: nothing here renders, so the visual check always comes back NOT RUN.',
+  {
+    request: z.string().optional(),
+    intent: z.any().optional(),
+    ...INTENT_TARGET_SCHEMA,
+    boundaries: z.array(z.any()).optional().describe('Declared phase boundaries, as in plan_motion.'),
+    constrain: CONSTRAIN_SCHEMA.optional(),
+    force: z.boolean().optional().describe('Apply despite a refusing constraint. Recorded as a user override on the transaction, not hidden.'),
+  },
+  async (a) => { try { return textResult(await call('apply_motion_plan', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'evaluate_acceptance',
+  'READ-ONLY. Run an AcceptanceSpec against the current project, comparing to a snapshot or a transaction\'s before-state. Each check comes back pass / fail / NOT RUN — never "passed" for something that could not be evaluated — and the summary counts all three separately. `proxies` names the checks that measure something adjacent to the artistic claim rather than the claim itself: rotation amplitude going up is a fact, "it reads heavier" is not something any check here can decide.',
+  {
+    acceptance: z.any().describe('An AcceptanceSpec — plan_motion returns one, or build one from animation_vocabulary.language.acceptance_checks.'),
+    snapshotId: z.string().optional().describe('The state to compare against. list_snapshots shows what is held.'),
+    transactionId: z.string().optional().describe('Or a transaction id, whose before-snapshot becomes the baseline.'),
+    itemId: z.string().optional().describe('Default item for checks that do not name one.'),
+  },
+  async (a) => { try { return textResult(await call('evaluate_acceptance', a)); } catch (e) { return errorResult(e); } },
+);
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

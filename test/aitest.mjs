@@ -34,6 +34,10 @@ const PATCH = await import('../renderer/js/ai/patch.js');
 const CON = await import('../renderer/js/ai/constraints.js');
 const SCOPE = await import('../renderer/js/ai/scope.js');
 const TXN = await import('../renderer/js/ai/transaction.js');
+const VOC = await import('../renderer/js/ai/vocabulary.js');
+const CAL = await import('../renderer/js/ai/cal.js');
+const INT = await import('../renderer/js/ai/intent.js');
+const PLAN = await import('../renderer/js/ai/plan.js');
 const CF = await import('../renderer/js/cf.js');
 
 let passed = 0, failed = 0;
@@ -86,7 +90,7 @@ console.log('\n— purity —');
 check('purity: every ai/ module imports in plain Node with no renderer globals', () => {
   // Reaching this line at all means all 12 imports at the top of this file succeeded. Asserting a
   // symbol from each one keeps a future tree-shaking or re-export mistake from making that vacuous.
-  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN })) {
+  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN })) {
     assert.ok(Object.keys(mod).length > 0, `${name} exported nothing`);
   }
   assert.equal(typeof AI.SEMANTIC_LAYER_VERSION, 'string');
@@ -97,7 +101,7 @@ check('purity: every ai/ module on disk is imported by this file', () => {
   // could reach for `window` freely, and the check below that greps the sources would catch the
   // obvious cases but not a lazy `await import('three')`.
   const onDisk = fs.readdirSync(path.join(ROOT, 'renderer/js/ai')).filter((n) => n.endsWith('.js') && n !== 'index.js').sort();
-  const imported = ['certainty.js', 'constraints.js', 'hash.js', 'ids.js', 'kinematics.js', 'patch.js', 'provenance.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js'];
+  const imported = ['cal.js', 'certainty.js', 'constraints.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'patch.js', 'plan.js', 'provenance.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js', 'vocabulary.js'];
   assert.deepEqual(onDisk, imported, 'a module was added to renderer/js/ai without being imported at the top of test/aitest.mjs');
 });
 
@@ -113,6 +117,9 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     // Phase 2
     'preview_animation_patch', 'apply_animation_patch', 'rollback_transaction', 'list_transactions',
     'inspect_transaction', 'inspect_constraints', 'lock_constraint', 'unlock_constraint',
+    // Phase 3
+    'animation_vocabulary', 'set_vocabulary_term', 'interpret_intent', 'plan_motion',
+    'apply_motion_plan', 'evaluate_acceptance',
   ];
   const src = fs.readFileSync(path.join(ROOT, 'mcp-server/index.js'), 'utf8');
   const found = new Map();
@@ -130,15 +137,18 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
   assert.ok(found.get('record_provenance').startsWith('MUTATING'), 'record_provenance appends to the project');
   for (const t of ['inspect_scene', 'inspect_rig', 'inspect_timeline', 'resolve_semantic', 'selection_vocabulary', 'list_snapshots', 'diff_snapshots', 'inspect_provenance',
     // A dry run is read-only, and saying so is the point of preview existing at all.
-    'preview_animation_patch', 'list_transactions', 'inspect_transaction', 'inspect_constraints']) {
+    'preview_animation_patch', 'list_transactions', 'inspect_transaction', 'inspect_constraints',
+    'animation_vocabulary', 'interpret_intent', 'plan_motion', 'evaluate_acceptance']) {
     assert.ok(found.get(t).startsWith('READ-ONLY'), `${t} must be declared READ-ONLY`);
   }
-  for (const t of ['apply_animation_patch', 'rollback_transaction', 'lock_constraint', 'unlock_constraint']) {
+  for (const t of ['apply_animation_patch', 'rollback_transaction', 'lock_constraint', 'unlock_constraint',
+    'set_vocabulary_term', 'apply_motion_plan']) {
     assert.ok(found.get(t).startsWith('MUTATING'), `${t} changes the project and must say MUTATING`);
   }
   // Part 50 also wants rollback capability declared. For the mutating patch tools that is the
   // whole promise, so the word has to be in the description a caller reads before calling.
   assert.ok(/rollback/i.test(found.get('apply_animation_patch')), 'apply_animation_patch must state that it is rollback-capable');
+  assert.ok(/rollback/i.test(found.get('apply_motion_plan')), 'apply_motion_plan goes through the same transaction and must say so');
 });
 
 check('purity: no ai/ source mentions window, document or three.js', () => {
@@ -1946,6 +1956,508 @@ check('transaction: the full Phase 2 loop runs end to end on one project', () =>
   // The lock is project state and legitimately survives the rollback of an unrelated patch.
   assert.equal(CON.listLocks(p).length, 1);
   CON.unlock(p, CON.listLocks(p)[0].id);
+  assert.equal(H.contentHash(p), origin, 'the project must be exactly where it started');
+});
+
+// ---------------------------------------------------------------- Phase 3: the animation language
+
+console.log('\n— vocabulary (Part 21) —');
+
+// An attack shaped like a real one: a wind-up, a fast strike arriving on a marked impact, and a
+// recovery. Five joints spanning the kinetic chain, so chain depth actually varies.
+function slashFixture() {
+  const hero = { id: 'hero', kind: 'rig', name: 'Hero', rig: RIGS.r15, origin: I() };
+  const key = (t, v, es = 'Sine', ed = 'Out') => ({ t, v, es, ed });
+  const arc = (a, b, c) => ({ keys: [key(0, I()), key(8, a, 'Sine', 'InOut'), key(16, b), key(28, c ?? I())] });
+  return {
+    id: 'slash', name: 'Slash', version: 1, fps: 30, length: 60, loop: false, priority: 'Action',
+    items: [hero],
+    tracks: {
+      hero: {
+        Root: arc(CF.fromEuler(0, 0.3, 0), CF.fromEuler(0, -0.4, 0)),
+        Waist: arc(CF.fromEuler(0, 0.4, 0), CF.fromEuler(0, -0.5, 0)),
+        RightShoulder: arc(CF.fromEuler(0, 0, 1.2), CF.fromEuler(0, 0, -0.9)),
+        RightElbow: arc(CF.fromEuler(0.6, 0, 0), CF.fromEuler(0.1, 0, 0)),
+        LeftHip: arc(CF.fromEuler(0.2, 0, 0), CF.fromEuler(-0.2, 0, 0)),
+      },
+    },
+    groups: [], markers: { hero: [{ t: 16, width: 2, name: 'impact' }] },
+    playRange: null, onionSkin: { enabledItemIds: [], range: 3 }, audio: null,
+  };
+}
+
+check('vocabulary: a term is a vector of dimensions, not a slider', () => {
+  const r = VOC.interpret({}, ['heavy']);
+  assert.ok(Object.keys(r.dimensions).length >= 6, 'heavy must move several dimensions, not one');
+  assert.ok(r.dimensions.weight_transfer > 0 && r.dimensions.acceleration_contrast > 0);
+  // The directive's own warning, as an assertion: "Heavy does not always mean slow."
+  assert.ok(!('duration' in r.dimensions), 'heavy must not touch duration');
+  assert.ok(r.findings.some((f) => f.id === 'VOCAB-PINNED-ZERO' && /slow/i.test(f.evidence[0].statement)));
+});
+
+check('vocabulary: weary and heavy pull acceleration contrast in OPPOSITE directions', () => {
+  // The single most common way "heavy" gets implemented wrongly is by implementing "weary".
+  const heavy = VOC.interpret({}, ['heavy']).dimensions;
+  const weary = VOC.interpret({}, ['weary']).dimensions;
+  assert.ok(heavy.acceleration_contrast > 0, 'heavy concentrates the travel');
+  assert.ok(weary.acceleration_contrast < 0, 'weary flattens it');
+});
+
+check('vocabulary: same-sign pulls saturate and never exceed 1', () => {
+  const r = VOC.interpret({}, ['heavy', 'powerful', 'aggressive']);
+  for (const v of Object.values(r.dimensions)) assert.ok(Math.abs(v) <= 1, `dimension ran past 1: ${v}`);
+  // …and no word is discarded by the clamp: three positive pulls beat two.
+  const two = VOC.interpret({}, ['heavy', 'powerful']).dimensions.acceleration_contrast;
+  assert.ok(r.dimensions.acceleration_contrast > two);
+});
+
+check('vocabulary: opposing words are reported as a tension, not averaged away', () => {
+  const r = VOC.interpret({}, ['heavy', 'floaty']);
+  const t = r.tensions.find((x) => x.dimension === 'acceleration_contrast');
+  assert.ok(t, 'heavy wants contrast and floaty wants none — that must surface');
+  assert.deepEqual(t.pushing_up, ['heavy']);
+  assert.deepEqual(t.pushing_down, ['floaty']);
+  assert.ok(/Which should win/.test(t.question));
+});
+
+check('vocabulary: a modifier scales, and "too" inverts', () => {
+  const plain = VOC.interpret({}, [{ term: 'heavy', weight: 1 }]).dimensions.weight_transfer;
+  const lots = VOC.interpret({}, [{ term: 'heavy', weight: 1.4 }]).dimensions.weight_transfer;
+  const less = VOC.interpret({}, [{ term: 'heavy', weight: -1 }]).dimensions.weight_transfer;
+  assert.ok(lots > plain && plain > 0);
+  assert.ok(less < 0, '"less heavy" must reduce weight transfer, not increase it');
+});
+
+check('vocabulary: an unimplemented dimension is named, never silently ignored', () => {
+  const r = VOC.interpret({}, ['heavy']);
+  assert.ok(r.dimensions.contact_firmness > 0);
+  assert.ok(r.notRun.some((s) => /contact_firmness/.test(s)));
+  assert.ok(r.findings.some((f) => f.id === 'VOCAB-DIMENSION-NOT-COMPILABLE'));
+});
+
+check('vocabulary: an override is scoped, evidenced, and never rewrites the shared definition', () => {
+  const p = slashFixture();
+  assert.throws(() => VOC.setTerm(p, 'heavy', { dimensions: { motion_amplitude: -0.2 } }),
+    /evidence/, 'an override without evidence must be refused');
+  assert.throws(() => VOC.setTerm(p, 'ponderously-massive', { dimensions: {}, evidence: ['x'] }), /not a known term/);
+  assert.throws(() => VOC.setTerm(p, 'heavy', { dimensions: { nonsense: 1 }, evidence: ['x'] }), /not a known dimension/);
+
+  const entry = VOC.setTerm(p, 'heavy', {
+    dimensions: { motion_amplitude: -0.4 }, scope: 'character', scopeId: 'hero',
+    evidence: [{ kind: 'data', statement: 'the user scaled the amplitude back down twice' }],
+  });
+  const global = VOC.interpret({}, ['heavy']).dimensions.motion_amplitude;
+  const scoped = VOC.interpret(p, ['heavy'], { itemId: 'hero' }).dimensions.motion_amplitude;
+  const other = VOC.interpret(p, ['heavy'], { itemId: 'someone-else' }).dimensions.motion_amplitude;
+  assert.ok(scoped < global, 'the override must bite for the character it names');
+  assert.equal(other, global, 'and must NOT bite for anyone else');
+  assert.equal(VOC.TERMS.heavy.dimensions.motion_amplitude, 0.2, 'the shared definition is untouched');
+
+  // The same correction twice is one preference observed twice — that count is what tells a
+  // one-off from a convention later (Part 58).
+  const again = VOC.setTerm(p, 'heavy', {
+    dimensions: { motion_amplitude: -0.4 }, scope: 'character', scopeId: 'hero',
+    evidence: [{ kind: 'data', statement: 'the user scaled the amplitude back down twice' }],
+  });
+  assert.equal(again.id, entry.id);
+  assert.equal(again.observations, 2);
+  assert.equal(VOC.listOverrides(p).length, 1);
+
+  VOC.clearTerm(p, entry.id);
+  assert.equal(p.semantics, undefined, 'emptying the store must delete the container, not leave {}');
+});
+
+check('vocabulary: the explanation is generated from the vector, so the two cannot disagree', () => {
+  const r = VOC.interpret({}, ['snappy']);
+  const e = VOC.explain(r, { phrase: 'snappier' });
+  assert.ok(/snappier/.test(e.header));
+  for (const d of Object.keys(r.dimensions)) assert.ok(e.text.includes(d), `${d} is in the vector but not in the prose`);
+  assert.ok(/follow_through: unchanged on purpose/.test(e.text), 'snappy must state what it does not delete');
+});
+
+console.log('\n— CAL (Part 20) —');
+
+check('cal: every spec carries the directive\'s full field list, with null for unknown', () => {
+  const i = CAL.intentSpec({ actionType: 'attack' });
+  for (const f of ['action_type', 'narrative_purpose', 'emotional_intent', 'style_profile', 'energy',
+    'weight', 'readability_priority', 'realism_level', 'audience_focus', 'requested_duration',
+    'critical_events', 'preserve', 'avoid', 'evidence_source', 'confidence', 'unresolved_questions']) {
+    assert.ok(f in i, `IntentSpec is missing ${f}`);
+  }
+  const pose = CAL.poseSpec({ role: 'extreme' });
+  for (const f of ['line_of_action', 'silhouette_goals', 'balance_state', 'center_of_mass_target',
+    'support_polygon', 'mirror_policy', 'camera_readability_notes']) {
+    assert.ok(f in pose, `PoseSpec is missing ${f}`);
+    // Unknown is null, never a default — a planner that read `balance_state: 'balanced'` here
+    // would be reading an invention.
+  }
+  assert.equal(pose.line_of_action, null);
+  assert.equal(CAL.spacingSpec({}).tangent_policy, null);
+});
+
+check('cal: an unknown enum value throws at construction', () => {
+  assert.throws(() => CAL.intentSpec({ actionType: 'atack' }), /action_type/);
+  assert.throws(() => CAL.phaseSpec({ name: 'windup' }), /phaseSpec.name/);
+  assert.throws(() => CAL.poseSpec({ role: 'keyframe' }), /poseSpec.role/);
+  assert.throws(() => CAL.contactSpec({ mode: 'stuck' }), /contactSpec.mode/);
+  assert.throws(() => CAL.acceptanceSpec({ checks: [{ check: 'looks_good' }] }), /unknown check/);
+  assert.throws(() => CAL.scalar(1.5), /\[0,1\]/);
+});
+
+check('cal: ids are content hashes, so the same spec is the same spec', () => {
+  const a = CAL.intentSpec({ actionType: 'attack', narrativePurpose: 'x' });
+  const b = CAL.intentSpec({ actionType: 'attack', narrativePurpose: 'x' });
+  const c = CAL.intentSpec({ actionType: 'attack', narrativePurpose: 'y' });
+  assert.equal(a.id, b.id);
+  assert.notEqual(a.id, c.id);
+  assert.ok(a.id.startsWith('intent:'));
+});
+
+check('cal: an already-built phase survives being put in a plan', () => {
+  // The constructor reads camelCase input and writes snake_case output, so sending a built spec
+  // back through it would null every field. An unnamed phase is a legitimate result, so the
+  // "is this already built" test cannot be "does it have a name".
+  const ph = CAL.phaseSpec({ name: null, timeRange: [0, 8], derivation: 'nothing names it' });
+  const plan = CAL.motionPlan({ phases: [ph] });
+  assert.deepEqual(plan.phases[0].time_range, [0, 8]);
+  assert.equal(plan.phases[0].derivation, 'nothing names it');
+});
+
+check('cal: a contact this build makes is declared, never verified', () => {
+  const c = CAL.contactSpec({ effector: 'the left foot', mode: 'planted', start: 12, end: 23 });
+  assert.equal(c.validation_method, 'declared');
+  assert.equal(c.certainty, C.CERTAINTY.USER_INTENT_REQUIRED);
+  assert.throws(() => CAL.contactSpec({ mode: 'planted', validationMethod: 'proven' }), /validation_method/);
+});
+
+check('cal: acceptance never counts an unrunnable check as a pass', () => {
+  const spec = CAL.acceptanceSpec({ checks: [
+    { check: 'key_times_unchanged', itemId: 'hero' },
+    { check: 'no_visual_regression' },
+    { check: 'contact_drift_within', itemId: 'hero', effector: 'the left foot' },
+  ] });
+  assert.equal(spec.not_runnable.length, 2);
+  const p = slashFixture();
+  const r = CAL.evaluateAcceptance(p, p, spec, { itemId: 'hero' });
+  assert.equal(r.accepted, true, 'the one runnable check passes on an unchanged project');
+  assert.equal(r.fully_validated, false, 'but two checks did not run, so this is NOT fully validated');
+  assert.equal(r.results.filter((x) => x.status === 'not_run').length, 2);
+  assert.ok(r.coverage.notRun.some((s) => /Phase 4/.test(s)));
+});
+
+check('cal: acceptance checks measure what they claim, and label the proxies', () => {
+  const before = slashFixture();
+  const after = slashFixture();
+  after.tracks.hero.Waist.keys[1].t = 9;                          // a key moved
+  after.tracks.hero.RightShoulder.keys[1].es = 'Quart';           // an ease changed
+  after.tracks.hero.Root.keys[2].v = CF.fromEuler(0, -0.9, 0);    // a pose grew
+
+  const spec = CAL.acceptanceSpec({ checks: [
+    { check: 'key_times_unchanged', itemId: 'hero' },
+    { check: 'easing_changed', itemId: 'hero', min_keys: 1 },
+    { check: 'amplitude_increased', itemId: 'hero', tracks: ['Root'], min_ratio: 1.1 },
+    { check: 'pose_unchanged_at', itemId: 'hero', track: 'LeftHip', t: 16, tolerance_deg: 0.1 },
+    { check: 'scope_unchanged', itemIds: ['hero'] },
+  ] });
+  const r = CAL.evaluateAcceptance(before, after, spec, { itemId: 'hero' });
+  const by = Object.fromEntries(r.results.map((x) => [x.check, x]));
+  assert.equal(by.key_times_unchanged.status, 'fail');
+  assert.equal(by.easing_changed.status, 'pass');
+  assert.equal(by.amplitude_increased.status, 'pass');
+  assert.equal(by.pose_unchanged_at.status, 'pass');
+  assert.equal(by.scope_unchanged.status, 'pass');
+  assert.equal(r.accepted, false);
+  // Part 12: an artistic claim must never inherit a measurement's certainty.
+  assert.ok(r.proxies.some((x) => x.check === 'amplitude_increased' && /judgement/.test(x.proxy_for)));
+});
+
+console.log('\n— intent (Part 20.1) —');
+
+check('intent: the request becomes a labelled interpretation of both halves', () => {
+  const p = slashFixture();
+  const r = INT.interpretRequest(p, { request: 'make the slash heavier without changing timing', itemId: 'hero' });
+  assert.equal(r.intent.action_type, 'attack', '"slash" names the motion, not a third of it');
+  assert.deepEqual(r.intent.preserve, ['aspect:timing']);
+  assert.ok(r.intent.dimensions.weight_transfer > 0);
+  assert.ok(r.interpretation.changes.length > 3, 'the interpretation must say what will change');
+  assert.ok(r.interpretation.preserves.some((s) => /timing: protected/.test(s)), 'and what will not');
+  assert.equal(r.constraints.constraints.length, 1);
+  assert.equal(r.constraints.constraints[0].aspect[0], 'timing');
+});
+
+check('intent: unrecognised words change nothing and are reported', () => {
+  const p = slashFixture();
+  const r = INT.interpretRequest(p, { request: 'make it more zorbulent and heavier', itemId: 'hero' });
+  assert.ok(r.unrecognised.includes('zorbulent'));
+  assert.ok(r.questions.some((q) => /zorbulent/.test(q)));
+  assert.ok(r.findings.some((f) => f.id === 'INTENT-UNPARSED'));
+  assert.ok(r.intent.dimensions.weight_transfer > 0, 'the part that WAS understood still works');
+  assert.ok(r.intent.confidence < 1);
+});
+
+check('intent: "too heavy" reduces weight rather than increasing it', () => {
+  const p = slashFixture();
+  const r = INT.interpretRequest(p, { request: 'this is too heavy', itemId: 'hero' });
+  assert.ok(r.intent.dimensions.weight_transfer < 0);
+});
+
+check('intent: a named phase and a frame range both narrow the target', () => {
+  const p = slashFixture();
+  const a = INT.interpretRequest(p, { request: 'make the windup heavier', itemId: 'hero' });
+  assert.deepEqual(a.intent.target.phases, ['anticipation']);
+  const b = INT.interpretRequest(p, { request: 'make frames 4 to 12 snappier', itemId: 'hero' });
+  assert.deepEqual(b.intent.target.timeRange, [4, 12]);
+  // …and with neither, the scope is the whole clip and the caller is told so.
+  const c = INT.interpretRequest(p, { request: 'heavier', itemId: 'hero' });
+  assert.equal(c.intent.target.timeRange, null);
+  assert.ok(c.questions.some((q) => /whole animation/.test(q)));
+});
+
+check('intent: a preserve clause is compiled through the SAME constraint compiler as a hand-written one', () => {
+  const p = slashFixture();
+  const r = INT.interpretRequest(p, { request: 'snappier, keep the impact on frame 16 within 1 frame, do not change the left hip', itemId: 'hero' });
+  const rules = r.constraints.constraints.map((c) => c.property_or_semantic_rule);
+  assert.ok(rules.some((s) => /frame 16/.test(s)));
+  assert.ok(rules.some((s) => /left hip/.test(s)));
+  assert.equal(r.intent.critical_events[0].expected_time, 16);
+  assert.equal(r.intent.critical_events[0].tolerance, 1);
+});
+
+console.log('\n— planner and motion compiler (Parts 20.2, 24) —');
+
+check('plan: phases are cut at key times and named only with evidence', () => {
+  const p = slashFixture();
+  const s = PLAN.segmentPhases(p, 'hero', { actionType: 'attack' });
+  assert.deepEqual(s.segments.map((x) => [x.from, x.to]), [[0, 8], [8, 16], [16, 28]]);
+  const marked = s.phases.find((x) => x.name === 'impact');
+  assert.equal(marked.certainty, C.CERTAINTY.HIGHLY_LIKELY, 'a marker is better evidence than a curve');
+  assert.ok(/marker named "impact"/.test(marked.derivation));
+  const inferred = s.phases.find((x) => x.name === 'anticipation');
+  assert.equal(inferred.certainty, C.CERTAINTY.POSSIBLE, 'a rate profile is never better than possible');
+  assert.ok(s.findings.some((f) => f.id === 'PLAN-PHASES-INFERRED'));
+});
+
+check('plan: without a template, spans stay unnamed and say why', () => {
+  const p = slashFixture();
+  delete p.markers.hero;
+  const s = PLAN.segmentPhases(p, 'hero', { actionType: 'gesture' });
+  assert.ok(s.phases.every((x) => x.name === null), 'inventing a phase structure for a gesture would be a guess');
+  assert.ok(s.coverage.notRun.some((x) => /no phase template exists/.test(x)));
+});
+
+check('plan: declared boundaries outrank everything and are certain', () => {
+  const p = slashFixture();
+  const s = PLAN.segmentPhases(p, 'hero', { actionType: 'attack', boundaries: [{ name: 'action', from: 2, to: 5 }] });
+  assert.equal(s.source, 'declared');
+  assert.equal(s.phases.length, 1);
+  assert.equal(s.phases[0].certainty, C.CERTAINTY.CERTAIN);
+});
+
+check('plan: an unimplemented dimension is blocked with its reason, not dropped', () => {
+  const p = slashFixture();
+  const i = INT.interpretRequest(p, { request: 'heavier', itemId: 'hero' });
+  const m = PLAN.planMotion(p, { intent: i.intent, constraints: i.constraints.constraints });
+  const cf = m.plan.blocked.find((b) => b.dimension === 'contact_firmness');
+  assert.ok(cf && /Part 23/.test(cf.reason));
+  assert.equal(cf.blocked_by, 'capability');
+  assert.ok(m.plan.blocked.some((b) => b.dimension.startsWith('vfx_') && /Part 37/.test(b.reason)));
+});
+
+check('plan: three dimensions sharing one strategy are COMBINED, not applied one after another', () => {
+  // The bug this pins: heavy routes weight_transfer, anticipation_depth and motion_amplitude into
+  // `amplitude`. Built as three separate edits they produced three set_key ops on the same key, and
+  // the last applied won — silently discarding the largest pull, which is most of what heavy means.
+  const p = slashFixture();
+  const i = INT.interpretRequest(p, { request: 'make the slash heavier', itemId: 'hero' });
+  const m = PLAN.planMotion(p, { intent: i.intent, constraints: [] });
+  const amp = m.plan.edits.filter((e) => e.strategy === 'amplitude');
+  assert.equal(amp.length, 1, 'amplitude must appear once, carrying every contribution');
+  assert.equal(amp[0].contributions.length, 3);
+  assert.ok(amp[0].pull > Math.max(...amp[0].contributions.map((c) => c.pull)), 'the combined pull must exceed the largest single one');
+
+  const c = PLAN.compilePlan(p, m.plan, m.ctx, { constraints: [] });
+  const writes = c.ops.filter((o) => o.op === 'set_key');
+  assert.ok(writes.length >= 10, `the uniqueness check below is only meaningful with real writes; got ${writes.length}`);
+  const seen = new Set();
+  for (const op of writes) {
+    const k = `${op.track}@${op.t}`;
+    assert.ok(!seen.has(k), `${k} is written twice — one write would silently win`);
+    seen.add(k);
+  }
+  // …and the surviving scale reflects the COMBINED pull, not the smallest contribution. The
+  // smallest is motion_amplitude at +0.2, which alone would scale the waist by ×1.1.
+  const after = PATCH.planPatch(p, PATCH.makePatch({ ops: c.ops })).result;
+  const grew = K.angleBetween(CF.IDENTITY, K.evalTrackCF(after.tracks.hero.Waist, 8))
+    / K.angleBetween(CF.IDENTITY, K.evalTrackCF(p.tracks.hero.Waist, 8));
+  assert.ok(grew > 1.2, `the waist grew only ×${grew.toFixed(3)} — that is the smallest pull winning, not the combination`);
+});
+
+check('plan: spacing never touches the key at the end of a phase', () => {
+  // That key's easing governs the NEXT span. Expressing the exclusion as `to - EPS` did not work:
+  // the tolerance inside keysIn cancelled it exactly and every phase reshaped its successor.
+  const p = slashFixture();
+  const i = INT.interpretRequest(p, { request: 'snappier', itemId: 'hero' });
+  const m = PLAN.planMotion(p, { intent: i.intent, constraints: [] });
+  const c = PLAN.compilePlan(p, m.plan, m.ctx, { constraints: [] });
+  const eases = c.ops.filter((o) => o.op === 'set_easing');
+  assert.ok(eases.length >= 5, `the exclusions below are only meaningful with real ops; got ${eases.length}`);
+  assert.ok(!eases.some((o) => o.t === 28), 'the last key of the clip has no outgoing segment inside it');
+  // Three spans, so exactly three departure keys per track — never six.
+  const perTrack = eases.filter((o) => o.track === 'Waist').length;
+  assert.equal(perTrack, 3, `Waist got ${perTrack} easing ops for 3 spans (6 means each span also reshaped its successor)`);
+});
+
+check('plan: two strategies writing the same easing resolve by precedence, and the loss is reported', () => {
+  const p = slashFixture();
+  // "slash" is what makes this an attack, which is what names the phases, which is what lets
+  // overshoot find an arriving span at all. A bare "heavier" leaves the spans unnamed on purpose.
+  const i = INT.interpretRequest(p, { request: 'make the slash heavier', itemId: 'hero' });
+  const m = PLAN.planMotion(p, { intent: i.intent, constraints: [] });
+  const c = PLAN.compilePlan(p, m.plan, m.ctx, { constraints: [] });
+  const keys = c.ops.filter((o) => o.op === 'set_easing').map((o) => `${o.track}@${o.t}`);
+  assert.equal(new Set(keys).size, keys.length, 'no key may carry two easing writes');
+  assert.ok(c.findings.some((f) => f.id === 'PLAN-OP-OVERLAP' && /overshoot/.test(f.statement)));
+});
+
+check('plan: overshoot refuses a contact-capable effector and an impact span', () => {
+  const p = slashFixture();
+  const i = INT.interpretRequest(p, { request: 'make the slash heavier', itemId: 'hero' });
+  const m = PLAN.planMotion(p, { intent: i.intent, constraints: [] });
+  const c = PLAN.compilePlan(p, m.plan, m.ctx, { constraints: [] });
+  const back = c.ops.filter((o) => o.es === 'Back');
+  assert.ok(back.length, 'the attack template names a follow_through, so overshoot has somewhere to go');
+  assert.ok(c.skipped.some((s) => s.strategy === 'overshoot' && /breaks the plant/.test(s.why)),
+    'the elbow drives a lower arm, which can hold a contact');
+  assert.ok(!back.some((o) => o.track === 'RightElbow'));
+  assert.ok(!back.some((o) => o.t === 8), 'frame 8 departs into the impact — overshooting into a contact is the thing not to do');
+});
+
+check('plan: with no action type the spans stay unnamed, and overshoot declines rather than guessing', () => {
+  const p = slashFixture();
+  const i = INT.interpretRequest(p, { request: 'heavier', itemId: 'hero' });
+  assert.equal(i.intent.action_type, null, 'one adjective is not enough to claim what kind of motion this is');
+  const m = PLAN.planMotion(p, { intent: i.intent, constraints: [] });
+  const c = PLAN.compilePlan(p, m.plan, m.ctx, { constraints: [] });
+  assert.ok(c.skipped.some((s) => s.strategy === 'overshoot' && /would land anywhere/.test(s.why)));
+  assert.ok(!c.ops.some((o) => o.es === 'Back'));
+  // …and the strategies that do not need a phase name still run, so the request is not wasted.
+  assert.ok(c.applied.some((a) => a.strategy === 'amplitude'));
+});
+
+check('plan: an amplitude edit anchors on the span start, so the range still joins what precedes it', () => {
+  const p = slashFixture();
+  const before = K.evalTrackCF(p.tracks.hero.Waist, 0);
+  const i = INT.interpretRequest(p, { request: 'heavier', itemId: 'hero' });
+  const m = PLAN.planMotion(p, { intent: i.intent, constraints: [] });
+  const c = PLAN.compilePlan(p, m.plan, m.ctx, { constraints: [] });
+  const patch = PATCH.makePatch({ ops: c.ops });
+  const after = PATCH.planPatch(p, patch).result;
+  assert.ok(K.angleBetween(before, K.evalTrackCF(after.tracks.hero.Waist, 0)) < 1e-6, 'frame 0 is the anchor and must not move');
+  assert.ok(K.angleBetween(K.evalTrackCF(p.tracks.hero.Waist, 16), K.evalTrackCF(after.tracks.hero.Waist, 16)) > 1, 'and the strike must actually grow');
+});
+
+check('plan: scaleAbout takes the short way round', () => {
+  // A rotation stored as its long-way-round equivalent would otherwise scale along the long arc and
+  // swing the joint the wrong direction — the quaternion has to be flipped to w >= 0 first.
+  const anchor = CF.IDENTITY.slice();
+  const v = CF.fromEuler(0, 0, 3.0);          // 172°, close enough to π to flip sign in the quat
+  const half = PLAN.scaleAbout(anchor, v, 0.5);
+  assert.ok(Math.abs(K.angleBetween(anchor, half) - K.angleBetween(anchor, v) / 2) < 0.5,
+    'half the scale must be half the angle');
+  assert.ok(K.angleBetween(PLAN.scaleAbout(anchor, v, 1), v) < 1e-6, 'a scale of 1 is the identity');
+});
+
+check('plan: a plan against an item with no rig refuses rather than producing nothing', () => {
+  const p = slashFixture();
+  p.items.push({ id: 'cam', kind: 'camera', name: 'Camera', origin: I() });
+  const i = INT.interpretRequest(p, { request: 'heavier', itemId: 'cam' });
+  assert.throws(() => PLAN.planMotion(p, { intent: i.intent, constraints: [] }), /no rig/);
+});
+
+check('plan: a named phase that segmentation cannot find asks instead of guessing', () => {
+  const p = slashFixture();
+  delete p.markers.hero;
+  const i = INT.interpretRequest(p, { request: 'make the settle heavier', itemId: 'hero', actionType: 'gesture' });
+  const m = PLAN.planMotion(p, { intent: i.intent, constraints: [] });
+  assert.ok(m.questions.some((q) => /segmentation did not identify one/.test(q)));
+  assert.ok(m.findings.some((f) => f.id === 'PLAN-PHASE-NOT-FOUND'));
+  const c = PLAN.compilePlan(p, m.plan, m.ctx, { constraints: [] });
+  assert.equal(c.ops.length, 0, 'it must not silently widen to the whole clip');
+});
+
+check('plan: a persisted lock blocks the strategy that would break it', () => {
+  const p = slashFixture();
+  CON.lock(p, { target: { kind: 'track', itemId: 'hero', track: 'Waist' }, reason: 'the torso is signed off' });
+  const i = INT.interpretRequest(p, { request: 'heavier', itemId: 'hero' });
+  const m = PLAN.planMotion(p, { intent: i.intent, constraints: i.constraints.constraints });
+  const c = PLAN.compilePlan(p, m.plan, m.ctx, { constraints: i.constraints.constraints });
+  const amp = c.blocked.find((b) => b.strategy === 'amplitude');
+  assert.ok(amp, 'the amplitude strategy touches the locked track, so the whole strategy is dropped');
+  assert.equal(amp.blocked_by, 'constraint');
+  assert.ok(amp.contributes.length > 10, 'and the plan says what the motion loses');
+  assert.ok(!c.ops.some((o) => o.track === 'Waist' && o.op === 'set_key'));
+});
+
+check('plan: nothing in a plan claims a visual or contact check was made', () => {
+  const p = slashFixture();
+  const i = INT.interpretRequest(p, { request: 'heavier', itemId: 'hero' });
+  const m = PLAN.planMotion(p, { intent: i.intent, constraints: [] });
+  assert.ok(m.coverage.notRun.some((s) => /nothing was rendered/.test(s)));
+  assert.ok(m.coverage.notRun.some((s) => /no contact was measured/.test(s)));
+  assert.ok(PLAN.planLimitations().cannot.some((s) => /judge the result/.test(s)));
+});
+
+check('layer: the Phase 3 success condition — "heavier without changing timing", expressed, planned, enforced', () => {
+  // Part 62, Phase 3, verbatim: "the user can request 'heavier without changing timing,' and
+  // Cadence can express, plan, and enforce that request."
+  const p = slashFixture();
+  const origin = H.contentHash(p);
+  const before = JSON.parse(JSON.stringify(p));
+  const ledger = new TXN.TransactionLedger();
+
+  // EXPRESS
+  const i = INT.interpretRequest(p, { request: 'make the slash heavier without changing timing', itemId: 'hero' });
+  assert.deepEqual(i.intent.preserve, ['aspect:timing']);
+  assert.ok(i.interpretation.text.includes('weight_transfer'));
+
+  // PLAN
+  const m = PLAN.planMotion(p, { intent: i.intent, constraints: i.constraints.constraints });
+  assert.ok(m.plan.phases.length === 3);
+  assert.ok(m.plan.edits.length >= 3);
+  const c = PLAN.compilePlan(p, m.plan, m.ctx, { constraints: i.constraints.constraints });
+
+  // ENFORCE — the one strategy that moves keys is refused, by name, with what it cost
+  const lead = c.blocked.find((b) => b.strategy === 'lead_lag');
+  assert.ok(lead, 'body lead moves keys and must be blocked by the timing protection');
+  assert.equal(lead.blocked_by, 'constraint');
+  assert.equal(lead.constraints[0].rule, 'no key changes time');
+  assert.ok(lead.operations_dropped > 0);
+  assert.ok(c.lost.some((l) => /body-driven motion/.test(l.cost)));
+  // …and the rest still runs, so the request is not simply refused
+  assert.ok(c.ops.length > 0);
+  assert.ok(c.applied.some((a) => a.strategy === 'amplitude'));
+  assert.ok(!c.ops.some((o) => o.op === 'move_key'), 'not one key may move');
+
+  // APPLY through the Phase 2 machinery
+  const patch = PATCH.makePatch({ ops: c.ops, intent: 'heavier, timing preserved' });
+  const plan = PATCH.planPatch(p, patch);
+  const report = CON.checkPatch(p, patch, i.constraints.constraints, { result: plan.result });
+  assert.equal(report.allowed, true, 'what survived compilation must survive the checker too');
+  const applied = TXN.apply(p, patch, plan, { ledger, constraintReport: report, timestamp: 'T1' });
+  assert.equal(applied.applied, true);
+
+  // ACCEPT — the criteria the plan set for itself
+  const acc = CAL.evaluateAcceptance(before, p, m.plan.acceptance_criteria, { itemId: 'hero' });
+  assert.equal(acc.accepted, true, acc.summary);
+  assert.equal(acc.fully_validated, false, 'nothing rendered, so this is not fully validated and must not claim to be');
+  const by = Object.fromEntries(acc.results.map((x) => [x.check, x]));
+  assert.equal(by.key_times_unchanged.status, 'pass', 'the timing promise, measured');
+  assert.equal(by.amplitude_increased.status, 'pass', 'the heaviness proxy, measured');
+  assert.equal(by.no_visual_regression.status, 'not_run');
+
+  // …and fully reversible, back to the byte-identical original.
+  const rb = TXN.rollback(p, ledger, applied.transaction_id, { timestamp: 'T2' });
+  assert.equal(rb.complete, true);
   assert.equal(H.contentHash(p), origin, 'the project must be exactly where it started');
 });
 

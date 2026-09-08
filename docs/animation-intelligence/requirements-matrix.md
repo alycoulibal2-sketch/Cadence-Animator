@@ -5,10 +5,10 @@ Directive Part 9. **This is the living document.** Every requirement in
 may disappear because it is inconvenient. If it is deferred, explain the dependency and preserve
 its interface."*
 
-Last reconciled against the source tree: **v0.11.0 + animation-intelligence Phases 1 and 2**, by
-reading `renderer/js/ai/*.js`, `test/aitest.mjs`, the semantic-layer and patch blocks of
-`MCP_HANDLERS` in `renderer/js/app.js`, and the two semantic sections of `mcp-server/index.js`.
-Cells were verified against the code, not carried forward.
+Last reconciled against the source tree: **v0.11.0 + animation-intelligence Phases 1, 2 and 3**, by
+reading `renderer/js/ai/*.js`, `test/aitest.mjs`, the semantic-layer, patch and animation-language
+blocks of `MCP_HANDLERS` in `renderer/js/app.js`, and the three semantic sections of
+`mcp-server/index.js`. Cells were verified against the code, not carried forward.
 
 ## How to read a row
 
@@ -30,18 +30,31 @@ Cells were verified against the code, not carried forward.
 `Version introduced` is recorded in the Status cell for anything past `designed`.
 
 Status counts, this revision, counted from the table itself — **165 rows**:
-**implemented 53 · partial 9 · designed 7 · deferred 2 · blocked 1 · unplanned 93.**
+**implemented 65 · partial 13 · designed 8 · deferred 2 · blocked 1 · unplanned 76.**
 Nothing is `benchmarked`; no benchmark suite exists yet (BCH-001).
 
-The delta from the previous revision (*implemented 41 · partial 7 · designed 10 · deferred 2 ·
-blocked 1 · unplanned 104*) is Phase 2 and nothing else: **12 rows** moved to `implemented`
-(SEM-010, CAL-007, CON-001…005, TXN-001, TXN-002, TXN-003, TXN-006, MCP-004) and **2** to
-`partial` (CAL-009, CMP-004). Counts are counted from the table below by script, not hand-written.
+The delta from the previous revision (*implemented 53 · partial 9 · designed 7 · deferred 2 ·
+blocked 1 · unplanned 93*) is Phase 3 and nothing else: **12 rows** moved to `implemented`
+(CAL-001, CAL-002, CAL-004, CAL-005, CAL-008, CAL-009, CAL-010, VOC-001…004, CMP-004) and **6** to
+`partial` (CAL-003, CAL-006, CMP-001, MCP-008, MEM-002, MOT-013 — with CAL-009 and CMP-004 leaving
+`partial` for `implemented`, hence a net +4), plus OPS-001 to `designed`. Counts are counted from
+the table below by script, not hand-written.
 
-What Phase 2 deliberately did NOT do, so no row is read as more finished than it is: nothing
-visual is checked anywhere in it. A patch is validated against project data, constraints and the
-dependency graph; whether the result *looks* right is unanswered until Phase 4, and every result
-says so in its own `coverage.notRun`.
+What Phase 3 deliberately did NOT do, so no row is read as more finished than it is:
+
+* **It edits, it does not generate.** Every compiler strategy transforms keys that already exist.
+  None may add or remove one, because inserting a key safely needs the contact model (MOT-008),
+  and an inserted key that breaks a plant is worse than an absent hold. An empty timeline still
+  has nothing to make heavier.
+* **It still cannot see.** No plan, no patch and no acceptance report in this build looks at a
+  pixel. `no_visual_regression` is added to every generated AcceptanceSpec precisely so that every
+  report ends by saying nobody has looked at the result.
+* **A phase name is an inference, and says so.** Only a declared boundary is `certain`. A marker is
+  `highly_likely`. A rate profile is `possible`, and only for attack and reaction — every other
+  action type gets unnamed spans and a stated reason rather than an invented structure.
+* **8 of the 15 motion dimensions compile to nothing**, and no VFX dimension compiles at all. They
+  are carried on the intent, reported in `blocked`, and named in `coverage.notRun` with what
+  unblocks each — never dropped so the plan reads as complete.
 
 ---
 
@@ -76,25 +89,25 @@ says so in its own `coverage.notRun`.
 
 | ID | Requirement | § | Pri | Status | Repr. | Module | MCP | UI | Tests | Bench | Limits |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| CAL-001 | IntentSpec | 20.1 | P0 | unplanned | — | — | — | — | — | — | Phase 3 |
-| CAL-002 | MotionPlan with phases | 20.2 | P0 | unplanned | — | — | — | — | — | — | Phase 3 |
-| CAL-003 | PoseSpec | 20.3 | P0 | unplanned | — | — | — | — | — | — | Phase 3 |
-| CAL-004 | TimingSpec | 20.4 | P0 | unplanned | — | — | — | — | — | — | Phase 3 |
-| CAL-005 | SpacingSpec | 20.4 | P0 | unplanned | — | — | — | — | — | — | Phase 3 |
-| CAL-006 | ContactSpec | 20.5 | P0 | unplanned | — | — | — | — | — | — | Phase 3; contact *capability* per joint already in SEM-013 |
+| CAL-001 | IntentSpec | 20.1 | P0 | implemented (0.12.0) | `IntentSpec` — Part 20.1's full field list, plus the dimension vector it was derived from | `ai/cal.js` (shape) + `ai/intent.js` (construction from a request) | `interpret_intent`; consumed by `plan_motion` and `apply_motion_plan` | — | `aitest cal` (field list, enum rejection, content-hashed ids), `aitest intent` (5 checks) | — | `narrative_purpose`, `emotional_intent`, `audience_focus` are only ever set by the caller — nothing infers them from text. `energy`/`weight` are derived from the dimension vector with 0.5 meaning "unchanged", and say so in their own explanation field |
+| CAL-002 | MotionPlan with phases | 20.2 | P0 | implemented (0.12.0) | `MotionPlan` + `PhaseSpec`, with `omitted_phases`, `edits` and `blocked` | `ai/cal.js` (shape) + `ai/plan.js` (`planMotion`) | `plan_motion` | — | `aitest plan` (13 checks) | — | phases are cut at keyframe times; a phase NAME comes from a declared boundary (`certain`), a marker (`highly_likely`) or a rate template for attack/reaction (`possible`). Any other action type gets unnamed spans and a stated reason. `camera_rules` and `VFX_rules` are carried as text and consumed by nothing (Phases 6–7) |
+| CAL-003 | PoseSpec | 20.3 | P0 | partial (0.12.0) | `PoseSpec` — Part 20.3's full field list | `ai/cal.js`; produced per phase by `ai/plan.js` | `plan_motion` (`plan.poses`) | — | `aitest cal` asserts the field list exists and that the unmeasurable half is `null` | — | the ROTATIONAL half is real: `body_region_targets` carries the semantic role, the joint, and its rotation from rest. `line_of_action`, `silhouette_goals`, `balance_state`, `center_of_mass_target` and `support_polygon` are present and null — measuring them needs Parts 28 and 43 (MOT-011/012) |
+| CAL-004 | TimingSpec | 20.4 | P0 | implemented (0.12.0) | `TimingSpec` | `ai/cal.js`; produced by `ai/plan.js` | `plan_motion` (`plan.timing`) | — | `aitest cal`, `aitest plan` | — | `held_frames` is always empty — a hold is a measurement, not a key property, and needs MOT-013. `timing_contrast` is the fastest against the slowest span's °/frame, which is a rate not an acceleration profile |
+| CAL-005 | SpacingSpec | 20.4 | P0 | implemented (0.12.0) | `SpacingSpec` | `ai/cal.js`; produced by `ai/plan.js` | `plan_motion` (`plan.spacing`) | — | `aitest cal` asserts `tangent_policy` is null | — | `tangent_policy` is null on every plan and always will be until keys carry tangents — Cadence stores an easing style and direction (same root cause as SEM-015). `screen_space_speed_target` needs MOT-006 |
+| CAL-006 | ContactSpec | 20.5 | P0 | partial (0.12.0) | `ContactSpec` with `validation_method ∈ declared / measured / user_confirmed` | `ai/cal.js`; built by `ai/plan.js` from any `contact_drift` constraint | `plan_motion` (`plan.contacts`) | — | `aitest cal` — a contact this build makes is `declared` and `user_intent_required`, and `measured` cannot be constructed by mistake | — | every contact is DECLARED. Nothing verifies one, because drift is a world-space measurement over a frame range and that is MOT-008 (Phase 5). Contacts are protected by constraint and reported in `coverage.notRun`, never counted as satisfied. Contact *capability* per joint is already in SEM-013 |
 | CAL-007 | ConstraintSpec | 20.6 | P0 | implemented (0.12.0) | `ConstraintSpec` — Part 20.6's full field list, plus `aspect` | `ai/constraints.js` | `inspect_constraints`, `lock_constraint`, and the `constrain` argument of both patch tools | — | `aitest constraints` (24 checks) | — | 7 types, 5 aspects, 10 selector kinds. `condition` is a closed set of named checks (`CHECKS`): 6 implemented, 4 blocked on a later phase and reported as such rather than treated as satisfied |
-| CAL-008 | AcceptanceSpec | 20.7 | P0 | unplanned | — | — | — | — | — | — | Phase 3 |
-| CAL-009 | Independent timing/pose/spacing edits | 20.4, 27 | P1 | partial (0.12.0) | `aspect` on a ConstraintSpec ∈ {timing, value, easing, space, existence} | `ai/constraints.js` `opAspects` | `constrain: { aspect }` on both patch tools | — | `aitest constraints` — a retime violates a timing lock and not a pose lock, and the reverse | — | the ENFORCEMENT half is real: "preserve poses, change timing" is a checkable constraint, and `set_easing` exists as an operation distinct from `set_key`. The GENERATION half does not — nothing yet produces a retime or a respace from an intent (needs CAL-002/004/005) |
-| CAL-010 | Human-readable interpretation of intent | 20.1 | P1 | unplanned | — | — | — | — | — | — | — |
+| CAL-008 | AcceptanceSpec | 20.7 | P0 | implemented (0.12.0) | `AcceptanceSpec` — the directive's seven buckets, filed by the check's own registry entry | `ai/cal.js` (`ACCEPTANCE_CHECKS`, `evaluateAcceptance`) | `plan_motion` (returns one), `evaluate_acceptance` (runs one), `apply_motion_plan` (runs it automatically against the before-snapshot) | — | `aitest cal` — an unrunnable check is never a pass, and each implemented check is asserted against a deliberately changed project | — | 14 checks: 10 implemented, 4 blocked (contact drift → Phase 5; visual regression and silhouette → Phase 4; export validity → `validate.js` imports `state.js` and cannot run in this layer). `accepted` and `fully_validated` are separate fields precisely so a spec where half the checks could not run cannot read as validated. Style checks carry `proxy_for`: amplitude rising is a fact, "it reads heavier" is not |
+| CAL-009 | Independent timing/pose/spacing edits | 20.4, 27 | P1 | implemented (0.12.0) | `aspect` on a ConstraintSpec, and per-strategy `aspects` on the planner side | `ai/constraints.js` `opAspects` + `ai/plan.js` `STRATEGIES[].aspects` | `constrain: { aspect }` on both patch tools; `plan_motion` / `apply_motion_plan` | — | `aitest constraints` — a retime violates a timing lock and not a pose lock, and the reverse. `aitest layer` — the Phase 3 success condition: "heavier without changing timing" drops the one key-moving strategy, names the constraint, keeps the rest, and the acceptance check proves no key moved | — | both halves now exist. GENERATION: `amplitude` changes poses without moving a key, `spacing_contrast` changes spacing without touching a pose, `lead_lag` changes timing without touching either. What is still missing is a *retime* — nothing rescales a phase's duration, because that would move protected events (needs MOT-013) |
+| CAL-010 | Human-readable interpretation of intent | 20.1 | P1 | implemented (0.12.0) | `{ header, changes[], preserves[], text }`, generated from the dimension vector | `ai/vocabulary.js` `explain()` + `ai/intent.js` | `interpret_intent`, and echoed by `plan_motion` / `apply_motion_plan` | — | `aitest vocabulary` — every dimension in the vector appears in the prose, so the two cannot disagree | — | generated from the structure rather than written, which is the point: a hand-written explanation drifts from what the planner does. It also reports what is deliberately NOT changed (heavy does not touch duration) and what is protected, so it describes both halves of the request |
 
 ## C. Vocabulary and interpretation — Part 21
 
 | ID | Requirement | § | Pri | Status | Repr. | Module | MCP | UI | Tests | Bench | Limits |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| VOC-001 | Editable term → dimension vocabulary | 21 | P1 | unplanned | — | — | — | — | — | — | Phase 8 |
-| VOC-002 | Terms: heavy / snappy / floaty / panicked / elegant | 21 | P1 | unplanned | — | — | — | — | — | — | — |
-| VOC-003 | Per-term counterexamples + failure modes | 21 | P2 | unplanned | — | — | — | — | — | — | — |
-| VOC-004 | Scoped user/project override of a term | 21, 57 | P1 | unplanned | — | — | — | — | — | — | must not silently overwrite the global definition |
+| VOC-001 | Editable term → dimension vocabulary | 21 | P1 | implemented (0.12.0) | `DIMENSIONS` (15 motion + 5 VFX) and `TERMS`, each a Part 21 card | `ai/vocabulary.js` | `animation_vocabulary`, `set_vocabulary_term` | — | `aitest vocabulary` (8 checks) | — | 7 of 15 motion dimensions compile to an operation; the other 8 are carried, reported and named in `coverage.notRun` with what unblocks each. No VFX dimension compiles (Part 37 — Phase 6). Pulls combine by a saturating rule so no word is silently discarded by a clamp |
+| VOC-002 | Terms: heavy / snappy / floaty / panicked / elegant | 21 | P1 | implemented (0.12.0) | 11 terms — the directive's five plus light, powerful, aggressive, weary, subtle, dangerous | `ai/vocabulary.js` | `animation_vocabulary` | — | `aitest vocabulary` — heavy moves ≥6 dimensions and never duration; heavy and weary pull acceleration contrast in OPPOSITE directions | — | a term is a vector, never a slider. `pinned_zero` records what a naive reading would move and the word specifically does not, which is where most of the directive's warnings live |
+| VOC-003 | Per-term counterexamples + failure modes | 21 | P2 | implemented (0.12.0) | `candidate_meanings`, `counterexamples`, `failure_modes`, `style_dependencies`, `evidence_needed`, `pinned_zero` per term | `ai/vocabulary.js` | `animation_vocabulary` | — | `aitest vocabulary` asserts the pinned-zero note reaches the findings and the prose | — | text for a reader, not machine-checkable. Style dependencies are recorded and consulted by nothing yet — style-aware thresholds are STY-* |
+| VOC-004 | Scoped user/project override of a term | 21, 57 | P1 | implemented (0.12.0) | `project.semantics.vocabulary.entries` — scoped DELTAS with evidence and an observation count | `ai/vocabulary.js` `setTerm`/`clearTerm` | `set_vocabulary_term` | — | `aitest vocabulary` — an override without evidence is refused, a character-scoped one does not bite for another item, the shared definition is untouched, and the same correction twice increments rather than duplicating | — | never overwrites the global definition: the table is frozen and an override is a delta layered on top, always named in the result. Evidence is required by construction. The observation count is the input Part 58 needs to tell a one-off from a convention; nothing consumes it yet |
 
 ## D. Motion measurement — Parts 22, 23, 27, 28, 29, 30
 
@@ -107,13 +120,13 @@ says so in its own `coverage.notRun`.
 | MOT-005 | Path curvature and arc deviation | 23, 26.7 | P1 | unplanned | — | — | — | — | — | — | Phase 5 |
 | MOT-006 | Screen-space velocity / acceleration | 23 | P1 | unplanned | — | — | — | — | — | — | needs an active camera model (SEM-021) |
 | MOT-007 | Key density + tangent continuity as measurements | 23, 31 | P1 | unplanned | — | — | — | — | — | — | Phase 5 |
-| MOT-008 | Distance to contact target / foot drift | 23, 30 | P0 | unplanned | — | — | — | — | — | — | Phase 5; needs CAL-006 |
+| MOT-008 | Distance to contact target / foot drift | 23, 30 | P0 | unplanned | — | — | — | — | — | — | Phase 5. CAL-006 now supplies the declaration to check against; the measurement itself does not exist. Four things wait on this row: the `contact_drift` constraint check, the `contact_drift_within` acceptance check, the `contact_firmness` dimension, and overshoot's refusal to touch a contact-capable effector (which is currently a blanket skip rather than a measured decision) |
 | MOT-009 | Motion Graph lead/lag analysis | 22 | P1 | unplanned | — | — | — | — | — | — | Phase 5 |
 | MOT-010 | Noise vs signal policy (stylised holds, stepped, jitter) | 23 | P1 | unplanned | — | — | — | — | — | — | must not label deviation-from-smooth as a defect |
 | MOT-011 | Centre of mass, support polygon, balance state | 28, 29 | P1 | unplanned | — | — | — | — | — | — | part mass unknown; would use volume as a proxy and say so |
 | MOT-012 | Silhouette derivation + comparison | 28 | P1 | unplanned | — | — | — | — | — | — | needs OBS-002 |
-| MOT-013 | Timing analysis (phase duration, holds, contrast) | 27 | P1 | unplanned | — | — | — | — | — | — | needs CAL-004 |
-| MOT-014 | Spacing analysis | 27 | P1 | unplanned | — | — | — | — | — | — | needs CAL-005 |
+| MOT-013 | Timing analysis (phase duration, holds, contrast) | 27 | P1 | partial (0.12.0) | `segments[]` — per span: frames, total joint rotation, and °/frame | `ai/plan.js` `segmentPhases` | `plan_motion` (`segmentation`) | — | `aitest plan` — spans are cut at key times and the rate profile drives the phase template | — | phase duration and a coarse rate contrast are real and drive the segmenter. Held frames, beat placement and per-frame timing contrast are not — those need per-frame sampling (Phase 5). The rate is an average across a span, not a velocity curve, and every result says so |
+| MOT-014 | Spacing analysis | 27 | P1 | unplanned | — | — | — | — | — | — | Phase 5. CAL-005 now exists to describe a spacing intent, and `spacing_contrast` can CHANGE spacing — but nothing MEASURES it, so a spacing edit is verified only by the fact that the easing changed (`easing_changed`, an acknowledged proxy) |
 | MOT-015 | Counter-rotation / kinetic-chain analysis | 29 | P2 | unplanned | — | — | — | — | — | — | — |
 | MOT-016 | Locomotion state reasoning (contact/passing/up/down) | 30 | P2 | unplanned | — | — | — | — | — | — | — |
 | MOT-017 | Per-frame rotation/position pop detection | 23 | P1 | implemented (pre-existing) | findings list | `validate.js` | `validate_animation` | — | in-app smoketest | — | fixed thresholds (35°, 3 studs); not style-aware |
@@ -124,10 +137,10 @@ says so in its own `coverage.notRun`.
 
 | ID | Requirement | § | Pri | Status | Repr. | Module | MCP | UI | Tests | Bench | Limits |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| CMP-001 | Motion compiler (CAL → rig edits) | 24 | P0 | unplanned | — | — | — | — | — | — | Phase 3 |
+| CMP-001 | Motion compiler (CAL → rig edits) | 24 | P0 | partial (0.12.0) | four strategies, each declaring the edit aspects it touches: `amplitude` (value), `spacing_contrast` (easing), `overshoot` (easing), `lead_lag` (timing) | `ai/plan.js` `compilePlan` | `plan_motion` (dry run), `apply_motion_plan` | — | `aitest plan` — combination, boundary exclusion, precedence, contact refusal, anchoring, and the constraint block | — | it EDITS, it does not GENERATE: every strategy transforms existing keys and none may add or remove one, so an empty timeline has nothing to make heavier. Adding keys (holds, inserted settles, breakdowns) needs the contact model to insert safely (MOT-008). Rig joint tracks only — no cameras, props or effect items. Each strategy is built once from every dimension that routes to it, and blocked *whole* by a refusing constraint rather than partially |
 | CMP-002 | Roblox adapter: semantic role → rig component | 24 | P0 | implemented (0.12.0) | `roblox_mapping` on each rig node (`partId`/`jointName`/`className`/`part0`/`part1`/`trackName`) | `ai/riggraph.js` | `inspect_rig` | — | `aitest rig graph` | — | mapping only; no compilation yet |
 | CMP-003 | Report unsupported constructs rather than dropping | 24 | P0 | designed | `limitations[]` on every graph | `ai/riggraph.js`, `ai/scenegraph.js`, `ai/timelinegraph.js` | `inspect_scene`, `inspect_rig`, `inspect_timeline` | — | `aitest scene graph` / `rig graph` / `timeline graph` assert the specific limitation strings | — | every graph carries a `limitations` array; populated for what is known now |
-| CMP-004 | Mapping provenance (low-level change → intent) | 24 | P1 | partial (0.12.0) | provenance `patch` nodes with `before`/`after` edges; `implements`/`interprets` reserved | `ai/provenance.js`, `renderer/js/app.js` `apply_animation_patch` | `inspect_provenance`, `inspect_transaction` | — | `aitest provenance`; smoketest asserts an applied patch is findable in provenance by its transaction id | — | a low-level change now traces to its transaction, its request text, its intent line and its before/after snapshots. What is missing is the link to a STRUCTURED intent rather than a free-text line — that needs CAL-001 |
+| CMP-004 | Mapping provenance (low-level change → intent) | 24 | P1 | implemented (0.12.0) | provenance `patch` nodes with `before`/`after` edges, plus a `plan` node carrying the whole IntentSpec, the plan description, the strategies applied and what was blocked, linked to the transaction by a `produced` edge | `ai/provenance.js`, `renderer/js/app.js` `apply_animation_patch` + `apply_motion_plan` | `inspect_provenance`, `inspect_transaction` | — | `aitest provenance`; smoketest asserts an applied patch is findable in provenance by its transaction id | — | a keyframe now traces back to the transaction, the plan, the strategy and the dimension, and from there to the IntentSpec and the user's own words. What is NOT recorded per-operation is which strategy emitted which op — the link is at plan granularity, not op granularity |
 | CMP-005 | Retargeting as adaptation, with a transfer report | 33 | P2 | unplanned | — | — | — | — | — | — | `mirror_partner` (SEM-013) is the first ingredient |
 | CMP-006 | Existing Roblox export bake (easing → per-frame keys) | 24 | P1 | implemented (pre-existing) | — | `io.js` | `export_to_studio` | export menu | in-app smoketest | — | — |
 
@@ -137,7 +150,7 @@ says so in its own `coverage.notRun`.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | KNW-001 | Knowledge entries with the Part 25 field list | 25 | P1 | unplanned | — | — | — | — | — | — | Phase 8 |
 | KNW-002 | Category: essential/advanced/optional/specialised/experimental | 25 | P1 | unplanned | — | — | — | — | — | — | — |
-| KNW-003 | 12 classical principles, operationalised | 26 | P1 | unplanned | — | — | — | — | — | — | Phase 8 |
+| KNW-003 | 12 classical principles, operationalised | 26 | P1 | unplanned | — | — | — | — | — | — | Phase 8. Four principles are now *implicitly* operationalised by the planner without a knowledge entry behind them — anticipation (a phase with an amplitude strategy), slow-in/slow-out (the easing ladder), follow-through/overlap (`lead_lag` and `secondary_delay`), and timing vs spacing as separate dimensions. That is not this row: a knowledge entry has to say when a technique is HARMFUL, and none of them does |
 | KNW-004 | Principle Interaction Graph | 71 | P2 | unplanned | — | — | — | — | — | — | — |
 | KNW-005 | Relevance gate ("does this serve the intent?") | 25, 71 | P1 | unplanned | — | — | — | — | — | — | — |
 | KNW-006 | Controlled knowledge expansion procedure | 72 | P2 | unplanned | — | — | — | — | — | — | — |
@@ -216,14 +229,14 @@ says so in its own `coverage.notRun`.
 
 | ID | Requirement | § | Pri | Status | Repr. | Module | MCP | UI | Tests | Bench | Limits |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| MCP-001 | Structured arguments and structured results | 50 | P0 | implemented (pre-existing) | zod + JSON | `mcp-server/index.js` | all 160 tools (140 pre-existing + 20 semantic-layer) | — | in-app registration gate | — | — |
+| MCP-001 | Structured arguments and structured results | 50 | P0 | implemented (pre-existing) | zod + JSON | `mcp-server/index.js` | all 166 tools (140 pre-existing + 26 semantic-layer) | — | in-app registration gate | — | — |
 | MCP-002 | Every handler is reachable (no dead capability) | 50 | P0 | implemented (pre-existing) | — | `test/smoketest.js` | — | — | registration-coverage step — 95 handler keys, all registered, 2 deliberate exclusions | — | — |
-| MCP-003 | Tools declare read-only / preview / transactional / destructive | 50 | P0 | partial (0.12.0) | the effect is the first word of the tool description (`READ-ONLY.` / `MUTATING (transactional, undoable, rollback-capable).` / `DESTRUCTIVE (undoable).`) | `mcp-server/index.js` | the 20 semantic-layer tools | — | `aitest mcp` — parses `mcp-server/index.js` and asserts all 20 open with one of the three markers, that every mutating one says MUTATING, that a dry run says READ-ONLY, and that `apply_animation_patch` states it is rollback-capable. Negative-tested: removing one marker fails the check | — | still `partial`: the convention holds and is enforced for the 20 semantic-layer tools, but the 140 pre-existing ones are undeclared and the marker is prose in a description rather than a structured field a client could filter on |
-| MCP-004 | Mutating tools return transaction id, scope, rollback availability | 50 | P0 | implemented (0.12.0) | `mutationResult()` — one function producing all nine of Part 50's required fields | `ai/transaction.js` | `preview_animation_patch`, `apply_animation_patch`, `rollback_transaction` | — | `aitest transaction` iterates the nine fields and fails if any is missing, and asserts that a REFUSAL also reports which constraints it violated | — | the patch and transaction tools carry it. The pre-existing mutators (`set_key`, `add_marker`, …) still return ad-hoc shapes and are undoable but not transactional. A refusal that reported zero constraints checked was a real defect the smoketest caught, and is fixed |
+| MCP-003 | Tools declare read-only / preview / transactional / destructive | 50 | P0 | partial (0.12.0) | the effect is the first word of the tool description (`READ-ONLY.` / `MUTATING (transactional, undoable, rollback-capable).` / `DESTRUCTIVE (undoable).`) | `mcp-server/index.js` | the 26 semantic-layer tools | — | `aitest mcp` — parses `mcp-server/index.js` and asserts all 26 open with one of the three markers, that every mutating one says MUTATING, that a dry run says READ-ONLY, and that both `apply_animation_patch` and `apply_motion_plan` state they are rollback-capable. Negative-tested: removing one marker fails the check | — | still `partial`: the convention holds and is enforced for the 26 semantic-layer tools, but the 140 pre-existing ones are undeclared and the marker is prose in a description rather than a structured field a client could filter on |
+| MCP-004 | Mutating tools return transaction id, scope, rollback availability | 50 | P0 | implemented (0.12.0) | `mutationResult()` — one function producing all nine of Part 50's required fields | `ai/transaction.js` | `preview_animation_patch`, `apply_animation_patch`, `rollback_transaction`, `apply_motion_plan` | — | `aitest transaction` iterates the nine fields and fails if any is missing, and asserts that a REFUSAL also reports which constraints it violated | — | the patch and transaction tools carry it. The pre-existing mutators (`set_key`, `add_marker`, …) still return ad-hoc shapes and are undoable but not transactional. A refusal that reported zero constraints checked was a real defect the smoketest caught, and is fixed |
 | MCP-005 | Core inspection tools (Part 50 list) | 50 | P0 | partial (0.12.0) | — | `ai/scenegraph.js`, `ai/riggraph.js`, `ai/timelinegraph.js`, `ai/provenance.js`, `ai/constraints.js` | `inspect_scene`, `inspect_rig`, `inspect_timeline`, `inspect_provenance`, `inspect_constraints` | — | smoketest "every new MCP handler runs against the live project and returns its documented shape" | — | 5 of the 10 named in Part 50. `inspect_animation_curves` is folded into `inspect_timeline`; `inspect_motion_graph`, `inspect_effect_graph`, `inspect_shot_events` and `inspect_dependencies` (as its own tool) do not exist |
 | MCP-006 | Rendering/observation tools (Part 50 list) | 50 | P0 | unplanned | — | — | `render_frame` (pre-existing) only | — | — | — | 1 of 9; the rest need OBS-* |
 | MCP-007 | Analysis tools (Part 50 list) | 50 | P0 | unplanned | — | — | — | — | — | — | Phase 5 |
-| MCP-008 | Planning/generation tools (Part 50 list) | 50 | P0 | unplanned | — | — | — | — | — | — | Phase 3 |
+| MCP-008 | Planning/generation tools (Part 50 list) | 50 | P0 | partial (0.12.0) | — | `ai/intent.js`, `ai/plan.js`, `ai/vocabulary.js`, `ai/cal.js` | `interpret_intent`, `plan_motion`, `apply_motion_plan`, `evaluate_acceptance`, `animation_vocabulary`, `set_vocabulary_term` | — | `aitest mcp` (registration + effect declaration), `aitest intent`, `aitest plan`, `aitest layer` (the Phase 3 success condition end to end) | — | body motion only. Part 50's list also names camera, VFX, shot-event and retarget planning, and none of those exist (Phases 6–7). `plan_motion` is a dry run and `apply_motion_plan` re-plans against the live project rather than trusting an earlier plan id |
 | MCP-009 | Safe mutation tools (Part 50 list) | 50 | P0 | partial (0.12.0) | — | `ai/snapshot.js`, `ai/patch.js`, `ai/transaction.js`, `ai/constraints.js` | `snapshot_scene`, `list_snapshots`, `restore_snapshot`, `diff_snapshots`, `preview_animation_patch`, `apply_animation_patch`, `rollback_transaction`, `lock_constraint`, `unlock_constraint` | — | `aitest patch` (24 checks), `aitest transaction` (13 checks); smoketest runs preview → refusal → apply → scoped rollback → remainder rollback through the real handlers and lands byte-identical to the pre-patch state | — | 8 of Part 50's 15. `preview_vfx_patch`/`apply_vfx_patch` are absent (the PNX studio has its own document model and undo); `preview_camera_patch`/`apply_camera_patch` are SUBSUMED, because a camera in Cadence is an item with `@origin`/`@fov` tracks and the animation ops already cover it; `apply_shot_patch` needs SHOT-001 |
 | MCP-010 | Learning/admin tools (Part 50 list) | 50 | P1 | unplanned | — | — | — | — | — | — | Phase 8/9 |
 | MCP-011 | MCP resources (`cadence://…`) | 51 | P1 | unplanned | — | — | — | — | — | — | the graphs are resource-shaped already; only the transport is missing |
@@ -255,7 +268,7 @@ says so in its own `coverage.notRun`.
 | ID | Requirement | § | Pri | Status | Repr. | Module | MCP | UI | Tests | Bench | Limits |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | MEM-001 | Scoped memory (facts/heuristics/conventions/character/preferences) | 57 | P1 | unplanned | — | — | — | — | — | — | Phase 8; `project.semantics.memory` reserved |
-| MEM-002 | Preference *candidates*, never auto-applied global rules | 57 | P0 | unplanned | — | — | — | — | — | — | — |
+| MEM-002 | Preference *candidates*, never auto-applied global rules | 57 | P0 | partial (0.12.0) | `project.semantics.vocabulary.entries` — scoped deltas with evidence and an `observations` count | `ai/vocabulary.js` | `set_vocabulary_term`, reported by `animation_vocabulary` and in every interpretation's `overrides_applied` | — | `aitest vocabulary` — evidence is required, scope is honoured, the shared definition is untouched, and a repeat increments rather than duplicating | — | one kind of preference (what a word means) is scoped, evidenced and counted. Nothing else is: no heuristic, convention or character-level memory exists, nothing *proposes* a candidate from observed corrections, and the observation count is recorded but read by nobody. MEM-001 is the general case |
 | MEM-003 | Learning from accepted work | 58 | P2 | unplanned | — | — | — | — | — | — | — |
 | MEM-004 | Learning from failure | 58 | P2 | unplanned | — | — | — | — | — | — | — |
 | BCH-001 | Benchmark library (Part 59 categories) | 59 | P1 | unplanned | — | — | — | — | — | — | Phase 9 |
@@ -283,7 +296,7 @@ says so in its own `coverage.notRun`.
 
 | ID | Requirement | § | Pri | Status | Repr. | Module | MCP | UI | Tests | Bench | Limits |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| OPS-001 | Explicit operating modes (create/polish/analyse/compare/fix/experiment/review/ship) | 11 | P1 | unplanned | — | — | — | — | — | — | Phase 7 |
+| OPS-001 | Explicit operating modes (create/polish/analyse/compare/fix/experiment/review/ship) | 11 | P1 | designed | `IntentSpec.mode` | `ai/cal.js` | `mode` on `interpret_intent` / `plan_motion` / `apply_motion_plan` | — | — | — | the field exists, is carried on the intent and reaches provenance. **Nothing reads it** — no default freedom, analysis depth or approval requirement changes with the mode, so setting it today records a declaration and alters no behaviour. Phase 7 |
 | OPS-002 | Exploration vs production mode, always visible | 11 | P1 | unplanned | — | — | — | — | — | — | — |
 | OPS-003 | Certainty labels on findings | 13 | P0 | implemented (0.12.0) | `certainty` ∈ {certain, highly_likely, possible, subjective, user_intent_required} | `ai/certainty.js` | `inspect_rig`, `resolve_semantic`, `inspect_constraints`, both patch tools | — | `aitest certainty`; `aitest constraints` asserts that a violation of a constraint whose target was MEASURED (the planted foot) is capped at `highly_likely` and never reported as `certain` | — | see EXP-003. `requiresUser()` marks the two levels Part 13 forbids acting on automatically, but nothing yet *consumes* that gate — no tool acts autonomously |
 | OPS-004 | Fast loop vs full validation loop, never conflated | 15 | P0 | implemented (0.12.0) | `coverage{scope, frames, loop, notRun}` on every result | `ai/certainty.js` | `inspect_rig`, `resolve_semantic`, `inspect_constraints`, both patch tools, every scope report | — | `aitest certainty` (an unknown `loop` throws); `aitest rig graph` asserts `notRun` is populated; `aitest select` asserts the exact frames sampled; `aitest constraints` asserts an unimplemented check lands in `notRun` and that the recommendation does not read as a clean pass | — | `notRun` is hand-maintained per producer — it is a claim by the author, not derived, so a new check added without updating it would silently over-report coverage. `scope.regression_test_requirement.can_fully_validate` is hard-coded `false` and stays false until Phase 4 |

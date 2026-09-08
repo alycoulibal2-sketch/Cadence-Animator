@@ -2580,6 +2580,106 @@
     return out;
   });
 
+  await step('animation language: "heavier without changing timing" through the real MCP tools, end to end', async () => {
+    // Part 62's success condition for Phase 3, run against the LIVE app rather than a fixture.
+    // aitest already exercises every module in plain Node; what only this can reach is the handler
+    // boundary itself — liveProject(), the shared intent resolver, apply_motion_plan re-entering
+    // apply_animation_patch, the before-snapshot becoming the acceptance baseline, and the plan
+    // node landing in provenance. Every one of those is code aitest never touches.
+    S.newProject('animation-language');
+    const item = await D.addBuiltinRig('r15');
+    const key = (track, t, v, es, ed) => S.setKey(item.id, track, t, v, { es, ed, noUndo: true });
+    for (const [track, a, b] of [
+      ['Root', CF.fromEuler(0, 0.3, 0), CF.fromEuler(0, -0.4, 0)],
+      ['Waist', CF.fromEuler(0, 0.4, 0), CF.fromEuler(0, -0.5, 0)],
+      ['RightShoulder', CF.fromEuler(0, 0, 1.2), CF.fromEuler(0, 0, -0.9)],
+      ['RightElbow', CF.fromEuler(0.6, 0, 0), CF.fromEuler(0.1, 0, 0)],
+    ]) {
+      key(track, 0, CF.IDENTITY.slice(), 'Sine', 'Out');
+      key(track, 8, a, 'Sine', 'InOut');
+      key(track, 16, b, 'Sine', 'Out');
+      key(track, 28, CF.IDENTITY.slice(), 'Sine', 'Out');
+    }
+    S.addMarker(item.id, 16, { name: 'impact', width: 2 });
+    const out = {};
+
+    // EXPRESS — and say back what was understood, including what was not.
+    const i = D.mcp('interpret_intent', { request: 'make the slash heavier without changing timing', itemId: item.id });
+    assert(i.intent.action_type === 'attack', '"slash" must name the motion, not scope the edit to a third of it');
+    assert(i.intent.preserve.includes('aspect:timing'), 'the preserve clause must reach the intent');
+    assert(i.interpretation.preserves.some((s) => /timing/.test(s)), 'the interpretation must state what is protected, not only what changes');
+    assert(i.unrecognised.length === 0, `nothing should have been left over: ${i.unrecognised.join(', ')}`);
+    assert(i.constraints.constraints.length === 1 && i.constraints.constraints[0].aspect[0] === 'timing');
+    out.intent = { id: i.intent.id, terms: i.intent.terms.map((t) => t.term), confidence: i.intent.confidence };
+
+    // PLAN — a dry run that changes nothing.
+    const before = D.mcp('inspect_timeline', { itemId: item.id }).counts.keys;
+    const planned = D.mcp('plan_motion', { request: 'make the slash heavier without changing timing', itemId: item.id });
+    assert(D.mcp('inspect_timeline', { itemId: item.id }).counts.keys === before, 'plan_motion must not touch the project');
+    assert(planned.plan.phases.length === 3, `expected 3 spans, got ${planned.plan.phases.length}`);
+    const impact = planned.plan.phases.find((p) => p.name === 'impact');
+    assert(impact && impact.certainty === 'highly_likely', 'the marker names the impact, and a marker is not certainty');
+    assert(planned.plan.phases.some((p) => p.certainty === 'possible'), 'an inferred phase name must never claim better than possible');
+    assert(planned.operations > 0, 'something must survive the timing protection');
+    out.plan = { operations: planned.operations, strategies: planned.applied_strategies.map((s) => s.strategy) };
+
+    // ENFORCE — the one key-moving strategy is refused, by name, with what the motion loses.
+    const lead = planned.blocked.find((b) => b.strategy === 'lead_lag');
+    assert(lead, 'body lead moves keys and must be blocked by the timing protection');
+    assert(lead.blocked_by === 'constraint' && lead.constraints[0].rule === 'no key changes time');
+    assert(lead.operations_dropped > 0 && /body-driven/.test(lead.contributes), 'a blocked strategy must say what was lost');
+    assert(planned.blocked.some((b) => b.blocked_by === 'capability' && /Part 23/.test(b.reason)),
+      'a dimension nothing can compile must be reported, not dropped');
+    out.blocked = planned.blocked.map((b) => b.dimension);
+
+    // APPLY — through the same transaction machinery as a hand-written patch.
+    const applied = D.mcp('apply_motion_plan', { request: 'make the slash heavier without changing timing', itemId: item.id });
+    assert(applied.applied === true, `the plan should have applied: ${applied.reason || applied.summary}`);
+    assert(applied.transaction_id, 'apply_motion_plan must be a transaction, not a bare mutation');
+    assert(!applied.applied_strategies.some((s) => s.strategy === 'lead_lag'), 'the key-moving strategy must not have run');
+    out.transaction = applied.transaction_id;
+
+    // MEASURE — against the before-snapshot the apply took for itself.
+    const acc = applied.acceptance;
+    assert(acc, 'apply_motion_plan must evaluate its own acceptance criteria');
+    assert(acc.accepted === true, `acceptance failed: ${acc.summary}`);
+    assert(acc.fully_validated === false, 'nothing rendered, so this must NOT read as fully validated');
+    const by = Object.fromEntries(acc.results.map((r) => [r.check, r]));
+    assert(by.key_times_unchanged.status === 'pass', 'the timing promise has to be measured, not asserted');
+    assert(by.amplitude_increased.status === 'pass', 'and the change has to have actually happened');
+    assert(by.no_visual_regression.status === 'not_run', 'the visual check must always come back NOT RUN in this build');
+    out.acceptance = acc.summary;
+
+    // The plan is in provenance, so a keyframe traces back to the words that produced it.
+    const prov = D.mcp('inspect_provenance', { type: 'plan' });
+    assert(prov.nodes.length === 1 && prov.nodes[0].detail.intent.request === 'make the slash heavier without changing timing',
+      'the applied plan must be findable in provenance by its request');
+
+    // ROLL BACK — the whole thing, through the Phase 2 tool, with no special case for plans.
+    const rb = D.mcp('rollback_transaction', { transactionId: applied.transaction_id });
+    assert(rb.complete === true, 'a motion plan must be as reversible as any other patch');
+    assert(D.mcp('inspect_timeline', { itemId: item.id }).counts.keys === before, 'the key count must be back where it started');
+
+    // A vocabulary override is scoped and evidenced, and survives save/load.
+    let threw = false;
+    try { D.mcp('set_vocabulary_term', { term: 'heavy', dimensions: { motion_amplitude: -0.3 } }); } catch { threw = true; }
+    assert(threw, 'an override without evidence must be refused');
+    D.mcp('set_vocabulary_term', {
+      term: 'heavy', dimensions: { motion_amplitude: -0.3 }, scope: 'character', scopeId: item.id,
+      evidence: ['the user scaled it back twice'],
+    });
+    S.loadProject(S.serialize());
+    const vocab = D.mcp('animation_vocabulary', { itemId: item.id });
+    const heavy = vocab.terms.find((t) => t.term === 'heavy');
+    assert(heavy.overrides.length === 1, 'a scoped override must survive save/load');
+    assert(heavy.dimensions.motion_amplitude === 0.2, 'the SHARED definition must be untouched');
+    assert(vocab.language.acceptance_checks.some((c) => !c.implemented && c.blocked_by),
+      'an unimplemented acceptance check must name what blocks it');
+    out.vocabulary = { overrides: heavy.overrides.length };
+
+    return out;
+  });
+
   // ---------------------------------------------------------------- MCP registration coverage
   // Regression guard for a real bug found 2026-07-22: solve_ik/create_joint/remove_joint/
   // convert_joint/set_track_space/get_track_space were fully implemented in MCP_HANDLERS (built
