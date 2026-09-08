@@ -214,7 +214,45 @@ export function closeCurveEditor() {
 }
 
 // ---------------------------------------------------------------- document lifecycle
+
+/**
+ * Leave whichever authoring modes the caller is not entering.
+ *
+ * A document is authored by exactly one of hand-edited layers (`doc`), the v1 graph (`graph`), or
+ * PNX (`pnx`) — `setPnxGraph` says so and clears `graph` on the way in. Nothing enforced the other
+ * directions, and the consequence was not subtle: **`preview.js` branches on `state.pnx` in five
+ * places**, so while it is set the preview draws the procedural graph no matter what `doc` holds.
+ * `setDoc` therefore installed a document nobody could see.
+ *
+ * That is the "⬜ Start from scratch" bug: from a procedural effect it produced a blank `doc`,
+ * left `pnx` standing, and the studio carried on drawing the effect the user had just asked to be
+ * rid of. Every other `setDoc` caller had it too — applying a preset, opening a file, and
+ * receiving an effect from the animator were all silently ignored in PNX mode.
+ *
+ * `state.pnx = null` on its own would leak the PNX session, so the session is closed the same way
+ * `closePnx` closes it. Undo is NOT pushed here: every caller has already pushed one snapshot for
+ * the whole operation, and a second would make one action take two Ctrl+Z presses.
+ */
+function leaveModes({ keepPnx = false, keepGraph = false } = {}) {
+  let left = false;
+  if (!keepPnx && state.pnx) {
+    state.pnx = null;
+    PNX.closeSession();
+    left = true;
+  }
+  if (!keepGraph) {
+    if (state.graph) left = true;
+    state.graph = null;
+    // Cleared unconditionally, not only when a graph was open: a compile error belongs to the
+    // graph that produced it, and leaving one behind would have the new document reported as
+    // broken by errors it did not cause. This matches what setPnxGraph already did.
+    state.graphErrors = [];
+  }
+  return left;
+}
+
 export function setDoc(doc, { select: sel = true } = {}) {
+  const leftMode = leaveModes();
   state.doc = doc;
   state.solo.clear();
   state.expanded.clear();
@@ -224,6 +262,9 @@ export function setDoc(doc, { select: sel = true } = {}) {
   afterDocChange();
   emit('selection', {});
   emit('curveTarget', {});
+  // Anything watching the mode (the frame label's "· procedural" suffix, the node editor, the
+  // export gate) has to be told, or the UI keeps advertising a mode the state has already left.
+  if (leftMode) emit('pnx', {});
 }
 
 export function newBlankDoc() {
@@ -237,6 +278,9 @@ export function newBlankDoc() {
 // truth, state.doc is immediately (re)compiled from it. Selection/playhead/view-state reset the
 // same way opening any new document does.
 export function setGraph(graph, { select: sel = true } = {}) {
+  // Same exclusivity as setDoc: opening a v1 graph from PNX mode used to leave the procedural
+  // session drawing, so the graph compiled into a `doc` the preview never looked at.
+  const leftMode = leaveModes({ keepGraph: true });
   state.graph = graph;
   recompileFromGraph();
   state.solo.clear();
@@ -247,15 +291,15 @@ export function setGraph(graph, { select: sel = true } = {}) {
   afterDocChange();
   emit('selection', {});
   emit('curveTarget', {});
+  if (leftMode) emit('pnx', {});
 }
 
 // Open a PNX procedural effect. Exclusive with the other two modes: a document is authored by exactly
 // one of hand-edited layers, the v1 graph, or PNX, and pretending otherwise leaves two sources of
 // truth fighting over `doc`.
 export function setPnxGraph(graph, { select: sel = true } = {}) {
+  leaveModes({ keepPnx: true });   // clears `graph`; this is the direction that always worked
   state.pnx = graph;
-  state.graph = null;
-  state.graphErrors = [];
   PNX.openSession(graph, { fps: state.doc.fps || 30, duration: state.doc.duration || 60 });
   state.solo.clear();
   state.expanded.clear();

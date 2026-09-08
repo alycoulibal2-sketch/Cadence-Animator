@@ -4736,6 +4736,59 @@ check('fit: fittingSocket finds the socket a held wire lands on, and refuses typ
 });
 
 // ================================================================
+// Studio authoring modes are mutually exclusive
+//
+// A studio document is authored by exactly one of hand-edited layers (`doc`), the v1 graph
+// (`graph`), or PNX (`pnx`). Only the PNX direction enforced that, and the gap was not cosmetic:
+// `preview.js` branches on `state.pnx` in five places, so any mode left standing keeps drawing.
+// Reported as "'Start from scratch' opens an existing effect" — from a procedural effect the
+// button produced a blank `doc` and the studio carried on rendering what the user wanted rid of.
+
+const ST = await import('../renderer-vfx/js/studioState.js');
+const PGRAPH_FOR_MODES = await import('../renderer/js/pnx/graph.js');
+const GRAPH_FOR_MODES = await import('../renderer/js/nodeGraphModel.js');
+const MODEL_FOR_MODES = await import('../renderer/js/effectModel.js');
+
+check('studio: "start from scratch" actually leaves PNX mode', () => {
+  ST.setPnxGraph(PGRAPH_FOR_MODES.newGraph('procedural'));
+  assert.equal(ST.isPnxMode(), true, 'precondition: the studio is in PNX mode');
+
+  ST.newBlankDoc();
+  assert.equal(ST.isPnxMode(), false, 'a blank doc must leave PNX mode, or the preview keeps drawing the graph');
+  assert.equal(ST.state.pnx, null);
+  assert.equal(ST.state.doc.layers.length, 1, 'and the blank doc is what is now open');
+});
+
+check('studio: opening any layer document leaves PNX mode', () => {
+  // Not just the blank case — every setDoc caller had this bug. Applying a preset, opening a file
+  // and receiving an effect from the animator all looked like nothing happened.
+  ST.setPnxGraph(PGRAPH_FOR_MODES.newGraph('procedural'));
+  const preset = MODEL_FOR_MODES.newEffect('A Preset');
+  MODEL_FOR_MODES.addLayer(preset, MODEL_FOR_MODES.newLayer('emitter', 'Sparks'));
+  ST.setDoc(preset);
+  assert.equal(ST.isPnxMode(), false);
+  assert.equal(ST.state.doc.name, 'A Preset');
+});
+
+check('studio: opening a v1 graph leaves PNX mode, and PNX leaves the v1 graph', () => {
+  ST.setPnxGraph(PGRAPH_FOR_MODES.newGraph('procedural'));
+  ST.setGraph(GRAPH_FOR_MODES.newGraph('v1'));
+  assert.equal(ST.state.pnx, null, 'a v1 graph and a PNX graph cannot both be the source of truth');
+  assert.ok(ST.state.graph, 'and the v1 graph is the one that stuck');
+
+  ST.setPnxGraph(PGRAPH_FOR_MODES.newGraph('back to procedural'));
+  assert.equal(ST.state.graph, null, 'the direction that always worked still works');
+  assert.equal(ST.isPnxMode(), true);
+});
+
+check('studio: leaving a mode clears the compile errors that belonged to it', () => {
+  ST.setGraph(GRAPH_FOR_MODES.newGraph('v1'));
+  ST.state.graphErrors = [{ message: 'a stale error from the graph' }];
+  ST.newBlankDoc();
+  assert.deepEqual(ST.state.graphErrors, [], 'a new document must not be reported as broken by errors it did not cause');
+});
+
+// ================================================================
 console.log(`\nPNX: ${passed} passed, ${failed} failed  (${R.nodeCount()} node types registered)`);
 if (failed) {
   console.error('\nFailures:');
