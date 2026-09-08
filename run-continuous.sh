@@ -31,7 +31,12 @@ command -v jq                >/dev/null || fail "jq not found — winget install
 command -v gh                >/dev/null || fail "gh not found — https://cli.github.com"
 command -v continuous-claude >/dev/null || fail "continuous-claude not found — see the URL at the top of this file"
 
-gh auth status >/dev/null 2>&1 || fail "gh is not authenticated. Run:  gh auth refresh -h github.com  (or gh auth login)"
+# `gh auth status` reads the Windows credential keyring, and on this machine it intermittently
+# reports the token as invalid when the keyring is momentarily locked — a fully authenticated gh
+# has failed this call and passed the retry seconds later. A single call is therefore not evidence
+# of anything, and treating it as such would stop the loop at random.
+gh_ok() { for _ in 1 2 3 4 5; do gh auth status >/dev/null 2>&1 && return 0; sleep 3; done; return 1; }
+gh_ok || fail "gh is not authenticated after 5 attempts. Run:  gh auth refresh -h github.com -s workflow"
 
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 [ "$BRANCH" = "main" ] && fail "refusing to run on main — check out animation-intelligence first"
