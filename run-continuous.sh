@@ -35,6 +35,14 @@ gh auth status >/dev/null 2>&1 || fail "gh is not authenticated. Run:  gh auth r
 
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 [ "$BRANCH" = "main" ] && fail "refusing to run on main — check out animation-intelligence first"
+
+# The branch prefix must not collide with an existing branch NAME. Git stores refs as files, so
+# with a branch called `animation-intelligence` there can be no `animation-intelligence/auto/…`
+# directory beside it — the create fails with nothing useful in the log. `ai-phase/` is unrelated
+# to any branch here, and this check keeps it that way if someone changes the prefix later.
+PREFIX_ROOT="${CC_BRANCH_PREFIX:-ai-phase/}"; PREFIX_ROOT="${PREFIX_ROOT%%/*}"
+git show-ref --verify --quiet "refs/heads/$PREFIX_ROOT" \
+  && fail "branch prefix '$PREFIX_ROOT/' collides with the existing branch '$PREFIX_ROOT' — git cannot nest refs under a ref"
 [ -z "$(git status --porcelain)" ] || fail "working tree is dirty — commit or stash first, so an iteration's diff is only its own work"
 
 echo "▶ branch: $BRANCH   (pull requests will be based here, not on main)"
@@ -105,7 +113,7 @@ exec continuous-claude \
   --max-cost "${CC_MAX_COST:-40.00}" \
   --notes-file SHARED_TASK_NOTES.md \
   --knowledge-file CLAUDE.md \
-  --git-branch-prefix "animation-intelligence/auto/" \
+  --git-branch-prefix "${CC_BRANCH_PREFIX:-ai-phase/}" \
   --merge-strategy squash \
   --stall-threshold 2 \
   --completion-threshold 2 \
