@@ -18,12 +18,35 @@ const D = await import('../renderer/js/diagnostics.js');
 const EV = await import('../renderer/js/effectValidators.js'); // registers validators on load
 
 let passed = 0, failed = 0;
+const skipped = [];
+
+/**
+ * Declare that a check cannot run here, and why.
+ *
+ * A few checks read files from a local Roblox Studio install, which exists on a developer's Windows
+ * machine and never on a CI runner. They have to be able to stand down — but a stood-down check is
+ * NOT a pass, so it is counted and named separately and the reason is printed. A suite that reports
+ * "41 passed" when one of them silently did nothing is lying in the direction that matters.
+ *
+ * This replaces a `this.skip = true` idiom that never worked: `check` calls `fn()` with no
+ * receiver, and module code is strict, so `this` was `undefined` and the skip path threw. It went
+ * unnoticed for as long as it did because the branch only runs on a machine without Studio — which
+ * is to say, only on CI, which this repo did not have until now.
+ */
+class Skip extends Error {}
+function skip(reason) { throw new Skip(reason); }
+
 function check(name, fn) {
   try {
     fn();
     passed++;
     console.log(`  ok  ${name}`);
   } catch (e) {
+    if (e instanceof Skip) {
+      skipped.push({ name, reason: e.message });
+      console.log(`  --  ${name}  (SKIPPED: ${e.message})`);
+      return;
+    }
     failed++;
     console.error(`FAIL  ${name}: ${e.message}`);
   }
@@ -462,8 +485,8 @@ const ROBLOX_CONTENT = (() => {
   return null;
 })();
 
-check('mesh: the classic head parses to the exact size Roblox renders it', function () {
-  if (!ROBLOX_CONTENT) { this.skip = true; return; } // no local Studio install to read
+check('mesh: the classic head parses to the exact size Roblox renders it', () => {
+  if (!ROBLOX_CONTENT) skip('no local Roblox Studio install to read avatar/heads/head.mesh from');
   const g = parseMesh(fs_.readFileSync(path_.join(ROBLOX_CONTENT, 'avatar', 'heads', 'head.mesh')));
   const p = g.positions;
   const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
@@ -493,5 +516,13 @@ check('rbxm: the R15 head Studio actually builds is Part + SpecialMesh(Head), no
   assert.equal(sm.props.Scale.x, 1.25);
 });
 
-console.log(failed ? `\n${failed} FAILED, ${passed} passed` : `\nAll ${passed} core checks passed`);
+// A skip is reported on its own line, never folded into the pass count. "All N passed" alongside a
+// silently-absent check is exactly the false assurance the rest of this codebase works to avoid.
+if (skipped.length) {
+  console.log(`\n${skipped.length} check(s) did NOT run here:`);
+  for (const s of skipped) console.log(`  - ${s.name}\n      ${s.reason}`);
+}
+console.log(failed
+  ? `\n${failed} FAILED, ${passed} passed${skipped.length ? `, ${skipped.length} skipped` : ''}`
+  : `\n${passed} core checks passed${skipped.length ? `, ${skipped.length} skipped (see above — NOT a clean full run)` : ' — a clean full run'}`);
 process.exit(failed ? 1 : 0);
