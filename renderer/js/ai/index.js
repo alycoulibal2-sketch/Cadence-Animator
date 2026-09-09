@@ -46,6 +46,10 @@
 //   review        Parts 49 and 14 — the structured shot review, ordered by the quality hierarchy
 //   simulate      Part 47 — the pre-commit evaluation: the review, run on a planned result
 //   workflows     Part 52 — the sixteen named workflows, as declared and validated tool chains
+//   style         Part 35 — style profiles that change vocabulary thresholds, not just a label
+//   knowledge     Parts 25, 26, 71, 73 — the twelve classical principles, the relevance gate, the premium standard
+//   memory        Part 57 — scoped project/preference memory; Part 58 — learning from accepted and failed work
+//   reference     Part 36 — reference profiles built from an in-project source, never blindly copied
 //
 // Phase 4 note on purity: the layer now reasons about pixels, and still imports no renderer. A
 // raster crosses the boundary as `{ width, height, encoding, data }` and nothing else; the GPU
@@ -60,10 +64,18 @@
 // sees a project and one action, never the session history that would prove a diagnosis came first.
 // The enforcement point is `apply_animation_patch`, which every mutating semantic tool goes through.
 //
+// Phase 8 note on where things live: `knowledge.js`'s twelve principles are compiled reference data,
+// like `vocabulary.js TERMS` — not project state, because they are not learned or per-project.
+// `memory.js` and `style.js` DO live in `project.semantics` (undoable, like vocabulary overrides),
+// because a declared style or a captured correction IS an edit a project can make and undo.
+// `reference.js` profiles live in `project.semantics.references`, held out of snapshots and undo
+// exactly like `baselines` and `provenance` — a reference profile is a record ABOUT a source, not a
+// change to this project's own animation. None of the three learn across projects: there is no
+// cross-project store, and each module says so rather than implying otherwise.
+//
 // What is deliberately NOT here yet, so nothing accidentally implies it exists: a Shot entity and
-// CameraSpec (Parts 40 and 41 beyond the event timeline — see `events.describeShot().absent`),
-// knowledge, memory and reference profiles (Parts 25 and 57, Phase 8), and benchmarks (Part 59,
-// Phase 9 — which is why every workflow reports `benchmark_coverage: none`).
+// CameraSpec (Parts 40 and 41 beyond the event timeline — see `events.describeShot().absent`), and
+// benchmarks (Part 59, Phase 9 — which is why every workflow reports `benchmark_coverage: none`).
 
 export * as hash from './hash.js';
 export * as certainty from './certainty.js';
@@ -97,6 +109,10 @@ export * as experiment from './experiment.js';
 export * as review from './review.js';
 export * as simulate from './simulate.js';
 export * as workflows from './workflows.js';
+export * as style from './style.js';
+export * as knowledge from './knowledge.js';
+export * as memory from './memory.js';
+export * as reference from './reference.js';
 
 export { CERTAINTY } from './certainty.js';
 export { ROLE, SIDE } from './roles.js';
@@ -122,16 +138,21 @@ export { MEASUREMENTS, sampleMotion, measureContactDrift, analyseChain, classify
 export { DIAGNOSTICS, diagnose as diagnoseMotion } from './diagnose.js';
 
 /** The version of the semantic layer itself, separate from the app version. Bumped when a graph's
- *  shape changes in a way a consumer would notice. Phase 5 adds the Part 23 measurements and the
- *  Part 46 diagnostics, and turns two previously NOT-RUN checks into ones that run. */
-export const SEMANTIC_LAYER_VERSION = '1.8.0';
+ *  shape changes in a way a consumer would notice. Phase 8 adds knowledge, memory and reference
+ *  profiles, and makes a declared style change vocabulary interpretation numerically. */
+export const SEMANTIC_LAYER_VERSION = '1.9.0';
 
 /** One place to ask what this layer can and cannot currently answer. Returned by
- *  `inspect_scene` so a model never has to infer capability from silence. */
+ *  `inspect_scene` so a model never has to infer capability from silence.
+ *
+ *  This function itself was found stale during Phase 8's own landing: `phase` still read "Phase 5"
+ *  and `can`/`cannot` never mentioned Phases 6 or 7, even though their modules were already
+ *  exported above — the exact "stale-blocker" class of bug the Phase 4 review pass named. Fixed
+ *  here rather than left for a later session, since Phase 8 was already touching this file. */
 export function capabilities() {
   return {
     version: SEMANTIC_LAYER_VERSION,
-    phase: 'Phase 5 — motion and contact analysis (directive Part 62)',
+    phase: 'Phase 8 — knowledge, memory, style and reference (directive Part 62)',
     can: [
       'project the scene, any rig and any timeline into stable-id graphs with semantic roles',
       'resolve semantic selections such as "the left foot", "the planted foot" and "the weapon hand", with evidence',
@@ -160,6 +181,16 @@ export function capabilities() {
       'attribute a drifting contact to the joint that owns it, by freezing each ancestor in turn and re-measuring',
       'measure onset and peak per joint along a chain and report an inversion, without claiming an inversion is wrong',
       'classify a discontinuity as a stepped key, a held pose or a marked impact before anything calls it a defect (Part 23\'s noise-and-signal policy)',
+      'compile a declarative VFX spec into a reversible operation on the emitter item, timed to the shared shot-event timeline (Parts 37-41)',
+      'gate every mutating semantic tool by an operating mode, and refuse to leave analyze mode on its own (Part 11)',
+      'compare bounded, named experiment candidates on clones and either recommend one with named evidence or say the measured dimensions tied (Part 48)',
+      'run a structured shot review ordered by Part 14\'s quality hierarchy, with deterministic defects and artistic suggestions kept in separate arrays that never merge (Part 49)',
+      'simulate a proposed change before it lands — plan on a clone, review both states, and report which quality layer regressed (Part 47)',
+      'run one of Part 52\'s sixteen declared workflows, stopping before its first mutating step until approval is given',
+      'change a vocabulary term\'s numeric pull by a declared project style — the same word produces a measurably different amplitude under different styles, never only a label (Part 35)',
+      'answer Part 71\'s nine-question relevance gate for any of the twelve classical principles, honestly marking which questions this build can compute and which it cannot',
+      'record scoped project/preference memory with evidence, and surface a preference candidate only once the same correction has been observed enough times — never applying one automatically (Part 57)',
+      'build a reference profile from an existing in-project animation and separate what the caller wants to emulate from what is deliberately not copied (Part 36)',
     ],
     cannot: [
       'detect a contact nobody declared. Drift is measured against a ContactSpec; a foot the animator meant to plant and never said so about is not checked',
@@ -173,7 +204,13 @@ export function capabilities() {
       'plan for cameras, props or effect items — the motion compiler covers rig joint tracks only',
       'judge whether a result looks RIGHT. It can now say exactly what is different and who did it; whether that is good is not a measurement it makes',
       'patch rig topology, attachment, effect documents or key groups — those tools exist but are not transactional (see patch.patchLimitations())',
-      'reason about shots, cameras, framing, shot events or VFX timing relationships (Parts 40-41 — Phase 6)',
+      'model an active camera or camera framing at all (Parts 40-41) — shot EVENTS and VFX timing relationships are covered (Phase 6), framing and staging readability are not',
+      'author a multi-layer PNX VFX graph from a spec — a VFXSpec compiles to exactly one emitter item, by deliberate choice (see vfxspec.js header)',
+      'infer which mode is active, or let a tool force its way out of a read-only mode — Part 11 makes both the user\'s decision, never the tool\'s',
+      'ingest video, an external Roblox animation used as a motion source, a pose sequence, a reference render or a style board — reference profiles are built from an in-project animation item only (Part 36, see reference.referenceLimitations())',
+      'infer a learned preference from project data alone, or apply one automatically once accepted — a candidate is surfaced only from an explicitly-tagged repeated correction, and acceptance changes only its own status field (Part 57, see memory.memoryLimitations())',
+      'carry knowledge, memory or a declared style across projects — there is no cross-project store; everything Phase 8 adds lives inside one .cadence file',
+      'measure readability, visual noise, or the technical/performance cost of a technique — Part 71\'s relevance gate reports these as unanswerable rather than guessing (see knowledge.evaluateRelevance)',
     ],
     never_claims: 'a result reports what it examined in its `coverage` field, and every assertion carries a certainty level from Part 13 — an absent check is named, not implied to have passed. A constraint whose check does not exist yet is reported as not checked, never as satisfied, and an acceptance report distinguishes `accepted` from `fully_validated`.',
   };

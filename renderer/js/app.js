@@ -5086,6 +5086,117 @@ const MCP_HANDLERS = {
       limitations: AI.workflows.WORKFLOW_LIMITATIONS,
     };
   },
+
+  // ---------------------------------------------------------------- Phase 8: knowledge, memory, style, reference
+
+  animation_knowledge: ({ concept = null, category = null } = {}) => {
+    if (concept) {
+      const entry = AI.knowledge.getKnowledge(concept);
+      if (!entry) throw new Error(`animation_knowledge: "${concept}" is not one of the twelve classical principles — call with no arguments to list them`);
+      return { entry, interactions: AI.knowledge.interactionsFor(concept) };
+    }
+    return {
+      entries: AI.knowledge.listKnowledge({ category }),
+      categories: AI.knowledge.CATEGORIES,
+      interaction_graph: AI.knowledge.INTERACTION_GRAPH,
+      expansion_procedure: AI.knowledge.EXPANSION_PROCEDURE,
+      premium_standard: AI.knowledge.evaluatePremiumCoverage(),
+      field_list: AI.knowledge.knowledgeFieldList(),
+      limitations: AI.knowledge.knowledgeLimitations(),
+    };
+  },
+
+  evaluate_technique_relevance: ({ concept, intent = null, style = null, lockedAspects = null } = {}) => {
+    if (!concept) throw new Error('evaluate_technique_relevance needs a `concept` — see animation_knowledge for the twelve classical principles');
+    return AI.knowledge.evaluateRelevance(concept, { intent, style, lockedAspects });
+  },
+
+  style_profile: () => ({ ...AI.style.styleCatalogue(S.state.project), limitations: AI.style.styleLimitations() }),
+
+  set_project_style: ({ name = null, note = null, author = 'user' } = {}) => {
+    S.pushUndo();
+    if (name === null) {
+      const cleared = AI.style.clearStyle(S.state.project);
+      S.markDirty();
+      return { cleared, active: null };
+    }
+    const declared = AI.style.setStyle(S.state.project, name, { note, author, createdAt: new Date().toISOString() });
+    AI.provenance.record(S.state.project, {
+      type: 'lesson', author: 'ai',
+      summary: `project style declared: "${name}"`,
+      detail: { declared },
+      timestamp: new Date().toISOString(),
+    });
+    S.markDirty();
+    return { declared, note: 'every vocabulary interpretation now applies this style\'s dimension modifiers unless a call explicitly overrides it (see ai/style.js)' };
+  },
+
+  record_user_correction: ({
+    patternKey, before, after, changedObjectsAndProperties = [], changedFrameRange = null,
+    semanticInterpretationThatFailed = null, rationale = null, styleContext = null, characterContext = null,
+    evidence,
+  } = {}) => {
+    if (!Array.isArray(evidence) || !evidence.length) {
+      throw new Error('record_user_correction needs `evidence`: at least one statement of what was observed that justifies treating this as a correction, not an unrelated edit — Part 57 asks for the same discipline set_vocabulary_term already enforces.');
+    }
+    S.pushUndo();
+    const result = AI.memory.recordCorrection(S.state.project, {
+      patternKey, before, after, changedObjectsAndProperties, changedFrameRange,
+      semanticInterpretationThatFailed, rationale, styleContext, characterContext,
+      evidence: evidence.map((e) => (typeof e === 'string' ? { kind: 'data', statement: e } : e)),
+      createdAt: new Date().toISOString(),
+    });
+    AI.provenance.record(S.state.project, {
+      type: 'lesson', author: 'ai',
+      summary: `correction recorded for pattern "${patternKey}" (${result.observations} observation(s) so far)`,
+      detail: { entry_id: result.entry.id, sufficient_evidence: result.sufficient_evidence },
+      timestamp: new Date().toISOString(),
+    });
+    S.markDirty();
+    return result;
+  },
+
+  review_preference_candidate: ({ id, decision, editedStatement = null, note = null } = {}) => {
+    if (!id) throw new Error('review_preference_candidate needs an `id` — record_user_correction returns one, or read project memory via animation_knowledge-adjacent listing');
+    if (!decision) throw new Error('review_preference_candidate needs a `decision`: accept, reject, edit, pause, or delete (Part 57\'s own five verbs)');
+    S.pushUndo();
+    const result = AI.memory.reviewCandidate(S.state.project, id, { decision, editedStatement, note });
+    if (result.ok) {
+      AI.provenance.record(S.state.project, {
+        type: 'decision', author: 'user',
+        summary: `preference candidate "${id}": decision = ${decision}`,
+        detail: { decision, note },
+        timestamp: new Date().toISOString(),
+      });
+    }
+    S.markDirty();
+    return { ...result, note: 'accepting a candidate changes only its own status field — nothing is applied to the project automatically (Part 62: no unapproved global assumptions)' };
+  },
+
+  store_reference_profile: ({ itemId, frameRange = null, targetItemId = null, emulate = [], notCopied = [], label = null } = {}) => {
+    if (!itemId) throw new Error('store_reference_profile needs an `itemId` — the item whose motion to build a Part 36 profile from');
+    const project = S.state.project;
+    const profile = AI.reference.buildReferenceProfile(project, {
+      itemId, frameRange,
+      targetProject: targetItemId ? project : null, targetItemId: targetItemId || null,
+      emulate, notCopied, label,
+    });
+    S.pushUndo();
+    const stored = AI.reference.storeReferenceProfile(project, profile);
+    AI.provenance.record(project, {
+      type: 'analysis', author: 'ai',
+      summary: `reference profile built from "${profile.source.item_name}"${label ? ` ("${label}")` : ''}`,
+      detail: {
+        profile_id: profile.id,
+        dimensions_measured: Object.entries(profile.dimensions).filter(([, d]) => d.measured).map(([k]) => k),
+      },
+      timestamp: new Date().toISOString(),
+    });
+    S.markDirty();
+    return stored;
+  },
+
+  list_reference_profiles: () => ({ profiles: AI.reference.listReferenceProfiles(S.state.project), limitations: AI.reference.referenceLimitations() }),
 };
 
 function initMcp() {

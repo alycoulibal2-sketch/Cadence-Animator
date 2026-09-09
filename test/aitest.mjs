@@ -51,6 +51,10 @@ const EXPT = await import('../renderer/js/ai/experiment.js');
 const REVIEW = await import('../renderer/js/ai/review.js');
 const SIM = await import('../renderer/js/ai/simulate.js');
 const WF = await import('../renderer/js/ai/workflows.js');
+const STYLE = await import('../renderer/js/ai/style.js');
+const KNOW = await import('../renderer/js/ai/knowledge.js');
+const MEM = await import('../renderer/js/ai/memory.js');
+const REF = await import('../renderer/js/ai/reference.js');
 const CF = await import('../renderer/js/cf.js');
 const PARTICLES = await import('../renderer/js/particleLibrary.js');
 
@@ -126,7 +130,7 @@ console.log('\n— purity —');
 check('purity: every ai/ module imports in plain Node with no renderer globals', () => {
   // Reaching this line at all means all 12 imports at the top of this file succeeded. Asserting a
   // symbol from each one keeps a future tree-shaking or re-export mistake from making that vacuous.
-  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN, RAS, OBS, BASE, EXP, MOT, DIAG })) {
+  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN, RAS, OBS, BASE, EXP, MOT, DIAG, EV, VS, MODES, EXPT, REVIEW, SIM, WF, STYLE, KNOW, MEM, REF })) {
     assert.ok(Object.keys(mod).length > 0, `${name} exported nothing`);
   }
   assert.equal(typeof AI.SEMANTIC_LAYER_VERSION, 'string');
@@ -137,7 +141,7 @@ check('purity: every ai/ module on disk is imported by this file', () => {
   // could reach for `window` freely, and the check below that greps the sources would catch the
   // obvious cases but not a lazy `await import('three')`.
   const onDisk = fs.readdirSync(path.join(ROOT, 'renderer/js/ai')).filter((n) => n.endsWith('.js') && n !== 'index.js').sort();
-  const imported = ['baseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'experiment.js', 'explain.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'modes.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'review.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'simulate.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js', 'workflows.js'];
+  const imported = ['baseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'experiment.js', 'explain.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'knowledge.js', 'memory.js', 'modes.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'reference.js', 'review.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'simulate.js', 'snapshot.js', 'style.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js', 'workflows.js'];
   assert.deepEqual(onDisk, imported, 'a module was added to renderer/js/ai without being imported at the top of test/aitest.mjs');
 });
 
@@ -165,6 +169,9 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     // Phase 7
     'operating_modes', 'compare_experiments',
     'review_shot', 'simulate_change', 'list_workflows', 'run_workflow',
+    // Phase 8
+    'animation_knowledge', 'evaluate_technique_relevance', 'style_profile', 'set_project_style',
+    'record_user_correction', 'review_preference_candidate', 'store_reference_profile', 'list_reference_profiles',
   ];
   const src = fs.readFileSync(path.join(ROOT, 'mcp-server/index.js'), 'utf8');
   const found = new Map();
@@ -199,7 +206,9 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     'operating_modes', 'compare_experiments',
     // `review_shot` records the review it reached and nothing else — the same bargain
     // explain_change makes. `simulate_change` and `list_workflows` write nothing at all.
-    'review_shot', 'simulate_change', 'list_workflows']) {
+    'review_shot', 'simulate_change', 'list_workflows',
+    // Phase 8: all four read tools write nothing at all — not even a provenance record.
+    'animation_knowledge', 'evaluate_technique_relevance', 'style_profile', 'list_reference_profiles']) {
     assert.ok(found.get(t).startsWith('READ-ONLY'), `${t} must be declared READ-ONLY`);
   }
   for (const t of ['apply_animation_patch', 'rollback_transaction', 'lock_constraint', 'unlock_constraint',
@@ -207,7 +216,9 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     'compile_effect',
     // `run_workflow` executes a declared chain that may contain a mutating tool, so it declares
     // MUTATING even though a read-only chain changes nothing.
-    'run_workflow']) {
+    'run_workflow',
+    // Phase 8: all four write to project.semantics (undoable), same bargain set_vocabulary_term makes.
+    'set_project_style', 'record_user_correction', 'review_preference_candidate', 'store_reference_profile']) {
     assert.ok(found.get(t).startsWith('MUTATING'), `${t} changes the project and must say MUTATING`);
   }
   // Part 50 also wants rollback capability declared. For the mutating patch tools that is the
@@ -4704,6 +4715,253 @@ check('layer: the rest of Phase 7 — a shot is reviewed, a change is simulated 
 
   // None of it touched the project.
   assert.equal(H.contentHash(p), origin, 'reviewing and simulating must leave the project byte-identical');
+});
+
+console.log('\n— style (Part 35) —');
+
+check('style: no default — resolveStyle is null until setStyle is called', () => {
+  const p = fixture();
+  assert.equal(STYLE.resolveStyle(p), null);
+});
+check('style: setStyle validates against cal.js STYLE_PROFILES and is undoable-shaped state', () => {
+  const p = fixture();
+  assert.throws(() => STYLE.setStyle(p, 'not_a_style'), /is not one of/);
+  const declared = STYLE.setStyle(p, 'mechanical', { note: 'robots' });
+  assert.equal(declared.name, 'mechanical');
+  assert.equal(STYLE.resolveStyle(p), 'mechanical');
+  assert.equal(STYLE.clearStyle(p), true);
+  assert.equal(STYLE.resolveStyle(p), null);
+});
+check('style: dimensionModifier is 1 for an unknown style/dimension and real for a declared one', () => {
+  assert.equal(STYLE.dimensionModifier(null, 'motion_amplitude'), 1);
+  assert.equal(STYLE.dimensionModifier('mechanical', 'nonsense_dimension'), 1);
+  assert.equal(STYLE.dimensionModifier('mechanical', 'secondary_delay'), 0.1);
+});
+check('style: STY-001 — a declared style changes a vocabulary pull, not just a label', () => {
+  // Same word, same project, two different declared styles: the numeric motion_amplitude pull for
+  // "powerful" must differ, because ai/style.js's realistic profile dampens it and nothing dampens
+  // it for an undeclared style. This is the literal proof STY-001 asks for.
+  const p = fixture();
+  const neutral = VOC.interpret(p, ['powerful']).dimensions.motion_amplitude;
+  STYLE.setStyle(p, 'realistic');
+  const realistic = VOC.interpret(p, ['powerful']).dimensions.motion_amplitude;
+  assert.notEqual(neutral, realistic, 'declaring realistic style must change the numeric pull, not merely be recorded as a label');
+  assert.ok(Math.abs(realistic) < Math.abs(neutral), 'realistic dampens motion_amplitude (0.8x)');
+});
+check('style: an explicit interpret() style argument overrides the project\'s declared style', () => {
+  const p = fixture();
+  STYLE.setStyle(p, 'mechanical');
+  const viaProject = VOC.interpret(p, ['elegant']).style_applied;
+  assert.equal(viaProject.profile, 'mechanical');
+  assert.equal(viaProject.source, 'project.semantics.style');
+  const viaExplicit = VOC.interpret(p, ['elegant'], { style: 'cartoon' }).style_applied;
+  assert.equal(viaExplicit.profile, 'cartoon');
+  assert.equal(viaExplicit.source, 'explicit');
+});
+check('style: with no style declared, style_applied.profile is null and behaviour is unchanged from before Phase 8', () => {
+  const p = fixture();
+  const out = VOC.interpret(p, ['heavy']);
+  assert.equal(out.style_applied.profile, null);
+  assert.equal(out.style_applied.source, null);
+  assert.deepEqual(out.style_applied.modifiers, []);
+});
+
+console.log('\n— knowledge (Parts 25, 26, 71, 73) —');
+
+check('knowledge: all twelve classical principles are present, essential, and pass the Part 72 shape gate', () => {
+  const concepts = KNOW.KNOWLEDGE_ENTRIES.map((e) => e.concept);
+  assert.equal(concepts.length, 12);
+  assert.equal(new Set(concepts).size, 12, 'no duplicate concepts');
+  for (const e of KNOW.KNOWLEDGE_ENTRIES) {
+    assert.equal(e.category, 'essential');
+    const v = KNOW.validateProposedEntry(e);
+    assert.deepEqual(v.problems, [], `${e.concept} fails its own field-completeness gate: ${v.problems.join('; ')}`);
+  }
+});
+check('knowledge: validateProposedEntry rejects an incomplete entry — the negative case for the check above', () => {
+  const incomplete = { ...KNOW.KNOWLEDGE_ENTRIES[0], failure_modes: [] };
+  const v = KNOW.validateProposedEntry(incomplete);
+  assert.equal(v.ok, false);
+  assert.ok(v.problems.some((p) => p.includes('failure_modes')));
+});
+check('knowledge: getKnowledge / interactionsFor round-trip against the interaction graph', () => {
+  assert.equal(KNOW.getKnowledge('nonexistent'), null);
+  const rels = KNOW.interactionsFor('timing');
+  assert.ok(rels.length > 0);
+  assert.ok(rels.every((r) => typeof r.other === 'string' && typeof r.note === 'string'));
+});
+check('knowledge: evaluatePremiumCoverage accounts for exactly Part 73\'s nineteen qualities', () => {
+  const cov = KNOW.evaluatePremiumCoverage();
+  assert.equal(cov.total, 19);
+  assert.equal(cov.counts.implemented + cov.counts.partial + cov.counts.not_measured, 19);
+});
+check('knowledge: the relevance gate always answers question 9 (rollback) and always refuses to answer 2, 5, 6 and 8', () => {
+  const r = KNOW.evaluateRelevance('anticipation', {});
+  const byN = (n) => r.questions.find((q) => q.n === n);
+  assert.equal(byN(9).answerable, true);
+  assert.equal(byN(9).answer.startsWith('yes'), true);
+  for (const n of [2, 5, 6, 8]) assert.equal(byN(n).answerable, false, `question ${n} must never be guessed`);
+  assert.throws(() => KNOW.evaluateRelevance('not_a_concept', {}), /is not a known knowledge entry/);
+});
+check('knowledge: a real locked-aspect conflict is CERTAIN and drives the verdict to not_recommended', () => {
+  // "anticipation" touches the `value` aspect (via the anticipation_depth vocabulary dimension).
+  // Locking `value` must be caught by BOTH question 4 and question 7 — the same underlying check.
+  const r = KNOW.evaluateRelevance('anticipation', { lockedAspects: ['value'], intent: 'a heavy attack' });
+  const byN = (n) => r.questions.find((q) => q.n === n);
+  assert.equal(byN(4).answerable, true);
+  assert.match(byN(4).answer, /touches locked/);
+  assert.equal(byN(7).answerable, true);
+  assert.match(byN(7).answer, /touches locked/);
+  assert.equal(r.verdict, 'not_recommended');
+});
+check('knowledge: with no context at all, the gate reports insufficient_evidence rather than guessing a verdict', () => {
+  const r = KNOW.evaluateRelevance('exaggeration', {});
+  assert.equal(r.verdict, 'insufficient_evidence');
+  assert.equal(r.answered_count, 1); // question 9 only
+});
+
+console.log('\n— memory (Parts 57, 58) —');
+
+check('memory: recordMemory requires evidence and dedupes an identical statement by incrementing observations', () => {
+  const p = fixture();
+  assert.throws(() => MEM.recordMemory(p, { scope: 'facts', statement: 'x' }), /needs evidenceSource/);
+  assert.throws(() => MEM.recordMemory(p, { scope: 'not_a_scope', statement: 'x', evidenceSource: ['e'] }), /scope must be one of/);
+  const a = MEM.recordMemory(p, { scope: 'facts', statement: 'the rig has 15 parts', evidenceSource: ['inspect_rig'], createdAt: 't1' });
+  assert.equal(a.observations, 1);
+  const b = MEM.recordMemory(p, { scope: 'facts', statement: 'the rig has 15 parts', evidenceSource: ['confirmed again'], createdAt: 't2' });
+  assert.equal(a.id, b.id);
+  assert.equal(b.observations, 2);
+  assert.equal(MEM.listMemory(p, { scope: 'facts' }).length, 1, 'a re-confirmed statement is one entry, not two');
+});
+check('memory: reviseMemory refuses on a user_editable:false entry', () => {
+  const p = fixture();
+  const e = MEM.recordMemory(p, { scope: 'facts', statement: 'locked fact', evidenceSource: ['x'], userEditable: false });
+  assert.throws(() => MEM.reviseMemory(p, e.id, { statement: 'changed' }), /cannot be revised/);
+});
+check('memory: retireMemory removes the entry and prunes an emptied container', () => {
+  const p = fixture();
+  const e = MEM.recordMemory(p, { scope: 'heuristics', statement: 'y', evidenceSource: ['x'] });
+  assert.equal(MEM.retireMemory(p, e.id), true);
+  assert.equal(p.semantics, undefined, 'an emptied memory container must not leave a stray {} — {} and absent hash differently');
+});
+check('memory: recordCorrection needs patternKey/before/after/evidence, and MEM-001\'s central rule — one correction is never a global rule', () => {
+  const p = fixture();
+  assert.throws(() => MEM.recordCorrection(p, { before: 1, after: 2, evidence: ['e'] }), /needs a `patternKey`/);
+  assert.throws(() => MEM.recordCorrection(p, { patternKey: 'k', before: 1, after: 2 }), /needs `evidence`/);
+  const once = MEM.recordCorrection(p, { patternKey: 'sword.torso', before: { a: 1 }, after: { a: 2 }, evidence: ['user edit 1'], createdAt: 't1' });
+  assert.equal(once.observations, 1);
+  assert.equal(once.sufficient_evidence, false, 'one correction must not be treated as sufficient evidence for a candidate');
+  assert.equal(once.surfaced_candidate, null);
+});
+check('memory: Part 57\'s own worked example — the THIRD occurrence of the same pattern surfaces a candidate', () => {
+  const p = fixture();
+  const opts = (n) => ({ patternKey: 'sword.torso', before: { a: n }, after: { a: n + 1 }, evidence: [`edit ${n}`], createdAt: `t${n}` });
+  MEM.recordCorrection(p, opts(1));
+  const two = MEM.recordCorrection(p, opts(2));
+  assert.equal(two.sufficient_evidence, false);
+  const three = MEM.recordCorrection(p, opts(3));
+  assert.equal(three.observations, 3);
+  assert.equal(three.sufficient_evidence, true);
+  assert.match(three.surfaced_candidate, /Possible preference detected/);
+  assert.equal(three.entry.occurrences.length, 3);
+});
+check('memory: reviewCandidate — accept changes ONLY the status field, never the vocabulary and never scope', () => {
+  const p = fixture();
+  const before = H.contentHash({ items: p.items, tracks: p.tracks }); // the animation itself
+  const r1 = MEM.recordCorrection(p, { patternKey: 'k2', before: 1, after: 2, evidence: ['e'] });
+  const accepted = MEM.reviewCandidate(p, r1.entry.id, { decision: 'accept' });
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.entry.status, 'accepted');
+  assert.equal(accepted.entry.scope, 'user_preferences', 'accepting does not promote or move the entry to a different scope');
+  const after = H.contentHash({ items: p.items, tracks: p.tracks });
+  assert.equal(before, after, 'accepting a candidate must not touch the animation itself');
+  assert.deepEqual(VOC.listOverrides(p), [], 'accepting a candidate must not write a vocabulary override on the caller\'s behalf');
+});
+check('memory: reviewCandidate — edit needs editedStatement, delete actually removes it, an unknown decision throws', () => {
+  const p = fixture();
+  const r1 = MEM.recordCorrection(p, { patternKey: 'k3', before: 1, after: 2, evidence: ['e'] });
+  assert.throws(() => MEM.reviewCandidate(p, r1.entry.id, { decision: 'edit' }), /needs `editedStatement`/);
+  assert.throws(() => MEM.reviewCandidate(p, r1.entry.id, { decision: 'nonsense' }), /decision must be one of/);
+  const del = MEM.reviewCandidate(p, r1.entry.id, { decision: 'delete' });
+  assert.equal(del.ok, true);
+  assert.equal(MEM.getMemory(p, r1.entry.id), null);
+});
+check('memory: recordAcceptedWork attaches Part 58\'s accepted-work fields to the STORED entry, not just the return value', () => {
+  // Regression guard: recordAcceptedWork calls recordMemory for the base fields and then attaches
+  // retained_features/selected_experiments/mattered_constraints/correlated_signals onto the entry
+  // fetched back via getMemory. Passing them as a second argument to recordMemory (which only reads
+  // one options object) would silently drop all four — this asserts they actually landed.
+  const p = fixture();
+  const entry = MEM.recordAcceptedWork(p, {
+    statement: 'a three-frame torso settle improved perceived weight',
+    retainedFeatures: ['torso_settle'], selectedExperiments: ['exp-1'],
+    matteredConstraints: ['contact_drift'], correlatedSignals: ['acceptance_pass'],
+    evidenceSource: ['four accepted shots'],
+  });
+  assert.deepEqual(entry.retained_features, ['torso_settle']);
+  const stored = MEM.getMemory(p, entry.id);
+  assert.deepEqual(stored.selected_experiments, ['exp-1']);
+  assert.deepEqual(stored.mattered_constraints, ['contact_drift']);
+  assert.deepEqual(stored.correlated_signals, ['acceptance_pass']);
+  assert.equal(stored.scope, 'validated_solutions');
+});
+check('memory: recordFailedApproach captures Part 58\'s failure shape and validates failureKind', () => {
+  const p = fixture();
+  assert.throws(() => MEM.recordFailedApproach(p, { attempted: 'x', observedResult: 'y', failureKind: 'vibes' }), /failureKind must be/);
+  const f = MEM.recordFailedApproach(p, {
+    attempted: 'increase total duration by 20%', observedResult: 'the action became sluggish',
+    failureKind: 'objective', correctedBy: 'increase anticipation contrast instead', generalized: true,
+  });
+  assert.equal(f.scope, 'failed_approaches');
+  assert.equal(f.failure_kind, 'objective');
+  assert.equal(f.corrected_by, 'increase anticipation contrast instead');
+});
+
+console.log('\n— reference (Part 36) —');
+
+check('reference: buildReferenceProfile measures what motion.js can and honestly refuses the rest', () => {
+  const p = fixture();
+  const profile = REF.buildReferenceProfile(p, { itemId: 'hero' });
+  assert.equal(profile.dimensions.timing.measured, true);
+  assert.equal(profile.dimensions.spacing.measured, true);
+  assert.equal(profile.dimensions.energy.measured, true);
+  assert.equal(profile.dimensions.energy.normalized, false);
+  assert.equal(profile.dimensions.arc_quality.measured, true);
+  assert.equal(profile.dimensions.pose_density.measured, true);
+  // the fixture carries a marker named "impact" at t=16 but none named "anticipation"
+  assert.equal(profile.dimensions.impact_contrast.measured, true);
+  assert.equal(profile.dimensions.anticipation.measured, false);
+  for (const d of ['weight', 'overshoot', 'silhouette_behavior', 'camera_behavior', 'vfx_rhythm', 'lighting_and_color_tendencies']) {
+    assert.equal(profile.dimensions[d].measured, false, `${d} must be honestly reported as not measured, never guessed`);
+    assert.ok(profile.dimensions[d].reason, `${d} must name why`);
+  }
+});
+check('reference: REF-002 — emulate/not_copied are the caller\'s own declaration, carried verbatim, never computed', () => {
+  const p = fixture();
+  const profile = REF.buildReferenceProfile(p, { itemId: 'hero', emulate: ['impact timing'], notCopied: ['exact duration'] });
+  assert.deepEqual(profile.emulate, ['impact timing']);
+  assert.deepEqual(profile.not_copied, ['exact duration']);
+  assert.equal(profile.adaptation_needed.compared, false, 'no target given — must say so rather than silently skip the field');
+});
+check('reference: adaptation_needed reports REAL structural differences when a target item is given', () => {
+  const p = fixture();
+  const camProfile = REF.buildReferenceProfile(p, { itemId: 'hero', targetProject: p, targetItemId: 'hero' });
+  // Comparing an item to itself must never manufacture a rig/fps difference that does not exist.
+  assert.equal(camProfile.adaptation_needed.compared, true);
+  assert.deepEqual(camProfile.adaptation_needed.findings, []);
+});
+check('reference: storeReferenceProfile persists on project.semantics.references (NOT_STATE) and dedupes by id', () => {
+  const p = fixture();
+  const profile = REF.buildReferenceProfile(p, { itemId: 'hero', label: 'test-ref' });
+  const stored1 = REF.storeReferenceProfile(p, profile);
+  assert.equal(stored1.deduplicated, false);
+  const stored2 = REF.storeReferenceProfile(p, profile);
+  assert.equal(stored2.deduplicated, true);
+  assert.equal(REF.listReferenceProfiles(p).length, 1);
+  assert.equal(REF.getReferenceProfile(p, profile.id).label, 'test-ref');
+});
+check('reference: references is NOT_STATE — held out of undo/snapshot exactly like baselines and provenance', () => {
+  assert.deepEqual([...SNAP.NOT_STATE].sort(), ['baselines', 'provenance', 'references']);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

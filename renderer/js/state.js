@@ -282,13 +282,14 @@ function restoreHeavy(items, stash) {
 // split out here and re-attached live in applySnapshot: the same carry-across-by-reference
 // pattern HEAVY_FIELDS already uses for immutable geometry, and for the same reason, since a
 // growing graph cloned on every setKey is exactly the cost that comment exists to avoid.
-// `provenance` and `baselines` are records ABOUT states, not state — the same pair ai/snapshot.js
-// holds out of a snapshot, for the same reason. An undo that erased the record of the change being
-// undone, or that deleted the baseline the user is comparing against, would defeat the point of
-// both. Kept in sync with ai/snapshot.js NOT_STATE by a test in test/aitest.mjs.
+// `provenance`, `baselines` and `references` are records ABOUT states, not state — the same trio
+// ai/snapshot.js holds out of a snapshot, for the same reason. An undo that erased the record of
+// the change being undone, deleted the baseline the user is comparing against, or discarded a
+// reference profile built from a source that no longer exists, would defeat the point of all three.
+// Kept in sync with ai/snapshot.js NOT_STATE by a test in test/aitest.mjs.
 function undoableSemantics(p) {
   if (!p.semantics) return null;
-  const { provenance, baselines, ...rest } = p.semantics;
+  const { provenance, baselines, references, ...rest } = p.semantics;
   return Object.keys(rest).length ? rest : null;
 }
 

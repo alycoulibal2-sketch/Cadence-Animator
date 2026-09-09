@@ -3130,6 +3130,111 @@
     return out;
   });
 
+  await step('knowledge, style and memory: a declared style changes a real pull, a correction is only surfaced once, and acceptance never auto-applies', async () => {
+    S.newProject('phase8-knowledge-style-memory');
+    const item = await D.addBuiltinRig('r15');
+    S.setKey(item.id, 'RightShoulder', 0, CF.IDENTITY.slice(), { noUndo: true });
+    S.setKey(item.id, 'RightShoulder', 16, CF.fromEuler(0, 0, 1.2), { noUndo: true });
+    const before = D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
+    const out = {};
+
+    // 1. KNW-001/002/003/007: the catalogue is real and complete, not a stub.
+    const knw = D.mcp('animation_knowledge', {});
+    assert(knw.entries.length === 12, `twelve classical principles expected, got ${knw.entries.length}`);
+    assert(knw.entries.every((e) => e.category === 'essential'), 'all twelve are essential category');
+    assert(knw.premium_standard.total === 19, 'Part 73 has 19 qualities');
+    out.knowledge = { entries: knw.entries.length, premium: knw.premium_standard.counts };
+
+    // 2. KNW-005: the relevance gate refuses to invent an answer with no context, and reports a
+    // certain conflict as `not_recommended` when a real aspect lock is given.
+    const noContext = D.mcp('evaluate_technique_relevance', { concept: 'anticipation' });
+    assert(noContext.verdict === 'insufficient_evidence', `no context should never produce a confident verdict: ${noContext.verdict}`);
+    const conflicted = D.mcp('evaluate_technique_relevance', { concept: 'anticipation', lockedAspects: ['value'] });
+    assert(conflicted.verdict === 'not_recommended', `a locked aspect this entry touches must refuse: ${conflicted.verdict}`);
+    out.relevance = { no_context: noContext.verdict, with_lock: conflicted.verdict };
+
+    // 3. STY-001 / Part 62's success condition: NO style declared yet — style_profile reports null,
+    // and interpreting "powerful" gives the undamped pull.
+    const styleBefore = D.mcp('style_profile', {});
+    assert(styleBefore.active === null, 'no style is approved yet');
+    const neutral = D.mcp('animation_vocabulary', { itemId: item.id }); // sanity: vocabulary tool itself still works
+    assert(Array.isArray(neutral.terms), 'animation_vocabulary must still return its term table');
+    const interpBefore = D.AI.vocabulary.interpret(S.state.project, ['powerful']);
+    const pullBefore = interpBefore.dimensions.motion_amplitude;
+    assert(interpBefore.style_applied.profile === null, 'no style declared — style_applied must report null, not a guess');
+
+    // 4. Declare "realistic" through the real handler — MUTATING, undoable.
+    const declared = D.mcp('set_project_style', { name: 'realistic', note: 'smoketest' });
+    assert(declared.declared.name === 'realistic');
+    const styleAfter = D.mcp('style_profile', {});
+    assert(styleAfter.active === 'realistic', 'the declared style must round-trip through the read tool');
+
+    // 5. THE proof: the exact same word now pulls a DIFFERENT, smaller amount — a threshold changed,
+    // not a label. Nothing about the animation itself moved.
+    const interpAfter = D.AI.vocabulary.interpret(S.state.project, ['powerful']);
+    const pullAfter = interpAfter.dimensions.motion_amplitude;
+    assert(pullAfter !== pullBefore, `declaring a style must change the numeric pull: before=${pullBefore} after=${pullAfter}`);
+    assert(Math.abs(pullAfter) < Math.abs(pullBefore), `realistic style must dampen motion_amplitude: before=${pullBefore} after=${pullAfter}`);
+    assert(interpAfter.style_applied.profile === 'realistic' && interpAfter.style_applied.source === 'project.semantics.style');
+    out.style = { profile: styleAfter.active, pull_before: pullBefore, pull_after: pullAfter };
+
+    // 6. Clearing it is real too, and both the declaration and its clearing are ordinary undo steps.
+    S.undo(); // undoes set_project_style
+    assert(D.mcp('style_profile', {}).active === null, 'undo must revert a declared style like any other edit');
+    S.redo();
+    assert(D.mcp('style_profile', {}).active === 'realistic', 'redo must restore it');
+
+    // 7. MEM-001/Part 57: one correction is never a global rule. Record the SAME pattern three
+    // times — only the third carries sufficient evidence and surfaces a candidate.
+    let lastId = null;
+    for (let i = 1; i <= 3; i++) {
+      const r = D.mcp('record_user_correction', {
+        patternKey: 'smoketest.torso_contribution',
+        before: { motion_amplitude: 0.2 * i }, after: { motion_amplitude: 0.2 * i + 0.1 },
+        rationale: 'increased torso contribution', evidence: [`accepted correction #${i}`],
+      });
+      lastId = r.entry.id;
+      if (i < 3) assert(r.sufficient_evidence === false, `correction ${i} of 3 must not yet be sufficient`);
+      else {
+        assert(r.sufficient_evidence === true, 'the third occurrence of the same pattern must be sufficient');
+        assert(/Possible preference detected/.test(r.surfaced_candidate), r.surfaced_candidate);
+      }
+    }
+    out.correction = { observations: 3, id: lastId };
+
+    // 8. Accepting it changes ONLY the memory entry's own status field — never the vocabulary,
+    // never any track. `withoutHistory`'s hash still changes here (memory is regular undoable
+    // state, not NOT_STATE like baselines/provenance/references — its status flip IS a real,
+    // undoable edit), so the meaningful check is narrower and direct: no vocabulary override, and
+    // no keyframe, was written as a side effect of acceptance.
+    const tracksBefore = D.AI.hash.contentHash(S.state.project.tracks);
+    const accepted = D.mcp('review_preference_candidate', { id: lastId, decision: 'accept' });
+    assert(accepted.ok === true && accepted.entry.status === 'accepted');
+    assert(D.AI.hash.contentHash(S.state.project.tracks) === tracksBefore, 'accepting a candidate must never touch a track');
+    assert(D.mcp('animation_vocabulary', {}).terms.find((t) => t.term === 'powerful').overrides.length === 0,
+      'accepting a preference candidate must never write a vocabulary override on the caller\'s behalf');
+    out.accepted = { status: accepted.entry.status };
+
+    // 9. REF-001/002: build a profile from this item's own motion, honestly split measured vs not,
+    // and store it — the caller's emulate/not_copied declaration is carried verbatim.
+    const ref = D.mcp('store_reference_profile', {
+      itemId: item.id, emulate: ['impact timing'], notCopied: ['exact duration'], label: 'smoketest-ref',
+    });
+    assert(ref.dimensions.timing.measured === true && ref.dimensions.weight.measured === false, 'a reference profile must measure what it can and refuse the rest, not guess');
+    const listed = D.mcp('list_reference_profiles', {});
+    assert(listed.profiles.some((p) => p.id === ref.id), 'a stored profile must be listed back');
+    out.reference = { id: ref.id, measured_timing: ref.dimensions.timing.measured, measured_weight: ref.dimensions.weight.measured };
+
+    // The reference profile is NOT_STATE (like a baseline) — taking it must not itself register as
+    // an animation edit on top of what set_project_style already changed.
+    const beforeRef = D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
+    D.mcp('store_reference_profile', { itemId: item.id, label: 'smoketest-ref-2' });
+    const afterRef = D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
+    assert(beforeRef === afterRef, 'storing a reference profile must not appear as a change to the animation itself (references is NOT_STATE)');
+
+    return out;
+  });
+
   await step('semantic layer: a persisted lock survives save/load, blocks a patch, and is undoable', async () => {
     S.newProject('locks');
     await D.addBuiltinRig('r15');

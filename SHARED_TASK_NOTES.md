@@ -28,49 +28,29 @@ whole, and Part 7 explicitly says to load only what the work needs.
 ## Where the programme is
 
 - Branch: `animation-intelligence`, off `main` at `8343e2f` (v0.11.0).
-- **Phases 0–7 are done.** Phases 8–9 are not started.
+- **Phases 0–8 are done.** Phase 9 (benchmarks, `BCH-*`) is not started — this is the last phase.
 - Commits: `54ea3f4` (Phase 1), `88265c9` (Phase 2), `0cadfd9` (Phase 3), `d36e10c` (Phase 4),
-  `c9973b8` (Phase 5), `a5da0ec` (Phase 6), `a10d297` (Phase 7 first half), Phase 7's second half
-  is the tip.
-- The semantic layer is `renderer/js/ai/**` — 32 modules, 44 MCP tools (184 in the app overall).
+  `c9973b8` (Phase 5), `a5da0ec` (Phase 6), `a10d297` (Phase 7 first half), `7ee08e6` (Phase 7
+  second half), Phase 8 is the tip.
+- The semantic layer is `renderer/js/ai/**` — 36 modules, 52 MCP tools (192 in the app overall).
   Phase 4 also added one module OUTSIDE that tree, `renderer/js/observationPasses.js`, which is
   where three.js lives.
 
-**Phase 8 is next: reference, style memory, and the knowledge suite.** Part 62's success condition
-is *"Cadence can adapt a new animation using approved project style without making unapproved
-global assumptions."* Its deliverables are reference profiles, project conventions, preference
-candidates, accepted/failed lesson capture, and knowledge-suite routing — the `KNW-*`, `MEM-*` and
-`REF-*` rows. (Benchmarks, `BCH-*`, are Phase 9.)
+**Phase 9 is next and last: benchmarks (`BCH-001`/`BCH-002`, Part 59).** Every workflow, and now
+every Phase 8 row, reports `benchmark_coverage: none` because no benchmark suite exists anywhere in
+this build. Read Part 59 directly before designing one — do not assume it is "write some test
+cases"; the directive's own field list for a benchmark entry needs reading first, the same way
+Part 48's field list turned out to be the actual keystone of Phase 7 rather than what the phase
+title implied.
 
-**Read the directive parts directly. They are at
-`C:\Users\alyco\Documents\Cadence_Animator_Ultimate_Master_Directive.md`, and Phase 7 proved this
-matters:** Part 62's success condition for Phase 7 turned out to be *"compare bounded alternatives
-and justify a recommendation"*, which made Part 48 the keystone rather than the simulation report
-the phase title implied. Extract one part with
-`python -c "import re,io; s=io.open(PATH,encoding='utf-8').read(); print(re.search(r'^## 25\..*?(?=^## \d+\.)', s, re.M|re.S).group(0))"`.
-For Phase 8 that means Parts 25, 26, 57, 58 and 71–73.
-
-Four things about the ground Phase 8 lands on:
-
-- **The success condition's second half is the hard half.** "Without making unapproved global
-  assumptions" is the whole risk. `MEM-002` is already `partial` and is the pattern to copy:
-  `ai/vocabulary.js` stores a preference as a **scoped delta with required evidence and an
-  observations count**, never as a global rule, and the shared definition is frozen. Phase 8 should
-  generalise that shape, not invent a new one.
-- **There is no cross-project store, and choosing one is a real decision.** Nothing in Cadence holds
-  data outside a single `.cadence` file. "Approved project style" can live in
-  `project.semantics` (durable, travels with the file, already inside the undo allowlist —
-  see `state.js undoableSemantics`); knowledge that spans projects cannot, and needs either a new
-  user-data store in `src/main.js` (outside the pure layer, so it needs the plain-data boundary
-  Phase 4 used for pixels) or an explicit import step. **Settle this before writing a `KNW` row**,
-  the way Phase 6 had to settle the pnx/vfx boundary and Phase 7 the modes/enforcement point.
-- **`ai/baseline.js` is the closest existing thing to remembered work**, and it is already project
-  data rather than disposable screenshots. Read it before designing a store; what Phase 8 wants may
-  be a generalisation of it.
-- **`KNW-003` (the 12 classical principles) has a trap recorded in its own matrix cell.** Four
-  principles are already *implicitly* operationalised by the planner with no knowledge entry behind
-  them. A knowledge entry has to say when a technique is HARMFUL, and none of them does — so
-  "we already do anticipation" is not that row.
+**Phase 8 landed exactly as scoped, no unfinished thread carried forward as a surprise.** Four new
+modules — `ai/style.js`, `ai/knowledge.js`, `ai/memory.js`, `ai/reference.js` — 8 new MCP tools,
+1 pre-existing bug fixed in `ai/memory.js` before it ever shipped (see the Phase 8 log entry for
+what it was), and one stale-blocker-class fix in `ai/index.js capabilities()` (it still said "Phase
+5" and never mentioned Phases 6 or 7's own exported modules). Read the Phase 8 log entry before
+touching `ai/style.js`, `ai/knowledge.js`, `ai/memory.js`, or `ai/reference.js` — several decisions
+in it (where style/memory/reference each live, and why they are NOT the same store) are explicitly
+things a later session should not relitigate.
 
 ## The rules this codebase holds itself to
 
@@ -107,13 +87,13 @@ Run from the repo root. `npm` is broken under Git Bash here — use PowerShell, 
 `.\node_modules\.bin\electron.cmd` directly rather than `npm run`.
 
 ```
-node test/aitest.mjs     # semantic layer   — currently 314/314, ~1s
+node test/aitest.mjs     # semantic layer   — currently 341/341, ~1s
 node test/coretest.mjs   # core             — currently  41/41
 node test/pnxtest.mjs    # PNX engine       — currently 298/298
 ```
 
 ```powershell
-# the Electron smoketest: 100 steps against the real app, ~4 minutes
+# the Electron smoketest: 101 steps against the real app, ~4 minutes
 Remove-Item test-output/userdata -Recurse -Force -ErrorAction SilentlyContinue
 .\node_modules\.bin\electron.cmd . --disable-backgrounding-occluded-windows `
   --disable-renderer-backgrounding --disable-background-timer-throttling `
@@ -669,3 +649,116 @@ Recent diagnostics:
     You've hit your session limit · resets 11:10pm (Asia/Dubai)
 
 Next step: Inspect the failure, fix the project or adjust the prompt, then rerun Continuous Claude.
+
+### Phase 8 — knowledge, style, memory, and reference (2026-09-09)
+
+Four new modules, all pure at load: `ai/style.js` (Part 35), `ai/knowledge.js` (Parts 25, 26, 71,
+73), `ai/memory.js` (Parts 57, 58), `ai/reference.js` (Part 36). Eight MCP tools, both halves
+registered: `animation_knowledge`, `evaluate_technique_relevance`, `style_profile` (read);
+`set_project_style`, `record_user_correction`, `review_preference_candidate`,
+`store_reference_profile` (mutating); `list_reference_profiles` (read). 192 tools in the app.
+`SEMANTIC_LAYER_VERSION` → `1.9.0`. Matrix: `KNW-001/002/003/007`, `STY-001/002`, `REF-002`,
+`MEM-001` to `implemented`; `KNW-004/005/006`, `REF-001`, `MEM-003/004`, `MCP-010` to `partial`;
+165 rows now *implemented 91 · partial 32 · designed 7 · deferred 2 · blocked 1 · unplanned 32.*
+
+Part 62's success condition — *"Cadence can adapt a new animation using approved project style
+without making unapproved global assumptions"* — is proven end to end in both `aitest` and a new
+smoketest step: the same word ("powerful") pulls a measurably different `motion_amplitude` under a
+declared "realistic" style than with none declared, the declaration and its clearing are ordinary
+undo/redo steps, the same correction pattern recorded three times surfaces a candidate on exactly
+the third occurrence (never the first or second), and accepting that candidate changes only its own
+`status` field — no track, no vocabulary override, is ever touched automatically.
+
+**Two decisions settled before any code, because the prior session's own note said to settle them
+first, and both are now load-bearing:**
+
+- **Where each of the four things lives, and why they are NOT one store.** `ai/knowledge.js`'s
+  twelve principles are compiled reference data — a frozen module table like `ai/vocabulary.js
+  TERMS`, not project state, because they are not learned or per-project. `ai/style.js` and
+  `ai/memory.js` DO live in `project.semantics` (undoable, alongside vocabulary overrides) — a
+  declared style or a captured correction is an edit a project can make and undo. `ai/reference.js`
+  profiles live in `project.semantics.references`, added as a THIRD member of `ai/snapshot.js
+  NOT_STATE` and `state.js undoableSemantics` (previously just `provenance`/`baselines`) — a
+  reference profile is a record ABOUT a source, not a change to this project's own animation. None
+  of the four learn across projects; there is still no cross-project store, and each module's
+  `*Limitations()` says so rather than implying otherwise.
+- **MEM-002's shape is copied, not reused as one store.** `ai/vocabulary.js`'s override store is
+  typed specifically for term reinterpretation (`dimensions`, `scope: project|character|style`).
+  Forcing Part 57's other six memory scopes through it would either invent fake dimensions or
+  silently drop fields Part 57 actually asks for (evidence_source, confidence, applicable/
+  non_applicable contexts, expiration policy). `ai/memory.js` is a second, honestly separate store
+  built to the SAME discipline (derived id from `{scope, statement}`, required evidence, an
+  `observations` count that increments rather than duplicates) — that discipline generalises;
+  the storage does not merge.
+
+**STY-001 turned out to be smaller than expected, and that is worth recording so a later session
+does not go looking for a bigger gap.** `STY-002`'s ten-value enum, `IntentSpec.style_profile`, and
+`ai/vocabulary.js`'s per-term `style_dependencies` prose ("mechanical: elegance means geometric
+precision, not organic arcs — the arc pull inverts") ALL pre-date Phase 8 — the whole pipeline
+already carried a style end to end and did nothing with it numerically. The actual gap was one
+multiplier table (`STYLE_MODIFIERS`) and one multiply inside `interpret()`'s existing per-dimension
+loop, applied AFTER weight and BEFORE the clamp. `interpret()` also now resolves an unstated
+`style` argument from `project.semantics.style` automatically — an explicit argument still wins,
+for a caller asking a one-off "what if this were anime" question.
+
+**KNW-005's relevance gate answers three of Part 71's nine questions for real, one is architectural,
+and five are honestly unanswerable — and that ratio is not a shortfall, it is the accurate one.**
+Aspect-lock overlap (questions 4 and 7 — the SAME check, since Cadence has one mechanism, locks, for
+both) and a style/intent text match (questions 1 and 3) are computed from real project data.
+Rollback-capability (question 9) is always true by construction — every mutation commits through
+`ai/patch.js`'s hash-verified transaction. Readability, visual noise, and performance cost (2, 5, 6)
+have no model anywhere in this build, and "would a simpler intervention work" (8) is a question Part
+71 itself resolves by asking a human, not by computing an answer — so the gate does the same rather
+than inventing a heuristic with no textual basis.
+
+**One indexing bug caught before it ever shipped, and one real bug in `ai/memory.js` caught the
+same way — both worth the pattern, not the specific fix.** `evaluateRelevance` built its nine
+questions in NUMBER order for nine, then pushed 4 and 7 adjacently, which shifted every later
+question's ARRAY POSITION away from its question NUMBER. The verdict logic first read them
+positionally (`questions[3]`, `questions[6]`) — accidentally still correct in every case because
+q4 and q7 always carry identical answers, but fragile and wrong in intent. Fixed by looking up every
+question by its own `.n` field. Separately, `recordAcceptedWork` first called `recordMemory(project,
+{...base fields}, {...Part 58 fields})` — a second argument `recordMemory` never reads, since it
+takes exactly one options object. Every accepted-work field would have been silently dropped. Fixed
+by fetching the stored entry back via `getMemory` and attaching the extra fields directly, the same
+two-step pattern `recordFailedApproach` already used. **Both were caught by writing the test before
+trusting the implementation, not by a later review pass** — the aitest suite's `recordAcceptedWork`
+check exists specifically to pin this class of bug, and negative-testing it (mentally reverting to
+the two-argument call) confirms the fields really do come back empty without the fix.
+
+**`REF-001`'s honest scope: one of Part 36's seven reference kinds, and 7 of 15 profile dimensions
+measured.** `buildReferenceProfile` calls `ai/motion.js sampleMotion` for raw numbers and maps the
+OUTPUT onto Part 36's dimensions — it does not re-measure. Timing, spacing (a real coefficient-of-
+variation statistic on per-frame speed), energy (explicitly UNNORMALIZED — no cross-project scale
+exists), recovery, arc quality and pose density are measured for any item. Anticipation and impact
+contrast are measured ONLY where the range carries a marker literally named for them — the same
+evidence-bound phase-naming rule Phase 3 already uses, never an inferred boundary. Weight, overshoot,
+silhouette behaviour, camera behaviour, VFX rhythm and lighting are named absent with the specific
+missing model for each (contact/mass, a target position, a renderer, an active-camera model, a call
+to `ai/events.js` this function does not make, and no lighting existing at all, respectively).
+`motion.js`'s own `coverage.notRun` already said "no comparison against a reference motion (REF-001)"
+before this phase — that line was accurate and needed no correction; `analyze_motion` still does not
+compare against a reference, only `store_reference_profile` builds one now.
+
+**Also fixed here, a stale-blocker-class bug matching Phase 4's own review pass:**
+`ai/index.js capabilities()` still reported `phase: 'Phase 5 — motion and contact analysis'` and its
+`can`/`cannot` lists never mentioned Phases 6 or 7 at all, even though `vfxspec`/`modes`/
+`experiment`/`review`/`simulate`/`workflows` were already exported above it — `cannot` even claimed
+Cadence could not "reason about shots, cameras, framing, shot events or VFX timing relationships
+(Parts 40-41 — Phase 6)" while Phase 6's own shot-event code sat one screen up. Fixed in the same
+commit as Phase 8's own exports, since the file was already open for a legitimate reason.
+
+**Not done, and named rather than hidden:** `ai/workflows.js`'s `compare_to_reference` workflow is
+STILL blocked — `store_reference_profile` now exists, but the workflow's own declared tool chain was
+not rewired to call it, a follow-up rather than a re-opened question. No MCP tool exposes
+`recordAcceptedWork`/`recordFailedApproach` directly (`AI.memory` only, hence MEM-003/004 stay
+`partial`). No style-sensitivity anywhere but vocabulary interpretation — VFX dimensions, camera/
+lighting, `ai/cal.js` acceptance thresholds (already caller-supplied, nothing left to shift) and
+`ai/review.js` suggestions are not style-aware. `KNW-006`'s procedure is documented in full
+(`EXPANSION_PROCEDURE`, Part 72's ten steps) but only its SHAPE gate is automated — identifying,
+categorising, researching and comparing a new concept are still judgement calls a session makes.
+
+Verified: `aitest` 341/341 (up from 314 — 27 new checks, all four new modules plus registration and
+NOT_STATE coverage), `coretest` 41/41, `pnxtest` 298/298 (unaffected). Smoketest 99/101 — the only
+two failures are the exact two pre-documented, unrelated flakes (*classic clothing*'s `ENOTFOUND`
+DNS timeout and the baseline pixel-comparison GPU flake); the new Phase 8 step itself passed clean.

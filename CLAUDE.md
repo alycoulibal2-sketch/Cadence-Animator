@@ -22,6 +22,10 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 | `renderer/js/ai/review.js` | Parts 49 + 14. The shot review, and the quality hierarchy that orders it. Defects and artistic suggestions never merge. |
 | `renderer/js/ai/simulate.js` | Part 47. The pre-commit report: the review run on a planned result, diffed per quality layer. No overall score, deliberately. |
 | `renderer/js/ai/workflows.js` | Part 52. Exactly the directive's 16 workflows as declared tool chains; `run_workflow` enforces their approval points. |
+| `renderer/js/ai/style.js` | Part 35. Per-style multipliers on vocabulary dimensions — makes a declared style change a numeric pull, not just a label. No default; `project.semantics.style` is undoable state. |
+| `renderer/js/ai/knowledge.js` | Parts 25, 26, 71, 73. The twelve classical principles (full 20-field structure), the relevance gate, the premium-animation standard. Compiled reference data, like `vocabulary.js TERMS` — not project state. |
+| `renderer/js/ai/memory.js` | Parts 57, 58. Scoped project/preference memory in `project.semantics.memory`, undoable. A correction is only surfaced as a candidate once observed enough times; accepting one changes only its own status field. |
+| `renderer/js/ai/reference.js` | Part 36. A motion profile built from an in-project item via `ai/motion.js`, stored in `project.semantics.references` (NOT_STATE, like baselines). `emulate`/`not_copied` are the caller's own declaration. |
 | `renderer/js/observationPasses.js` | Diagnostic render passes. Outside `ai/` because three.js. |
 | `renderer/js/pnx/**`, `renderer-vfx/` | The procedural VFX engine and its own studio window. |
 | `mcp-server/index.js` | `server.tool(...)` registrations. The other half of every MCP tool. |
@@ -138,6 +142,20 @@ work.
 - **The transaction ledger and the snapshot/raster stores are in memory, session-scoped.** The
   durable record is the provenance graph inside the project. Anything that promises recovery across
   a restart is promising something it cannot do.
+- **`NOT_STATE` is now three fields, not two: `provenance`, `baselines`, `references`.** All three
+  are records ABOUT a state, never state itself — held out of `ai/snapshot.js` snapshots and out of
+  `state.js undoableSemantics`, kept in sync by the same test. `ai/style.js` and `ai/memory.js`
+  deliberately do NOT join that list: a declared style or a captured correction is an edit a project
+  can make and undo, the same as a vocabulary override.
+- **`ai/vocabulary.js interpret()` resolves an unstated `style` from `project.semantics.style`
+  automatically.** A caller wanting a one-off "what if this were anime" query must pass `style`
+  explicitly — that argument always wins over the declared project style. Do not add a second,
+  competing way to override this; `activeStyle = style ?? resolveStyle(project)` is the one seam.
+- **Accepting a memory candidate (`review_preference_candidate`, decision `accept`) changes only
+  that entry's own `status` field.** It never writes `ai/vocabulary.js` or a track by itself — that
+  silent step is exactly the "unapproved global assumption" Part 62 forbids. A caller that wants an
+  accepted preference to take effect must separately call `set_vocabulary_term`, citing the
+  candidate as evidence.
 
 ## Style
 

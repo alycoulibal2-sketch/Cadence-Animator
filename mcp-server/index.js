@@ -1699,6 +1699,97 @@ server.tool(
   async (a) => { try { return textResult(await call('run_workflow', a)); } catch (e) { return errorResult(e); } },
 );
 
+server.tool(
+  'animation_knowledge',
+  'READ-ONLY. The Part 25/26 knowledge system: the twelve classical animation principles (each with the full 20-field structure — definition, use/non-use cases, Cadence representation, detection methods, failure modes, and more), the categories they fall into (essential/advanced/optional/specialized/experimental), the Principle Interaction Graph, the controlled-expansion procedure for adding new entries, and coverage against the Part 73 premium-animation standard. Call with no arguments for the whole catalogue, or `concept` for one entry.',
+  {
+    concept: z.string().optional().describe('One principle to look up, e.g. "anticipation" or "follow_through_overlap". Omit to list all twelve plus the categories, interaction graph and premium-standard coverage.'),
+    category: z.enum(['essential', 'advanced', 'optional', 'specialized', 'experimental']).optional().describe('Filter the full listing to one category. Ignored when `concept` is given.'),
+  },
+  async (a) => { try { return textResult(await call('animation_knowledge', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'evaluate_technique_relevance',
+  'READ-ONLY. Part 71\'s nine-question relevance gate for one knowledge-system concept: does it serve the stated intent, conflict with a locked aspect, violate a constraint, and so on. Answers only the questions this build has real evidence for (aspect-lock overlap, style non-use-cases, intent-vs-use-case text match, and the always-true rollback guarantee) and honestly marks the rest unanswerable — readability, visual noise, and performance cost are never computed. The verdict is built only from what was actually answered.',
+  {
+    concept: z.string().describe('A concept from animation_knowledge, e.g. "squash_stretch" or "exaggeration".'),
+    intent: z.string().optional().describe('Free text describing what the caller is trying to do, checked against this entry\'s own use_cases/non_use_cases.'),
+    style: z.string().optional().describe('A style profile name from style_profile — checked against this entry\'s non_use_cases.'),
+    lockedAspects: z.array(z.enum(['timing', 'value', 'easing', 'space', 'existence'])).optional().describe('Aspects currently locked or protected on the target, from inspect_constraints. Without this, the conflict questions (4 and 7) report unanswerable rather than assuming no conflict.'),
+  },
+  async (a) => { try { return textResult(await call('evaluate_technique_relevance', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'style_profile',
+  'READ-ONLY. Part 35\'s style catalogue: all ten declared profiles, the vocabulary-dimension multipliers each one applies (grounded in the directive\'s own text for that style), the project\'s currently declared style (or null if none was ever approved), and what this build does NOT yet make style-sensitive (VFX dimensions, camera/lighting, acceptance-check thresholds, review suggestions).',
+  {},
+  async () => { try { return textResult(await call('style_profile', {})); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'set_project_style',
+  'MUTATING (undoable). Declare, change, or clear (pass `name: null`) the project\'s approved style. There is no default — until this is called, animation_vocabulary interprets every term with no style bias at all. Once declared, every vocabulary interpretation applies this style\'s dimension modifiers automatically unless a call explicitly passes a different style. This is the mechanism Part 62\'s success condition names: "adapt a new animation using approved project style without making unapproved global assumptions."',
+  {
+    name: z.enum(['realistic', 'anime', 'cartoon', 'game_combat', 'cinematic', 'mechanical', 'horror', 'fantasy', 'abstract', 'unspecified']).nullable().describe('One of style_profile\'s ten names, or null to clear the declared style entirely.'),
+    note: z.string().optional(),
+    author: z.string().optional(),
+  },
+  async (a) => { try { return textResult(await call('set_project_style', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'record_user_correction',
+  'MUTATING (undoable). Capture one correction — an edit the user made to the AI\'s work — as evidence toward a learned preference (Part 57). Requires `patternKey` naming the kind of correction this is (this build does not infer that two corrections are "the same kind of thing" from project data alone) and `evidence`. The same patternKey recorded repeatedly accumulates observations on ONE candidate rather than duplicating; once it reaches the sufficiency threshold the result includes a `surfaced_candidate` line for the user to review with review_preference_candidate. Never changes project behaviour by itself.',
+  {
+    patternKey: z.string().describe('A short, stable name for the kind of correction, e.g. "sword_attack.torso_contribution". The same key on a later correction is treated as the same pattern.'),
+    before: z.any().describe('The state before the correction — a diff_snapshots result, a described property, or any structured description of what the AI had produced.'),
+    after: z.any().describe('The state after the correction.'),
+    changedObjectsAndProperties: z.array(z.string()).optional(),
+    changedFrameRange: z.object({ start: z.number(), end: z.number() }).optional(),
+    semanticInterpretationThatFailed: z.string().optional().describe('What the AI took the request to mean, that the correction suggests was wrong.'),
+    rationale: z.string().optional().describe('What the user said, if anything, about why they made this change.'),
+    styleContext: z.string().optional(),
+    characterContext: z.string().optional(),
+    evidence: z.array(z.any()).describe('Required. What was observed that justifies treating this as a correction rather than an unrelated edit.'),
+  },
+  async (a) => { try { return textResult(await call('record_user_correction', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'review_preference_candidate',
+  'MUTATING (undoable). Part 57\'s five verbs on a learned preference candidate: accept, reject, edit, pause, or delete. `accept` changes ONLY the candidate\'s own status field — it never rewrites animation_vocabulary or any track by itself, because doing that silently is exactly the "unapproved global assumption" Part 62 forbids. A caller that wants an accepted preference to take effect must separately call set_vocabulary_term, citing this candidate as evidence.',
+  {
+    id: z.string().describe('A memory entry id, from record_user_correction\'s result.'),
+    decision: z.enum(['accept', 'reject', 'edit', 'pause', 'delete']),
+    editedStatement: z.string().optional().describe('Required when decision is "edit".'),
+    note: z.string().optional(),
+  },
+  async (a) => { try { return textResult(await call('review_preference_candidate', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'store_reference_profile',
+  'MUTATING (undoable). Part 36: build a reference profile from an existing item\'s already-authored motion and store it on the project. Only in-project animation items are supported — no video, external Roblox animation files, pose sequences, or renders. Measures what it can (timing, spacing, energy, arc quality, pose density; anticipation/impact only where a named marker exists) and honestly marks the rest (weight, overshoot, silhouette, camera, VFX rhythm, lighting) as not measured rather than guessing. `emulate`/`notCopied` are the caller\'s own declaration of what to keep versus deliberately not copy (Part 36 forbids inferring this) — nothing here applies them to any other item.',
+  {
+    itemId: z.string().describe('The item whose motion to build a profile from.'),
+    frameRange: z.object({ start: z.number(), end: z.number() }).optional(),
+    targetItemId: z.string().optional().describe('An item elsewhere in this project the profile is meant to inform — if given, adaptation_needed compares real rig/fps/style facts between the two rather than reporting "not compared".'),
+    emulate: z.array(z.string()).optional().describe('Which characteristics the caller intends to carry over. Stored verbatim, not inferred.'),
+    notCopied: z.array(z.string()).optional().describe('Which characteristics are deliberately NOT being carried over. Stored verbatim.'),
+    label: z.string().optional(),
+  },
+  async (a) => { try { return textResult(await call('store_reference_profile', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'list_reference_profiles',
+  'READ-ONLY. Every reference profile stored on the project by store_reference_profile.',
+  {},
+  async () => { try { return textResult(await call('list_reference_profiles', {})); } catch (e) { return errorResult(e); } },
+);
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

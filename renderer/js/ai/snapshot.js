@@ -76,9 +76,12 @@ function deepFreeze(value, seen = new WeakSet()) {
  *
  *   provenance  append-only history (Part 56)
  *   baselines   accepted states and the differences approved against them (Part 44)
+ *   references  reference profiles built from a SOURCE motion (Part 36, ai/reference.js) — a
+ *               record about an external or in-project source, not an edit to this project's own
+ *               animation, for the same reason a baseline is not
  *
- * Neither is part of the state a snapshot describes, and including either breaks the same two
- * things:
+ * None of the three are part of the state a snapshot describes, and including any breaks the same
+ * two things:
  *
  *   * Deduplication. `snapshot_scene` records "a snapshot was taken" in provenance, so two
  *     consecutive snapshots of an otherwise untouched project would differ by that record and
@@ -97,7 +100,7 @@ function deepFreeze(value, seen = new WeakSet()) {
  * commit landed where the plan said by comparing the hash of exactly this projection, and a
  * provenance record written between plan and commit must not be able to invalidate that check.
  */
-export const NOT_STATE = Object.freeze(['provenance', 'baselines']);
+export const NOT_STATE = Object.freeze(['provenance', 'baselines', 'references']);
 
 export function withoutHistory(project) {
   if (!project || !project.semantics) return project;

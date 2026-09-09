@@ -25,6 +25,7 @@
 
 import { CERTAINTY, evidence, finding } from './certainty.js';
 import { contentHash, shortHash } from './hash.js';
+import { dimensionModifier, resolveStyle } from './style.js';
 
 // ---------------------------------------------------------------- dimensions
 //
@@ -668,6 +669,14 @@ export function interpret(project, terms, { itemId = null, style = null } = {}) 
   const unknown = [];
   const used = [];
 
+  // An explicit `style` argument wins (a caller asking "what if this were anime" for one request);
+  // absent that, the project's own APPROVED style applies automatically (STY-001 / Part 62's
+  // success condition) — never a silent default, since `resolveStyle` returns `null` for a project
+  // that never declared one. Both the pre-existing style-SCOPED override match and the new
+  // built-in numeric modifier read this same resolved value, so a style declared once governs both.
+  const activeStyle = style ?? resolveStyle(project);
+  const styleModifiers = [];
+
   for (const raw of terms || []) {
     const id = typeof raw === 'string' ? raw : raw.term;
     const weight = typeof raw === 'string' ? 1 : (raw.weight ?? 1);
@@ -675,7 +684,7 @@ export function interpret(project, terms, { itemId = null, style = null } = {}) 
     if (!card) { unknown.push(id); continue; }
     used.push({ term: card.term, weight, summary: card.summary });
 
-    const overrides = applicableOverrides(project, card.term, { itemId, style });
+    const overrides = applicableOverrides(project, card.term, { itemId, style: activeStyle });
     const merged = { ...card.dimensions };
     for (const o of overrides) {
       for (const [d, v] of Object.entries(o.dimensions)) merged[d] = (merged[d] ?? 0) + v;
@@ -683,10 +692,12 @@ export function interpret(project, terms, { itemId = null, style = null } = {}) 
     }
 
     for (const [d, base] of Object.entries(merged)) {
-      const pull = clamp1(base * weight);
+      const styleMod = dimensionModifier(activeStyle, d);
+      const pull = clamp1(base * weight * styleMod);
       if (!pull) continue;
       dims[d] = combine(dims[d] ?? 0, pull);
       (contributions[d] = contributions[d] || []).push({ term: card.term, pull: round3(pull), weight });
+      if (styleMod !== 1) styleModifiers.push({ dimension: d, term: card.term, modifier: styleMod });
     }
     for (const [d, base] of Object.entries(card.vfx_dimensions || {})) {
       const pull = clamp1(base * weight);
@@ -754,6 +765,10 @@ export function interpret(project, terms, { itemId = null, style = null } = {}) 
     terms: used,
     overrides_applied: overridesApplied,
     unknown_terms: unknown,
+    // STY-001: which dimension pulls a declared style actually changed, and by how much — the
+    // proof that a style is a threshold, not a label. `profile: null` means no style was ever
+    // approved for this project and every modifier was 1 (see ai/style.js resolveStyle).
+    style_applied: { profile: activeStyle, source: style ? 'explicit' : (activeStyle ? 'project.semantics.style' : null), modifiers: styleModifiers },
     notRun,
     findings,
   };
