@@ -29,11 +29,6 @@ whole, and Part 7 explicitly says to load only what the work needs.
 
 - Branch: `animation-intelligence`, off `main` at `8343e2f` (v0.11.0).
 - **Phases 0–7 are done.** Phases 8–9 are not started.
-- **UNPUSHED as of the end of the Phase 7 session:** `7ee08e6` (Phase 7's second half) is committed
-  locally but **not pushed** — the machine lost DNS mid-session (`Could not resolve host:
-  github.com`). `origin/animation-intelligence` is at `a10d297`. **Run `git push origin
-  animation-intelligence` first thing.** The same outage is why that session's smoketest showed
-  *classic clothing* failing: it fetches from `fts.rbxcdn.com` and logged 64 `ENOTFOUND` lines.
 - Commits: `54ea3f4` (Phase 1), `88265c9` (Phase 2), `0cadfd9` (Phase 3), `d36e10c` (Phase 4),
   `c9973b8` (Phase 5), `a5da0ec` (Phase 6), `a10d297` (Phase 7 first half), Phase 7's second half
   is the tip.
@@ -147,6 +142,13 @@ thing with an approximated badge: undefined` on the next — because what it tri
 half-built sheet, and how far the sheet got depends on where the volume step died. A Phase 5
 session burned two wrong conclusions on this (ordinary contention, then a regression in the VFX
 Studio commits below) before re-reading this section. **Read this section first.**
+
+**A network outage looks like a GPU flake.** *classic clothing* fetches textures from
+`fts.rbxcdn.com`, so it times out at 20 s when DNS is down and reads exactly like the render flakes
+above. **Grep the smoketest log for `ENOTFOUND` before blaming a change.** In the Phase 7 session
+this cost a full re-run: the machine lost DNS mid-session, which also blocked `git push`, and the
+two failing steps both executed BEFORE the newly added ones — step order alone proved they were not
+the new code's fault, which is faster than a stash-and-rerun.
 
 ## Working agreement for each iteration
 
