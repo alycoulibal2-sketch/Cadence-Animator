@@ -29,6 +29,11 @@ whole, and Part 7 explicitly says to load only what the work needs.
 
 - Branch: `animation-intelligence`, off `main` at `8343e2f` (v0.11.0).
 - **Phases 0–7 are done.** Phases 8–9 are not started.
+- **UNPUSHED as of the end of the Phase 7 session:** `7ee08e6` (Phase 7's second half) is committed
+  locally but **not pushed** — the machine lost DNS mid-session (`Could not resolve host:
+  github.com`). `origin/animation-intelligence` is at `a10d297`. **Run `git push origin
+  animation-intelligence` first thing.** The same outage is why that session's smoketest showed
+  *classic clothing* failing: it fetches from `fts.rbxcdn.com` and logged 64 `ENOTFOUND` lines.
 - Commits: `54ea3f4` (Phase 1), `88265c9` (Phase 2), `0cadfd9` (Phase 3), `d36e10c` (Phase 4),
   `c9973b8` (Phase 5), `a5da0ec` (Phase 6), `a10d297` (Phase 7 first half), Phase 7's second half
   is the tip.
