@@ -410,7 +410,13 @@ function footPick(project, query, opts, want) {
   const cov = coverage({
     scope: `world-space foot travel on "${item.name}" over frames ${from}–${to}`,
     frames, loop: 'fast',
-    notRun: ['whether a contact was ever declared (ContactSpec does not exist yet — Phase 3)', 'ground geometry (Cadence has no ground plane or collision surface)'],
+    notRun: [
+      // ContactSpec has existed since Phase 3 and its drift is measurable since MOT-008. What this
+      // query still does not do is CONSULT one: it picks the foot that travels least, whether or
+      // not the animator declared a contact on the other one.
+      'whether a contact was DECLARED on either foot: this picks by travel alone, and a ContactSpec on the other foot would not change the answer (call analyze_contacts to check a declared one)',
+      'ground geometry (Cadence has no ground plane or collision surface)',
+    ],
   });
 
   if (feet.length < 2) {
@@ -477,7 +483,7 @@ function footPick(project, query, opts, want) {
       path_length_studs: f.path_length_studs, mean_height: f.mean_height,
     })),
     limitations: [
-      'no ContactSpec exists yet, so this is inferred from motion rather than read from a declared contact (Phase 3)',
+      'this is inferred from travel, not read from a declared contact. A ContactSpec can be declared and its drift measured (analyze_contacts, MOT-008) — this query does not consult one',
       'Cadence has no ground plane, so "planted" cannot be checked against a surface',
     ],
   });

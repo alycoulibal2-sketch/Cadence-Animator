@@ -28,19 +28,33 @@ whole, and Part 7 explicitly says to load only what the work needs.
 ## Where the programme is
 
 - Branch: `animation-intelligence`, off `main` at `8343e2f` (v0.11.0).
-- **Phases 0, 1, 2, 3 and 4 are done.** Phases 5–9 are not started.
-- Commits: `54ea3f4` (Phase 1), `88265c9` (Phase 2), `0cadfd9` (Phase 3), Phase 4 is the tip.
-- The semantic layer is `renderer/js/ai/**` — 23 modules, 31 MCP tools. Phase 4 also added one
-  module OUTSIDE that tree, `renderer/js/observationPasses.js`, which is where three.js lives.
+- **Phases 0, 1, 2, 3, 4 and 5 are done.** Phases 6–9 are not started.
+- Commits: `54ea3f4` (Phase 1), `88265c9` (Phase 2), `0cadfd9` (Phase 3), `d36e10c` (Phase 4),
+  Phase 5 is the tip.
+- The semantic layer is `renderer/js/ai/**` — 25 modules, 34 MCP tools (174 in the app overall).
+  Phase 4 also added one module OUTSIDE that tree, `renderer/js/observationPasses.js`, which is
+  where three.js lives.
 
-**Phase 5 is next: motion and contact analysis.** Part 62's success condition is *"Cadence can
-identify a known contact error or motion-propagation problem with evidence."* Its rows are
-`MOT-003`…`MOT-016` (Parts 22, 23, 27–30) plus `EXP-002` (Part 46). `MOT-008` (distance to contact
-target / foot drift) is the keystone: four separate things across the matrix are waiting on it —
-the `contact_drift` constraint check, the `contact_drift_within` acceptance check, the
-`contact_firmness` dimension, and overshoot's blanket refusal to touch a contact-capable effector.
-`ai/kinematics.js` already solves world-space FK at any frame purely, so the measurement has a
-foundation; nothing samples it per frame yet.
+**Phase 6 is next: VFX compiler and shot events.** Part 62's success condition is *"Cadence can
+generate a parameterized impact effect that remains attached, timed, and reversible."* Its parts
+are VFXSpec, a small set of effect primitives, an event timeline, animation/VFX timing validation,
+and effect isolation and diagnostics (directive Part 37 and around it; `VFX-*` and `SHOT-*` rows in
+the matrix).
+
+The situation Phase 6 walks into is different from every phase before it, and worth understanding
+before picking rows. **Cadence already HAS a large procedural VFX engine** — `renderer/js/pnx/**`,
+390+ node types, its own studio window, its own Luau exporter, its own 298-check suite. Phase 6 is
+therefore **not** "build VFX"; it is building the semantic/spec layer that can *drive and reason
+about* what already exists, the way Phase 3's CAL drives the keyframe machinery rather than
+reimplementing it. Two consequences:
+
+- The `ai/` purity rule and `pnx/` are in tension: `pnx/` is not pure and not importable from
+  `ai/`. Expect to need the same boundary trick Phase 4 used for pixels — a plain-data spec crosses,
+  the impure engine work stays outside the tree. Decide that boundary FIRST, before writing a
+  VFXSpec, or the whole phase ends up unimportable in `aitest`.
+- 5 of Part 20's VFX motion dimensions currently compile to nothing (see `ai/cal.js`). They are the
+  natural first customers for a VFXSpec, and are the honest way to check the layer is real rather
+  than a row of shells (rule 9 / directive 4.6).
 
 ## The rules this codebase holds itself to
 
@@ -77,13 +91,13 @@ Run from the repo root. `npm` is broken under Git Bash here — use PowerShell, 
 `.\node_modules\.bin\electron.cmd` directly rather than `npm run`.
 
 ```
-node test/aitest.mjs     # semantic layer   — currently 248/248, ~1s
+node test/aitest.mjs     # semantic layer   — currently 272/272, ~1s
 node test/coretest.mjs   # core             — currently  41/41
-node test/pnxtest.mjs    # PNX engine       — currently 293/293
+node test/pnxtest.mjs    # PNX engine       — currently 298/298
 ```
 
 ```powershell
-# the Electron smoketest: 96 steps against the real app, ~4 minutes
+# the Electron smoketest: 97 steps against the real app, ~4 minutes
 Remove-Item test-output/userdata -Recurse -Force -ErrorAction SilentlyContinue
 .\node_modules\.bin\electron.cmd . --disable-backgrounding-occluded-windows `
   --disable-renderer-backgrounding --disable-background-timer-throttling `
@@ -102,8 +116,16 @@ concluding anything** — but never dismiss a failure in a step your change actu
 intermittently: the volume step times out at 30 s and the Look step then fails on a studio sheet
 the timeout left half-built (it is a cascade, not two faults). The Phase 4 session verified this by
 `git stash`-ing the whole change and re-running: **identical two failures on unmodified HEAD**,
-94/96. If you see exactly those two, they are not yours. If you see them plus anything else,
-stash and re-run before believing it. Doing that comparison costs 4 minutes and is worth it.
+94/96. Phase 5 saw the same two, and is **95/97**. If you see exactly those two, they are not
+yours. If you see them plus anything else, stash and re-run before believing it. Doing that
+comparison costs 4 minutes and is worth it.
+
+**The cascade changes SHAPE between runs, and that does not mean it is something new.** The Look
+step failed with a 30 s timeout on one Phase 5 run and with `assertion failed: the look is a drawn
+thing with an approximated badge: undefined` on the next — because what it trips over is a
+half-built sheet, and how far the sheet got depends on where the volume step died. A Phase 5
+session burned two wrong conclusions on this (ordinary contention, then a regression in the VFX
+Studio commits below) before re-reading this section. **Read this section first.**
 
 ## Working agreement for each iteration
 
@@ -274,6 +296,80 @@ land cannot leave that sentence stale.
 `lit < 256`, and recorded 19 as a diagnostic. `lit < 256` catches only a leak that fills the entire
 frame — the ground plane covers about half, so it would have passed. The step now asserts the band
 `8..64` (19 in practice, stable across three runs) and the cell describes what is actually checked.
+
+### Phase 5 — motion and contact analysis
+
+Two new modules, both pure at load, and the first in `ai/` that reason about the MOTION rather than
+about the project as data:
+
+- **`ai/motion.js`** (Part 23, plus what Parts 22 and 30 need from it). Samples the FK solve on a
+  frame grid and differentiates it: world position and rotation, linear and angular velocity,
+  acceleration, jerk, path curvature, key density and interpolation types. Also contact drift and
+  chain lead/lag.
+- **`ai/diagnose.js`** (Part 46). The judging layer. It consumes `motion.js` and **never
+  re-measures**.
+
+Three MCP tools, both halves registered: `analyze_motion`, `analyze_contacts`,
+`explain_motion_problem`. 174 tools in the app. `SEMANTIC_LAYER_VERSION` → `1.5.0`.
+
+**The keystone landed.** `MOT-008` (contact drift) was what four other things were waiting on, and
+two checks that previously reported themselves as NOT-RUN now actually run: the `contact_drift`
+constraint check and the `contact_drift_within` acceptance check. The same measurement therefore
+refuses a patch *before* it applies and evaluates it *after* — one code path, not two
+approximations. Matrix: 3 rows to `implemented` (MOT-003, MOT-004, MOT-008), 5 to `partial`
+(MOT-005, MOT-007, MOT-009, MOT-010, EXP-002); 165 rows now
+*implemented 75 · partial 22 · designed 8 · deferred 2 · blocked 1 · unplanned 57.*
+
+Part 62's success condition is proven at the handler boundary by a new smoketest step: *"a planted
+foot is broken, measured, attributed to the joint that did it, and undone."*
+
+**The decisions worth not relitigating:**
+
+- **Measurement is separated from judgement** (Part 4.5). Nothing in `motion.js` decides a motion
+  is bad. An unexplained jerk spike is `unclassified`, never `defect`. `driftExceedsTolerance`
+  compares against a number the *user* declared. All the judging is in `diagnose.js`, where a
+  reader can see what it rests on.
+- **A cause is proved by a counterfactual, not by proximity.** "The knee rotated during the
+  contact" is a coincidence. `attributeDrift` re-solves the rig with each ancestor frozen at the
+  contact's first frame in turn and ranks by how much drift each one owns — root motion included.
+  That is the only evidence in the phase strong enough to carry a `certain` label, and it is cheap
+  only because the FK solve is pure and takes a project object.
+- **The sample grid is uniform, finite and declared.** Derivatives are finite differences, and a
+  non-uniform grid makes the 2nd and 3rd ones quietly wrong. The cap is REPORTED — an analysis that
+  silently looked at a third of the range is worse than one that refuses.
+- **Contact drift is measured against the effector's own world position on the contact's first
+  frame**, because Cadence has no ground plane, no collision surface and no world target. Stated in
+  every result rather than hidden behind a plausible number. **A contact that was already sliding
+  when it was declared measures clean** — know this before trusting a clean drift result.
+- **Nothing infers a contact.** No ContactSpec, no measurement, and the tool says so instead of
+  guessing which foot was meant to be planted.
+- **Authored discontinuities are not defects.** A stepped key, a held pose and a marked impact are
+  run through Part 23's noise-and-signal policy *before* anything is called wrong.
+- **Angular speed is unsigned** (it is the magnitude of a relative rotation). Enough to find an
+  onset and a peak; it cannot tell a reversal from a continuation, and `MEASUREMENTS` says so.
+- **A chain inversion is reported, never called wrong** — Part 22 lists whip cracks and isolated
+  gestures as legitimate exceptions.
+
+**Deliberately not done, and named rather than hidden:** screen-space velocity (no active-camera
+model), balance and centre of mass (part mass is unknown), distance from an EXPECTED arc (no arc
+model); 6 of Part 23's 9 variation kinds have no mark in Cadence project data, so accidental jitter
+and deliberate texture cannot be told apart; 3 of Part 46's 7 "why?" workflows are blocked on
+models that do not exist (weight, effect change, camera framing) and 2 are routed to
+`explain_change`. All seven are listed in `diagnose.DIAGNOSTICS` with the reason.
+
+**How this iteration actually ended, because it matters for the next one.** A Windows update
+restarted the machine mid-iteration (1/6) — the work was finished and green but **never committed,
+and no PR was opened**. A later session recovered it. Two things that recovery turned up:
+
+1. **A killed iteration can leave a deliberately poisoned source file.** The negative-test cycle is
+   `cp <file> /tmp/x.bak && python -c "<reintroduce the bug>"` … then restore. The run died inside
+   that cycle on `plan.js` and the log shows no restore line for it. The backups survive a reboot
+   in Git Bash's `/tmp`, and here `plan.js` and `constraints.js` both diffed byte-identical to
+   `/tmp/plan.bak` / `/tmp/con.bak`, so the tree was clean. **After any interrupted run, diff
+   against those backups before trusting the working tree.**
+2. The recovering session burned two wrong conclusions on the known *Fire & smoke* / *Effect Look*
+   cascade before re-reading the "Known flakes" section above. That section is now explicit that
+   the cascade changes shape between runs.
 
 ## Health pause - 2026-09-08 19:19:36 AST
 

@@ -27,17 +27,19 @@
 //    with `constraint_type: 'lock'`. Locks and per-request constraints then flow through one
 //    checker, so a lock cannot be enforced in one code path and forgotten in another.
 //
-// 4. **A constraint that cannot be checked says so, every time.** Part 54's own example includes
-//    "keep the left foot within 2 cm from frame 12 through 23", which needs contact measurement
-//    that does not exist until Phase 5. Such a constraint is recorded, reported, priced into the
-//    result's `coverage.notRun`, and never counted as satisfied. Part 12: "do not claim that a
-//    missing analyzer has checked something."
+// 4. **A constraint that cannot be checked says so, every time.** Such a constraint is recorded,
+//    reported, priced into the result's `coverage.notRun`, and never counted as satisfied. Part 12:
+//    "do not claim that a missing analyzer has checked something." Part 54's own example — "keep
+//    the left foot within 2 cm from frame 12 through 23" — was the flagship case for three phases;
+//    MOT-008 now measures it against the planned result. Three of the seven `CHECKS` are still
+//    unimplemented and still reported that way.
 //
 // What this module does NOT do: resolve a conflict. Part 54 — "When constraints conflict, do not
 // silently choose. Explain the conflict and offer alternatives." Conflicts come back as data with
 // the priority ladder attached so a human, or a model asking a human, decides.
 
 import * as ids from './ids.js';
+import * as MOTION from './motion.js';
 import { resolve as resolveSemantic } from './select.js';
 import { CERTAINTY, evidence, finding, coverage, sortFindings } from './certainty.js';
 import { contentHash, shortHash } from './hash.js';
@@ -340,10 +342,13 @@ export const CHECKS = Object.freeze({
   budget_keys: { implemented: true, needs: 'nothing', describe: (c) => `at most ${c.max} key(s) in total` },
   budget_markers: { implemented: true, needs: 'nothing', describe: (c) => `at most ${c.max} marker(s) in total` },
   contact_drift: {
-    implemented: false,
-    needs: 'world-space effector travel over a frame window',
+    implemented: true,
+    needs: 'world-space effector travel over the constraint\'s frame window, measured on the planned result',
     describe: (c) => `${c.effector || 'the effector'} staying within ${c.tolerance_studs} stud(s) of its contact point`,
-    blocked_on: 'MOT-008 — contact drift measurement (directive Part 23, Phase 5). The FK solve exists (ai/kinematics.js); the contact model and the tolerance test do not.',
+    // The measurement exists (MOT-008, ai/motion.js) but it is not unconditional: it needs the
+    // constraint to carry a frame range, because drift is only defined over one. A contact
+    // constraint with no range is reported as unevaluated rather than as satisfied.
+    caveat: 'the contact point is the effector\'s own world position on the first frame of the range — Cadence has no ground plane, so an effector that was ALREADY sliding when the contact was declared measures clean',
   },
   silhouette_unchanged: {
     implemented: false,
@@ -440,7 +445,7 @@ export function checkPatch(project, patch, constraints, { frame = 0, includeProj
       notRun: [
         ...notRun,
         'nothing visual was checked HERE: the silhouette and object-ID passes and their comparison now exist (Part 43/44), but a constraint check runs on project data before the patch — create_baseline then explain_change is what actually looks. Depth comparison and any perceptual judgement do not exist at all',
-        'nothing physical was checked: contact drift, balance and arc deviation need Phase 5 (Part 23)',
+        'contact drift IS checked here when a contact constraint carries a frame range and a tolerance (MOT-008), against the planned result. What is still unchecked physically: balance and centre of mass (MOT-011 — part mass is unknown) and deviation from an expected arc (no expected-arc model, Part 26.7)',
       ],
     }),
   };
@@ -590,11 +595,21 @@ function runCheck(project, patch, constraint, target, cond, result) {
     };
   }
 
-  const fail = (statement, ev) => ({
+  // `cert` exists for one check: contact drift rests on WHICH part the effector is, and a part
+  // picked out by a semantic phrase is only as certain as that resolution was. Everything else
+  // reads a number straight out of the planned result and is `certain`.
+  const fail = (statement, ev, cert = CERTAINTY.CERTAIN, frame = null) => ({
     constraint_id: constraint.id, constraint_type: constraint.constraint_type, rule: constraint.property_or_semantic_rule,
     priority: constraint.priority, priority_name: PRIORITY_NAMES[constraint.priority], source: constraint.source,
     response: constraint.violation_response, op: null, reason: statement,
-    finding: finding({ id: `CONSTRAINT-${cond.check.toUpperCase()}`, certainty: CERTAINTY.CERTAIN, statement, evidence: ev }),
+    finding: finding({ id: `CONSTRAINT-${cond.check.toUpperCase()}`, certainty: cert, statement, evidence: ev, frame }),
+  });
+
+  const unevaluated = (why, ev) => ({
+    constraint_id: constraint.id, constraint_type: constraint.constraint_type, rule: constraint.property_or_semantic_rule,
+    priority: constraint.priority, priority_name: PRIORITY_NAMES[constraint.priority], source: constraint.source,
+    response: 'warn', op: null, reason: why,
+    finding: finding({ id: `CONSTRAINT-${cond.check.toUpperCase()}-UNEVALUATED`, certainty: CERTAINTY.CERTAIN, statement: `${constraint.id} could not be evaluated: ${why}`, evidence: ev }),
   });
 
   switch (cond.check) {
@@ -678,9 +693,77 @@ function runCheck(project, patch, constraint, target, cond, result) {
       }
       return null;
     }
+    case 'contact_drift': {
+      // Part 54's own worked example — "keep the left foot within 2 cm from frame 12 through 23" —
+      // and the reason this whole registry has an `implemented` column. It was the flagship
+      // NOT-CHECKED entry for three phases; MOT-008 is what closes it.
+      const [from, to] = constraint.time_range || [];
+      if (!Number.isFinite(from) || !Number.isFinite(to)) {
+        return unevaluated('a contact constraint needs a frame range — drift is only defined over one', [
+          evidence('absence', 'the constraint carries no time_range'),
+        ]);
+      }
+      const itemId = contactItemId(after, target);
+      if (!itemId) {
+        return unevaluated('the contact\'s effector could not be traced to a rig item', [
+          evidence('absence', 'no resolved track on the constraint target belongs to an item with a rig'),
+        ]);
+      }
+      const drift = MOTION.measureContactDrift(after, {
+        itemId,
+        effector: cond.effector,
+        start: from,
+        end: to,
+        tolerance_studs: cond.tolerance_studs,
+        mode: cond.mode || 'planted',
+      });
+      if (!drift.measured) return unevaluated(drift.reason, [evidence('absence', drift.reason)]);
+      // A tolerance-free contact constraint is a declaration with nothing to test against. It is
+      // reported as unevaluated rather than passed, because "no tolerance" is not "any drift is
+      // acceptable".
+      if (drift.tolerance_studs === null) {
+        return unevaluated('the contact declares no positional tolerance, so the measured drift cannot be judged', [
+          evidence('measurement', `"${drift.effector.name}" moves at most ${drift.max_drift_studs} stud(s) over frames ${from}–${to}`),
+        ]);
+      }
+      if (!drift.judgeable) {
+        return unevaluated(`the contact mode is "${drift.mode}", which is expected to move — the drift was measured (${drift.max_drift_studs} studs) and NOT judged`, [
+          evidence('measurement', `max drift ${drift.max_drift_studs} studs at frame ${drift.max_drift_frame}`),
+        ]);
+      }
+      if (drift.within_tolerance) return null;
+      return fail(
+        `"${drift.effector.name}" would drift ${drift.max_drift_studs} stud(s) at frame ${drift.max_drift_frame}, past the ${drift.tolerance_studs}-stud tolerance of the ${drift.mode} contact on frames ${from}–${to}`,
+        [
+          evidence('measurement', 'world travel of the effector after the patch', {
+            max_drift_studs: drift.max_drift_studs, at_frame: drift.max_drift_frame,
+            first_breach_frame: drift.first_breach_frame, tolerance_studs: drift.tolerance_studs,
+            exceeded_by_studs: drift.exceeded_by_studs,
+          }),
+          evidence('assumption', 'the contact point is the effector\'s position on the first frame of the range', 'Cadence has no ground plane to measure against'),
+        ],
+        drift.effector.certainty,
+        drift.first_breach_frame,
+      );
+    }
     default:
       return null;
   }
+}
+
+/** Which rig item does this constraint's target live on? Contact drift is measured per item, and
+ *  the target's resolved TRACKS are the only place the item id survives target merging. */
+function contactItemId(project, target) {
+  for (const tid of target.tracks) {
+    const p = ids.parseId(tid);
+    const item = p && (project.items || []).find((i) => i.id === p.itemId);
+    if (item && item.rig) return item.id;
+  }
+  for (const iid of target.items) {
+    const item = (project.items || []).find((i) => i.id === iid);
+    if (item && item.rig) return item.id;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------- conflicts (CON-004)
@@ -942,7 +1025,7 @@ export function compileConstraints(req = {}, project = null, { source = 'user', 
       reason: c.reason || 'a declared contact',
       rule: `${typeof c.effector === 'string' ? c.effector : 'the effector'} stays planted from frame ${c.from} to ${c.to}`,
     }));
-    notes.push(`the contact constraint on frames ${c.from}–${c.to} is RECORDED but cannot be verified yet: ${CHECKS.contact_drift.blocked_on}`);
+    notes.push(`the contact constraint on frames ${c.from}–${c.to} is MEASURED against the planned result (MOT-008). ${CHECKS.contact_drift.caveat}`);
   }
 
   for (const b of req.budgets || []) {
@@ -1037,7 +1120,7 @@ const GRAMMAR = [
           condition: { check: 'contact_drift', effector: m[1], tolerance_studs: studs },
           rule: `${m[1]} stays within ${m[2]} ${m[3]} from frame ${m[4]} to ${m[5]}`,
         })],
-        note: `the contact constraint on "${m[1]}" is RECORDED but cannot be verified yet: ${CHECKS.contact_drift.blocked_on}`,
+        note: `the contact constraint on "${m[1]}" is MEASURED against the planned result (MOT-008). ${CHECKS.contact_drift.caveat}`,
       };
     },
   },
@@ -1085,7 +1168,7 @@ export function constraintVocabulary() {
     aspects: ASPECTS,
     selector_kinds: ['everything', 'complement', 'semantic', 'item', 'track', 'key', 'frame', 'marker', 'item_field', 'project_field'],
     priorities: Object.entries(PRIORITY).map(([name, value]) => ({ value, name: name.toLowerCase().replace(/_/g, ' ') })),
-    checks: Object.entries(CHECKS).map(([name, c]) => ({ name, implemented: c.implemented, needs: c.needs, blocked_on: c.blocked_on ?? null })),
+    checks: Object.entries(CHECKS).map(([name, c]) => ({ name, implemented: c.implemented, needs: c.needs, blocked_on: c.blocked_on ?? null, caveat: c.caveat ?? null })),
     text_grammar: GRAMMAR.map((g) => g.example),
     responses: ['refuse', 'warn', 'ask'],
     note: 'a constraint whose check is not implemented is recorded, reported, and named in coverage.notRun — it is never counted as satisfied',

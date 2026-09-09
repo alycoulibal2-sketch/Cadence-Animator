@@ -99,7 +99,7 @@ export const DIMENSIONS = Object.freeze({
     compiles_to: 'the time between the last action key and the final key — this MOVES keys',
     aspects: ['timing'],
     implemented: false,
-    blocked_by: 'needs the phase segmenter to identify a recovery phase from motion, not only from key density (Part 23, Phase 5)',
+    blocked_by: 'needs the phase segmenter to identify a recovery phase from MOTION rather than from key density. The per-frame profile that would let it (onset, peak, settle per joint) exists now — analyze_motion, MOT-003/004 — but `plan.segmentPhases` does not consume it, so there is still no recovery span for this dimension to lengthen',
   },
   secondary_delay: {
     id: 'secondary_delay',
@@ -118,7 +118,7 @@ export const DIMENSIONS = Object.freeze({
     compiles_to: 'inserting a duplicate key before a departure — this ADDS keys',
     aspects: ['existence', 'timing'],
     implemented: false,
-    blocked_by: 'a hold needs a pose duplicated at a new time, which is an added key; safe insertion needs the contact model (Phase 5) to know it is not breaking a contact',
+    blocked_by: 'a hold needs a pose duplicated at a new time, which is an added key. The safety half of that is solved — MOT-008 measures whether an inserted key breaks a declared contact — but no strategy in `ai/plan.js` may add or remove a key at all, so there is nothing to check yet (CMP-001)',
   },
   spacing_evenness: {
     id: 'spacing_evenness',
@@ -157,7 +157,7 @@ export const DIMENSIONS = Object.freeze({
     compiles_to: 'contact constraints and effector locking',
     aspects: ['value'],
     implemented: false,
-    blocked_by: 'contact drift cannot be measured until Part 23 (Phase 5), so a firmness change could not be verified — it is planned and declared, never silently applied',
+    blocked_by: 'drift is measurable now (MOT-008), so a firmness change could be VERIFIED — what is missing is the edit itself. Making a contact firmer means moving an effector to a point and holding it there, which is an inverse-kinematic solve over a frame range, and every strategy in this build rotates a joint it was already given. Declaring the contact and enforcing it by constraint is what happens instead, and that is reported rather than silently substituted',
   },
   arc_smoothness: {
     id: 'arc_smoothness',
@@ -167,7 +167,7 @@ export const DIMENSIONS = Object.freeze({
     compiles_to: 'nothing yet',
     aspects: ['value'],
     implemented: false,
-    blocked_by: 'arcs are trajectories, and trajectory analysis is Part 23 (Phase 5)',
+    blocked_by: 'the MEASUREMENT landed with MOT-005 — analyze_motion returns per-frame path curvature and how far a path bows off its chord. The edit did not: smoothing an arc means changing where a part IS at intermediate frames, and every strategy in this build changes a joint rotation at a key that already exists. Nothing in Cadence solves for a position',
   },
   recovery_speed: {
     id: 'recovery_speed',

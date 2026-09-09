@@ -42,6 +42,8 @@ const RAS = await import('../renderer/js/ai/raster.js');
 const OBS = await import('../renderer/js/ai/observe.js');
 const BASE = await import('../renderer/js/ai/baseline.js');
 const EXP = await import('../renderer/js/ai/explain.js');
+const MOT = await import('../renderer/js/ai/motion.js');
+const DIAG = await import('../renderer/js/ai/diagnose.js');
 const CF = await import('../renderer/js/cf.js');
 
 let passed = 0, failed = 0;
@@ -89,12 +91,34 @@ function fixture({ rig = 'r15' } = {}) {
   };
 }
 
+// A rig standing on a planted left foot while its right arm swings. The left leg carries a base
+// key so a patch that adds a second one produces REAL motion — a single key holds everywhere, and
+// a foot that never moves is not a contact test.
+function plantFixture() {
+  const hero = { id: 'hero', kind: 'rig', name: 'Hero', rig: RIGS.r15, origin: I() };
+  return {
+    id: 'plant', name: 'Plant', version: 1, fps: 30, length: 60, loop: false, priority: 'Action',
+    items: [hero],
+    tracks: {
+      hero: {
+        RightShoulder: { keys: [{ t: 0, v: I(), es: 'Sine', ed: 'Out' }, { t: 8, v: CF.fromEuler(0, 0, 1.2), es: 'Sine', ed: 'InOut' }, { t: 16, v: CF.fromEuler(0, 0, -0.9), es: 'Sine', ed: 'Out' }, { t: 28, v: I(), es: 'Sine', ed: 'Out' }] },
+        RightElbow: { keys: [{ t: 0, v: I() }, { t: 8, v: CF.fromEuler(0.6, 0, 0) }, { t: 16, v: CF.fromEuler(0.1, 0, 0) }, { t: 28, v: I() }] },
+        LeftHip: { keys: [{ t: 0, v: I() }] },
+        // Keyed but never moving: the ankle is what a planted foot looks like in project data.
+        LeftAnkle: { keys: [{ t: 0, v: I() }, { t: 8, v: I() }, { t: 16, v: I() }, { t: 28, v: I() }] },
+      },
+    },
+    groups: [], markers: { hero: [{ t: 16, width: 2, name: 'impact' }] },
+    playRange: null, onionSkin: { enabledItemIds: [], range: 3 }, audio: null,
+  };
+}
+
 console.log('\n— purity —');
 
 check('purity: every ai/ module imports in plain Node with no renderer globals', () => {
   // Reaching this line at all means all 12 imports at the top of this file succeeded. Asserting a
   // symbol from each one keeps a future tree-shaking or re-export mistake from making that vacuous.
-  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN, RAS, OBS, BASE, EXP })) {
+  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN, RAS, OBS, BASE, EXP, MOT, DIAG })) {
     assert.ok(Object.keys(mod).length > 0, `${name} exported nothing`);
   }
   assert.equal(typeof AI.SEMANTIC_LAYER_VERSION, 'string');
@@ -105,7 +129,7 @@ check('purity: every ai/ module on disk is imported by this file', () => {
   // could reach for `window` freely, and the check below that greps the sources would catch the
   // obvious cases but not a lazy `await import('three')`.
   const onDisk = fs.readdirSync(path.join(ROOT, 'renderer/js/ai')).filter((n) => n.endsWith('.js') && n !== 'index.js').sort();
-  const imported = ['baseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'explain.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js', 'vocabulary.js'];
+  const imported = ['baseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'explain.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js', 'vocabulary.js'];
   assert.deepEqual(onDisk, imported, 'a module was added to renderer/js/ai without being imported at the top of test/aitest.mjs');
 });
 
@@ -126,6 +150,8 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     'apply_motion_plan', 'evaluate_acceptance',
     // Phase 4
     'plan_observation', 'create_baseline', 'list_baselines', 'explain_change', 'approve_difference',
+    // Phase 5
+    'analyze_motion', 'analyze_contacts', 'explain_motion_problem',
   ];
   const src = fs.readFileSync(path.join(ROOT, 'mcp-server/index.js'), 'utf8');
   const found = new Map();
@@ -148,7 +174,10 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     // explain_change appends an analysis node to provenance and nothing else. That is the same
     // bargain inspect_provenance and evaluate_acceptance already make, and calling it MUTATING
     // would tell a caller to hesitate before asking what changed — exactly backwards.
-    'plan_observation', 'list_baselines', 'explain_change']) {
+    'plan_observation', 'list_baselines', 'explain_change',
+    // Same bargain again for explain_motion_problem: it records the diagnosis it reached and
+    // nothing else. The two measurement tools write nothing at all.
+    'analyze_motion', 'analyze_contacts', 'explain_motion_problem']) {
     assert.ok(found.get(t).startsWith('READ-ONLY'), `${t} must be declared READ-ONLY`);
   }
   for (const t of ['apply_animation_patch', 'rollback_transaction', 'lock_constraint', 'unlock_constraint',
@@ -1437,17 +1466,96 @@ check('constraints: a time-ranged constraint only bites inside its range', () =>
 });
 
 check('constraints: an unimplemented check is reported as not run, never as satisfied', () => {
-  // Part 54's own worked example includes a foot-contact tolerance, and Cadence cannot measure it
-  // until Phase 5. This is the check that keeps that honest.
+  // `contact_drift` used to be the exemplar here. MOT-008 implemented it, which is exactly the
+  // moment a test like this stops testing anything — so it now uses a check that is genuinely
+  // still unbuilt, and asserts the general property over the whole registry instead of one entry.
   const p = fixture();
-  const comp = CON.compileConstraints({ contacts: [{ effector: 'the left foot', from: 12, to: 23, tolerance_studs: 0.07 }] }, p);
-  assert.equal(comp.constraints.length, 1);
-  assert.ok(comp.notes.some((n) => /cannot be verified yet/.test(n)));
-  const chk = CON.checkPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftAnkle', t: 15, value: CF.fromEuler(0.5, 0, 0) }] }), comp.constraints);
+  const unbuilt = Object.entries(CON.CHECKS).filter(([, c]) => !c.implemented);
+  assert.ok(unbuilt.length, 'if every check is implemented this test needs rewriting, not deleting');
+  for (const [name, c] of unbuilt) {
+    assert.ok(c.blocked_on, `${name} is unimplemented and must say what blocks it`);
+    // The Phase 4 review pass found eight strings that deferred to a phase that had already
+    // shipped. A reason must name its own obstacle, not a milestone.
+    assert.ok(!/blocked on Phase|until Phase \d/.test(c.blocked_on), `${name} defers to a phase rather than naming its obstacle: ${c.blocked_on}`);
+  }
+  const spec = CON.constraintSpec({
+    constraint_type: 'limit',
+    target: { kind: 'track', itemId: 'hero', track: 'RightShoulder' },
+    condition: { check: 'silhouette_unchanged' },
+  });
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0.5, 0, 0) }] });
+  const chk = CON.checkPatch(p, patch, [spec], { result: PATCH.planPatch(p, patch).result });
   assert.equal(chk.violations.length, 0);
-  assert.ok(chk.coverage.notRun.some((s) => /contact_drift/.test(s) && /MOT-008/.test(s)));
+  assert.ok(chk.coverage.notRun.some((s) => /silhouette_unchanged/.test(s)));
   assert.ok(/see coverage.notRun/.test(chk.recommendation), 'the recommendation must not read as a clean pass');
-  assert.equal(CON.CHECKS.contact_drift.implemented, false);
+});
+
+check('constraints: contact drift is MEASURED against the planned result, not recorded and forgotten', () => {
+  // Part 54's worked example, in full: "keep the left foot within 2 cm from frame 12 through 23".
+  // It was the flagship not-checked entry for three phases. This is what closing MOT-008 bought.
+  const p = plantFixture();
+  const comp = CON.compileConstraints({ contacts: [{ effector: 'the left foot', from: 0, to: 16, tolerance_studs: 0.05 }] }, p);
+  assert.equal(comp.constraints.length, 1);
+  assert.equal(CON.CHECKS.contact_drift.implemented, true);
+  assert.ok(comp.notes.some((n) => /MEASURED/.test(n) && /no ground plane/.test(n)),
+    'the note must say the contact is checked AND what the reference is');
+
+  // A hip rotation swings the whole leg, so the planted foot travels nearly a stud.
+  const breaks = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }] });
+  const bad = CON.checkPatch(p, breaks, comp.constraints, { result: PATCH.planPatch(p, breaks).result });
+  assert.equal(bad.violations.length, 1);
+  assert.ok(/LeftFoot/.test(bad.violations[0].reason) && /0\.05-stud tolerance/.test(bad.violations[0].reason));
+  assert.equal(bad.violations[0].finding.frame, 1, 'the finding points at the first breach, not the worst frame');
+  const ev = bad.violations[0].finding.evidence.find((e) => e.kind === 'measurement');
+  assert.ok(ev.detail.max_drift_studs > 0.5 && ev.detail.first_breach_frame !== null);
+
+  // An edit that does not touch the leg leaves the contact alone, and the checker says so rather
+  // than warning about everything near a contact.
+  const clean = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 0.5) }] });
+  assert.equal(CON.checkPatch(p, clean, comp.constraints, { result: PATCH.planPatch(p, clean).result }).violations.length, 0);
+});
+
+check('constraints: a contact with no range or no tolerance is UNEVALUATED, never passed', () => {
+  // "No tolerance declared" is not "any drift is acceptable", and a contact with no frame range is
+  // not a contact. Both come back as warnings that name themselves, not as silence.
+  const p = plantFixture();
+  const noRange = CON.constraintSpec({
+    constraint_type: 'limit',
+    target: { kind: 'semantic', query: 'the left foot' },
+    condition: { check: 'contact_drift', effector: 'the left foot', tolerance_studs: 0.05 },
+  });
+  const noTol = CON.constraintSpec({
+    constraint_type: 'limit',
+    target: { kind: 'semantic', query: 'the left foot' },
+    timeRange: [0, 16],
+    condition: { check: 'contact_drift', effector: 'the left foot' },
+  });
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }] });
+  const result = PATCH.planPatch(p, patch).result;
+  for (const [label, spec, why] of [['no range', noRange, /frame range/], ['no tolerance', noTol, /tolerance/]]) {
+    const r = CON.checkPatch(p, patch, [spec], { result });
+    assert.equal(r.violations.length, 1, `${label} must report, not stay silent`);
+    assert.equal(r.violations[0].response, 'warn', `${label} is unevaluated, so it cannot refuse`);
+    assert.ok(why.test(r.violations[0].reason), `${label}: ${r.violations[0].reason}`);
+    assert.ok(/UNEVALUATED/.test(r.violations[0].finding.id));
+  }
+});
+
+check('constraints: a sliding contact is measured and NOT judged', () => {
+  // Part 20.5's modes are not decoration. A sliding contact that moves is doing its job, and
+  // reporting the animator's own plan back as a violation is how a checker gets switched off.
+  const p = plantFixture();
+  const spec = CON.constraintSpec({
+    constraint_type: 'limit',
+    target: { kind: 'semantic', query: 'the left foot' },
+    timeRange: [0, 16],
+    condition: { check: 'contact_drift', effector: 'the left foot', tolerance_studs: 0.05, mode: 'sliding' },
+  });
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }] });
+  const r = CON.checkPatch(p, patch, [spec], { result: PATCH.planPatch(p, patch).result });
+  assert.equal(r.violations.length, 1);
+  assert.equal(r.violations[0].response, 'warn');
+  assert.ok(/expected to move/.test(r.violations[0].reason) && /NOT judged/.test(r.violations[0].reason));
 });
 
 check('constraints: implemented conditions really evaluate the planned result', () => {
@@ -1968,7 +2076,12 @@ check('transaction: the full Phase 2 loop runs end to end on one project', () =>
   assert.equal(pv.state_unchanged, true);
   assert.equal(pv.blocked, false);
   assert.equal(pv.scope.breadth.verdict, 'local');
-  assert.ok(pv.constraints_checked.not_checked.some((s) => /contact_drift/.test(s)));
+  // Before MOT-008 this asserted that the foot contact landed in `not_checked`. It is checked now,
+  // so the assertion inverts: the declared contact must NOT be in the unchecked list, and the
+  // right-side edit must not be reported as breaking a left-foot contact it never touched.
+  assert.ok(!pv.constraints_checked.not_checked.some((s) => /contact_drift/.test(s)),
+    'contact drift is implemented — a contact constraint may no longer be reported as unchecked');
+  assert.equal(pv.constraints_checked.violations.length, 0);
 
   const plan = PATCH.planPatch(p, patch);
   const report = CON.checkPatch(p, patch, comp.constraints, { result: plan.result });
@@ -2166,7 +2279,7 @@ check('cal: acceptance never counts an unrunnable check as a pass', () => {
   const spec = CAL.acceptanceSpec({ checks: [
     { check: 'key_times_unchanged', itemId: 'hero' },
     { check: 'no_visual_regression' },
-    { check: 'contact_drift_within', itemId: 'hero', effector: 'the left foot' },
+    { check: 'silhouette_readable' },
   ] });
   assert.equal(spec.not_runnable.length, 2);
   const p = slashFixture();
@@ -2175,15 +2288,62 @@ check('cal: acceptance never counts an unrunnable check as a pass', () => {
   assert.equal(r.fully_validated, false, 'but two checks did not run, so this is NOT fully validated');
   assert.equal(r.results.filter((x) => x.status === 'not_run').length, 2);
   // Each unrunnable check must say what actually blocks IT. Asserting on a phase number was the
-// old form of this check and it rotted the moment Phase 4 shipped: the reason still read "no
+  // old form of this check and it rotted the moment Phase 4 shipped: the reason still read "no
   // renderer or baseline in the semantic layer" after both had been built. So assert the two
-  // reasons name their own real obstacle instead.
+  // reasons name their own real obstacle instead — and assert it over the whole registry, because
+  // the entry that rots is always the one nobody wrote a case for.
   const reasons = Object.fromEntries(r.results.filter((x) => x.status === 'not_run').map((x) => [x.check, x.reason]));
   assert.ok(/only project data|nothing else|no raster/.test(reasons.no_visual_regression),
     `no_visual_regression must say that the check gets no raster, not that rendering does not exist: ${reasons.no_visual_regression}`);
-  assert.ok(!/Phase 4/.test(reasons.no_visual_regression),
-    'Phase 4 shipped: a reason that still defers to it is claiming a capability is absent when it is not');
-  assert.ok(/Phase 5/.test(reasons.contact_drift_within), 'contact drift is genuinely still unbuilt, and should say so');
+  for (const [name, def] of Object.entries(CAL.ACCEPTANCE_CHECKS).filter(([, d]) => !d.implemented)) {
+    assert.ok(def.blocked_by, `${name} must say what blocks it`);
+    assert.ok(!/Phase [0-5]\b/.test(def.blocked_by),
+      `${name} defers to a phase that has shipped instead of naming its obstacle: ${def.blocked_by}`);
+  }
+});
+
+check('cal: contact_drift_within measures the after-state, and says when the drift predates the change', () => {
+  const before = plantFixture();
+  const after = JSON.parse(JSON.stringify(before));
+  after.tracks.hero.LeftHip.keys.push({ t: 16, v: CF.fromEuler(0.5, 0, 0) });
+  const spec = CAL.acceptanceSpec({ checks: [
+    { check: 'contact_drift_within', itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance: 0.05 },
+  ] });
+  assert.equal(spec.not_runnable.length, 0, 'contact_drift_within is implemented — it may not be listed as unrunnable');
+
+  const clean = CAL.evaluateAcceptance(before, before, spec, { itemId: 'hero' });
+  assert.equal(clean.results[0].status, 'pass');
+  assert.equal(clean.fully_validated, true);
+
+  const broken = CAL.evaluateAcceptance(before, after, spec, { itemId: 'hero' });
+  assert.equal(broken.results[0].status, 'fail');
+  assert.equal(broken.accepted, false);
+  assert.equal(broken.results[0].measured.pre_existing, false, 'the contact was clean before, so the change owns it');
+  assert.ok(broken.results[0].measured.after > 0.5);
+
+  // The same edit judged against an already-broken before-state must say so, or the report blames
+  // the last person who touched the file.
+  const worse = JSON.parse(JSON.stringify(after));
+  worse.tracks.hero.LeftHip.keys[1].v = CF.fromEuler(0.9, 0, 0);
+  const already = CAL.evaluateAcceptance(after, worse, spec, { itemId: 'hero' });
+  assert.equal(already.results[0].status, 'fail');
+  assert.equal(already.results[0].measured.pre_existing, true);
+  assert.ok(/ALREADY out of tolerance/.test(already.results[0].detail));
+});
+
+check('cal: a contact check with no tolerance is NOT RUN, and a sliding one is measured not judged', () => {
+  const p = plantFixture();
+  const after = JSON.parse(JSON.stringify(p));
+  after.tracks.hero.LeftHip.keys.push({ t: 16, v: CF.fromEuler(0.5, 0, 0) });
+  const noTol = CAL.acceptanceSpec({ checks: [{ check: 'contact_drift_within', itemId: 'hero', effector: 'the left foot', start: 0, end: 16 }] });
+  const r1 = CAL.evaluateAcceptance(p, after, noTol, { itemId: 'hero' });
+  assert.equal(r1.results[0].status, 'not_run');
+  assert.equal(r1.accepted, false, 'a spec whose only check did not run has not been accepted');
+
+  const sliding = CAL.acceptanceSpec({ checks: [{ check: 'contact_drift_within', itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance: 0.05, mode: 'sliding' }] });
+  const r2 = CAL.evaluateAcceptance(p, after, sliding, { itemId: 'hero' });
+  assert.equal(r2.results[0].status, 'not_run');
+  assert.ok(/expected to move/.test(r2.results[0].reason));
 });
 
 check('cal: acceptance checks measure what they claim, and label the proxies', () => {
@@ -2299,9 +2459,21 @@ check('plan: an unimplemented dimension is blocked with its reason, not dropped'
   const i = INT.interpretRequest(p, { request: 'heavier', itemId: 'hero' });
   const m = PLAN.planMotion(p, { intent: i.intent, constraints: i.constraints.constraints });
   const cf = m.plan.blocked.find((b) => b.dimension === 'contact_firmness');
-  assert.ok(cf && /Part 23/.test(cf.reason));
+  assert.ok(cf, 'contact_firmness compiles to nothing and must be reported, not dropped');
   assert.equal(cf.blocked_by, 'capability');
+  // The reason has to name the missing EDIT, not the missing measurement — MOT-008 shipped the
+  // measurement, and a reason still citing it would be telling a caller a capability is absent
+  // when it is not.
+  assert.ok(/inverse-kinematic|effector/.test(cf.reason), `contact_firmness must name the missing edit: ${cf.reason}`);
+  assert.ok(!/cannot be measured/.test(cf.reason));
   assert.ok(m.plan.blocked.some((b) => b.dimension.startsWith('vfx_') && /Part 37/.test(b.reason)));
+
+  // …and the same property across every blocked dimension, so the next one to land cannot leave a
+  // stale sentence behind in a row nobody wrote a case for.
+  for (const [name, d] of Object.entries(VOC.DIMENSIONS).filter(([, x]) => !x.implemented)) {
+    assert.ok(d.blocked_by, `${name} must say what blocks it`);
+    assert.ok(!/\(Phase [0-5]\)|until Phase [0-5]/.test(d.blocked_by), `${name} defers to a shipped phase: ${d.blocked_by}`);
+  }
 });
 
 check('plan: three dimensions sharing one strategy are COMBINED, not applied one after another', () => {
@@ -2360,17 +2532,34 @@ check('plan: two strategies writing the same easing resolve by precedence, and t
   assert.ok(c.findings.some((f) => f.id === 'PLAN-OP-OVERLAP' && /overshoot/.test(f.statement)));
 });
 
-check('plan: overshoot refuses a contact-capable effector and an impact span', () => {
+check('plan: overshoot decides a plant by MEASUREMENT, not by whether the part could hold one', () => {
+  // This used to be a blanket refusal: every hand, foot, forearm and shin was skipped, because
+  // nothing could tell a planted foot from a swinging forearm. MOT-008 can, and the strategy now
+  // costs the arm nothing while still protecting a real plant. Both halves are asserted, because
+  // a change that only relaxed the rule would be a regression wearing a measurement.
   const p = slashFixture();
   const i = INT.interpretRequest(p, { request: 'make the slash heavier', itemId: 'hero' });
   const m = PLAN.planMotion(p, { intent: i.intent, constraints: [] });
   const c = PLAN.compilePlan(p, m.plan, m.ctx, { constraints: [] });
   const back = c.ops.filter((o) => o.es === 'Back');
   assert.ok(back.length, 'the attack template names a follow_through, so overshoot has somewhere to go');
-  assert.ok(c.skipped.some((s) => s.strategy === 'overshoot' && /breaks the plant/.test(s.why)),
-    'the elbow drives a lower arm, which can hold a contact');
-  assert.ok(!back.some((o) => o.track === 'RightElbow'));
+  assert.ok(back.some((o) => o.track === 'RightElbow'),
+    'the forearm sweeps a stud and a half in this span — it is not planted, and refusing it inertia was costing the strategy most of the arm');
+  assert.ok(c.notes.some((n) => /^overshoot: /.test(n) && /not planted there/.test(n)),
+    'and the measurement that decided it is recorded');
   assert.ok(!back.some((o) => o.t === 8), 'frame 8 departs into the impact — overshooting into a contact is the thing not to do');
+
+  // The other half: a foot that genuinely does not move is still refused, and the refusal now
+  // carries the number it was refused on.
+  const pl = plantFixture();
+  const i2 = INT.interpretRequest(pl, { request: 'make the slash heavier', itemId: 'hero' });
+  const m2 = PLAN.planMotion(pl, { intent: i2.intent, constraints: [] });
+  const c2 = PLAN.compilePlan(pl, m2.plan, m2.ctx, { constraints: [] });
+  const skip = c2.skipped.find((s) => s.strategy === 'overshoot' && s.track === 'LeftAnkle');
+  assert.ok(skip, 'the planted ankle must still be skipped');
+  assert.ok(/breaks the plant/.test(skip.why) && /travels only 0 stud/.test(skip.why),
+    `the refusal must carry its measurement: ${skip && skip.why}`);
+  assert.ok(!c2.ops.some((o) => o.es === 'Back' && o.track === 'LeftAnkle'));
 });
 
 check('plan: with no action type the spans stay unnamed, and overshoot declines rather than guessing', () => {
@@ -2444,8 +2633,11 @@ check('plan: nothing in a plan claims a visual or contact check was made', () =>
   const i = INT.interpretRequest(p, { request: 'heavier', itemId: 'hero' });
   const m = PLAN.planMotion(p, { intent: i.intent, constraints: [] });
   assert.ok(m.coverage.notRun.some((s) => /nothing was rendered/.test(s)));
-  assert.ok(m.coverage.notRun.some((s) => /no contact was measured/.test(s)));
+  // A DECLARED contact is measured now; an undeclared one is not, and the difference is the claim.
+  assert.ok(m.coverage.notRun.some((s) => /UNDECLARED one is not/.test(s)));
   assert.ok(PLAN.planLimitations().cannot.some((s) => /judge the result/.test(s)));
+  assert.ok(!m.coverage.notRun.some((s) => /Phase [0-5]\b/.test(s)),
+    'a plan may not defer any of its uncovered ground to a phase that has already shipped');
 });
 
 check('layer: the Phase 3 success condition — "heavier without changing timing", expressed, planned, enforced', () => {
@@ -3055,14 +3247,348 @@ check('explain: every result names what it did not look at', () => {
   assert.ok(lim.cannot.length >= 4 && lim.assumptions.length >= 2);
 });
 
+console.log('\n— motion (Part 23) —');
+
+check('motion: every Part 23 quantity is present, and the ones that are not measured say what blocks them', () => {
+  const names = Object.keys(MOT.MEASUREMENTS);
+  assert.ok(names.length >= 17, 'Part 23 lists eighteen quantities and every one keeps a row');
+  for (const [k, m] of Object.entries(MOT.MEASUREMENTS)) {
+    if (m.implemented) assert.ok(m.unit && m.from, `${k} claims to be measured and must say in what unit, from what`);
+    else {
+      assert.ok(m.unblocked_by, `${k} is not measured and must say what would change that`);
+      assert.ok(!/Phase [0-5]\b/.test(m.unblocked_by), `${k} defers to a shipped phase: ${m.unblocked_by}`);
+    }
+  }
+  const lim = MOT.motionLimitations();
+  assert.equal(lim.measured.length + lim.not_measured.length, names.length,
+    'the limitations prose is generated from the registry, so the two cannot disagree');
+  assert.ok(/decide that a motion is bad/.test(lim.cannot[0]), 'Part 4.5: measurement is not judgement');
+});
+
+check('motion: velocity, acceleration and jerk come from the FK solve, and the ends are flagged', () => {
+  const p = plantFixture();
+  const s = MOT.sampleMotion(p, { itemId: 'hero', partIds: ['RightHand'], frameRange: [0, 16] });
+  const sub = s.subjects[0];
+  assert.equal(sub.samples.length, 17, 'one sample per frame at step 1, inclusive of both ends');
+  assert.equal(sub.role, 'hand');
+  assert.equal(sub.contact_capable, true);
+  assert.ok(sub.summary.path_length_studs > 1, 'the arm swings, so the hand travels');
+  assert.ok(sub.summary.peak_speed > 0 && sub.summary.peak_speed_frame !== null);
+  // A one-sided derivative at the boundary is systematically different from its neighbours, so it
+  // is marked rather than left to be read as a pop.
+  assert.equal(sub.samples[0].boundary, true);
+  assert.equal(sub.samples[16].boundary, true);
+  assert.equal(sub.samples[0].acceleration, null, 'a second difference needs a sample either side');
+  assert.equal(sub.samples[1].jerk, null, 'a third difference needs two either side');
+  assert.ok(sub.samples[5].jerk !== null);
+  // A part nothing moves reads as still, and `still` is a claim the summary makes explicitly.
+  const foot = MOT.sampleMotion(p, { itemId: 'hero', partIds: ['LeftFoot'], frameRange: [0, 16] }).subjects[0];
+  assert.equal(foot.summary.still, true);
+  assert.equal(foot.summary.path_length_studs, 0);
+});
+
+check('motion: a straight path has no curvature and no bow; a swing has both', () => {
+  const p = plantFixture();
+  const hand = MOT.sampleMotion(p, { itemId: 'hero', partIds: ['RightHand'], frameRange: [0, 16] }).subjects[0];
+  assert.ok(hand.summary.bow_studs > 0.05, 'a shoulder rotation sweeps an arc, which bows off its chord');
+  assert.ok(hand.samples.slice(1, -1).some((s) => s.curvature > 0));
+  // Bow is NOT "distance from the expected arc", and the registry says so rather than letting the
+  // number be read as a verdict.
+  assert.equal(MOT.MEASUREMENTS.distance_to_expected_arc.implemented, false);
+  assert.ok(/bow_studs/.test(MOT.MEASUREMENTS.distance_to_expected_arc.unblocked_by));
+});
+
+check('motion: the sample grid is capped, and a truncated range is named rather than silently dropped', () => {
+  const p = plantFixture();
+  const s = MOT.sampleGrid(p, 'hero', { frameRange: [0, 5000], step: 1 });
+  assert.equal(s.frames.length, MOT.MAX_SAMPLES);
+  assert.ok(/were NOT sampled/.test(s.truncated));
+  const sampled = MOT.sampleMotion(p, { itemId: 'hero', partIds: ['RightHand'], frameRange: [0, 5000] });
+  assert.ok(sampled.coverage.notRun.some((x) => /were NOT sampled/.test(x)));
+});
+
+check('motion: contact drift measures against the effector\'s own start position, and says so', () => {
+  const p = plantFixture();
+  const clean = MOT.measureContactDrift(p, { itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance_studs: 0.05 });
+  assert.equal(clean.measured, true);
+  assert.equal(clean.effector.part_id, 'LeftFoot');
+  assert.equal(clean.within_tolerance, true);
+  assert.equal(clean.max_drift_studs, 0);
+  assert.equal(clean.reference.kind, 'effector_at_first_frame');
+  assert.ok(clean.findings[0].evidence.some((e) => e.kind === 'assumption' && /ground plane/.test(e.detail)),
+    'the assumption the whole measurement rests on has to be in the evidence, not only in a doc comment');
+
+  const moved = JSON.parse(JSON.stringify(p));
+  moved.tracks.hero.LeftHip.keys.push({ t: 16, v: CF.fromEuler(0.5, 0, 0) });
+  const bad = MOT.measureContactDrift(moved, { itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance_studs: 0.05 });
+  assert.equal(bad.within_tolerance, false);
+  assert.ok(bad.max_drift_studs > 0.5);
+  assert.equal(bad.max_drift_frame, 16);
+  assert.equal(bad.first_breach_frame, 1, 'the breach frame is where it crossed, not where it was worst');
+  assert.ok(bad.exceeded_by_studs > 0.5);
+});
+
+check('motion: an unmeasurable contact is refused with a question, never answered with zero', () => {
+  const p = plantFixture();
+  const noRange = MOT.measureContactDrift(p, { itemId: 'hero', effector: 'the left foot' });
+  assert.equal(noRange.measured, false);
+  assert.equal(noRange.max_drift_studs, null, 'an unmeasured drift is null — zero would read as a clean contact');
+  assert.ok(/frame range/.test(noRange.reason));
+  const noPart = MOT.measureContactDrift(p, { itemId: 'hero', effector: 'the third elbow', start: 0, end: 8 });
+  assert.equal(noPart.measured, false);
+  assert.ok(noPart.coverage.notRun.length === 1 && /NOT measured/.test(noPart.coverage.notRun[0]));
+  const noItem = MOT.measureContactDrift(p, { itemId: 'nobody', effector: 'the left foot', start: 0, end: 8 });
+  assert.equal(noItem.measured, false);
+});
+
+check('motion: a contact resolved from a semantic phrase cannot produce a certain verdict', () => {
+  // "the left foot" is an exact role lookup and IS certain. "the planted foot" is a travel
+  // measurement standing in for an intent, and Part 13's own worked example caps it at highly
+  // likely — a drift finding may not launder that into certainty.
+  const p = plantFixture();
+  p.tracks.hero.RightHip = { keys: [{ t: 0, v: I() }, { t: 16, v: CF.fromEuler(0.6, 0, 0) }] };
+  const exact = MOT.measureContactDrift(p, { itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance_studs: 0.05 });
+  assert.equal(exact.effector.certainty, C.CERTAINTY.CERTAIN);
+  assert.equal(exact.findings[0].certainty, C.CERTAINTY.CERTAIN);
+  const heuristic = MOT.measureContactDrift(p, { itemId: 'hero', effector: 'the planted foot', start: 0, end: 16, tolerance_studs: 0.05 });
+  assert.equal(heuristic.effector.part_id, 'LeftFoot');
+  assert.notEqual(heuristic.findings[0].certainty, C.CERTAINTY.CERTAIN);
+  assert.ok(/semantic phrase/.test(heuristic.effector.how_identified));
+});
+
+check('motion: chain lead/lag reports an inversion without calling it wrong', () => {
+  const p = plantFixture();
+  // The forearm starts a third of the way in; the shoulder starts at once. That is the normal
+  // order, so nothing is inverted.
+  const ok = MOT.analyseChain(p, { itemId: 'hero', chain: ['RightShoulder', 'RightElbow'] });
+  assert.equal(ok.links.length, 2);
+  assert.equal(ok.inversions.length, 0);
+  assert.equal(ok.chain_source, 'caller');
+
+  // Now make the elbow fire first.
+  const led = JSON.parse(JSON.stringify(p));
+  led.tracks.hero.RightShoulder.keys = [{ t: 0, v: I() }, { t: 8, v: I() }, { t: 16, v: CF.fromEuler(0, 0, 1.2) }, { t: 28, v: I() }];
+  led.tracks.hero.RightElbow.keys = [{ t: 0, v: I() }, { t: 4, v: CF.fromEuler(1.0, 0, 0) }, { t: 16, v: CF.fromEuler(1.0, 0, 0) }, { t: 28, v: I() }];
+  const inv = MOT.analyseChain(led, { itemId: 'hero', chain: ['RightShoulder', 'RightElbow'] });
+  assert.equal(inv.inversions.length, 1);
+  assert.equal(inv.inversions[0].child, 'RightElbow');
+  assert.ok(inv.inversions[0].lead_frames > 0);
+  // Part 22 names four kinds of motion where a child legitimately leads. So the finding is
+  // `possible`, and the assumption it rests on is in its own evidence.
+  assert.equal(inv.findings[0].certainty, C.CERTAINTY.POSSIBLE);
+  assert.ok(inv.findings[0].evidence.some((e) => e.kind === 'assumption' && /whip crack/.test(e.detail)));
+  assert.ok(inv.coverage.notRun.some((s) => /four kinds of motion where it is correct/.test(s)));
+});
+
+check('motion: the derived chain does not join a left leg to a right arm', () => {
+  // Two limbs on opposite sides have no propagation relationship, and a lag between them is not a
+  // finding — it is two unrelated actions read as one.
+  const p = plantFixture();
+  p.tracks.hero.LeftHip = { keys: [{ t: 0, v: I() }, { t: 16, v: CF.fromEuler(0.4, 0, 0) }] };
+  const c = MOT.analyseChain(p, { itemId: 'hero' });
+  const sides = new Set(c.links.map((l) => l.side).filter((s) => s === 'left' || s === 'right'));
+  assert.ok(sides.size <= 1, `the derived chain mixed sides: ${[...sides].join(', ')}`);
+  assert.ok(/side with the most animated joints/.test(c.chain_source));
+});
+
+check('motion: Part 23\'s noise policy separates the three authored kinds and refuses to guess the rest', () => {
+  const p = plantFixture();
+  p.tracks.hero.RightShoulder.keys[1].es = 'Constant';
+  assert.equal(MOT.classifyVariation(p, 'hero', 'RightShoulder', 8).kind, 'stepped');
+
+  const held = plantFixture();
+  assert.equal(MOT.classifyVariation(held, 'hero', 'LeftAnkle', 8).kind, 'stylised_hold',
+    'four identical keys in a row are a hold, and a hold is deliberate');
+
+  // The marker at 16 names the impact, so a discontinuity there was authored.
+  assert.equal(MOT.classifyVariation(held, 'hero', 'RightShoulder', 16).kind, 'impact_discontinuity');
+
+  // And a frame with no mark at all: reported as unclassified, explicitly NOT as a defect.
+  const un = MOT.classifyVariation(held, 'hero', 'RightShoulder', 11);
+  assert.equal(un.kind, 'unclassified');
+  assert.ok(/NOT called a defect/.test(un.why));
+  const undistinguishable = Object.values(MOT.VARIATION_KINDS).filter((v) => !v.distinguishable);
+  assert.equal(undistinguishable.length, 6, 'six of Part 23\'s nine kinds have no mark in Cadence data');
+  for (const v of undistinguishable) assert.ok(v.needs, 'and each one says what it would take');
+});
+
+console.log('\n— diagnose (Part 46) —');
+
+check('diagnose: all seven of Part 46\'s workflows keep a row, and the unbuilt ones name their obstacle', () => {
+  const impl = Object.entries(DIAG.DIAGNOSTICS).filter(([, d]) => d.implemented);
+  assert.equal(Object.keys(DIAG.DIAGNOSTICS).length, 7);
+  assert.equal(impl.length, 2);
+  for (const [name, d] of Object.entries(DIAG.DIAGNOSTICS)) {
+    if (d.implemented) continue;
+    assert.ok(d.routed_to || d.unblocked_by, `${name} must be routed or blocked, not silent`);
+    if (d.unblocked_by) assert.ok(!/Phase [0-5]\b/.test(d.unblocked_by), `${name} defers to a shipped phase: ${d.unblocked_by}`);
+  }
+  const lim = DIAG.diagnoseLimitations();
+  assert.equal(lim.implemented.length + lim.routed.length + lim.blocked.length, 7);
+  assert.throws(() => DIAG.diagnose(plantFixture(), { question: 'why_is_it_ugly' }), /no diagnostic named/);
+});
+
+check('diagnose: an unimplemented question refuses by name and never fabricates an answer', () => {
+  const p = plantFixture();
+  const r = DIAG.diagnose(p, { question: 'why_does_this_animation_feel_light', itemId: 'hero' });
+  assert.equal(r.likely_causes.length, 0);
+  assert.equal(r.confidence, C.CERTAINTY.USER_INTENT_REQUIRED);
+  assert.ok(r.coverage.notRun.some((s) => /PHY-001/.test(s)));
+  const routed = DIAG.diagnose(p, { question: 'why_did_this_object_move', itemId: 'hero' });
+  assert.deepEqual(routed.next_checks, ['call `explain_change`']);
+});
+
+check('diagnose: a stable contact is reported as stable, not as a problem nobody found', () => {
+  const p = plantFixture();
+  const r = DIAG.diagnose(p, { question: 'why_is_this_contact_unstable', itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance_studs: 0.05 });
+  assert.ok(/the contact is stable/.test(r.header));
+  assert.equal(r.likely_causes.length, 0);
+  assert.ok(r.next_checks.some((s) => /explain_change/.test(s)), 'and it points at the check it did NOT run');
+});
+
+check('diagnose: a contact with no tolerance is answered with a question, not a verdict', () => {
+  const p = plantFixture();
+  p.tracks.hero.LeftHip.keys.push({ t: 16, v: CF.fromEuler(0.5, 0, 0) });
+  const r = DIAG.diagnose(p, { question: 'why_is_this_contact_unstable', itemId: 'hero', effector: 'the left foot', start: 0, end: 16 });
+  assert.equal(r.confidence, C.CERTAINTY.USER_INTENT_REQUIRED);
+  assert.ok(/How far may/.test(r.user_question));
+  assert.equal(r.recommended_action, null);
+});
+
+check('diagnose: drift is attributed by counterfactual, so the cause is proved rather than guessed', () => {
+  const p = plantFixture();
+  p.tracks.hero.LeftHip.keys.push({ t: 16, v: CF.fromEuler(0.5, 0, 0) });
+  p.tracks.hero.LeftKnee = { keys: [{ t: 0, v: I() }, { t: 16, v: CF.fromEuler(0.1, 0, 0) }] };
+  const r = DIAG.diagnose(p, { question: 'why_is_this_contact_unstable', itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance_studs: 0.05 });
+
+  assert.ok(r.likely_causes.length >= 2);
+  assert.equal(r.likely_causes[0].cause, '"LeftHip"', 'the hip swings the whole leg and must rank first');
+  assert.ok(r.likely_causes[0].share_of_drift > 0.7);
+  assert.ok(r.likely_causes[1].share_of_drift < r.likely_causes[0].share_of_drift, 'causes are ranked by share, not by order');
+  // The distinguishing evidence is the counterfactual itself — freezing the joint and re-measuring.
+  assert.ok(/freezing "LeftHip" at its frame-0 value leaves/.test(r.likely_causes[0].distinguishing_evidence));
+  assert.equal(r.measurements.attribution.method.startsWith('counterfactual'), true);
+  // Part 46's eight required fields, all populated for an answered question.
+  for (const f of ['observed_facts', 'referenced_plan', 'dependencies', 'likely_causes', 'next_checks']) {
+    assert.ok(Array.isArray(r[f]) && r[f].length, `Part 46 requires ${f}`);
+  }
+  assert.ok(r.recommended_action.requires_user_approval, 'a recommendation is not an instruction to act');
+  assert.ok(r.coverage.notRun.some((s) => /nothing visual was checked/.test(s)));
+});
+
+check('diagnose: root motion is a candidate cause, and beats the joints when it is the real one', () => {
+  // Part 30 lists "handle changes in root motion" as its own case: a foot that slides because the
+  // whole character was translated is a completely different fix from a bent knee.
+  const p = plantFixture();
+  p.tracks.hero['@origin'] = { keys: [{ t: 0, v: I() }, { t: 16, v: CF.fromPos ? CF.fromPos(3, 0, 0) : [3, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1] }] };
+  const r = DIAG.diagnose(p, { question: 'why_is_this_contact_unstable', itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance_studs: 0.05 });
+  assert.ok(/root motion/.test(r.likely_causes[0].cause));
+  assert.ok(r.likely_causes[0].share_of_drift > 0.9);
+  assert.equal(r.likely_causes[0].kind, 'root_motion');
+});
+
+check('diagnose: an authored discontinuity is NOT called a defect', () => {
+  // Part 23, verbatim: "Never label motion as bad simply because it deviates from smoothness."
+  const p = plantFixture();
+  p.tracks.hero.RightShoulder.keys[1].es = 'Constant';
+  const r = DIAG.diagnose(p, { question: 'why_is_this_motion_bad', itemId: 'hero', joint: 'RightShoulder', frame: 8 });
+  assert.ok(/deliberate stepped/.test(r.header));
+  assert.equal(r.findings[0].id, 'MOTION-AUTHORED-VARIATION');
+  assert.equal(r.likely_causes[0].kind, 'authored');
+  assert.equal(r.user_question, null, 'nothing needs asking: the project already says what this is');
+  assert.ok(r.coverage.notRun.some((s) => /6 of Part 23's 9 variation kinds/.test(s)));
+});
+
+check('diagnose: an unexplained discontinuity is reported as possible, with the question attached', () => {
+  const p = plantFixture();
+  // A hard reversal in the middle of a span, with no key, no marker and no stepped easing to
+  // explain it — the shoulder snaps back between two ordinary keys.
+  p.tracks.hero.RightShoulder.keys = [
+    { t: 0, v: I(), es: 'Linear' }, { t: 10, v: CF.fromEuler(0, 0, 1.4), es: 'Linear' },
+    { t: 11, v: CF.fromEuler(0, 0, -1.4), es: 'Linear' }, { t: 28, v: I(), es: 'Linear' },
+  ];
+  p.markers = {};
+  const r = DIAG.diagnose(p, { question: 'why_is_this_motion_bad', itemId: 'hero', joint: 'RightShoulder', frame: 11 });
+  assert.equal(r.confidence, C.CERTAINTY.POSSIBLE, 'the measurement is certain; what it MEANS is not');
+  assert.equal(r.findings[0].id, 'MOTION-DISCONTINUITY');
+  assert.ok(/Was the discontinuity at frame 11 intended\?/.test(r.user_question));
+  assert.ok(r.likely_causes.some((c) => /indistinguishable in the data/.test(c.distinguishing_evidence)));
+
+  // The other half, and the one that decides whether this detector is worth reading: an ordinary
+  // Sine-eased swing reports NOTHING at every frame. A detector that fires on normal motion is a
+  // detector nobody looks at twice.
+  const ordinary = plantFixture();
+  for (const f of [4, 11, 20]) {
+    const q = DIAG.diagnose(ordinary, { question: 'why_is_this_motion_bad', itemId: 'hero', joint: 'RightShoulder', frame: f });
+    assert.equal(q.findings.length, 0, `frame ${f} of an ordinary eased swing must not be reported`);
+    assert.ok(/nothing unusual/.test(q.header));
+  }
+});
+
 console.log('\n— layer —');
 
 check('layer: capabilities() states both what it can and cannot do', () => {
   const c = AI.capabilities();
   assert.ok(c.can.length >= 5 && c.cannot.length >= 5);
-  assert.ok(c.cannot.some((s) => /velocity/.test(s)));
+  assert.ok(c.can.some((s) => /velocity/.test(s)), 'Part 23 landed and capabilities() must say so');
   assert.ok(c.cannot.some((s) => /flicker/.test(s)));
+  assert.ok(c.cannot.some((s) => /contact nobody declared/.test(s)));
   assert.ok(c.can.some((s) => /baseline/.test(s)), 'Phase 4 exists and capabilities() must say so');
+});
+
+check('layer: the Phase 5 success condition — a contact error is identified with evidence, and undone', () => {
+  // Part 62, Phase 5, verbatim: "Cadence can identify a known contact error or motion-propagation
+  // problem with evidence." End to end through the REAL machinery: declare the contact, break it
+  // with a transactional patch, have the constraint checker catch it, have the diagnostic attribute
+  // it, roll the transaction back, and re-measure to zero.
+  const p = plantFixture();
+  const origin = H.contentHash(p);
+  const ledger = new TXN.TransactionLedger();
+
+  // DECLARE — Part 54's own worked example, in the closed grammar.
+  const comp = CON.compileConstraints({ text: 'keep the left foot within 0.05 studs from frame 0 to 16' }, p);
+  assert.equal(comp.unparsed.length, 0);
+  assert.equal(comp.constraints[0].condition.check, 'contact_drift');
+
+  // MEASURE, before anything is changed: the contact is clean, and that is an answer.
+  const clean = MOT.measureContactDrift(p, { itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance_studs: 0.05 });
+  assert.equal(clean.within_tolerance, true);
+
+  // BREAK IT — a hip rotation, applied through the transaction machinery like any other edit.
+  const beforeState = JSON.parse(JSON.stringify(p));
+  const patch = PATCH.makePatch({ intent: 'swing the left leg through', ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }] });
+  const plan = PATCH.planPatch(p, patch);
+  const report = CON.checkPatch(p, patch, comp.constraints, { result: plan.result });
+
+  // The constraint catches it, with the number and the frame it first crossed.
+  assert.equal(report.violations.length, 1);
+  assert.ok(/would drift/.test(report.violations[0].reason));
+  assert.equal(report.violations[0].finding.frame, 1);
+
+  const applied = TXN.apply(p, patch, plan, { ledger, constraintReport: report, timestamp: 'T1' });
+  assert.equal(applied.applied, true, 'the contact constraint compiles to `warn`, so it reports rather than refusing');
+
+  // IDENTIFY, with evidence: which joint owns the drift, proved by freezing it and re-measuring.
+  const why = DIAG.diagnose(p, { question: 'why_is_this_contact_unstable', itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance_studs: 0.05 });
+  assert.equal(why.likely_causes[0].cause, '"LeftHip"');
+  assert.equal(why.findings[0].id, 'CONTACT-UNSTABLE');
+  assert.equal(why.findings[0].certainty, C.CERTAINTY.CERTAIN);
+  assert.ok(why.findings[0].evidence.some((e) => e.kind === 'measurement' && /drift/.test(e.statement)));
+
+  // The acceptance check agrees, and says the drift is this change's fault rather than pre-existing.
+  const spec = CAL.acceptanceSpec({ checks: [{ check: 'contact_drift_within', itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance: 0.05 }] });
+  const acc = CAL.evaluateAcceptance(beforeState, p, spec, { itemId: 'hero' });
+  assert.equal(acc.results[0].status, 'fail');
+  assert.equal(acc.results[0].measured.pre_existing, false, 'the contact was clean before, so this change owns the break');
+
+  // UNDO — and the measurement comes back to exactly where it started.
+  const back = TXN.rollback(p, ledger, applied.transaction_id, { timestamp: 'T2' });
+  assert.equal(back.rolled_back, true);
+  assert.equal(back.complete, true);
+  assert.equal(H.contentHash(p), origin, 'the rollback must land byte-identical, not merely close');
+  const after = MOT.measureContactDrift(p, { itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance_studs: 0.05 });
+  assert.equal(after.within_tolerance, true);
+  assert.equal(after.max_drift_studs, 0);
 });
 
 check('layer: the Phase 4 success condition — a scoped edit is explained, and the explanation undoes it', () => {

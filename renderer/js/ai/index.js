@@ -37,14 +37,15 @@
 //   observe       Part 43 — the pass catalogue and the hierarchical observation policy
 //   baseline      Part 44 — baselines as project data, not disposable screenshots
 //   explain       Parts 44 and 45 — difference classification and evidence-backed explanation
+//   motion        Part 23 — velocity, acceleration, jerk, curvature, contact drift, chain lead/lag
+//   diagnose      Part 46 — the "why?" workflows, built on those measurements
 //
 // Phase 4 note on purity: the layer now reasons about pixels, and still imports no renderer. A
 // raster crosses the boundary as `{ width, height, encoding, data }` and nothing else; the GPU
 // work is in `renderer/js/observationPasses.js`, outside this tree.
 //
-// What is deliberately NOT here yet, so nothing accidentally implies it exists: motion measurement
-// (Part 23), the VFX compiler (Part 37), shots and cameras (Parts 40-41), knowledge, memory and
-// benchmarks (Parts 25, 57, 59).
+// What is deliberately NOT here yet, so nothing accidentally implies it exists: the VFX compiler
+// (Part 37), shots and cameras (Parts 40-41), knowledge, memory and benchmarks (Parts 25, 57, 59).
 
 export * as hash from './hash.js';
 export * as certainty from './certainty.js';
@@ -69,6 +70,8 @@ export * as raster from './raster.js';
 export * as observe from './observe.js';
 export * as baseline from './baseline.js';
 export * as explain from './explain.js';
+export * as motion from './motion.js';
+export * as diagnose from './diagnose.js';
 
 export { CERTAINTY } from './certainty.js';
 export { ROLE, SIDE } from './roles.js';
@@ -90,18 +93,20 @@ export { makeRaster, rasterDigest, signature as rasterSignature, cameraFingerpri
 export { PASSES, observationPlan, suspectFrames, availablePasses } from './observe.js';
 export { createBaseline, listBaselines, getBaseline, approveDifference, snapshotAvailable } from './baseline.js';
 export { explainChange, CLASSIFICATION } from './explain.js';
+export { MEASUREMENTS, sampleMotion, measureContactDrift, analyseChain, classifyVariation } from './motion.js';
+export { DIAGNOSTICS, diagnose as diagnoseMotion } from './diagnose.js';
 
 /** The version of the semantic layer itself, separate from the app version. Bumped when a graph's
- *  shape changes in a way a consumer would notice. Phase 3 adds the CAL structures and a project
- *  field (`semantics.vocabulary`), so this is a minor bump rather than a patch one. */
-export const SEMANTIC_LAYER_VERSION = '1.3.0';
+ *  shape changes in a way a consumer would notice. Phase 5 adds the Part 23 measurements and the
+ *  Part 46 diagnostics, and turns two previously NOT-RUN checks into ones that run. */
+export const SEMANTIC_LAYER_VERSION = '1.5.0';
 
 /** One place to ask what this layer can and cannot currently answer. Returned by
  *  `inspect_scene` so a model never has to infer capability from silence. */
 export function capabilities() {
   return {
     version: SEMANTIC_LAYER_VERSION,
-    phase: 'Phase 4 — observation and baseline (directive Part 62)',
+    phase: 'Phase 5 — motion and contact analysis (directive Part 62)',
     can: [
       'project the scene, any rig and any timeline into stable-id graphs with semantic roles',
       'resolve semantic selections such as "the left foot", "the planted foot" and "the weapon hand", with evidence',
@@ -125,9 +130,17 @@ export function capabilities() {
       'classify each difference against a baseline as expected, unexpected, uncertain or approved, and say which transaction explains it',
       'explain a change with ranked causes and the evidence that distinguishes them, and name the minimum safe correction',
       'choose the cheapest evidence that can settle a question, and say what would make it escalate (Part 43\'s hierarchical policy)',
+      'measure per-frame world velocity, acceleration, jerk and path curvature for any rig part on any state (Part 23)',
+      'measure a declared contact\'s drift against its own tolerance, and REFUSE a patch that would break it — the same measurement runs as a constraint before the patch and as an acceptance check after it',
+      'attribute a drifting contact to the joint that owns it, by freezing each ancestor in turn and re-measuring',
+      'measure onset and peak per joint along a chain and report an inversion, without claiming an inversion is wrong',
+      'classify a discontinuity as a stepped key, a held pose or a marked impact before anything calls it a defect (Part 23\'s noise-and-signal policy)',
     ],
     cannot: [
-      'measure velocity, acceleration, jerk, arcs or contact drift (Part 23 — Phase 5), so a declared foot contact is recorded and NOT verified',
+      'detect a contact nobody declared. Drift is measured against a ContactSpec; a foot the animator meant to plant and never said so about is not checked',
+      'measure screen-space velocity (no active-camera model), balance or centre of mass (part mass is unknown), or distance from an EXPECTED arc (no arc model)',
+      'tell accidental jitter from deliberate texture: 6 of Part 23\'s 9 variation kinds have no mark in Cadence project data, and an unexplained discontinuity is reported as unclassified',
+      'answer 3 of Part 46\'s 7 "why?" workflows — weight, effect change and camera framing are all blocked on models that do not exist (see diagnose.DIAGNOSTICS)',
       'render 20 of Part 43\'s 24 observation kinds — no depth, normal, motion-vector, alpha, shadow, material-ID, crop, contact-sheet or overlay pass (see observe.PASSES for what blocks each)',
       'see anything but rig parts: props, effect items, screen effects, the ground and the grid are excluded from every pass by construction',
       'detect flicker or a one-frame pop — that needs consecutive frames, and the policy targets suspect frames instead',

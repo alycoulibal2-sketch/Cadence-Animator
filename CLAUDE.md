@@ -13,6 +13,8 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 | `renderer/js/viewport.js` | three.js scene, orbit/transform controls, picking. |
 | `renderer/js/rigbuild.js` | `RigInstance` and friends: meshes, joints, FK solve. |
 | `renderer/js/ai/**` | The animation-intelligence semantic layer. **Pure** — see below. |
+| `renderer/js/ai/motion.js` | Part 23's measurements: velocity, acceleration, jerk, curvature, contact drift, chain lead/lag. Measurement only. |
+| `renderer/js/ai/diagnose.js` | Part 46's "why?" workflows. The judging layer; it consumes `motion.js` and never re-measures. |
 | `renderer/js/observationPasses.js` | Diagnostic render passes. Outside `ai/` because three.js. |
 | `renderer/js/pnx/**`, `renderer-vfx/` | The procedural VFX engine and its own studio window. |
 | `mcp-server/index.js` | `server.tool(...)` registrations. The other half of every MCP tool. |

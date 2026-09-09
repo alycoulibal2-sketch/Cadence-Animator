@@ -101,7 +101,7 @@ export function analyseScope(project, plan, { constraints = [], frame = 0 } = {}
         'no render was produced, so nothing about the visible result was measured. Scope analysis runs before the patch; the passes that could measure it need both states (run explain_change afterwards)',
         'no baseline comparison was made, so "was this change expected?" is unanswered here. create_baseline before the edit and explain_change after it is the loop that answers it',
         'camera framing, occlusion and readability were not evaluated — Cadence has no framing model (Part 40, Phase 6)',
-        'motion consequences (velocity, arc, contact drift) were not measured (Part 23, Phase 5)',
+        'motion consequences (velocity, curvature, contact drift) were not measured HERE. They exist and are measurable on either state (analyze_motion, analyze_contacts — Part 23), but a scope report is produced before the patch, so it can only predict them; the `contact_drift` constraint measures the planned result, and analyze_contacts measures the committed one',
       ],
     }),
   };
@@ -298,12 +298,15 @@ function regressionRequirement(project, timeRange, dependents, events) {
     'diff_snapshots — exact scene-graph and keyframe difference against any held snapshot',
     'inspect_timeline — key times, easing and annotations after the edit',
     'create_baseline before the edit, then explain_change after it — a rendered silhouette and object-ID comparison of the affected frames, with every difference classified',
+    'analyze_contacts — world-space drift of a declared contact effector across its frame range, against the tolerance the contact declared (MOT-008)',
+    'analyze_motion — per-frame velocity, acceleration, jerk and path curvature for the parts the edit reaches (MOT-003/004/005)',
   ];
   const unavailable = [
     'a PERCEPTUAL comparison — the rendered methods are exact-pixel, coverage, edge displacement and object-ID; nothing here judges whether a difference is visually meaningful (REG-003)',
     'depth, normal, motion-vector and alpha comparison — those passes do not exist (OBS-004/005/006, RND-002)',
     'temporal validation across the changed range (flicker, one-frame pops between sampled frames): the observation policy targets suspect frames rather than rendering a run',
-    'contact and foot-drift validation over the changed range (MOT-008, Phase 5)',
+    'contact validation for a contact NOBODY DECLARED: drift is measured against a declared ContactSpec, and nothing detects a contact from the motion, so a foot the animator meant to plant but never said so about is not checked',
+    'balance, centre of mass and support polygon over the changed range (MOT-011 — part mass is unknown)',
   ];
   if (events.overlapping?.some((e) => e.has_code)) {
     unavailable.push('verification that the Luau on the overlapped marker still fires where the shot expects it (no Luau runtime here — markers are exported to Studio and run there)');

@@ -4666,6 +4666,99 @@ const MCP_HANDLERS = {
       pass_limitations: passLimitations(),
     };
   },
+
+  // ------------------------------------------------- motion and contact analysis (Parts 22, 23, 30, 46)
+  //
+  // The read half of Phase 5. Three tools, and the order they compose in:
+  //
+  //   analyze_motion         per-frame velocity, acceleration, jerk, curvature, chain lead/lag
+  //   analyze_contacts       does a declared contact hold, and by how much does it miss
+  //   explain_motion_problem why — with the joint that owns it, proved by counterfactual
+  //
+  // None of them mutates animation data. `explain_motion_problem` appends an `analysis` node to
+  // provenance for the same reason `explain_change` does: a conclusion somebody may act on should
+  // be traceable, and a measurement is not a conclusion — which is why the other two write nothing.
+
+  analyze_motion: ({ itemId, parts = null, from = null, to = null, step = 1, chain = null } = {}) => {
+    const id = itemId ?? S.state.selection.itemId;
+    if (!id) throw new Error('analyze_motion needs an `itemId` — inspect_scene lists them');
+    const frameRange = (from !== null && to !== null) ? [from, to] : null;
+    const sampled = AI.motion.sampleMotion(liveProject(), { itemId: id, partIds: parts, frameRange, step });
+    // The chain analysis is the Part 22 half and answers a different question from the samples, so
+    // it is returned alongside rather than folded in.
+    const links = AI.motion.analyseChain(liveProject(), { itemId: id, chain, frameRange, step });
+    return {
+      ...sampled,
+      chain: links,
+      limitations: AI.motion.motionLimitations(),
+    };
+  },
+
+  analyze_contacts: ({ itemId, contacts = null, constrain = null } = {}) => {
+    const id = itemId ?? S.state.selection.itemId;
+    if (!id) throw new Error('analyze_contacts needs an `itemId` — inspect_scene lists them');
+    const project = liveProject();
+
+    // Three sources, in order of directness. A contact is never INVENTED: if none of the three
+    // produces one, the tool says so and names how to declare one, rather than guessing which foot
+    // was meant to be planted.
+    const declared = [];
+    for (const c of contacts || []) {
+      declared.push({ source: 'argument', itemId: c.itemId ?? id, effector: c.effector, start: c.start, end: c.end, tolerance_studs: c.tolerance_studs, rotational_tolerance_deg: c.rotational_tolerance_deg, mode: c.mode || 'planted' });
+    }
+    const compiled = constrain ? AI.compileConstraints(constrain, project) : null;
+    for (const c of (compiled?.constraints || []).filter((x) => x.condition?.check === 'contact_drift')) {
+      declared.push({ source: `constraint ${c.id}`, itemId: id, effector: c.condition.effector, start: c.time_range?.[0], end: c.time_range?.[1], tolerance_studs: c.condition.tolerance_studs, mode: c.condition.mode || 'planted' });
+    }
+    for (const c of AI.constraints.listLocks(project).filter((x) => x.condition?.check === 'contact_drift')) {
+      declared.push({ source: `persisted lock ${c.id}`, itemId: id, effector: c.condition.effector, start: c.time_range?.[0], end: c.time_range?.[1], tolerance_studs: c.condition.tolerance_studs, mode: c.condition.mode || 'planted' });
+    }
+
+    const results = declared.map((d) => ({ declared_by: d.source, ...AI.motion.measureContactDrift(project, d) }));
+    const broken = results.filter((r) => r.within_tolerance === false && r.judgeable);
+    return {
+      item: id,
+      contacts_declared: declared.length,
+      results,
+      // A summary a caller can branch on without walking the array, and one that never rounds an
+      // unmeasured contact down to "fine".
+      summary: !declared.length
+        ? 'no contact was declared, so nothing was measured. Declare one with `contacts` or `constrain: { text: "keep the left foot within 0.05 studs from frame 12 to 23" }` — nothing here infers a contact from the motion'
+        : `${declared.length} contact(s): ${results.filter((r) => r.within_tolerance === true).length} within tolerance, ${broken.length} broken, ${results.filter((r) => r.within_tolerance === null).length} not judged`,
+      findings: results.flatMap((r) => r.findings),
+      constraint_compilation: compiled ? { notes: compiled.notes, unparsed: compiled.unparsed, questions: compiled.questions } : null,
+      next: broken.length
+        ? broken.map((r) => `explain_motion_problem { question: "why_is_this_contact_unstable", itemId: "${id}", effector: "${r.effector.name}", start: ${r.range[0]}, end: ${r.range[1]}, tolerance_studs: ${r.tolerance_studs} } attributes the drift to a joint`)
+        : [],
+      limitations: AI.motion.motionLimitations(),
+    };
+  },
+
+  explain_motion_problem: (args = {}) => {
+    const id = args.itemId ?? S.state.selection.itemId;
+    if (!id) throw new Error('explain_motion_problem needs an `itemId` — inspect_scene lists them');
+    const answer = AI.diagnose.diagnose(liveProject(), { ...args, itemId: id });
+
+    // Only a diagnosis that actually reached a conclusion is worth a provenance node; a refusal or
+    // a routed question would just add noise to the graph a later reader has to filter out.
+    if (answer.likely_causes.length || answer.findings.length) {
+      AI.provenance.record(S.state.project, {
+        type: 'analysis', author: 'ai',
+        summary: `${args.question}: ${answer.header}`,
+        detail: {
+          question: args.question,
+          confidence: answer.confidence,
+          top_cause: answer.likely_causes[0]?.cause ?? null,
+          top_cause_share: answer.likely_causes[0]?.share_of_drift ?? null,
+          not_run: answer.coverage.notRun.length,
+        },
+        entities: answer.dependencies.slice(0, 32),
+        timestamp: new Date().toISOString(),
+      });
+      S.markDirty();
+    }
+    return { ...answer, workflows: AI.diagnose.DIAGNOSTICS, limitations: AI.diagnose.diagnoseLimitations() };
+  },
 };
 
 function initMcp() {

@@ -76,7 +76,7 @@ export const PASSES = Object.freeze({
   temporal_trails: { id: 'temporal_trails', part43: 'temporal trails', cost: 'moderate', implemented: false, unblocked_by: 'POL-003 — onion skin exists in the viewport, but nothing renders a trail as an inspectable pass' },
   flicker_heatmap: { id: 'flicker_heatmap', part43: 'flicker heatmaps', cost: 'expensive', implemented: false, unblocked_by: 'needs a run of CONSECUTIVE frames rendered together; the observation policy deliberately samples suspect frames instead, so flicker between two sampled frames is not looked for at all' },
   event_overlay: { id: 'event_overlay', part43: 'event overlays', cost: 'cheap', implemented: false, unblocked_by: 'SHOT-002 — there is no shared shot-event timeline to overlay yet' },
-  motion_path: { id: 'motion_path', part43: 'motion paths', cost: 'cheap', implemented: false, unblocked_by: 'MOT-005 — a path needs per-frame world positions, which is Phase 5' },
+  motion_path: { id: 'motion_path', part43: 'motion paths', cost: 'cheap', implemented: false, unblocked_by: 'the per-frame world positions now exist (MOT-003/005 — analyze_motion returns the polyline and its curvature). What is missing is the DRAWING: a motion path is an overlay composited onto a render, and no pass in this build composites anything (OBS-008)' },
 });
 
 /** The passes this build can actually render or derive. */

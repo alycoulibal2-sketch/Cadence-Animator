@@ -23,13 +23,16 @@
 //     names is `highly_likely`; one inferred from a rate profile is `possible` and never better.
 //     Nothing gets named from an action type alone.
 //
-// What this module deliberately does NOT do: it never renders, never measures a contact, and never
-// judges whether the result is good. Those are Phases 4, 5 and 7, and every plan says so in its
-// own `coverage.notRun`.
+// What this module deliberately does NOT do: it never renders and never judges whether the result
+// is good. Those are `explain_change` (Phase 4) and Phase 7, and every plan says so in its own
+// `coverage.notRun`. It DOES now measure one thing: whether a contact-capable effector is actually
+// planted during a span, because `overshoot` used to refuse to touch every hand and foot on the
+// grounds that it could not tell (MOT-008 closed that).
 
 import * as CF from '../cf.js';
 import { paramsFor } from '../easing.js';
 import * as K from './kinematics.js';
+import * as MOTION from './motion.js';
 import * as CAL from './cal.js';
 import * as VOC from './vocabulary.js';
 import * as ROLES from './roles.js';
@@ -195,8 +198,8 @@ export function segmentPhases(project, itemId, { boundaries = null, actionType =
   const tracks = tracksOf(project, itemId);
   const findings = [];
   const notRun = [
-    'phases are cut at keyframe times and rated by average angular travel per frame — there is no per-frame velocity, acceleration or jerk profile until Part 23 (Phase 5)',
-    'no contact, foot-plant or ground relationship informs these boundaries (Phase 5)',
+    'phases are cut at keyframe times and rated by AVERAGE angular travel per frame. A per-frame velocity, acceleration and jerk profile exists now (analyze_motion — MOT-003/004), but the segmenter does not consume it, so a boundary the motion implies and the keys do not is still missed',
+    'no contact, foot-plant or ground relationship informs these boundaries. Contact drift is measurable (MOT-008), but only against a contact somebody DECLARED — nothing detects one from the motion',
   ];
 
   if (!item) throw new Error(`segmentPhases: no item "${itemId}"`);
@@ -556,9 +559,18 @@ const STRATEGIES = {
       for (const ph of arriving) {
         for (const name of ctx.trackNames) {
           const info = ctx.roleOf[name];
-          if (info && ROLES.isContactCapable(info.partRole)) {
-            skipped.push({ track: name, why: `"${info.partRole}" can hold a contact, and an overshoot on a planted effector breaks the plant. Contact drift is unmeasurable until Part 23, so this is skipped rather than risked` });
-            continue;
+          // This used to be a blanket skip on every contact-capable part, because nothing could
+          // tell a planted foot from a swinging hand. MOT-008 can: the part's world travel over
+          // this span IS the answer. A part that barely moves is holding something; a part that
+          // sweeps a stud and a half is not, and refusing to give it inertia was costing the
+          // strategy most of the arm.
+          if (info && ROLES.isContactCapable(info.partRole) && info.partId) {
+            const plant = plantedDuring(ctx, info.partId, ph.time_range);
+            if (plant.planted) {
+              skipped.push({ track: name, why: `"${info.partRole}" travels only ${plant.travel_studs} stud(s) over frames ${ph.time_range[0]}–${ph.time_range[1]}, within the ${PLANT_TOLERANCE_STUDS}-stud plant threshold — it is holding a contact there, and an overshoot on a planted effector breaks the plant (measured, MOT-008)` });
+              continue;
+            }
+            notes.push(`"${name}" drives a contact-capable part, but it travels ${plant.travel_studs} stud(s) over frames ${ph.time_range[0]}–${ph.time_range[1]} — it is not planted there, so it gets the overshoot`);
           }
           for (const key of keysIn(ctx.tracks[name], ph.time_range[0], ph.time_range[1], { inclusiveEnd: false })) {
             if (key.bez) { skipped.push({ track: name, t: key.t, why: 'a custom bezier already governs this segment' }); continue; }
@@ -573,6 +585,27 @@ const STRATEGIES = {
 };
 
 export const STRATEGY_IDS = Object.freeze(Object.keys(STRATEGIES));
+
+/**
+ * Below this much total world travel across a span, a contact-capable part is treated as planted.
+ *
+ * It is a CONVENTION, not a measurement: nothing in a Cadence project declares a plant unless the
+ * user writes a ContactSpec, so this is the planner guessing conservatively on their behalf. Two
+ * studs is roughly a foot's own length; a twentieth of that is well inside "did not go anywhere".
+ * A user who disagrees declares a contact explicitly, and the constraint checker then enforces the
+ * tolerance THEY chose rather than this one.
+ */
+export const PLANT_TOLERANCE_STUDS = 0.1;
+
+function plantedDuring(ctx, partId, [from, to]) {
+  const s = MOTION.sampleMotion(ctx.project, { itemId: ctx.itemId, partIds: [partId], frameRange: [from, to], step: 1 });
+  const travel = s.subjects[0]?.summary?.path_length_studs ?? null;
+  return {
+    travel_studs: travel,
+    // A part that could not be solved is NOT assumed to be free. Unknown is not a default.
+    planted: travel === null ? true : travel <= PLANT_TOLERANCE_STUDS,
+  };
+}
 
 function canonical(style) {
   const s = style || 'Linear';
@@ -672,7 +705,7 @@ export function planMotion(project, { intent, itemId = null, constraints = [], b
     const jr = ROLES.jointRole(project, item, joint);
     const part = (item.rig.parts || []).find((p) => p.id === joint.part1);
     const pr = part ? ROLES.partRole(project, item, part) : null;
-    roleOf[n] = { role: jr.role, side: jr.side, depth: ROLES.chainDepth(jr.role), partRole: pr?.role ?? null, certainty: jr.certainty };
+    roleOf[n] = { role: jr.role, side: jr.side, depth: ROLES.chainDepth(jr.role), partRole: pr?.role ?? null, partId: joint.part1, certainty: jr.certainty };
   }
   const usable = trackNames.filter((n) => roleOf[n]);
 
@@ -806,7 +839,7 @@ export function planMotion(project, { intent, itemId = null, constraints = [], b
       evidence: [evidence('data', `declared by constraint ${c.id}`, c.property_or_semantic_rule)],
     }));
   if (contacts.length) {
-    risks.push(`${contacts.length} declared contact(s) are protected by constraint and NOT verified — contact drift is unmeasurable until Part 23 (Phase 5)`);
+    risks.push(`${contacts.length} declared contact(s) are protected by constraint AND measured: the plan's acceptance spec carries a contact_drift_within check for each, and the constraint checker measures the drift on the planned result before it is applied (MOT-008). What is not checked is whether the contact was declared over the right frames`);
   }
 
   const acceptance = buildAcceptance({ intent, itemId: id, edits, range, contacts, project });
@@ -850,8 +883,8 @@ export function planMotion(project, { intent, itemId = null, constraints = [], b
       notRun: [
         ...seg.coverage.notRun,
         'nothing was rendered: a plan is produced before the patch, so whether it reads as intended is unanswered HERE. explain_change measures it afterwards against a baseline (Part 43/44); a forward prediction of the rendered result still does not exist',
-        'no contact was measured (Part 23 — Phase 5)',
-        'no arc, silhouette or screen-space check was run (Parts 28, 43)',
+        'a DECLARED contact is measured against the planned result by the constraint checker (MOT-008); an UNDECLARED one is not, because nothing detects a contact from the motion',
+        'no silhouette or screen-space check was run (Parts 28, 43). Path curvature and bow ARE measurable now (analyze_motion), but no strategy reshapes a path, so the plan neither reads nor writes them',
       ],
     }),
   };
@@ -1079,9 +1112,10 @@ export function planLimitations() {
     gains: GAIN,
     cannot: [
       'generate a motion from nothing — every strategy edits existing keys, so an empty timeline has nothing to make heavier',
-      'add or remove keys: holds, added settles and inserted breakdowns all need the contact model (Part 23, Phase 5) to be inserted safely',
+      'add or remove keys: holds, added settles and inserted breakdowns. This was blocked on the contact model; MOT-008 now measures drift, so an inserted key CAN be checked against a declared contact. What is still missing is a strategy that inserts one, and the pose reasoning (MOT-011: balance and centre of mass) to decide where it belongs',
       'plan for cameras, props or effect items — only rig joint tracks',
-      'reason about arcs, silhouette, screen space or contact drift',
+      'reshape a path. Curvature, bow and per-frame velocity are measured now (analyze_motion), but no strategy consumes them — the planner still reasons about keys and easings, not trajectories',
+      'reason about silhouette or screen space (Parts 28, 43 — screen space needs an active camera, MOT-006)',
       'know a joint limit: Cadence stores none, and the Rig Graph reports them as unknown rather than unlimited',
       'judge the result. Nothing here renders, and no acceptance check in this build looks at a pixel',
     ],

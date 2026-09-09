@@ -2475,7 +2475,11 @@
     assert(pv.scope.breadth.verdict === 'local', `expected a local scope, got ${pv.scope.breadth.verdict}`);
     assert(pv.scope.dependent_parts.length > 0, 'the scope must name the parts that move as a consequence');
     assert(pv.constraint_compilation.unparsed.length === 1, 'the unrecognised constraint line must be reported, not swallowed');
-    assert(pv.constraints_checked.not_checked.some((s) => /contact_drift/.test(s)), 'the unverifiable contact constraint must be named in not_checked');
+    // Before MOT-008 this asserted the contact landed in `not_checked`. It is measured now, so the
+    // assertion inverts: a declared contact must NOT be reported as unchecked, and a right-side
+    // edit must not be reported as breaking a left-foot contact it never touched.
+    assert(!pv.constraints_checked.not_checked.some((s) => /contact_drift/.test(s)), 'contact drift is implemented — it may no longer be reported as unchecked');
+    assert(pv.constraints_checked.violations.length === 0, 'the left foot does not move in this edit, so the contact must be clean');
     out.preview = { txn: pv.transaction_id, scope: pv.scope.summary };
 
     // 2. A patch that breaks a compiled constraint is refused, and nothing changes.
@@ -2685,6 +2689,102 @@
     return out;
   });
 
+  // The Phase 5 success condition (directive Part 62): "Cadence can identify a known contact error
+  // or motion-propagation problem with evidence." Run against the LIVE app, because what only this
+  // can reach is the handler boundary: the three new tools going through liveProject(), the
+  // contact constraint being compiled and measured inside apply_animation_patch's own check, the
+  // diagnosis landing in provenance, and the measurement returning to zero after a rollback the
+  // Phase 2 machinery performed rather than a fixture edit.
+  await step('motion: a planted foot is broken, measured, attributed to the joint that did it, and undone', async () => {
+    S.newProject('phase5-contact');
+    const item = await D.addBuiltinRig('r15');
+    const key = (track, t, v) => S.setKey(item.id, track, t, v, { es: 'Sine', ed: 'InOut', noUndo: true });
+    // A right-arm swing, and a left leg that is keyed but does not move — which is what a planted
+    // foot looks like in project data.
+    key('RightShoulder', 0, CF.IDENTITY.slice());
+    key('RightShoulder', 8, CF.fromEuler(0, 0, 1.2));
+    key('RightShoulder', 16, CF.fromEuler(0, 0, -0.9));
+    key('LeftHip', 0, CF.IDENTITY.slice());
+    key('LeftAnkle', 0, CF.IDENTITY.slice());
+    key('LeftAnkle', 16, CF.IDENTITY.slice());
+    const out = {};
+    const before = D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
+    const contact = { text: 'keep the left foot within 0.05 studs from frame 0 to 16' };
+
+    // 1. MEASURE. The arm moves, the foot does not, and the difference is a number.
+    const mot = D.mcp('analyze_motion', { itemId: item.id, from: 0, to: 16 });
+    const hand = mot.subjects.find((s) => s.part_id === 'RightHand');
+    const foot = mot.subjects.find((s) => s.part_id === 'LeftFoot');
+    assert(hand && foot, 'the default subject set must include the contact-capable extremities');
+    assert(hand.summary.path_length_studs > 1, `the swinging hand should travel: ${hand.summary.path_length_studs}`);
+    assert(foot.summary.still === true, `the planted foot should not: ${foot.summary.path_length_studs}`);
+    assert(hand.samples.length === 17 && hand.samples[8].jerk !== null, 'an interior sample must carry all three derivatives');
+    assert(mot.chain.links.length >= 2 && mot.chain.inversions.length === 0, 'the shoulder leads the elbow, so nothing is inverted');
+    out.motion = { hand_travel: hand.summary.path_length_studs, hand_peak: hand.summary.peak_speed, foot_still: foot.summary.still };
+
+    // 2. The declared contact holds — and a clean contact is an answer, not a silence.
+    const clean = D.mcp('analyze_contacts', { itemId: item.id, constrain: contact });
+    assert(clean.contacts_declared === 1, 'the closed grammar must compile the contact');
+    assert(clean.results[0].within_tolerance === true, `the contact should be clean: ${clean.summary}`);
+    assert(clean.results[0].effector.part_id === 'LeftFoot', '"the left foot" must resolve to the foot');
+    // Nothing is INFERRED: with no contact declared, none is measured.
+    const none = D.mcp('analyze_contacts', { itemId: item.id });
+    assert(none.contacts_declared === 0 && /nothing here infers a contact/.test(none.summary));
+
+    // 3. BREAK IT — through the real transaction machinery, with the contact supplied as the
+    //    constraint set, so the checker measures the PLANNED result before anything is committed.
+    const applied = D.mcp('apply_animation_patch', {
+      ops: [{ op: 'set_key', itemId: item.id, track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }],
+      intent: 'swing the left leg through', request: 'step forward', constrain: contact,
+    });
+    assert(applied.applied === true, 'a contact constraint compiles to `warn`, so it reports rather than refusing');
+    const cv = applied.constraints_checked.violations;
+    assert(cv.length === 1 && /would drift/.test(cv[0].reason), `the constraint must catch the break: ${JSON.stringify(applied.constraints_checked.violations)}`);
+    const ev = cv[0].finding.evidence.find((e) => e.kind === 'measurement').detail;
+    // The exact frame depends on the easing (a Sine/InOut leg crosses 0.05 studs later than a
+    // linear one), so what is asserted is the CLAIM rather than a number: the finding points at
+    // where the contact first went out of tolerance, which is earlier than where it was worst.
+    assert(cv[0].finding.frame === ev.first_breach_frame && ev.first_breach_frame > 0,
+      `the finding must point at the first breach: frame ${cv[0].finding.frame} vs breach ${ev.first_breach_frame}`);
+    assert(ev.first_breach_frame < ev.at_frame, `the first breach (${ev.first_breach_frame}) must precede the worst frame (${ev.at_frame})`);
+    out.violation = { reason: cv[0].reason, first_breach: ev.first_breach_frame, worst: ev.at_frame, drift: ev.max_drift_studs };
+
+    // 4. IDENTIFY, with evidence — the joint that owns the drift, proved by freezing it.
+    const why = D.mcp('explain_motion_problem', {
+      question: 'why_is_this_contact_unstable', itemId: item.id,
+      effector: 'the left foot', start: 0, end: 16, tolerance_studs: 0.05,
+    });
+    assert(why.likely_causes[0].cause === '"LeftHip"', `expected the hip to own the drift, got ${why.likely_causes[0]?.cause}`);
+    assert(why.likely_causes[0].share_of_drift > 0.7, 'and to own most of it');
+    assert(why.findings[0].id === 'CONTACT-UNSTABLE' && why.findings[0].certainty === 'certain');
+    assert(why.recommended_action.requires_user_approval === true, 'a recommendation is not an instruction to act');
+    assert(why.coverage.notRun.some((s) => /nothing visual was checked/.test(s)), 'a kinematic answer must say it did not look');
+    assert(why.workflows.why_does_the_camera_hide_the_impact.implemented === false, 'the unbuilt workflows must still be listed');
+    out.cause = { cause: why.likely_causes[0].cause, share: why.likely_causes[0].share_of_drift };
+
+    // The diagnosis is in provenance, so the conclusion is traceable rather than transient.
+    const prov = D.mcp('inspect_provenance', { type: 'analysis' });
+    assert(prov.nodes.some((n) => /why_is_this_contact_unstable/.test(n.summary)), 'a diagnosis must be recorded');
+
+    // 5. UNDO — and the measurement comes back to exactly where it started.
+    const rb = D.mcp('rollback_transaction', { transactionId: applied.transaction_id });
+    assert(rb.complete === true, 'the contact-breaking patch must be as reversible as any other');
+    assert(D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project)) === before,
+      'after the rollback the project must be byte-identical to its pre-patch state');
+    const after = D.mcp('analyze_contacts', { itemId: item.id, constrain: contact });
+    assert(after.results[0].within_tolerance === true && after.results[0].max_drift_studs === 0,
+      'and the drift must measure zero again, not merely "small"');
+
+    // 6. Part 23's noise policy, on the real app: an authored stepped key is NOT a defect.
+    S.setKey(item.id, 'RightShoulder', 8, CF.fromEuler(0, 0, 1.2), { es: 'Constant', ed: 'Out', noUndo: true });
+    const stepped = D.mcp('explain_motion_problem', { question: 'why_is_this_motion_bad', itemId: item.id, joint: 'RightShoulder', frame: 8 });
+    assert(/deliberate stepped/.test(stepped.header), `a stepped key must not be reported as a defect: ${stepped.header}`);
+    assert(stepped.findings[0].id === 'MOTION-AUTHORED-VARIATION');
+    out.noisePolicy = stepped.header;
+
+    return out;
+  });
+
   await step('semantic layer: a persisted lock survives save/load, blocks a patch, and is undoable', async () => {
     S.newProject('locks');
     await D.addBuiltinRig('r15');
@@ -2783,8 +2883,13 @@
     assert(lead, 'body lead moves keys and must be blocked by the timing protection');
     assert(lead.blocked_by === 'constraint' && lead.constraints[0].rule === 'no key changes time');
     assert(lead.operations_dropped > 0 && /body-driven/.test(lead.contributes), 'a blocked strategy must say what was lost');
-    assert(planned.blocked.some((b) => b.blocked_by === 'capability' && /Part 23/.test(b.reason)),
-      'a dimension nothing can compile must be reported, not dropped');
+    // A dimension nothing can compile must be reported, not dropped — and its reason must name its
+    // own obstacle. Asserting a directive part number here rotted the moment MOT-008 shipped: every
+    // "Part 23" reason became a lie about a capability that now exists.
+    const cap = planned.blocked.filter((b) => b.blocked_by === 'capability');
+    assert(cap.length > 0, 'a dimension nothing can compile must be reported, not dropped');
+    assert(cap.every((b) => b.reason && !/\(Phase [0-5]\)|until Part 23|until Phase [0-5]/.test(b.reason)),
+      `a blocked dimension may not defer to a phase that has shipped: ${cap.map((b) => b.reason).join(' | ')}`);
     out.blocked = planned.blocked.map((b) => b.dimension);
 
     // APPLY — through the same transaction machinery as a hand-written patch.

@@ -751,7 +751,7 @@ export function explainLimitations() {
       'detect flicker, one-frame pops or temporal artefacts: those need consecutive frames, and the observation policy samples suspect frames',
       'attribute a difference to a specific STRATEGY inside a motion plan — provenance links at plan granularity, not operation granularity (CMP-004)',
       'distinguish a genuine untracked edit from a lost ledger record without consulting provenance; both are offered as ranked causes and the distinguishing check is named',
-      'answer "why does this look wrong" — it answers "what is different and who did it". Part 46 diagnostics are Phase 5',
+      'answer "why does this look wrong" — it answers "what is different and who did it". The Part 46 diagnostics that answer the other question are `explain_motion_problem` (contact instability and per-frame discontinuity, EXP-002); the two are not joined, so a visual difference does not automatically get a motion explanation',
     ],
     assumptions: [
       'a transaction that names an entity as changed is the cause of that entity\'s difference. If two transactions touched the same key, both are listed and neither is preferred',

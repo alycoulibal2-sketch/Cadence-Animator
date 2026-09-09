@@ -25,6 +25,7 @@
 
 import * as CF from '../cf.js';
 import * as K from './kinematics.js';
+import * as MOTION from './motion.js';
 import { CERTAINTY, coverage, evidence, finding } from './certainty.js';
 import { contentHash, shortHash } from './hash.js';
 
@@ -297,9 +298,13 @@ export function spacingSpec(p = {}) {
  * Part 20.5: "Contacts are first-class information. Foot contacts, hand grips, weapon hits, wall
  * braces, and prop interactions should not be inferred solely after animation generation."
  *
- * `validation_method` is where this build's honesty lives. Contact drift cannot be measured until
- * Part 23 lands, so a ContactSpec created now records `declared` and every consumer treats it as a
- * declaration to protect, never as a verified fact. `verified` is a value only Phase 5 may write.
+ * `validation_method` is where this build's honesty lives, and MOT-008 changed only half of it.
+ * A ContactSpec the planner creates still records `declared`, because nothing here DETECTS a
+ * contact from the motion — the contact is the user's word about what they meant. What is new is
+ * that a declared contact is now checkable: `contact_drift_within` and the `contact_drift`
+ * constraint both measure it. `measured` is reserved for a contact whose EXISTENCE was established
+ * by measurement, which is still nothing in this build, and writing it by mistake is what the
+ * closed value set prevents.
  */
 export const CONTACT_VALIDATION = Object.freeze(['declared', 'measured', 'user_confirmed']);
 
@@ -430,9 +435,11 @@ export const ACCEPTANCE_CHECKS = Object.freeze({
     id: 'contact_drift_within',
     category: 'temporal_checks',
     summary: 'a declared contact effector stayed within its positional tolerance',
-    args: 'contactId | (itemId, effector, start, end, tolerance)',
-    implemented: false,
-    blocked_by: 'contact drift is a world-space measurement over a frame range — Part 23 (Phase 5). Declared contacts are protected by constraint, and NOT verified',
+    args: 'itemId, effector, start, end, tolerance, mode?',
+    implemented: true,
+    // Not a proxy: the drift IS the thing the criterion is about. What it rests on is stated in
+    // the result instead — the contact point is the effector's own position on the contact's first
+    // frame, because Cadence has no ground plane.
     proxy_for: null,
   },
   no_visual_regression: {
@@ -715,6 +722,36 @@ function runAcceptance(before, after, c, itemId) {
         : { status: 'fail', detail: `marker moved from ${c.t} to ${nearest.t}, tolerance ${c.tolerance ?? 0}`, measured: drift };
     }
 
+    case 'contact_drift_within': {
+      // Measured on the AFTER state, because that is what the criterion is about. The BEFORE state
+      // is measured too, and only to answer a question the acceptance report would otherwise get
+      // wrong: a contact that was already broken before the edit is still a fail, but it is not
+      // this edit's fault, and saying which is the difference between a useful report and a
+      // blame-the-last-person-who-touched-it one.
+      const spec = {
+        itemId, effector: c.effector, start: c.start, end: c.end,
+        tolerance_studs: c.tolerance, rotational_tolerance_deg: c.rotational_tolerance ?? undefined,
+        mode: c.mode || 'planted',
+      };
+      const a = MOTION.measureContactDrift(after, spec);
+      if (!a.measured) return { status: 'not_run', reason: a.reason, detail: a.reason, measured: null };
+      if (a.tolerance_studs === null) {
+        return { status: 'not_run', reason: 'the check declares no tolerance, and drift without a tolerance is a number rather than a criterion', detail: `max drift ${a.max_drift_studs} studs`, measured: a.max_drift_studs };
+      }
+      if (!a.judgeable) {
+        return { status: 'not_run', reason: `the contact mode is "${a.mode}", which is expected to move — the drift was measured and not judged`, detail: `max drift ${a.max_drift_studs} studs`, measured: a.max_drift_studs };
+      }
+      const b = MOTION.measureContactDrift(before, spec);
+      const preExisting = b.measured && b.within_tolerance === false;
+      return a.within_tolerance
+        ? { status: 'pass', detail: `"${a.effector.name}" stays within ${a.tolerance_studs} stud(s) (worst ${a.max_drift_studs} at frame ${a.max_drift_frame})`, measured: { after: a.max_drift_studs, before: b.measured ? b.max_drift_studs : null } }
+        : {
+          status: 'fail',
+          detail: `"${a.effector.name}" drifts ${a.max_drift_studs} stud(s) at frame ${a.max_drift_frame}, past the ${a.tolerance_studs}-stud tolerance${preExisting ? ` — it was ALREADY out of tolerance before this change (${b.max_drift_studs} studs), so the change is not the whole cause` : ''}`,
+          measured: { after: a.max_drift_studs, before: b.measured ? b.max_drift_studs : null, first_breach_frame: a.first_breach_frame, pre_existing: preExisting },
+        };
+    }
+
     case 'scope_unchanged': {
       // Anything NOT named is what must be identical. This is the acceptance-side mirror of the
       // constraint compiler's allow-list, and it is the check that catches an edit that reached
@@ -788,7 +825,7 @@ export function calLimitations() {
       'line of action, silhouette goals, balance state and centre of mass — the PoseSpec fields exist and stay null; measuring them needs Parts 28 and 43',
       'camera and VFX rules are carried on a phase as text and consumed by nothing (Parts 40, 37 — Phases 6 and 7)',
       'tangent policy — Cadence keys carry an easing style and direction, not tangent vectors',
-      'verified contacts — every ContactSpec this build makes is `declared`, and contact drift is unmeasurable until Part 23',
+      'INFERRED contacts — every ContactSpec this build makes is still `declared`, because nothing detects a contact from the motion. What changed with MOT-008 is that a declared one is now MEASURED: `contact_drift_within` runs, and the constraint checker enforces it against a planned result',
     ],
     acceptance_checks: Object.values(ACCEPTANCE_CHECKS).map((c) => ({
       id: c.id, category: c.category, implemented: c.implemented, blocked_by: c.blocked_by ?? null, proxy_for: c.proxy_for,

@@ -1504,6 +1504,61 @@ server.tool(
   async (a) => { try { return textResult(await call('approve_difference', a)); } catch (e) { return errorResult(e); } },
 );
 
+// ---------------------------------------------------------------- motion and contact analysis (Parts 22, 23, 30, 46)
+
+server.tool(
+  'analyze_motion',
+  'READ-ONLY. Part 23\'s mathematical motion model, sampled per frame from the forward-kinematic solve: world position and rotation, linear and angular velocity, acceleration, angular acceleration, jerk, path curvature, plus key density and interpolation types over the range. Also returns Part 22\'s first Motion Graph question — each joint\'s onset and peak frame along a chain, and any inversion where a child starts before its parent (reported, never called wrong: Part 22 lists whip cracks and isolated gestures as legitimate exceptions). Angular speed is UNSIGNED, so a reversal and a continuation look alike. Screen-space velocity, balance and distance-from-an-expected-arc are NOT measured and say what blocks each. Nothing here judges whether the motion is good.',
+  {
+    itemId: z.string().optional().describe('The rig item. Defaults to the current selection.'),
+    parts: z.array(z.string()).optional().describe('Part ids to sample. Default: every contact-capable part plus the root and hips — sampling all fifteen R15 parts buries those in numbers.'),
+    from: z.number().optional().describe('First frame. Defaults to the item\'s first key.'),
+    to: z.number().optional().describe('Last frame. Defaults to the item\'s last key. A range needing more than 601 samples is truncated and the truncation is named.'),
+    step: z.number().optional().describe('Frames between samples (default 1). The grid is always uniform, because a non-uniform one makes the second and third derivatives quietly wrong.'),
+    chain: z.array(z.string()).optional().describe('Joint track names in the order they are EXPECTED to fire, root-most first. Omit to derive it from rig depth — the derivation is reported as an assumption, and it never joins a left leg to a right arm.'),
+  },
+  async (a) => { try { return textResult(await call('analyze_motion', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'analyze_contacts',
+  'READ-ONLY. Does a declared contact hold? For each contact, the effector\'s world travel is measured over its frame range against its declared positional tolerance (Part 23 / Part 30 contact locking), and the result reports the worst drift, the frame it first crossed, and by how much it misses. IMPORTANT: nothing here INFERS a contact — if none is declared, none is measured, and the tool says so rather than guessing which foot was meant to be planted. The contact point is the effector\'s own world position on the contact\'s first frame, because Cadence has no ground plane or collision surface; an effector that was already sliding when the contact was declared measures clean. A `sliding` or `glancing` contact is measured and NOT judged.',
+  {
+    itemId: z.string().optional().describe('The rig item. Defaults to the current selection.'),
+    contacts: z.array(z.object({
+      effector: z.string().describe('A part id, a part name, or a semantic phrase such as "the left foot".'),
+      start: z.number(), end: z.number(),
+      tolerance_studs: z.number().optional().describe('Omit and the drift is measured but NOT judged — "no tolerance" is not "any drift is acceptable".'),
+      rotational_tolerance_deg: z.number().optional(),
+      mode: z.string().optional().describe("Part 20.5's modes: planted (default) | sliding | glancing | gripping | collision | suspended. Only planted and gripping are judged against a tolerance."),
+      itemId: z.string().optional(),
+    })).optional().describe('Contacts to measure directly.'),
+    constrain: z.object({
+      text: z.string().optional().describe('The closed grammar, e.g. "keep the left foot within 0.05 studs from frame 12 to 23".'),
+      contacts: z.array(z.object({ effector: z.string(), from: z.number(), to: z.number(), tolerance_studs: z.number(), reason: z.string().optional() })).optional(),
+    }).optional().describe('A constraint request to compile contacts out of — the same shape the patch tools take.'),
+  },
+  async (a) => { try { return textResult(await call('analyze_contacts', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'explain_motion_problem',
+  'READ-ONLY (it appends an analysis record to provenance when it reaches a conclusion; no animation data is touched). Part 46\'s "why?" diagnostics. Two questions are answered here: `why_is_this_contact_unstable` measures the drift and then ATTRIBUTES it — each ancestor joint is frozen at the contact\'s first frame in turn and the drift re-measured, so the cause is a counterfactual rather than a coincidence, and root motion is one of the candidates. `why_is_this_motion_bad` measures speed, acceleration and jerk around a frame and runs Part 23\'s noise-and-signal policy first: a stepped key, a held pose and a marked impact are authored, and are NOT reported as defects. Every answer carries Part 46\'s eight fields — observed facts, referenced plan, dependencies, ranked causes, confidence, non-destructive next checks, a safe recommended action, and a user-intent question when it cannot decide. Two of Part 46\'s seven workflows are routed to explain_change and three are blocked; all seven are listed with the reason.',
+  {
+    question: z.string().describe('why_is_this_contact_unstable | why_is_this_motion_bad. The other five are listed in the result with what each is routed to or blocked on.'),
+    itemId: z.string().optional().describe('The rig item. Defaults to the current selection.'),
+    effector: z.string().optional().describe('Contact questions: a part id, a part name, or a semantic phrase.'),
+    start: z.number().optional().describe('Contact questions: first frame of the contact.'),
+    end: z.number().optional().describe('Contact questions: last frame of the contact.'),
+    tolerance_studs: z.number().optional().describe('Contact questions. Without it the drift is reported with a question rather than a verdict.'),
+    mode: z.string().optional().describe("Contact questions: Part 20.5's contact mode. Default planted."),
+    joint: z.string().optional().describe('Motion questions: the joint track name.'),
+    frame: z.number().optional().describe('Motion questions: the frame in question.'),
+    radius: z.number().optional().describe('Motion questions: how many frames either side to sample (default 6).'),
+  },
+  async (a) => { try { return textResult(await call('explain_motion_problem', a)); } catch (e) { return errorResult(e); } },
+);
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

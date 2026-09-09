@@ -487,7 +487,7 @@ export function mutationResult(txn, { status, applied, blocked, plan = null, con
       loop: 'fast',
       notRun: [
         'nothing was rendered and no baseline was compared BY THIS CALL — the passes and the comparison exist (Part 43/44); create_baseline before the edit and explain_change after it is what runs them, and inspect_transaction then reports the outcome in baseline_comparison',
-        'no motion measurement: velocity, arcs, contact drift (Part 23, Phase 5)',
+        'no motion measurement BY THIS CALL — velocity, curvature and contact drift exist (Part 23) and run on either state: analyze_motion and analyze_contacts against the committed project, and the `contact_drift` constraint against the planned one before it is applied. A transaction record does not measure them itself',
         ...(plan?.ui_affordances_not_applied?.length
           ? [`${plan.ui_affordances_not_applied.length} editor affordance(s) were deliberately not reproduced — see the warnings`]
           : []),

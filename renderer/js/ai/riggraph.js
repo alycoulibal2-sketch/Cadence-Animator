@@ -470,7 +470,7 @@ export function validateRig(project, item, graph = null) {
       frames: null,
       loop: 'full',
       notRun: [
-        'current pose validity (needs the motion analyser — Phase 5)',
+        'current pose validity: whether the posed rig is BALANCED needs a centre of mass and a support polygon, and part mass is unknown (MOT-011). Per-frame velocity and contact drift are measurable now (analyze_motion, analyze_contacts) but they judge the animation, not the rig, so they are not run here',
         'animation-layer compatibility (Cadence has no animation layers)',
         'weapon/prop attachment points (needs a declared prop requirement — Phase 3)',
         'existing constraints (nothing compiles constraints yet — Phase 2)',
