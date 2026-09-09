@@ -4748,6 +4748,8 @@ const ST = await import('../renderer-vfx/js/studioState.js');
 const PGRAPH_FOR_MODES = await import('../renderer/js/pnx/graph.js');
 const GRAPH_FOR_MODES = await import('../renderer/js/nodeGraphModel.js');
 const MODEL_FOR_MODES = await import('../renderer/js/effectModel.js');
+const { spawnSync } = await import('node:child_process');
+const ROOT_FOR_MODES = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 
 check('studio: "start from scratch" actually leaves PNX mode', () => {
   ST.setPnxGraph(PGRAPH_FOR_MODES.newGraph('procedural'));
@@ -4779,6 +4781,30 @@ check('studio: opening a v1 graph leaves PNX mode, and PNX leaves the v1 graph',
   ST.setPnxGraph(PGRAPH_FOR_MODES.newGraph('back to procedural'));
   assert.equal(ST.state.graph, null, 'the direction that always worked still works');
   assert.equal(ST.isPnxMode(), true);
+});
+
+check('studio: the document lifecycle survives its own debounces in plain Node', () => {
+  // The checks above call setDoc/setPnxGraph, which run afterDocChange -> scheduleAutosave. That
+  // debounce fired ~800ms later, AFTER this file had printed "0 failed", and died on `window is
+  // not defined`. The suite reported success and exited 1 — a green log with a red exit, which is
+  // the worst shape a failure can take, and which only the exit code catches.
+  //
+  // Run in a child process and asserted on ITS exit code, because that is precisely the thing that
+  // broke; an in-process check cannot see a callback scheduled to run after the assertions finish.
+  // The 1200ms wait clears both debounces (autosave 800, validation 350) — the validation timer is
+  // legitimate and must NOT be treated as the fault, so this waits for it rather than banning it.
+  const script = `
+    const ST = await import('./renderer-vfx/js/studioState.js');
+    const PG = await import('./renderer/js/pnx/graph.js');
+    ST.setPnxGraph(PG.newGraph('procedural'));
+    ST.newBlankDoc();
+    await new Promise((r) => setTimeout(r, 1200));
+  `;
+  const res = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: ROOT_FOR_MODES, encoding: 'utf8', timeout: 30000,
+  });
+  assert.equal(res.status, 0,
+    `driving the studio lifecycle in Node exited ${res.status}:\n${(res.stderr || '').split('\n').filter((l) => !/Warning|Reparsing|type.*module|trace-warnings/.test(l)).slice(0, 6).join('\n')}`);
 });
 
 check('studio: leaving a mode clears the compile errors that belonged to it', () => {

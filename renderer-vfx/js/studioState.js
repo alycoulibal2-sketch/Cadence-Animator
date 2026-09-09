@@ -385,6 +385,14 @@ function parseStudioSave(json) {
 
 let autosaveTimer = null;
 function scheduleAutosave() {
+  // Nothing to autosave TO outside the studio window. This module is deliberately importable in
+  // plain Node — that is what lets pnxtest exercise the document lifecycle in a second instead of
+  // a four-minute Electron pass — and without this guard the debounce fires after the test run has
+  // printed its summary and kills the process on `window is not defined`. The suite then reports
+  // "0 failed" and exits 1, which is the worst shape a failure can take: a green log and a red
+  // exit code. Returning before the timer is scheduled means no stray timer keeps Node alive either.
+  if (typeof window === 'undefined' || !window.vfxStudio) return;
+
   const doc = state.doc, graph = state.graph, pnx = state.pnx; // references AT SCHEDULE TIME
   clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => {
