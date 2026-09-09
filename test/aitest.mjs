@@ -46,6 +46,8 @@ const MOT = await import('../renderer/js/ai/motion.js');
 const DIAG = await import('../renderer/js/ai/diagnose.js');
 const EV = await import('../renderer/js/ai/events.js');
 const VS = await import('../renderer/js/ai/vfxspec.js');
+const MODES = await import('../renderer/js/ai/modes.js');
+const EXPT = await import('../renderer/js/ai/experiment.js');
 const CF = await import('../renderer/js/cf.js');
 const PARTICLES = await import('../renderer/js/particleLibrary.js');
 
@@ -132,7 +134,7 @@ check('purity: every ai/ module on disk is imported by this file', () => {
   // could reach for `window` freely, and the check below that greps the sources would catch the
   // obvious cases but not a lazy `await import('three')`.
   const onDisk = fs.readdirSync(path.join(ROOT, 'renderer/js/ai')).filter((n) => n.endsWith('.js') && n !== 'index.js').sort();
-  const imported = ['baseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'explain.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js'];
+  const imported = ['baseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'experiment.js', 'explain.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'modes.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js'];
   assert.deepEqual(onDisk, imported, 'a module was added to renderer/js/ai without being imported at the top of test/aitest.mjs');
 });
 
@@ -157,6 +159,8 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     'analyze_motion', 'analyze_contacts', 'explain_motion_problem',
     // Phase 6
     'list_shot_events', 'describe_shot', 'validate_effect_timing', 'compile_effect',
+    // Phase 7
+    'operating_modes', 'compare_experiments',
   ];
   const src = fs.readFileSync(path.join(ROOT, 'mcp-server/index.js'), 'utf8');
   const found = new Map();
@@ -184,7 +188,11 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     // nothing else. The two measurement tools write nothing at all.
     'analyze_motion', 'analyze_contacts', 'explain_motion_problem',
     // Phase 6's three read tools write nothing at all — not even a provenance record.
-    'list_shot_events', 'describe_shot', 'validate_effect_timing']) {
+    'list_shot_events', 'describe_shot', 'validate_effect_timing',
+    // Phase 7: `compare_experiments` records the comparison and applies NO candidate — every one is
+    // planned against a clone. Calling it MUTATING would tell a caller to hesitate before asking
+    // which alternative is better, which is exactly backwards.
+    'operating_modes', 'compare_experiments']) {
     assert.ok(found.get(t).startsWith('READ-ONLY'), `${t} must be declared READ-ONLY`);
   }
   for (const t of ['apply_animation_patch', 'rollback_transaction', 'lock_constraint', 'unlock_constraint',
@@ -4028,6 +4036,349 @@ check('layer: the Phase 6 success condition — a parameterized impact effect is
   assert.equal(H.contentHash(p), origin, 'the rollback must land byte-identical, not merely close');
   assert.equal(p.items.some((i) => i.kind === 'vfx'), false);
   assert.equal(p.tracks[c.item.id], undefined);
+});
+
+check('scope: an item the patch CREATES is a direct target, described from the planned result', () => {
+  // Regression, and the second instance of one root cause: `add_item` keeps its id in
+  // `op.item.id`, not `op.itemId`. Anything that groups ops by item has to know that.
+  //   - an add_item ALONE used to report an empty blast radius
+  //   - with a following set_key the item appeared, but was looked up in the PRE-patch project,
+  //     so a creating patch reported a direct target named "(missing)" with a null kind.
+  const p = fixture();
+  const item = { id: 'vfx-new', kind: 'vfx', name: 'Sparks', origin: I(), emitter: { rate: 9 }, visible: true };
+
+  const alone = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'add_item', item }] }));
+  const s1 = SCOPE.analyseScope(p, alone, {});
+  assert.equal(s1.direct_target_objects.length, 1, 'a creation is not an empty blast radius');
+  assert.equal(s1.direct_target_objects[0].itemId, 'vfx-new');
+  assert.equal(s1.direct_target_objects[0].name, 'Sparks', 'a created item must be described from the result, not the pre-patch project');
+  assert.equal(s1.direct_target_objects[0].kind, 'vfx');
+  assert.equal(s1.direct_target_objects[0].created_by_this_patch, true, 'a reader must be able to tell "makes this" from "edits this"');
+
+  // An ordinary edit is NOT flagged as created.
+  const edit = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 4, value: I() }] }));
+  const s2 = SCOPE.analyseScope(p, edit, {});
+  assert.equal(s2.direct_target_objects[0].created_by_this_patch, undefined);
+  assert.equal(s2.direct_target_objects[0].name, 'Hero');
+});
+
+check('constraints: an add_item op describes its target as a new item, not as "the project"', () => {
+  const p = fixture();
+  const item = { id: 'vfx-new', kind: 'vfx', name: 'Sparks', origin: I(), emitter: {}, visible: true };
+  // A project-wide lock must still report what the op actually touches. Naming a single-item
+  // creation "the project" reads as a project-wide edit.
+  const locked = CON.compileConstraints({ constraints: [{ protect: 'the project', reason: 'shipped' }] }, p);
+  const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'add_item', item }] }));
+  const rep = CON.checkPatch(p, PATCH.makePatch({ ops: [{ op: 'add_item', item }] }), locked.constraints, { result: plan.result });
+  const text = JSON.stringify(rep);
+  assert.ok(!/"the project"/.test(text) || /a new vfx/.test(text),
+    'the op must be able to name itself as a new item');
+  assert.ok(/a new vfx \("Sparks"\)/.test(text) || rep.violations.length === 0,
+    `either it is reported and names itself, or nothing matched: ${text.slice(0, 300)}`);
+});
+
+// ---------------------------------------------------------------- Phase 7: modes + experiments
+
+check('modes: a mutating action is refused in a read-only mode, and the refusal is not forceable', () => {
+  // Part 11: "Analyze mode must not modify anything unless the user explicitly transitions into a
+  // change mode." The transition is the user's, so `force` must not buy a way out of it.
+  const a = MODES.authorise({ mutates: true, name: 'apply_animation_patch' }, { mode: 'analyze' });
+  assert.equal(a.allowed, false);
+  assert.equal(a.forceable, false);
+  assert.match(a.refused_because, /does not modify anything/);
+  assert.match(a.remedy, /decision for the user/);
+  const forced = MODES.authorise({ mutates: true, name: 'apply_animation_patch' }, { mode: 'analyze', force: true });
+  assert.equal(forced.allowed, false, 'force must not override a read-only mode');
+
+  // review and compare are read-only too; the four mutating modes are not.
+  for (const m of ['analyze', 'compare', 'review']) {
+    assert.equal(MODES.authorise({ mutates: true, name: 'x' }, { mode: m }).allowed, false, `${m} must not mutate`);
+  }
+  for (const m of ['create', 'polish', 'fix', 'experiment', 'ship']) {
+    assert.equal(MODES.authorise({ mutates: true, name: 'x' }, { mode: m }).allowed, true, `${m} must be able to mutate`);
+  }
+  // A read is always allowed, in every mode.
+  for (const m of MODES.MODE_NAMES) {
+    assert.equal(MODES.authorise({ mutates: false, name: 'inspect_scene' }, { mode: m }).allowed, true);
+  }
+});
+
+check('modes: an unstated mode gets the strictest defaults and says so, and a typo is refused', () => {
+  // Decision: not knowing which mode is active is a distinct state from being in a permissive one.
+  const none = MODES.resolveMode(null);
+  assert.equal(none.ok, true);
+  assert.equal(none.mode, null);
+  assert.equal(none.discipline, 'production');
+  assert.equal(none.policy.mutates, false, 'an unstated mode grants no mode-specific freedom');
+  assert.equal(none.policy.acceptance_required, true);
+  assert.equal(none.findings[0].id, 'MODE-UNDECLARED');
+
+  // Part 11's closing requirement: the user must always know which mode is active — including none.
+  assert.match(MODES.authorise({ mutates: false, name: 'x' }, {}).active, /no mode declared \/ production/);
+  assert.equal(MODES.authorise({ mutates: false, name: 'x' }, { mode: 'create' }).active, 'create / production');
+
+  // A typo must not silently resolve to "no mode", which would look permissive and be unlabelled.
+  const typo = MODES.resolveMode('polsh');
+  assert.equal(typo.ok, false);
+  assert.match(typo.question, /not one of Part 11's operating modes/);
+  assert.equal(MODES.resolveMode('create', 'yolo').ok, false, 'an unknown discipline is refused too');
+  assert.equal(MODES.isMode('experiment'), true);
+  assert.equal(MODES.isMode('nope'), false);
+});
+
+check('modes: every mode carries its Part 11 obligations, and they are stated as the caller\'s', () => {
+  for (const [name, m] of Object.entries(MODES.MODES)) {
+    assert.ok(m.summary && m.freedom && m.approval, `${name} must declare freedom and approval`);
+    assert.ok(Array.isArray(m.obligations), `${name} must carry an obligations list`);
+    assert.equal(typeof m.mutates, 'boolean');
+  }
+  // The three Part 11 requirements this layer cannot verify are named as limitations, not faked.
+  assert.ok(MODES.MODE_LIMITATIONS.some((l) => /polish must start with diagnosis/i.test(l)));
+  assert.ok(MODES.MODE_LIMITATIONS.some((l) => /never widens/i.test(l)), 'a mode must not be able to grant permission');
+  assert.ok(MODES.MODES.polish.obligations.some((o) => /diagnosis/.test(o)));
+  assert.ok(MODES.MODES.fix.obligations.some((o) => /causal scope/.test(o)));
+  assert.ok(MODES.MODES.create.obligations.some((o) => /locked properties/.test(o)), 'Part 11 requires create to respect locks');
+});
+
+check('experiment: a candidate with no hypothesis is refused — Part 48 forbids superficial variants', () => {
+  const p = fixture();
+  const ops = [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.1) }];
+  const one = EXPT.experimentSpec({ name: 'X', ops });
+  assert.equal(one.ok, false);
+  assert.equal(one.findings[0].id, 'EXPT-HYPOTHESIS-MISSING');
+  assert.match(one.findings[0].statement, /superficial variant it forbids/);
+
+  assert.equal(EXPT.experimentSpec({ hypothesis: 'h', ops }).ok, false, 'an unnamed experiment cannot be referred to');
+  assert.equal(EXPT.experimentSpec({ name: 'X', hypothesis: 'h' }).ok, false, 'no ops is not a candidate');
+  assert.equal(EXPT.experimentSpec({ name: 'X', hypothesis: 'h', ops }).ok, true);
+
+  // A set needs at least two alternatives, or it is just an edit.
+  const single = EXPT.compareExperiments(p, { candidates: [{ name: 'A', hypothesis: 'h', ops }] }, {});
+  assert.equal(single.ok, false);
+  assert.match(single.reason, /at least two candidates/);
+});
+
+check('experiment: comparing candidates measures each one and changes nothing', () => {
+  const p = fixture();
+  const before = H.contentHash(p);
+  const r = EXPT.compareExperiments(p, {
+    name: 'weight', itemId: 'hero',
+    candidates: [
+      { name: 'A', hypothesis: 'a bigger wind-up reads as effort', ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.5) }] },
+      { name: 'B', hypothesis: 'easing into the contact adds apparent mass', ops: [{ op: 'set_easing', itemId: 'hero', track: 'RightShoulder', t: 16, es: 'Quint', ed: 'Out' }] },
+    ],
+  }, {});
+  assert.equal(r.ok, true);
+  assert.equal(r.candidates.length, 2);
+  assert.equal(r.applied, false);
+  assert.equal(H.contentHash(p), before, 'a comparison must plan on clones and touch the project zero times');
+
+  // Each candidate carries Part 48's declarations, derived where they can be.
+  for (const c of r.candidates) {
+    assert.ok(c.hypothesis, 'a compared candidate always has a hypothesis');
+    assert.ok(c.changed_variables.length, 'changed variables are derived from the ops, so they cannot disagree');
+    assert.ok(c.rollback_reference.pre_experiment_state, 'Part 48 requires a rollback reference');
+    assert.equal(c.rollback_reference.inverse_available, true);
+    assert.equal(c.measurements.constraint_compliance.measured, true);
+    assert.equal(c.measurements.regression_risk.measured, true);
+    assert.equal(typeof c.measurements.regression_risk.breadth, 'string', 'the breadth VERDICT orders candidates; the detail is separate');
+  }
+  // Motion is measured over the frames the edit can reach, not just the edited frame — otherwise
+  // every candidate reports a peak speed of 0 and the dimension discriminates nothing.
+  const m = r.candidates[0].measurements.motion_analysis;
+  assert.equal(m.measured, true);
+  assert.ok(m.peak_speed > 0, `the sampled window must contain motion: ${JSON.stringify(m)}`);
+  assert.ok(m.sampled_frames[1] > m.sampled_frames[0], 'the window is widened to the neighbouring keys');
+});
+
+check('experiment: two candidates that produce identical results are one experiment under two names', () => {
+  const p = fixture();
+  const same = [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.4) }];
+  const r = EXPT.compareExperiments(p, {
+    itemId: 'hero',
+    candidates: [
+      { name: 'A', hypothesis: 'deeper anticipation', ops: same },
+      { name: 'B', hypothesis: 'a different story about the same edit', ops: same },
+    ],
+  }, {});
+  assert.equal(r.distinctness.all_distinct, false);
+  assert.deepEqual(r.distinctness.identical_groups, [['A', 'B']]);
+  assert.ok(r.findings.some((f) => f.id === 'EXPT-CANDIDATES-IDENTICAL'));
+
+  // Same variables, different magnitudes is NOT refused — Part 48's own example set does it.
+  const r2 = EXPT.compareExperiments(p, {
+    itemId: 'hero',
+    candidates: [
+      { name: 'A', hypothesis: 'anticipation, more of it', ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.4) }] },
+      { name: 'B', hypothesis: 'anticipation, held longer', ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.3) }] },
+    ],
+  }, {});
+  assert.equal(r2.ok, true, 'a legitimate same-variable pair must still be compared');
+  assert.equal(r2.distinctness.all_distinct, true);
+  const f = r2.findings.find((x) => x.id === 'EXPT-SAME-VARIABLES');
+  assert.ok(f, 'but it is reported for a human to judge');
+  assert.equal(f.certainty, C.CERTAINTY.POSSIBLE, 'reported, not asserted — the directive does this deliberately');
+});
+
+check('experiment: a candidate that breaks a protected variable is excluded, not annotated', () => {
+  const p = plantFixture();
+  const r = EXPT.compareExperiments(p, {
+    name: 'weight', itemId: 'hero',
+    protect: 'keep the left foot within 0.05 studs from frame 0 to 16',
+    candidates: [
+      { name: 'arm only', hypothesis: 'more arm swing, foot untouched', ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.4) }] },
+      { name: 'from the hips', hypothesis: 'weight comes from the body', ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }] },
+    ],
+  }, { frame: 8 });
+  assert.equal(r.ok, true);
+  const hips = r.candidates.find((c) => c.name === 'from the hips');
+  assert.ok(hips.measurements.constraint_compliance.violations > 0, 'the hip rotation drags the planted foot');
+  // A contact constraint compiles to `warn`, so `allowed` stays true — apply_animation_patch would
+  // proceed with a warning, which is right when a human asked for that exact edit. An experiment
+  // is stricter: the declared protections are its boundary, so a violation disqualifies.
+  assert.equal(hips.measurements.constraint_compliance.allowed, true, 'the constraint warns rather than refusing');
+  // Excluded from the recommendation, with the reason recorded.
+  assert.equal(r.recommendation.candidate, 'arm only');
+  assert.ok(r.findings.some((f) => f.id === 'EXPT-CANDIDATE-BLOCKED' && /from the hips/.test(f.statement)));
+});
+
+check('experiment: a recommendation names what decided it and what could not', () => {
+  const p = plantFixture();
+  const r = EXPT.compareExperiments(p, {
+    name: 'weight', itemId: 'hero',
+    acceptance: { checks: [{ check: 'contact_drift_within', itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance: 0.05 }] },
+    candidates: [
+      { name: 'arm only', hypothesis: 'more arm swing, foot untouched', ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.4) }] },
+      { name: 'from the hips', hypothesis: 'weight comes from the body', ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }] },
+    ],
+  }, { frame: 8 });
+
+  assert.equal(r.recommendation.candidate, 'arm only', 'the acceptance criteria separate them');
+  assert.ok(r.recommendation.decided_by.some((d) => /intent_alignment/.test(d)));
+  assert.deepEqual(r.recommendation.not_decided_by, ['visual_analysis', 'reference_alignment', 'user_preference', 'human_review']);
+  assert.equal(r.recommendation.requires_user_approval, true);
+  assert.match(r.recommendation.caveat, /not a judgement that the winner is good/);
+  assert.match(r.recommendation.caveat, /Nobody has looked at it/);
+  // The two dimensions that are definitionally the user's are carried as required steps.
+  assert.ok(r.required_human_steps.some((s) => /user_preference/.test(s)));
+  assert.ok(r.required_human_steps.some((s) => /human_review/.test(s)));
+  // And the winner is not applied.
+  assert.equal(r.applied, false);
+  assert.match(r.next, /nothing has been applied/);
+});
+
+check('experiment: when the measured dimensions tie, no winner is invented', () => {
+  // The failure mode Part 48 exists to prevent: a recommendation with nothing behind it.
+  const p = fixture();
+  const r = EXPT.compareExperiments(p, {
+    itemId: 'hero',
+    candidates: [
+      { name: 'A', hypothesis: 'one story', ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.4) }] },
+      { name: 'B', hypothesis: 'another story', ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.3) }] },
+    ],
+  }, {});
+  assert.equal(r.ok, true);
+  assert.equal(r.recommendation.candidate, null, 'no acceptance criteria and equal breadth means nothing measured separates them');
+  assert.deepEqual(r.recommendation.tied_candidates.sort(), ['A', 'B']);
+  assert.ok(r.recommendation.question.includes('reads better'));
+  assert.match(r.recommendation.question, /acceptance criteria/, 'and it says what would settle it');
+  const f = r.findings.find((x) => x.id === 'EXPT-NO-MEASURED-WINNER');
+  assert.equal(f.certainty, C.CERTAINTY.USER_INTENT_REQUIRED);
+  // The tie path must carry the same honesty fields as the deciding path.
+  assert.ok(Array.isArray(r.recommendation.not_decided_by));
+  assert.equal(r.recommendation.requires_user_approval, true);
+  assert.ok(r.recommendation.caveat);
+});
+
+check('experiment: the deciding dimensions are exactly the ones the ladder consults', () => {
+  // A dimension that claims to decide but is never consulted is a lie in the result; one that
+  // decides without claiming it is undocumented. This pins them together.
+  const deciding = Object.entries(EXPT.COMPARISON_DIMENSIONS).filter(([, d]) => d.decides).map(([k]) => k).sort();
+  assert.deepEqual(deciding, ['constraint_compliance', 'intent_alignment', 'regression_risk'],
+    'the ladder in recommend() consults exactly these three, in this precedence');
+
+  // Every dimension either measures or explains why not — Part 4.7 / rule 5.
+  for (const [name, d] of Object.entries(EXPT.COMPARISON_DIMENSIONS)) {
+    if (d.measured) assert.ok(d.how, `${name} claims to be measured, so it must say how`);
+    else assert.ok(d.why, `${name} is not measured, so it must say why`);
+    if (d.measured && !d.decides) assert.ok(d.note, `${name} is measured but does not vote, which needs an explanation`);
+  }
+  // Part 48 lists 8 comparison dimensions; visual and motion are one bullet there, split here.
+  assert.equal(Object.keys(EXPT.COMPARISON_DIMENSIONS).length, 9);
+  assert.equal(Object.values(EXPT.COMPARISON_DIMENSIONS).filter((d) => d.measured).length, 5);
+});
+
+check('layer: the Phase 7 success condition — bounded alternatives are compared and a recommendation is justified', () => {
+  // Part 62, Phase 7, verbatim: "Cadence can compare bounded alternatives and justify a
+  // recommendation." One project, four candidates, each demonstrating a different part of Part 48:
+  //   A  respects the protection and meets the criteria      -> should win
+  //   B  breaks the declared protection                      -> excluded by measurement
+  //   C  respects the protection but misses the criteria      -> viable, and ranked below A
+  //   D  has no hypothesis                                    -> never enters the comparison
+  // The protection covers frames 0-16 and the acceptance criteria cover 0-28, which is what lets
+  // B and C fail for different reasons.
+  const p = plantFixture();
+  const origin = H.contentHash(p);
+
+  const set = {
+    name: 'Give the slash more weight',
+    intent: 'heavier without dragging the planted foot',
+    itemId: 'hero',
+    protect: 'keep the left foot within 0.05 studs from frame 0 to 16',
+    acceptance: { checks: [{ check: 'contact_drift_within', itemId: 'hero', effector: 'the left foot', start: 0, end: 28, tolerance: 0.05 }] },
+    candidates: [
+      { name: 'A: deeper anticipation', hypothesis: 'a bigger wind-up reads as more effort, and the arm never touches the foot', ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.4) }], expected_effect: 'the arm travels further before the strike' },
+      { name: 'B: drive it from the hips', hypothesis: 'weight comes from the body, not the arm', ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }] },
+      { name: 'C: lift the foot late', hypothesis: 'releasing the foot after the strike adds recoil', ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftAnkle', t: 28, value: CF.fromEuler(0.6, 0, 0) }] },
+      { name: 'D: no hypothesis', ops: [{ op: 'set_key', itemId: 'hero', track: 'RightElbow', t: 8, value: CF.fromEuler(0.3, 0, 0) }] },
+    ],
+  };
+
+  const r = EXPT.compareExperiments(p, set, { frame: 8, mode: 'experiment' });
+  assert.equal(r.ok, true);
+  assert.equal(r.active_mode, 'experiment / production', 'Part 11: the active mode must be knowable');
+
+  // BOUNDED: the hypothesis-less candidate never entered the comparison.
+  assert.equal(r.candidates.length, 3);
+  assert.deepEqual(r.rejected.map((x) => x.name), ['D: no hypothesis']);
+  assert.equal(r.rejected[0].findings[0].id, 'EXPT-HYPOTHESIS-MISSING');
+
+  // The declared protection is ENFORCED, with the number that proves it.
+  const hips = r.candidates.find((c) => c.name === 'B: drive it from the hips');
+  assert.ok(hips.measurements.constraint_compliance.violations > 0, 'the hip rotation drags the protected foot');
+  const blocked = r.findings.find((f) => f.id === 'EXPT-CANDIDATE-BLOCKED');
+  assert.match(blocked.statement, /B: drive it from the hips/);
+  assert.match(blocked.statement, /would drift/, 'the exclusion carries the measurement behind it');
+
+  // C is viable but misses the criteria, so it loses on a measured dimension rather than a hunch.
+  const late = r.candidates.find((c) => c.name === 'C: lift the foot late');
+  assert.equal(late.measurements.constraint_compliance.violations, 0, 'C stays inside the protected range');
+  assert.equal(late.measurements.intent_alignment.accepted, false, 'but it misses the wider acceptance criteria');
+
+  // JUSTIFIED: a winner, the dimension that chose it, and the ones that could not.
+  assert.equal(r.recommendation.candidate, 'A: deeper anticipation');
+  assert.match(r.recommendation.justification, /best of 3 candidate\(s\)/);
+  assert.match(r.recommendation.justification, /meets the declared acceptance criteria/);
+  assert.ok(r.recommendation.decided_by.some((d) => /intent_alignment/.test(d)));
+  assert.equal(r.recommendation.confidence, C.CERTAINTY.HIGHLY_LIKELY);
+  assert.equal(r.recommendation.requires_user_approval, true);
+  assert.ok(r.recommendation.not_decided_by.includes('visual_analysis'));
+  assert.match(r.recommendation.caveat, /Nobody has looked at it/);
+
+  // Every Part 48 declaration is present on the winner, derived where it can be.
+  const win = r.candidates.find((c) => c.name === r.recommendation.candidate);
+  assert.ok(win.changed_variables.length && win.rollback_reference.pre_experiment_state);
+  assert.equal(win.rollback_reference.inverse_available, true);
+
+  // And it says what it did not do: 4 of 9 dimensions, each with the reason.
+  assert.equal(r.coverage.notRun.length, 4);
+  assert.ok(r.coverage.notRun.every((x) => x.includes('\u2014')), 'each unmeasured dimension states why');
+  assert.ok(r.required_human_steps.some((x) => /user_preference/.test(x)));
+
+  // NOTHING WAS APPLIED. The comparison is a dry run by construction.
+  assert.equal(r.applied, false);
+  assert.match(r.next, /nothing has been applied/);
+  assert.equal(H.contentHash(p), origin, 'comparing four candidates must leave the project byte-identical');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

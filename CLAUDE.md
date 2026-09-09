@@ -17,6 +17,8 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 | `renderer/js/ai/diagnose.js` | Part 46's "why?" workflows. The judging layer; it consumes `motion.js` and never re-measures. |
 | `renderer/js/ai/events.js` | Part 41's shared shot-event timeline, **derived** from the per-item `project.markers` tables, never migrated. |
 | `renderer/js/ai/vfxspec.js` | Parts 37-39. A declarative effect compiled into reversible ops. Targets the `kind:'vfx'` emitter item, **never** `pnx/**` — the reasoning is at the top of the file. |
+| `renderer/js/ai/modes.js` | Part 11's operating modes. Policy, not police: it decides only "may this mutate", enforced in `apply_animation_patch`. |
+| `renderer/js/ai/experiment.js` | Part 48. Bounded named alternatives, compared on clones, with a recommendation that names its measurements — or withholds one. |
 | `renderer/js/observationPasses.js` | Diagnostic render passes. Outside `ai/` because three.js. |
 | `renderer/js/pnx/**`, `renderer-vfx/` | The procedural VFX engine and its own studio window. |
 | `mcp-server/index.js` | `server.tool(...)` registrations. The other half of every MCP tool. |
@@ -27,13 +29,13 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 `npm` is broken under Git Bash here. Use PowerShell, and invoke binaries directly.
 
 ```
-node test/aitest.mjs     # semantic layer — 290 checks
+node test/aitest.mjs     # semantic layer — 303 checks
 node test/coretest.mjs   # core           —  41
 node test/pnxtest.mjs    # PNX engine     — 298
 ```
 
 ```powershell
-# Electron smoketest, ~4 min, 98 steps against the real app
+# Electron smoketest, ~4 min, 99 steps against the real app
 Remove-Item test-output/userdata -Recurse -Force -ErrorAction SilentlyContinue
 .\node_modules\.bin\electron.cmd . --disable-backgrounding-occluded-windows `
   --disable-renderer-backgrounding --disable-background-timer-throttling `
@@ -110,6 +112,14 @@ work.
   result against the hash the plan predicted, so `crypto.randomUUID()` inside an op handler makes
   every commit fail its own post-condition. Hash the request instead — which also makes the
   operation idempotent.
+- **A mutating semantic tool must go through `apply_animation_patch`.** That is the single place
+  Part 11's operating mode is enforced (`analyze`/`compare`/`review` refuse to mutate, and the
+  refusal is deliberately not forceable). A new mutating tool that writes to `state.js` directly
+  bypasses the mode gate, the constraint check, the transaction and the snapshot at once.
+- **`report.allowed` is not "nothing is wrong".** A contact constraint compiles to `warn`, so a
+  violation is reported while `allowed` stays true and the apply proceeds — correct there, because
+  a human asked for that edit. Anything that treats `allowed` as a pass will let a violation
+  through; count `violations` when the protection is meant to be a boundary (`ai/experiment.js`).
 - **The transaction ledger and the snapshot/raster stores are in memory, session-scoped.** The
   durable record is the provenance graph inside the project. Anything that promises recovery across
   a restart is promising something it cannot do.

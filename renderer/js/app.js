@@ -4179,7 +4179,21 @@ const MCP_HANDLERS = {
     return { ...out, patch_id: patch.id, constraint_compilation: compiled };
   },
 
-  apply_animation_patch: ({ ops, intent, request, strict, constrain, frame, force = false, snapshotFirst = true } = {}) => {
+  apply_animation_patch: ({ ops, intent, request, strict, constrain, frame, force = false, snapshotFirst = true, mode = null, discipline = null } = {}) => {
+    // Part 11 / OPS-001. This is the one place the operating mode is enforced, and that is
+    // deliberate: `apply_motion_plan` and `compile_effect` both reach the project THROUGH this
+    // handler, so gating it gates every mutating semantic tool. Before this, `mode` was carried on
+    // the intent and read by nothing, which made declaring `mode: "analyze"` look like a
+    // safeguard while permitting exactly the same edits.
+    const auth = AI.modes.authorise({ mutates: true, name: 'apply_animation_patch' }, { mode, discipline: discipline ?? undefined, force });
+    if (!auth.allowed) {
+      // A refusal is a result, not an exception: it carries the remedy, and the mode it refused in.
+      return {
+        applied: false, blocked: true, refused_because: auth.refused_because, remedy: auth.remedy ?? null,
+        mode: auth.mode ?? null, discipline: auth.discipline, forceable: auth.forceable ?? false,
+        operating_modes: AI.modes.MODE_NAMES, findings: auth.findings,
+      };
+    }
     const patch = buildPatch({ ops, intent, request, strict });
     const compiled = compileRequestConstraints(constrain);
     const at = frame ?? S.state.playhead;
@@ -4226,7 +4240,14 @@ const MCP_HANDLERS = {
     // `provenance_id` is returned so a caller that produced this patch from something larger — a
     // motion plan, later a shot or a VFX change — can attach the correct typed edge to it. Without
     // it the only way to relate the two is by timestamp, which is not a relationship.
-    return { ...out, patch_id: patch.id, provenance_id: provenanceId, before_snapshot: before ? before.id : null, after_snapshot: txn.after_snapshot, scope: scopeReport, constraint_compilation: compiled };
+    // Part 11 closes with "the user must always know which mode is active", so the active mode and
+    // the obligations it carries are reported on every apply — including when no mode was declared.
+    return {
+      ...out, patch_id: patch.id, provenance_id: provenanceId,
+      before_snapshot: before ? before.id : null, after_snapshot: txn.after_snapshot,
+      scope: scopeReport, constraint_compilation: compiled,
+      operating_mode: { active: auth.active, obligations: auth.obligations, acceptance_required: auth.acceptance_required, findings: auth.findings },
+    };
   },
 
   // Whole or scoped. Scoped rollback is the recorded inverse patch, filtered — so anything the
@@ -4889,6 +4910,63 @@ const MCP_HANDLERS = {
       S.markDirty();
     }
     return { ...head, ...result };
+  },
+  // ------------------------------------------------- experiments and operating modes (Parts 11, 48)
+  //
+  // Phase 7's first half. Both tools are READ-ONLY, and `compare_experiments` being read-only is
+  // the whole point: every candidate is planned against a clone, so comparing four alternatives
+  // touches the project zero times. Choosing one is a separate, ordinary transaction.
+  //
+  // The mode itself is enforced in `apply_animation_patch`, because every mutating semantic tool
+  // reaches the project through it.
+
+  operating_modes: ({ mode = null, discipline = null } = {}) => {
+    const resolved = AI.modes.resolveMode(mode, discipline ?? undefined);
+    return {
+      modes: AI.modes.MODES,
+      disciplines: AI.modes.DISCIPLINES,
+      default_mode: AI.modes.DEFAULT_MODE,
+      default_discipline: AI.modes.DEFAULT_DISCIPLINE,
+      // What the CURRENT request would resolve to, so a caller can check a mode before relying on it.
+      resolved: resolved.ok
+        ? { mode: resolved.mode, discipline: resolved.discipline, policy: resolved.policy, findings: resolved.findings }
+        : { error: resolved.question },
+      enforced_at: 'apply_animation_patch — every mutating semantic tool (apply_motion_plan, compile_effect) reaches the project through it, so gating that one handler gates all of them',
+      limitations: AI.modes.MODE_LIMITATIONS,
+    };
+  },
+
+  compare_experiments: ({ candidates, name, intent, itemId, protect, acceptance, frame, mode = 'experiment', discipline = null } = {}) => {
+    if (!Array.isArray(candidates) || candidates.length < 2) {
+      throw new Error('compare_experiments needs at least two `candidates` — Part 48 is about choosing between bounded alternatives, and one alternative is just an edit. Use preview_animation_patch for a single change.');
+    }
+    const result = AI.experiment.compareExperiments(liveProject(), {
+      name: name ?? null,
+      intent: intent ?? null,
+      itemId: itemId ?? S.state.selection.itemId ?? null,
+      protect: protect ?? null,
+      acceptance: acceptance ?? null,
+      candidates,
+    }, { frame: frame ?? S.state.playhead, mode, discipline: discipline ?? undefined });
+
+    // A comparison is a conclusion somebody may act on, so it is recorded — the same bargain
+    // `explain_change` and `explain_motion_problem` make. Nothing else is written: no candidate
+    // was applied, and the ops are kept so the recorded reasoning can be re-derived.
+    if (result.ok) {
+      AI.provenance.record(S.state.project, {
+        type: 'analysis', author: 'ai',
+        summary: `compared ${result.candidates.length} candidate(s)${result.set ? ` for "${result.set}"` : ''}: ${result.recommendation.candidate ? `recommended "${result.recommendation.candidate}"` : 'no measured winner'}`,
+        detail: {
+          set: result.set, intent: result.intent, mode: result.active_mode,
+          candidates: result.candidates.map((c) => ({ name: c.name, hypothesis: c.hypothesis, changed_variables: c.changed_variables, result_hash: c.result_hash, violations: c.measurements.constraint_compliance.violations })),
+          rejected: result.rejected.map((x) => ({ name: x.name, reason: x.findings[0]?.statement ?? null })),
+          recommendation: result.recommendation,
+        },
+        timestamp: new Date().toISOString(),
+      });
+      S.markDirty();
+    }
+    return result;
   },
 };
 

@@ -43,8 +43,17 @@ export function analyseScope(project, plan, { constraints = [], frame = 0 } = {}
   const directTracks = new Set();
   const directFields = new Set();
   const directMarkers = new Set();
+  // An item the patch CREATES is a direct target too, and it keeps its id in `op.item.id` rather
+  // than `op.itemId` (see `ai/patch.js` `add_item`). Without this an `add_item` on its own reported
+  // an empty blast radius, and a compile_effect's report named the emitter only because the
+  // `set_key` ops that follow happen to carry its id.
+  const createdItems = new Set();
+  for (const rec of acting) {
+    if (rec.op.op === 'add_item' && rec.op.item?.id) createdItems.add(rec.op.item.id);
+  }
   for (const rec of acting) {
     const op = rec.op;
+    if (op.op === 'add_item' && op.item?.id) directItems.add(op.item.id);
     if (op.itemId) directItems.add(op.itemId);
     if (op.track) directTracks.add(ids.trackId(op.itemId, op.track));
     if (op.op === 'set_item_field') directFields.add(`${ids.itemId(op.itemId)}#${op.path}`);
@@ -60,7 +69,13 @@ export function analyseScope(project, plan, { constraints = [], frame = 0 } = {}
 
   return {
     // --- the eight Part 54 rows that project data can answer
-    direct_target_objects: [...directItems].map((id) => describeItem(project, id)),
+    // A created item does not exist in `project` yet, so describing it from there would report a
+    // direct target named "(missing)" with a null kind. It is described from the planned result
+    // instead, and flagged, so a reader can tell "this patch makes this" from "this patch edits
+    // this".
+    direct_target_objects: [...directItems].map((id) => (createdItems.has(id)
+      ? { ...describeItem(plan.result || project, id), created_by_this_patch: true }
+      : describeItem(project, id))),
     direct_property_paths: [...directTracks].sort(),
     direct_fields: [...directFields].sort(),
     direct_markers: [...directMarkers].sort(),

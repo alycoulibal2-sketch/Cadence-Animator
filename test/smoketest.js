@@ -2902,6 +2902,121 @@
     return out;
   });
 
+  // The Phase 7 success condition (directive Part 62): "Cadence can compare bounded alternatives
+  // and justify a recommendation." Run against the LIVE app, because two things only exist at the
+  // handler boundary: the operating mode actually GATING a mutation (Part 11 / OPS-001, enforced in
+  // apply_animation_patch, which every mutating semantic tool goes through), and a comparison
+  // leaving the real singleton project untouched rather than a fixture object.
+  await step('experiments: bounded alternatives are compared, a recommendation is justified, and analyze mode refuses to mutate', async () => {
+    S.newProject('phase7-experiments');
+    const item = await D.addBuiltinRig('r15');
+    const key = (track, t, v) => S.setKey(item.id, track, t, v, { es: 'Sine', ed: 'InOut', noUndo: true });
+    // A swing over a planted left foot: the arm moves, the ankle is keyed and does not.
+    key('RightShoulder', 0, CF.IDENTITY.slice());
+    key('RightShoulder', 8, CF.fromEuler(0, 0, 1.2));
+    key('RightShoulder', 16, CF.fromEuler(0, 0, -0.9));
+    key('RightShoulder', 28, CF.IDENTITY.slice());
+    key('LeftHip', 0, CF.IDENTITY.slice());
+    for (const t of [0, 8, 16, 28]) key('LeftAnkle', t, CF.IDENTITY.slice());
+    const out = {};
+    const before = D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
+
+    // 1. Part 11 / OPS-001: the mode field now governs something. `analyze` must not mutate, and
+    //    the refusal must not be forceable — leaving a read-only mode is the user's decision.
+    const refused = D.mcp('apply_animation_patch', {
+      ops: [{ op: 'set_key', itemId: item.id, track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.4) }],
+      intent: 'this must not land', mode: 'analyze',
+    });
+    assert(refused.applied === false && refused.blocked === true, 'analyze mode must refuse a mutation');
+    assert(refused.forceable === false, 'and the refusal must not be forceable');
+    assert(/does not modify anything/.test(refused.refused_because), refused.refused_because);
+    const stillClean = D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
+    assert(stillClean === before, 'a refused mutation must not have touched the project');
+    const forced = D.mcp('apply_animation_patch', {
+      ops: [{ op: 'set_key', itemId: item.id, track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.4) }],
+      mode: 'analyze', force: true,
+    });
+    assert(forced.applied === false, 'force must not buy a way out of a read-only mode');
+    out.modeGate = { refused_because: refused.refused_because, forceable: refused.forceable };
+
+    // The mode policy is inspectable, and an unstated mode is reported rather than guessed.
+    const modeInfo = D.mcp('operating_modes', { mode: 'polish' });
+    assert(modeInfo.resolved.policy.mutates === true);
+    assert(modeInfo.resolved.policy.obligations.some((o) => /diagnosis/.test(o)), 'polish owes a diagnosis first');
+    assert(D.mcp('operating_modes', {}).resolved.findings.some((f) => f.id === 'MODE-UNDECLARED'));
+
+    // 2. Part 48: four bounded candidates, each demonstrating one thing.
+    const cmp = D.mcp('compare_experiments', {
+      name: 'Give the slash more weight',
+      intent: 'heavier without dragging the planted foot',
+      itemId: item.id,
+      frame: 8,
+      protect: 'keep the left foot within 0.05 studs from frame 0 to 16',
+      acceptance: { checks: [{ check: 'contact_drift_within', itemId: item.id, effector: 'the left foot', start: 0, end: 28, tolerance: 0.05 }] },
+      candidates: [
+        { name: 'A: deeper anticipation', hypothesis: 'a bigger wind-up reads as more effort, and the arm never touches the foot', ops: [{ op: 'set_key', itemId: item.id, track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.4) }], expected_effect: 'the arm travels further before the strike' },
+        { name: 'B: drive it from the hips', hypothesis: 'weight comes from the body, not the arm', ops: [{ op: 'set_key', itemId: item.id, track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }] },
+        { name: 'C: lift the foot late', hypothesis: 'releasing the foot after the strike adds recoil', ops: [{ op: 'set_key', itemId: item.id, track: 'LeftAnkle', t: 28, value: CF.fromEuler(0.6, 0, 0) }] },
+        { name: 'D: no hypothesis', ops: [{ op: 'set_key', itemId: item.id, track: 'RightElbow', t: 8, value: CF.fromEuler(0.3, 0, 0) }] },
+      ],
+    });
+    assert(cmp.ok === true, `the comparison must run: ${cmp.reason}`);
+    assert(cmp.active_mode === 'experiment / production', `the active mode must be reported: ${cmp.active_mode}`);
+
+    // BOUNDED: the candidate with no hypothesis never entered the comparison.
+    assert(cmp.candidates.length === 3, `3 of 4 candidates should be compared, got ${cmp.candidates.length}`);
+    assert(cmp.rejected.length === 1 && cmp.rejected[0].findings[0].id === 'EXPT-HYPOTHESIS-MISSING',
+      'Part 48 forbids a variant with no stated claim');
+
+    // The declared protection is enforced by measurement, not annotation.
+    const hips = cmp.candidates.find((c) => c.name === 'B: drive it from the hips');
+    assert(hips.measurements.constraint_compliance.violations > 0, 'the hip rotation drags the protected foot');
+    const blocked = cmp.findings.find((f) => f.id === 'EXPT-CANDIDATE-BLOCKED');
+    assert(blocked && /would drift/.test(blocked.statement), `the exclusion must carry its measurement: ${blocked?.statement}`);
+
+    // JUSTIFIED: a winner, the dimension that chose it, and the ones that could not.
+    assert(cmp.recommendation.candidate === 'A: deeper anticipation', `expected A to win, got ${cmp.recommendation.candidate}`);
+    assert(cmp.recommendation.decided_by.some((d) => /intent_alignment/.test(d)), 'the acceptance criteria are what decided it');
+    assert(cmp.recommendation.requires_user_approval === true);
+    assert(cmp.coverage.notRun.length === 4, 'the 4 unmeasurable dimensions must each be named');
+    out.comparison = {
+      winner: cmp.recommendation.candidate,
+      justification: cmp.recommendation.justification,
+      decided_by: cmp.recommendation.decided_by,
+      not_decided_by: cmp.recommendation.not_decided_by,
+      excluded: blocked.statement,
+    };
+
+    // 3. NOTHING WAS APPLIED. Comparing four candidates on the real singleton project must leave
+    //    it byte-identical — this is the property a fixture-based test cannot prove.
+    assert(cmp.applied === false);
+    assert(D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project)) === before,
+      'comparing candidates must leave the live project byte-identical');
+    assert(S.state.project.tracks[item.id].RightShoulder.keys.find((k) => k.t === 8).v
+      .every((n, i) => Math.abs(n - CF.fromEuler(0, 0, 1.2)[i]) < 1e-9), 'the original key must be untouched');
+
+    // The comparison IS recorded, so the reasoning survives the session.
+    const prov = D.mcp('inspect_provenance', { type: 'analysis' });
+    assert(prov.nodes.some((n) => /recommended "A: deeper anticipation"/.test(n.summary)),
+      'a recommendation somebody may act on must be traceable');
+
+    // 4. And the winner applies like any ordinary patch, in a mode that permits it.
+    const applied = D.mcp('apply_animation_patch', {
+      ops: cmp.candidates.find((c) => c.name === cmp.recommendation.candidate).changed_variables.length
+        ? [{ op: 'set_key', itemId: item.id, track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.4) }]
+        : [],
+      intent: 'take experiment A', mode: 'experiment',
+    });
+    assert(applied.applied === true, `the chosen candidate must apply: ${applied.refused_because || applied.summary}`);
+    assert(applied.operating_mode.active === 'experiment / production', 'Part 11: the active mode is reported on every apply');
+    const rb = D.mcp('rollback_transaction', { transactionId: applied.transaction_id });
+    assert(rb.complete === true);
+    assert(D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project)) === before,
+      'and taking a candidate is as reversible as any other edit');
+
+    return out;
+  });
+
   await step('semantic layer: a persisted lock survives save/load, blocks a patch, and is undoable', async () => {
     S.newProject('locks');
     await D.addBuiltinRig('r15');

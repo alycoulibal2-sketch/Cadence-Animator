@@ -28,36 +28,45 @@ whole, and Part 7 explicitly says to load only what the work needs.
 ## Where the programme is
 
 - Branch: `animation-intelligence`, off `main` at `8343e2f` (v0.11.0).
-- **Phases 0–6 are done.** Phases 7–9 are not started.
+- **Phases 0–6 are done. Phase 7 is HALF done** — its success condition is met and committed; four
+  of its rows remain (see below). Phases 8–9 are not started.
 - Commits: `54ea3f4` (Phase 1), `88265c9` (Phase 2), `0cadfd9` (Phase 3), `d36e10c` (Phase 4),
-  `c9973b8` (Phase 5), Phase 6 is the tip.
-- The semantic layer is `renderer/js/ai/**` — 27 modules, 38 MCP tools (178 in the app overall).
+  `c9973b8` (Phase 5), `a5da0ec` (Phase 6), Phase 7's first half is the tip.
+- The semantic layer is `renderer/js/ai/**` — 29 modules, 40 MCP tools (180 in the app overall).
   Phase 4 also added one module OUTSIDE that tree, `renderer/js/observationPasses.js`, which is
   where three.js lives.
 
-**Phase 7 is next: knowledge, memory and self-improvement.** Part 62's success condition is
-*"Cadence improves a result using recorded knowledge from earlier work."* Its rows are the `KNW-*`
-and `MEM-*` families plus `BCH-001`; every one of them is currently `unplanned`, so this phase
-starts from nothing rather than from a partial.
+**Phase 7 is half done. Its success condition is already met** — *"Cadence can compare bounded
+alternatives and justify a recommendation"* (Part 62) — by `ai/experiment.js` and `ai/modes.js`,
+both committed with an in-app smoketest step behind them. **Four rows remain, and all four are
+review-and-report work rather than new measurement:**
 
-Three things about the ground it lands on, learned in Phases 5 and 6 and worth knowing before
-picking rows:
+- **`SIM-001` (Part 47, Cadence Simulation).** A 9-step pre-commit pipeline. Everything it needs
+  now exists — curves, contacts, motion, events, the constraint check, scope, acceptance. The work
+  is the report's *altitude* and its separation of measured scores from artistic suggestions. Part
+  47 is explicit: *"score only defined measurable dimensions"*, *"classify artistic suggestions
+  separately"*, and *"the report must never imply that a subjective score is ground truth"* — which
+  is the discipline `ai/experiment.js` already follows, so copy its shape.
+- **`REV-001` (Part 49, automatic shot review) + `OPS-005` (Part 14, quality hierarchy).** These
+  belong together: Part 49 wants 10 analysis steps and 10 return fields, and Part 14's 13-layer
+  ordering is what decides which finding to report first. **Part 14 is unusually implementable** —
+  13 named layers plus three concrete anti-patterns (*"do not add beautiful secondary motion to a
+  weak pose"*, camera shake for absent weight, VFX polish for an unclear impact) that become real
+  warnings when a proposed action sits below a failing higher layer. Several Part 49 steps are
+  blocked and must be reported as such: pose/silhouette readability (MOT-011/012), camera framing
+  (no active-camera model), reference comparison (Phase 8), annotated render crops.
+- **`MCP-012` (Part 52, reusable workflows).** 17 named workflows, each documenting 8 fields. **Rule
+  9 bites hardest here:** a registry of 17 shells would be worse than four real ones. The shape is a
+  declared registry where each entry either composes existing tools or carries `implemented: false`
+  with what blocks it — the `CHECKS`/`PASSES` pattern.
 
-- **The durable record already exists and it is the provenance graph.** `ai/provenance.js` is
-  append-only, lives inside the project file, and every phase since 2 has been writing to it —
-  Phase 6's `compile_effect` records the whole VFXSpec, not just its ops, exactly so a later
-  session can ask what was asked for. The transaction ledger, the snapshot store and the raster
-  store are all IN MEMORY and session-scoped (`CLAUDE.md`, "Pitfalls with teeth"). So a memory
-  feature built on the ledger promises something it cannot deliver across a restart; one built on
-  provenance does not.
-- **There is no cross-project store, and inventing one is a real decision, not a detail.** Nothing
-  in Cadence holds data outside a single `.cadence` file. "Knowledge from earlier work" therefore
-  needs either a new user-data store in `src/main.js` (which is outside the pure layer, and needs
-  the same plain-data boundary Phase 4 used for pixels) or an explicit import step. Decide which
-  BEFORE writing a KNW row, the way Phase 6 had to settle the pnx/vfx boundary first.
-- **`ai/baseline.js` is the closest existing thing to remembered work** and is already project
-  data rather than disposable screenshots. Read it before designing a memory store; it may be that
-  what Phase 7 wants is a generalisation of it rather than a new mechanism.
+Read `ai/experiment.js`'s header before starting any of them: it is the template for how this phase
+reports a judgement without pretending a subjective score is a measurement.
+
+**One thing to know before writing another report tool:** `preview_animation_patch`,
+`analyse_scope` and `evaluate_acceptance` already answer most of what a simulation report asks. The
+risk in this phase is a fourth thing that re-answers them slightly differently. Define what each new
+tool adds that those three do not, and compose them rather than re-measuring.
 
 ## The rules this codebase holds itself to
 
@@ -94,13 +103,13 @@ Run from the repo root. `npm` is broken under Git Bash here — use PowerShell, 
 `.\node_modules\.bin\electron.cmd` directly rather than `npm run`.
 
 ```
-node test/aitest.mjs     # semantic layer   — currently 290/290, ~1s
+node test/aitest.mjs     # semantic layer   — currently 303/303, ~1s
 node test/coretest.mjs   # core             — currently  41/41
 node test/pnxtest.mjs    # PNX engine       — currently 298/298
 ```
 
 ```powershell
-# the Electron smoketest: 98 steps against the real app, ~4 minutes
+# the Electron smoketest: 99 steps against the real app, ~4 minutes
 Remove-Item test-output/userdata -Recurse -Force -ErrorAction SilentlyContinue
 .\node_modules\.bin\electron.cmd . --disable-backgrounding-occluded-windows `
   --disable-renderer-backgrounding --disable-background-timer-throttling `
@@ -467,6 +476,92 @@ primary effect actually READS as primary, which needs the observation passes (VF
 **not** fire on either full smoketest run this iteration. That does not mean it is fixed — it is
 GPU-timing dependent, and the previous two sessions both saw it. Do not read a clean run as
 evidence either way.
+
+### Phase 7 (first half) — operating modes and controlled experiments
+
+Two new modules, both pure at load, and the phase's success condition met:
+
+- **`ai/modes.js`** (Part 11). The eight operating modes and the exploration/production axis.
+- **`ai/experiment.js`** (Part 48). Bounded named alternatives, compared, with a justified
+  recommendation. **This is the success condition**: *"Cadence can compare bounded alternatives and
+  justify a recommendation."*
+
+Two MCP tools, both halves registered: `operating_modes` and `compare_experiments` (both
+READ-ONLY). 180 tools in the app. `SEMANTIC_LAYER_VERSION` → `1.7.0`. Matrix: `EXPT-001` and
+`OPS-001` to `implemented`; 165 rows now
+*implemented 80 · partial 24 · designed 7 · deferred 2 · blocked 1 · unplanned 51.*
+
+**`OPS-001` was a lie, and fixing it was the right place to start.** `IntentSpec.mode` existed, was
+carried through interpretation, reached provenance, and **was read by nobody** — so declaring
+`mode: 'analyze'` recorded an intention and permitted exactly the same edits as `create`. It is now
+enforced, in **one** place: `apply_animation_patch`. That is deliberate and worth preserving —
+`apply_motion_plan` and `compile_effect` both reach the project through that handler, so gating it
+gates every mutating semantic tool. A future mutating tool that writes to `state.js` directly
+bypasses the mode gate, the constraint check, the transaction and the snapshot in one step.
+
+**The decisions worth not relitigating:**
+
+- **A mode narrows; it never widens.** No mode grants permission the constraint system would
+  refuse. Part 11 requires even `create` — the most exploratory mode — to preserve locked
+  properties, so a lock outranks every mode.
+- **A read-only mode's refusal is NOT forceable.** Part 11 says leaving `analyze` is a transition
+  *the user* makes; a `force` flag that let a tool leave it would be the tool making that decision.
+- **There is no default mode.** `DEFAULT_MODE` is `null`, not `'create'`. Not knowing which mode is
+  active is a distinct state from being in a permissive one, and an unstated mode gets the strictest
+  defaults plus a `MODE-UNDECLARED` finding. Nothing infers the mode from request text — guessing it
+  would make the safest reading the one nobody chose.
+- **`modes.js` is policy, not police.** It decides the one question it can (may this mutate) and
+  returns the rest as `obligations`. "Polish must start with diagnosis" and "fix must stop when the
+  issue is resolved" are real Part 11 requirements that this layer *cannot verify* — it sees a
+  project and one action, never the session history. Named as limitations rather than faked.
+- **Comparing candidates never mutates.** Each one is planned against a clone, so a four-candidate
+  comparison touches the project zero times. That is why `compare_experiments` is READ-ONLY, and
+  the smoketest asserts the live singleton project is byte-identical afterwards.
+- **A candidate with no hypothesis is REFUSED, not compared.** Part 48 forbids "superficial random
+  parameter changes", and a parameter change with no stated claim is exactly that.
+- **Superficiality is only partly decidable, and the file says which part.** Identical result
+  hashes are caught outright. Two candidates moving the same variable in different units are
+  *reported for a human to judge, never refused* — Part 48's own example set has "anticipation plus
+  10 percent" and "anticipation plus four frames", so refusing that pattern would refuse the
+  directive's own example.
+- **A recommendation is justified from measured dimensions or withheld.** 5 of Part 48's 8
+  comparison dimensions are measured; when they tie, `recommend` returns **no winner** plus the
+  question a human must answer. A recommendation with nothing behind it is the failure Part 48
+  exists to prevent, so having none is better.
+- **Motion is measured but does not vote.** A peak speed is neither good nor bad without a declared
+  target direction — "snappier" wants it higher, "heavier" wants more deceleration contrast, and the
+  same number serves both. Motion decides only *through* `intent_alignment`, because an acceptance
+  check encodes the direction. That is exactly how the candidate that dragged a planted foot lost.
+
+**Two real bugs this half found, one in Phase 6's own work:**
+
+1. **`analyseScope` did not see an item the patch CREATES.** `add_item` keeps its id in
+   `op.item.id`, not `op.itemId` — the same root cause as the `buildPatch` bug in Phase 6, which
+   means the CLAUDE.md warning written *during* Phase 6 was not then applied to `scope.js`. An
+   `add_item` alone reported an **empty blast radius**, and with a following `set_key` the item
+   appeared but was resolved against the *pre-patch* project, so a creating patch reported a direct
+   target named `"(missing)"` with a null kind. Created items are now described from the planned
+   result and flagged `created_by_this_patch`. **When a new op kind is added, grep for every reader
+   of `op.itemId` — there were four files.**
+2. **`report.allowed` is not "nothing is wrong".** A contact constraint compiles to `warn`, so a
+   violation is reported while `allowed` stays `true` and the apply proceeds. That is right for
+   `apply_animation_patch` (a human asked for that exact edit) and wrong for an experiment, where
+   the declared protections are the *boundary*. `ai/experiment.js` therefore counts `violations`
+   rather than trusting `allowed`, and says so in the exclusion text. The first version of the
+   viability gate used `allowed` and silently let a protection-breaking candidate win.
+
+**Also corrected here:** the previous session's note said Phase 7 was "knowledge, memory and
+self-improvement". It is not — the matrix's own per-row phase annotations put `KNW-*`/`MEM-*` in
+Phase 8 and `BCH-*` in Phase 9. **The matrix rows are the authority on phase membership**, not the
+directive's part ordering. `MCP-007` was also stale from Phase 6 and now counts
+`validate_effect_timing`.
+
+**The directive is on disk at `C:\Users\alyco\Documents\Cadence_Animator_Ultimate_Master_Directive.md`
+and Phases 1–6 were built without reading it directly.** Reading Parts 47, 48, 49, 52, 14 and 11
+verbatim changed this phase's design materially — Part 62's success condition for Phase 7 is
+*"compare bounded alternatives and justify a recommendation"*, which makes `EXPT-001` the keystone
+rather than the simulation report a phase title would suggest. **Read the actual parts for the phase
+you are on.** `awk`/`python -c` on `^## <n>\.` extracts one part cleanly.
 
 ## Health pause - 2026-09-08 19:19:36 AST
 

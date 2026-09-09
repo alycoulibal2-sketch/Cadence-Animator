@@ -1616,6 +1616,41 @@ server.tool(
   async (a) => { try { return textResult(await call('compile_effect', a)); } catch (e) { return errorResult(e); } },
 );
 
+server.tool(
+  'operating_modes',
+  'READ-ONLY. Part 11\'s eight operating modes (create, polish, analyze, compare, fix, experiment, review, ship) and the exploration/production axis that crosses them, with what each one actually changes: whether it may mutate at all, how much freedom it has, what analysis it owes before acting, and what approval it needs. Pass a mode to see what it would resolve to before relying on it. IMPORTANT: a mode NARROWS and never widens — no mode overrides a lock or a refusing constraint, and `create` is the most exploratory mode while still being required to preserve locked properties. `analyze`, `compare` and `review` are read-only and a mutating call in one of them is refused and is NOT forceable, because Part 11 makes leaving a read-only mode the user\'s decision. An unstated mode stays unstated and gets the strictest defaults rather than being guessed from the request text. What a mode requires of the CALLER — "polish must start with diagnosis", "fix must stop when the issue is resolved" — is returned as obligations, because this layer sees one action and not the session history that would prove them.',
+  {
+    mode: z.string().optional().describe('A mode to resolve, e.g. "experiment". Omit to list them all. A typo is refused rather than falling back to "no mode", which would look permissive and be unlabelled.'),
+    discipline: z.string().optional().describe('exploration | production (default). Production means strict constraints, full provenance and explicit acceptance.'),
+  },
+  async (a) => { try { return textResult(await call('operating_modes', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'compare_experiments',
+  'READ-ONLY (it records the comparison in provenance; NO candidate is applied). Part 48\'s controlled experiments: compare bounded, named alternatives and get a recommendation that names the measurements behind it. Every candidate is planned against a CLONE, so comparing four alternatives changes the project zero times — that is what makes this safe to run before deciding anything, and applying the winner is a separate ordinary patch. Each candidate must declare a `hypothesis`, and one without it is REFUSED rather than compared: Part 48 forbids "superficial random parameter changes", and a parameter change with no stated claim is exactly that. Candidates are measured on 5 of Part 48\'s 8 dimensions — constraint compliance, regression risk, motion, intent alignment against the declared acceptance criteria, and a narrow performance proxy; visual analysis, reference alignment, user preference and human review are NOT measured and each says why. `protect` declares the boundary of the experiment and ANY violation disqualifies a candidate, which is deliberately stricter than apply_animation_patch (where a warn-level constraint proceeds, because a human asked for that exact edit). Two candidates that produce identical results are reported as one experiment under two names. If the measured dimensions do not separate the candidates, NO winner is returned and the question a human has to answer is — a recommendation with nothing behind it is the failure this tool exists to prevent.',
+  {
+    candidates: z.array(z.object({
+      name: z.string().describe('Part 48 names its examples "Experiment A" … "Experiment D". Required, so a person can refer to one.'),
+      hypothesis: z.string().describe('What this candidate claims will improve, and why. REQUIRED — a candidate without one is refused, not compared.'),
+      ops: z.array(z.object({}).passthrough()).describe('The changed variables as real patch operations, in the same shape apply_animation_patch takes.'),
+      expected_effect: z.string().optional().describe('What the animator should SEE if the hypothesis holds. Carried for the human review step; not measurable here.'),
+      metric: z.string().optional().describe('How this candidate should be judged. Falls back to the set-wide acceptance criteria.'),
+      render_configuration: z.object({}).passthrough().optional().describe('Recorded and passed through — this tool renders nothing.'),
+      protected_variables: z.array(z.string()).optional().describe('Protections this candidate adds on top of the set-wide ones.'),
+    })).min(2).describe('At least two. One alternative is just an edit — use preview_animation_patch for that.'),
+    name: z.string().optional().describe('A label for the whole set, e.g. "Give the slash more weight".'),
+    intent: z.string().optional().describe('The request this set came from. Recorded in provenance.'),
+    itemId: z.string().optional().describe('The item the experiment is about, for the motion measurement. Defaults to the selection.'),
+    protect: z.union([z.string(), z.object({}).passthrough()]).optional().describe('Protected variables for the whole set, in the same closed grammar the patch tools take (e.g. "keep the left foot within 0.05 studs from frame 0 to 16"). A line that does not parse is reported, because a protection nobody parsed is a protection nobody applied.'),
+    acceptance: z.object({ checks: z.array(z.object({}).passthrough()) }).optional().describe('An AcceptanceSpec for the set. This is how a motion measurement gets a DIRECTION and becomes able to decide — without it, intent_alignment reports not_run rather than passing, and candidates often tie.'),
+    frame: z.number().optional().describe('The frame constraints are evaluated at. Defaults to the playhead.'),
+    mode: z.string().optional().describe('Part 11 operating mode (default "experiment").'),
+    discipline: z.string().optional().describe('exploration | production (default).'),
+  },
+  async (a) => { try { return textResult(await call('compare_experiments', a)); } catch (e) { return errorResult(e); } },
+);
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

@@ -534,6 +534,9 @@ function opHitsTarget(project, op, target, constraint) {
 function describeOpTarget(op) {
   if (op.track) return `${op.track} on ${op.itemId}`;
   if (op.path) return `${op.itemId ? 'item' : 'project'}.${op.path}`;
+  // `add_item` carries its id in `op.item.id`; without this it described itself as "the project",
+  // which reads as a project-wide edit rather than one new item.
+  if (op.op === 'add_item') return `a new ${op.item?.kind || 'item'}${op.item?.name ? ` ("${op.item.name}")` : ''}`;
   return op.itemId || 'the project';
 }
 
