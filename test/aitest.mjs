@@ -44,7 +44,10 @@ const BASE = await import('../renderer/js/ai/baseline.js');
 const EXP = await import('../renderer/js/ai/explain.js');
 const MOT = await import('../renderer/js/ai/motion.js');
 const DIAG = await import('../renderer/js/ai/diagnose.js');
+const EV = await import('../renderer/js/ai/events.js');
+const VS = await import('../renderer/js/ai/vfxspec.js');
 const CF = await import('../renderer/js/cf.js');
+const PARTICLES = await import('../renderer/js/particleLibrary.js');
 
 let passed = 0, failed = 0;
 function check(name, fn) {
@@ -129,7 +132,7 @@ check('purity: every ai/ module on disk is imported by this file', () => {
   // could reach for `window` freely, and the check below that greps the sources would catch the
   // obvious cases but not a lazy `await import('three')`.
   const onDisk = fs.readdirSync(path.join(ROOT, 'renderer/js/ai')).filter((n) => n.endsWith('.js') && n !== 'index.js').sort();
-  const imported = ['baseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'explain.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js', 'vocabulary.js'];
+  const imported = ['baseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'explain.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js'];
   assert.deepEqual(onDisk, imported, 'a module was added to renderer/js/ai without being imported at the top of test/aitest.mjs');
 });
 
@@ -152,6 +155,8 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     'plan_observation', 'create_baseline', 'list_baselines', 'explain_change', 'approve_difference',
     // Phase 5
     'analyze_motion', 'analyze_contacts', 'explain_motion_problem',
+    // Phase 6
+    'list_shot_events', 'describe_shot', 'validate_effect_timing', 'compile_effect',
   ];
   const src = fs.readFileSync(path.join(ROOT, 'mcp-server/index.js'), 'utf8');
   const found = new Map();
@@ -177,11 +182,14 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     'plan_observation', 'list_baselines', 'explain_change',
     // Same bargain again for explain_motion_problem: it records the diagnosis it reached and
     // nothing else. The two measurement tools write nothing at all.
-    'analyze_motion', 'analyze_contacts', 'explain_motion_problem']) {
+    'analyze_motion', 'analyze_contacts', 'explain_motion_problem',
+    // Phase 6's three read tools write nothing at all — not even a provenance record.
+    'list_shot_events', 'describe_shot', 'validate_effect_timing']) {
     assert.ok(found.get(t).startsWith('READ-ONLY'), `${t} must be declared READ-ONLY`);
   }
   for (const t of ['apply_animation_patch', 'rollback_transaction', 'lock_constraint', 'unlock_constraint',
-    'set_vocabulary_term', 'apply_motion_plan', 'create_baseline', 'approve_difference']) {
+    'set_vocabulary_term', 'apply_motion_plan', 'create_baseline', 'approve_difference',
+    'compile_effect']) {
     assert.ok(found.get(t).startsWith('MUTATING'), `${t} changes the project and must say MUTATING`);
   }
   // Part 50 also wants rollback capability declared. For the mutating patch tools that is the
@@ -3657,6 +3665,369 @@ check('layer: the whole Phase 1 loop runs end to end on one project', () => {
   assert.notEqual(before.hash, after.hash);
   assert.deepEqual(d.changed_frame_range, { start: 16, end: 16 });
   assert.ok(d.tracks[0].keys_modified[0].fields.includes('v'));
+});
+
+// ---------------------------------------------------------------- Phase 6: events + VFXSpec
+
+check('patch: add_item and remove_item are exact inverses', () => {
+  const p = fixture();
+  const origin = H.contentHash(p);
+  const item = { id: 'vfx-x', kind: 'vfx', name: 'Sparks', origin: I(), emitter: { rate: 12 }, visible: true };
+
+  const patch = PATCH.makePatch({ ops: [{ op: 'add_item', item }], intent: 'add an emitter' });
+  const plan = PATCH.planPatch(p, patch);
+  assert.equal(plan.applicable, true);
+  assert.equal(plan.ops[0].effect, 'created');
+  assert.deepEqual(plan.inverse.ops.map((o) => o.op), ['remove_item']);
+
+  const done = PATCH.commitPatch(p, patch, plan);
+  assert.equal(p.items.length, 4);
+  assert.deepEqual(p.tracks['vfx-x'], {}, 'an added item gets an empty track table, as state.addItem does');
+
+  // And back, byte-identical — not merely close.
+  const back = PATCH.planPatch(p, done.inverse);
+  PATCH.commitPatch(p, done.inverse, back);
+  assert.equal(H.contentHash(p), origin);
+  assert.equal(p.tracks['vfx-x'], undefined);
+});
+
+check('patch: remove_item carries an item\'s tracks and markers into its own inverse', () => {
+  const p = fixture();
+  const origin = H.contentHash(p);
+  // `hero` owns tracks AND a marker table, so a bare item-only inverse would silently lose both.
+  const patch = PATCH.makePatch({ ops: [{ op: 'remove_item', itemId: 'cam' }] });
+  const plan = PATCH.planPatch(p, patch);
+  assert.equal(plan.applicable, true);
+  const inv = plan.inverse.ops[0];
+  assert.equal(inv.op, 'add_item');
+  assert.ok(inv.tracks['@fov'], 'the inverse must carry the track table back');
+
+  const done = PATCH.commitPatch(p, patch, plan);
+  assert.equal(p.tracks.cam, undefined);
+  PATCH.commitPatch(p, done.inverse, PATCH.planPatch(p, done.inverse));
+  assert.equal(H.contentHash(p), origin, 'tracks and markers must come back with the item');
+});
+
+check('patch: add_item refuses a duplicate id, a rig and a PNX effect', () => {
+  const p = fixture();
+  const bad = (item) => {
+    const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'add_item', item }] }));
+    assert.equal(plan.applicable, false);
+    return plan.problems[0].statement;
+  };
+  assert.match(bad({ id: 'hero', kind: 'vfx' }), /already exists/);
+  assert.match(bad({ id: 'r2', kind: 'rig' }), /rig topology is not animation data/);
+  assert.match(bad({ id: 'e2', kind: 'effect' }), /own undo and its own validators/);
+  assert.match(bad({ id: 'p2', kind: 'prop' }), /attach_item exists for that reason/);
+  assert.match(bad({ id: 'q2', kind: 'sasquatch' }), /unknown item kind/);
+  // An id is required, because commitPatch verifies the applied result against the planned hash.
+  // (A handler throw becomes a refusal, not a propagated exception — runOps wraps the dispatch.)
+  assert.match(bad({ kind: 'vfx' }), /needs a string id/);
+  assert.match(bad({ id: 'k2' }), /needs a kind/);
+});
+
+check('patch: remove_item refuses to strand a key group, a semantic record or an attachment', () => {
+  const p = fixture();
+  // `sword` is attached to `hero`, so removing the host would leave it in no transform space.
+  let plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'remove_item', itemId: 'hero' }] }));
+  assert.equal(plan.applicable, false);
+  assert.match(plan.problems[0].statement, /another item is attached/);
+
+  const q = fixture();
+  q.items = q.items.filter((i) => i.id !== 'sword');
+  q.groups = [{ id: 'g1', keys: [{ itemId: 'hero', track: 'RightShoulder', t: 0 }] }];
+  plan = PATCH.planPatch(q, PATCH.makePatch({ ops: [{ op: 'remove_item', itemId: 'hero' }] }));
+  assert.equal(plan.applicable, false);
+  assert.match(plan.problems[0].statement, /key group\(s\) still hold keys/);
+
+  const r = fixture();
+  r.items = r.items.filter((i) => i.id !== 'sword');
+  r.semantics = { roles: { hero: { RightHand: 'weapon_hand' } } };
+  plan = PATCH.planPatch(r, PATCH.makePatch({ ops: [{ op: 'remove_item', itemId: 'hero' }] }));
+  assert.equal(plan.applicable, false);
+  assert.match(plan.problems[0].statement, /semantic layer still refers/);
+});
+
+check('snapshot: a brand-new keyed track contributes its frames to the changed range', () => {
+  // Regression. An added track used to report only a key COUNT, so `frameRangeOf`, ai/explain.js
+  // and ai/observe.js — all of which read `keys_added` — saw no frames at all, and a regression
+  // pass would have skipped exactly the frames the new track occupies.
+  const before = fixture();
+  const after = JSON.parse(JSON.stringify(before));
+  after.tracks.hero['@rate'] = { keys: [{ t: 22, v: 0 }, { t: 24, v: 105 }, { t: 34, v: 0 }] };
+
+  const d = SNAP.diffProjects(before, after);
+  const tc = d.tracks.find((t) => t.track === '@rate');
+  assert.equal(tc.change, 'added');
+  assert.equal(tc.keys, 3, 'the count is kept for the callers that read it');
+  assert.deepEqual(tc.keys_added, [22, 24, 34]);
+  assert.deepEqual(d.changed_frame_range, { start: 22, end: 34 });
+  assert.match(d.summary, /3 keyframe change/);
+
+  // Symmetrically for a removal.
+  const d2 = SNAP.diffProjects(after, before);
+  assert.deepEqual(d2.tracks.find((t) => t.track === '@rate').keys_removed, [22, 24, 34]);
+  assert.deepEqual(d2.changed_frame_range, { start: 22, end: 34 });
+});
+
+check('events: the shared timeline projects every per-item marker table into one ordered view', () => {
+  const p = fixture();
+  p.markers.cam = [{ t: 4, width: 0, name: 'cut' }, { t: 40, width: 0, name: 'settle' }];
+  const tl = EV.buildTimeline(p);
+  assert.equal(tl.count, 3);
+  assert.deepEqual(tl.events.map((e) => e.frame), [4, 16, 40], 'ordered by frame across items');
+  assert.deepEqual(tl.items.sort(), ['cam', 'hero']);
+  const impact = tl.events.find((e) => e.name === 'impact');
+  assert.equal(impact.itemId, 'hero');
+  assert.equal(impact.itemName, 'Hero');
+  assert.deepEqual(impact.span, [16, 18], 'a widthed event occupies a span, not an instant');
+  assert.equal(tl.byId.get(impact.id).frame, 16);
+});
+
+check('events: an event name on two items is a question, not a guess', () => {
+  const p = fixture();
+  p.markers.cam = [{ t: 30, width: 0, name: 'impact' }];
+  const amb = EV.resolveEvent(p, 'impact');
+  assert.equal(amb.frame, null, 'picking the earlier one would silently time an effect to the wrong item');
+  assert.equal(amb.ambiguous, true);
+  assert.match(amb.question, /2 different items/);
+
+  // Naming the item resolves it.
+  assert.equal(EV.resolveEvent(p, 'impact', { itemId: 'hero' }).frame, 16);
+  assert.equal(EV.resolveEvent(p, { frame: 12 }).frame, 12, 'an explicit frame is never ambiguous');
+  assert.equal(EV.resolveEvent(p, 'nope').frame, null);
+  assert.match(EV.resolveEvent(p, 'nope').question, /Known event names: impact/);
+});
+
+check('events: an event id encodes its frame, so a retimed marker says so rather than "not found"', () => {
+  const p = fixture();
+  const tl = EV.buildTimeline(p);
+  const id = tl.events[0].id;
+  assert.equal(EV.resolveEvent(p, { id }, { timeline: tl }).frame, 16);
+  // Retime the marker; the old id must not silently resolve to something else.
+  p.markers.hero[0].t = 20;
+  const stale = EV.resolveEvent(p, { id });
+  assert.equal(stale.frame, null);
+  assert.match(stale.question, /has since been retimed/);
+});
+
+check('events: a marker table whose item is gone is reported, not listed as an event', () => {
+  const p = fixture();
+  p.markers.ghost = [{ t: 5, width: 0, name: 'orphan' }];
+  const tl = EV.buildTimeline(p);
+  assert.equal(tl.count, 1, 'an event nothing owns is not on the timeline');
+  assert.equal(tl.warnings[0].id, 'EVENTS-ORPHANED-TABLE');
+  assert.match(tl.warnings[0].statement, /no longer exists/);
+});
+
+check('events: concurrency and overlap are what a per-item marker list cannot show', () => {
+  const p = fixture();
+  p.markers.cam = [{ t: 16, width: 4, name: 'shake', codeBegin: 'shake()' }];
+  const tl = EV.buildTimeline(p);
+
+  const conc = EV.concurrentEvents(tl);
+  assert.equal(conc.length, 1);
+  assert.equal(conc[0].frame, 16);
+  assert.equal(conc[0].crossItem, true, 'two items landing on one frame is the fact worth surfacing');
+  assert.equal(conc[0].withCode, 1);
+
+  const ov = EV.overlaps(tl);
+  assert.equal(ov.length, 1);
+  assert.equal(ov[0].from, 16);
+  assert.equal(ov[0].to, 18, 'the overlap extent distinguishes a clip from an eclipse');
+  assert.equal(ov[0].sameItem, false);
+
+  assert.deepEqual(EV.eventsSpanning(tl, 17).map((e) => e.name).sort(), ['impact', 'shake']);
+  assert.deepEqual(EV.eventsSpanning(tl, 30), [], 'a frame outside every span is inside nothing');
+  assert.equal(EV.eventsInRange(tl, 0, 16).length, 2);
+});
+
+check('events: describeShot reports what the project holds and names what it does not', () => {
+  const p = fixture();
+  const shot = EV.describeShot(p);
+  assert.equal(shot.fps, 30);
+  assert.equal(shot.length_frames, 60);
+  assert.equal(shot.duration_seconds, 2);
+  assert.equal(shot.cameras.length, 1);
+  assert.equal(shot.active_camera, 'cam', 'one camera is unambiguous');
+  assert.equal(shot.characters[0].itemId, 'hero');
+  assert.equal(shot.events, 1);
+  // Part 4.7: the absent things are named, so a caller does not conclude they are unsupported.
+  assert.match(shot.absent.shot_entity, /no Shot record/);
+  assert.match(shot.absent.camera_spec, /SHOT-003/);
+
+  // With two cameras, nothing in the project marks which one the shot uses — so it says so.
+  p.items.push({ id: 'cam2', kind: 'camera', name: 'Camera 2', origin: I() });
+  const two = EV.describeShot(p);
+  assert.equal(two.active_camera, null);
+  assert.match(two.absent.active_camera, /nothing in the project marks one/);
+});
+
+check('vfxspec: the primitive vocabulary is derived from the preset table, not restated', () => {
+  assert.equal(VS.PRIMITIVES.length, 22);
+  assert.ok(VS.PRIMITIVES.includes('explosion-debris'));
+  assert.ok(VS.PRIMITIVES.includes('blood-splatter'), 'a hyphenated material key must survive the split');
+  assert.deepEqual(VS.THEMES, ['arcane', 'classic', 'ember', 'holy', 'ice', 'toxic']);
+  // Every primitive/theme/scale triple must name a real preset, or compileSpec would throw.
+  for (const prim of VS.PRIMITIVES) {
+    for (const theme of VS.THEMES) {
+      for (const scale of VS.SCALES) {
+        assert.ok(PARTICLES.findPreset(`${prim}-${theme}-${scale}`), `${prim}-${theme}-${scale} must exist`);
+      }
+    }
+  }
+});
+
+check('vfxspec: timing resolves lead, attack, sustain and decay into an envelope', () => {
+  const p = fixture();
+  const t = VS.resolveTiming(p, { timing: { event: 'impact', lead: 2, attack: 3, sustain: 4, decay: 6 } });
+  assert.equal(t.resolved, true);
+  assert.equal(t.event_frame, 16);
+  assert.equal(t.peak_frame, 14, 'a positive lead means the effect PEAKS before the event');
+  assert.equal(t.start_frame, 11);
+  assert.equal(t.hold_frame, 18);
+  assert.equal(t.end_frame, 24);
+  assert.equal(t.duration_frames, 13);
+
+  // A degenerate attack/decay would put two keys on one frame, which is not a ramp.
+  const z = VS.resolveTiming(p, { timing: { event: 'impact', attack: 0, decay: 0 } });
+  assert.equal(z.attack, 1);
+  assert.equal(z.decay, 1);
+  assert.deepEqual(z.findings.map((f) => f.id).sort(), ['VFX-ATTACK-CLAMPED', 'VFX-DECAY-CLAMPED']);
+
+  // An envelope that runs off either end of the timeline is reported.
+  const early = VS.resolveTiming(p, { timing: { frame: 1, attack: 10 } });
+  assert.ok(early.findings.some((f) => f.id === 'VFX-STARTS-BEFORE-ZERO'));
+  const late = VS.resolveTiming(p, { timing: { frame: 58, decay: 20 } });
+  assert.ok(late.findings.some((f) => f.id === 'VFX-OUTLIVES-TIMELINE'));
+});
+
+check('vfxspec: an unknown primitive, a missing anchor part and an unresolvable event are refused', () => {
+  const p = fixture();
+  const base = { primitive: 'explosion-debris', anchor: { itemId: 'hero', partId: 'RightHand' }, timing: { event: 'impact' } };
+
+  const unknown = VS.compileSpec(p, { ...base, primitive: 'explosion' });
+  assert.equal(unknown.ok, false);
+  assert.equal(unknown.ops.length, 0, 'a refused spec must not emit half a patch');
+  const f = unknown.findings.find((x) => x.id === 'VFX-PRIMITIVE-UNKNOWN');
+  assert.equal(f.suggestion.text, 'did you mean explosion-debris?');
+
+  assert.equal(VS.compileSpec(p, { ...base, anchor: { itemId: 'hero', partId: 'Tentacle' } }).ok, false);
+  assert.equal(VS.compileSpec(p, { ...base, anchor: { itemId: 'nobody' } }).ok, false);
+  assert.equal(VS.compileSpec(p, { ...base, timing: { event: 'nonexistent' } }).ok, false);
+  assert.equal(VS.compileSpec(p, { ...base, offset: [0, 1] }).ok, false);
+  assert.equal(VS.compileSpec(p, { ...base, role: 'starring' }).ok, false);
+  assert.equal(VS.compileSpec(p, {}).ok, false);
+});
+
+check('vfxspec: Part 38\'s role hierarchy shares the particle budget', () => {
+  const p = fixture();
+  const base = { primitive: 'smoke', anchor: { itemId: 'hero', partId: 'RightHand' }, timing: { event: 'impact' } };
+  const prim = VS.compileSpec(p, { ...base, role: 'primary', budget: { maxParticles: 200 } });
+  const sup = VS.compileSpec(p, { ...base, role: 'supporting', budget: { maxParticles: 200 } });
+  const res = VS.compileSpec(p, { ...base, role: 'residual', budget: { maxParticles: 200 } });
+  assert.equal(prim.budget.granted, 200);
+  assert.equal(sup.budget.granted, 100);
+  assert.equal(res.budget.granted, 50);
+  assert.equal(prim.item.emitter.maxParticles, 200);
+  // A reduced budget is reported rather than applied silently.
+  assert.ok(sup.findings.some((x) => x.id === 'VFX-BUDGET-SHARED'));
+  assert.ok(!prim.findings.some((x) => x.id === 'VFX-BUDGET-SHARED'));
+  // The three roles are three different specs, so three different items.
+  assert.equal(new Set([prim.item.id, sup.item.id, res.item.id]).size, 3);
+});
+
+check('vfxspec: a spec compiles to a deterministic id, so the same spec twice is idempotent', () => {
+  const p = fixture();
+  const spec = { primitive: 'fire', theme: 'ember', anchor: { itemId: 'hero' }, timing: { event: 'impact' } };
+  const a = VS.compileSpec(p, spec);
+  const b = VS.compileSpec(p, { ...spec, intent: 'presentational, not part of what the spec MEANS' });
+  assert.equal(a.item.id, b.item.id, 'the id derives from meaning, not from field order or intent prose');
+  assert.match(a.item.id, /^vfx-[0-9a-f]+$/);
+
+  // Committing it twice therefore refuses as a duplicate rather than stacking two emitters.
+  const patch = PATCH.makePatch({ ops: a.ops });
+  PATCH.commitPatch(p, patch, PATCH.planPatch(p, patch));
+  assert.equal(PATCH.planPatch(p, patch).applicable, false);
+
+  // A materially different spec is a different item.
+  assert.notEqual(VS.compileSpec(p, { ...spec, theme: 'ice' }).item.id, a.item.id);
+});
+
+check('vfxspec: validateTiming judges the peak against the event and catches an open envelope', () => {
+  const p = fixture();
+  // An emitter with no envelope at all is not timed to anything.
+  p.items.push({ id: 'amb', kind: 'vfx', name: 'Ambient', origin: I(), emitter: { rate: 6 }, visible: true });
+  p.tracks.amb = {};
+  let vt = VS.validateTiming(p);
+  assert.ok(vt.findings.some((f) => f.id === 'VFX-NO-ENVELOPE'));
+
+  // A compiled one peaks exactly on its event.
+  const c = VS.compileSpec(p, { primitive: 'explosion-debris', anchor: { itemId: 'hero', partId: 'RightHand' }, timing: { event: 'impact' } });
+  const patch = PATCH.makePatch({ ops: c.ops });
+  PATCH.commitPatch(p, patch, PATCH.planPatch(p, patch));
+  vt = VS.validateTiming(p);
+  const peak = vt.findings.find((f) => f.id === 'VFX-PEAK-ON-EVENT');
+  assert.ok(peak, 'the compiled envelope must land on the event it was timed to');
+  assert.match(peak.statement, /peaks exactly on event "impact" at frame 16/);
+
+  // An envelope whose last key is hot keeps emitting forever.
+  p.tracks[c.item.id]['@rate'].keys.at(-1).v = 40;
+  assert.ok(VS.validateTiming(p).findings.some((f) => f.id === 'VFX-ENVELOPE-UNCLOSED'));
+});
+
+check('layer: the Phase 6 success condition — a parameterized impact effect is attached, timed, and reversible', () => {
+  // Part 62, Phase 6, verbatim: "Cadence can generate a parameterized impact effect that remains
+  // attached, timed, and reversible." End to end through the real machinery — no renderer.
+  const p = fixture();
+  const origin = H.contentHash(p);
+  const ledger = new TXN.TransactionLedger();
+
+  // The shot already carries the event the effect must hit.
+  const tl = EV.buildTimeline(p);
+  assert.equal(EV.resolveEvent(p, 'impact', { timeline: tl }).frame, 16);
+
+  // PARAMETERIZED — a declarative spec, not a hand-built item.
+  const spec = {
+    primitive: 'explosion-debris', theme: 'ember', scale: 'large', role: 'primary',
+    anchor: { itemId: 'hero', partId: 'RightHand' }, offset: [0, -0.5, 0],
+    timing: { event: 'impact', lead: 0, attack: 2, decay: 8 },
+    intent: 'a heavy impact on the sword hand',
+  };
+  const c = VS.compileSpec(p, spec, { timeline: tl });
+  assert.equal(c.ok, true);
+  assert.equal(c.preset.id, 'explosion-debris-ember-large');
+
+  // ATTACHED — the emitter rides the hand, so it follows the animation rather than sitting still.
+  assert.equal(c.item.attachedTo.itemId, 'hero');
+  assert.equal(c.item.attachedTo.partId, 'RightHand');
+  assert.deepEqual(c.item.attachedTo.offset.slice(0, 3), [0, -0.5, 0]);
+
+  // TIMED — the rate envelope peaks on the event, and closes.
+  assert.deepEqual(c.envelope, [{ frame: 14, rate: 0 }, { frame: 16, rate: c.envelope[1].rate }, { frame: 24, rate: 0 }]);
+  assert.ok(c.envelope[1].rate > 0);
+
+  // Applied through the transaction machinery like any other edit.
+  const patch = PATCH.makePatch({ ops: c.ops, intent: spec.intent });
+  const plan = PATCH.planPatch(p, patch);
+  assert.equal(plan.applicable, true);
+  // The affected frame range must cover the envelope — this is what a regression pass renders.
+  assert.deepEqual(plan.diff.changed_frame_range, { start: 14, end: 24 });
+  const applied = TXN.apply(p, patch, plan, { ledger, timestamp: 'T1' });
+  assert.equal(applied.applied, true);
+
+  // The effect is now really there, and really timed to the event.
+  const vt = VS.validateTiming(p);
+  assert.ok(vt.findings.some((f) => f.id === 'VFX-PEAK-ON-EVENT'));
+  assert.equal(p.items.find((i) => i.id === c.item.id).emitter.motion, 'burst', 'an impact is omnidirectional, not a spray');
+
+  // REVERSIBLE — the whole effect, item and envelope together, comes back out byte-identically.
+  const back = TXN.rollback(p, ledger, applied.transaction_id, { timestamp: 'T2' });
+  assert.equal(back.rolled_back, true);
+  assert.equal(back.complete, true);
+  assert.equal(H.contentHash(p), origin, 'the rollback must land byte-identical, not merely close');
+  assert.equal(p.items.some((i) => i.kind === 'vfx'), false);
+  assert.equal(p.tracks[c.item.id], undefined);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

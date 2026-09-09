@@ -28,33 +28,36 @@ whole, and Part 7 explicitly says to load only what the work needs.
 ## Where the programme is
 
 - Branch: `animation-intelligence`, off `main` at `8343e2f` (v0.11.0).
-- **Phases 0, 1, 2, 3, 4 and 5 are done.** Phases 6–9 are not started.
+- **Phases 0–6 are done.** Phases 7–9 are not started.
 - Commits: `54ea3f4` (Phase 1), `88265c9` (Phase 2), `0cadfd9` (Phase 3), `d36e10c` (Phase 4),
-  Phase 5 is the tip.
-- The semantic layer is `renderer/js/ai/**` — 25 modules, 34 MCP tools (174 in the app overall).
+  `c9973b8` (Phase 5), Phase 6 is the tip.
+- The semantic layer is `renderer/js/ai/**` — 27 modules, 38 MCP tools (178 in the app overall).
   Phase 4 also added one module OUTSIDE that tree, `renderer/js/observationPasses.js`, which is
   where three.js lives.
 
-**Phase 6 is next: VFX compiler and shot events.** Part 62's success condition is *"Cadence can
-generate a parameterized impact effect that remains attached, timed, and reversible."* Its parts
-are VFXSpec, a small set of effect primitives, an event timeline, animation/VFX timing validation,
-and effect isolation and diagnostics (directive Part 37 and around it; `VFX-*` and `SHOT-*` rows in
-the matrix).
+**Phase 7 is next: knowledge, memory and self-improvement.** Part 62's success condition is
+*"Cadence improves a result using recorded knowledge from earlier work."* Its rows are the `KNW-*`
+and `MEM-*` families plus `BCH-001`; every one of them is currently `unplanned`, so this phase
+starts from nothing rather than from a partial.
 
-The situation Phase 6 walks into is different from every phase before it, and worth understanding
-before picking rows. **Cadence already HAS a large procedural VFX engine** — `renderer/js/pnx/**`,
-390+ node types, its own studio window, its own Luau exporter, its own 298-check suite. Phase 6 is
-therefore **not** "build VFX"; it is building the semantic/spec layer that can *drive and reason
-about* what already exists, the way Phase 3's CAL drives the keyframe machinery rather than
-reimplementing it. Two consequences:
+Three things about the ground it lands on, learned in Phases 5 and 6 and worth knowing before
+picking rows:
 
-- The `ai/` purity rule and `pnx/` are in tension: `pnx/` is not pure and not importable from
-  `ai/`. Expect to need the same boundary trick Phase 4 used for pixels — a plain-data spec crosses,
-  the impure engine work stays outside the tree. Decide that boundary FIRST, before writing a
-  VFXSpec, or the whole phase ends up unimportable in `aitest`.
-- 5 of Part 20's VFX motion dimensions currently compile to nothing (see `ai/cal.js`). They are the
-  natural first customers for a VFXSpec, and are the honest way to check the layer is real rather
-  than a row of shells (rule 9 / directive 4.6).
+- **The durable record already exists and it is the provenance graph.** `ai/provenance.js` is
+  append-only, lives inside the project file, and every phase since 2 has been writing to it —
+  Phase 6's `compile_effect` records the whole VFXSpec, not just its ops, exactly so a later
+  session can ask what was asked for. The transaction ledger, the snapshot store and the raster
+  store are all IN MEMORY and session-scoped (`CLAUDE.md`, "Pitfalls with teeth"). So a memory
+  feature built on the ledger promises something it cannot deliver across a restart; one built on
+  provenance does not.
+- **There is no cross-project store, and inventing one is a real decision, not a detail.** Nothing
+  in Cadence holds data outside a single `.cadence` file. "Knowledge from earlier work" therefore
+  needs either a new user-data store in `src/main.js` (which is outside the pure layer, and needs
+  the same plain-data boundary Phase 4 used for pixels) or an explicit import step. Decide which
+  BEFORE writing a KNW row, the way Phase 6 had to settle the pnx/vfx boundary first.
+- **`ai/baseline.js` is the closest existing thing to remembered work** and is already project
+  data rather than disposable screenshots. Read it before designing a memory store; it may be that
+  what Phase 7 wants is a generalisation of it rather than a new mechanism.
 
 ## The rules this codebase holds itself to
 
@@ -91,13 +94,13 @@ Run from the repo root. `npm` is broken under Git Bash here — use PowerShell, 
 `.\node_modules\.bin\electron.cmd` directly rather than `npm run`.
 
 ```
-node test/aitest.mjs     # semantic layer   — currently 272/272, ~1s
+node test/aitest.mjs     # semantic layer   — currently 290/290, ~1s
 node test/coretest.mjs   # core             — currently  41/41
 node test/pnxtest.mjs    # PNX engine       — currently 298/298
 ```
 
 ```powershell
-# the Electron smoketest: 97 steps against the real app, ~4 minutes
+# the Electron smoketest: 98 steps against the real app, ~4 minutes
 Remove-Item test-output/userdata -Recurse -Force -ErrorAction SilentlyContinue
 .\node_modules\.bin\electron.cmd . --disable-backgrounding-occluded-windows `
   --disable-renderer-backgrounding --disable-background-timer-throttling `
@@ -370,6 +373,100 @@ and no PR was opened**. A later session recovered it. Two things that recovery t
 2. The recovering session burned two wrong conclusions on the known *Fire & smoke* / *Effect Look*
    cascade before re-reading the "Known flakes" section above. That section is now explicit that
    the cascade changes shape between runs.
+
+### Phase 6 — VFX compiler and shot events
+
+Two new modules, both pure at load, plus the first patch operations that CREATE and DESTROY an
+entity rather than editing one:
+
+- **`ai/events.js`** (Part 41, and Part 40 as far as it honestly goes). The shared shot-event
+  timeline, plus `describeShot`.
+- **`ai/vfxspec.js`** (Parts 37–39, and Part 38's hierarchy). A declarative effect, compiled into
+  reversible operations.
+- **`ai/patch.js` gains `add_item` and `remove_item`**, mutual inverses.
+
+Four MCP tools, both halves registered: `list_shot_events`, `describe_shot`,
+`validate_effect_timing` (read) and `compile_effect` (mutating). 178 tools in the app.
+`SEMANTIC_LAYER_VERSION` → `1.6.0`. Matrix: 3 rows to `implemented` (VFX-002, VFX-010, SHOT-002),
+2 to `partial` (SHOT-001, VFX-011); 165 rows now
+*implemented 78 · partial 24 · designed 8 · deferred 2 · blocked 1 · unplanned 52.*
+
+Part 62's success condition is proven at the handler boundary by a new smoketest step: *"a
+parameterized impact effect is attached to a hand, timed to an event, and undone."*
+
+**THE decision this phase turned on, settled before any code: a VFXSpec targets the
+`kind: 'vfx'` emitter item, NOT the PNX graph.** Cadence already has a 390-node procedural VFX
+engine, so the question was never "how do we make effects" but "which of the three VFX systems
+does the semantic layer drive". The emitter item won on three grounds: it is the one effect
+representation `ai/patch.js` can edit field-by-field (so a spec can be previewed and rolled back,
+where a PNX document has its own undo the transaction ledger cannot see); `renderer/js/vfx.js` and
+`particleLibrary.js` are pure and importable from `ai/` while `pnx/**` is not; and the sampler is
+already deterministic under scrubbing. The full reasoning is at the top of `ai/vfxspec.js` —
+**read it before proposing that Phase 7+ author PNX graphs from a spec.**
+
+**The other decisions worth not relitigating:**
+
+- **The shared timeline is DERIVED, never migrated.** Markers stay in `project.markers[itemId]`.
+  Re-keying them into one project-level table would be a destructive migration across `state.js`,
+  `io.js`, the timeline UI and every saved file, and buys nothing a projection cannot. Same call
+  `ai/ids.js` made about the track table.
+- **A shared timeline has to earn its keep, and `concurrentEvents`/`overlaps` are how.** Any one
+  item's markers are already visible in the editor; what no surface showed is two events on
+  DIFFERENT items sharing a frame, or one event's Luau hook firing inside another's span. Co-timing
+  is reported as a fact, never a problem — two characters impacting on one frame is usually the
+  point.
+- **The primitive vocabulary is `particleLibrary.js`, not a new list.** 22 material archetypes ×
+  6 themes × 3 scales, already shared by the Inspector and the VFX Studio. `PRIMITIVES` is derived
+  from the preset table, so adding a material extends the spec language for free.
+- **A new item may declare its attachment; an existing one may not.** `set_item_field` still
+  refuses `attachedTo`, because re-parenting something that already has a world position must
+  re-derive the offset to keep it visually still — and this layer has no solved poses. A newly
+  created item has no prior position to preserve, so its offset IS the declared offset. The
+  asymmetry is real; it is not an oversight to be "fixed".
+- **The new item's id is DERIVED from the spec** (`vfx-<hash>`), for two reasons that both matter:
+  `commitPatch` verifies the applied result against the hash the plan predicted, so a
+  `crypto.randomUUID()` would make every commit fail its own post-condition; and compiling the same
+  spec twice then refuses as a duplicate instead of silently stacking two identical emitters.
+- **`remove_item` refuses rather than stranding.** `state.removeItem` drops an item and its tracks
+  and leaves group entries and semantic records pointing at nothing. Reproducing that would make
+  the op non-invertible, so it refuses when a key group, a semantic record or another item's
+  attachment still refers to the item, and names which.
+- **`lead` is defined once**: how far BEFORE the event the effect PEAKS. It is the field most
+  easily got backwards, so the definition lives in one place with the envelope algebra beside it.
+- **The envelope goes on `@rate` only.** `@lifetime` and `@speed` stay static because `vfx.js`
+  resolves them AT SPAWN; keying them would mean a per-particle constant that changes
+  retroactively, which is precisely what that file is built not to do.
+- **Measurement is separated from judgement again** (Part 4.5): `resolveTiming` computes the
+  envelope, `validateTiming` judges it.
+
+**Two real bugs this phase found in existing code, both pre-existing and neither introduced here:**
+
+1. **`diffProjects` reported a whole new keyed track as a key COUNT and never its key TIMES.**
+   `frameRangeOf`, `ai/explain.js` and `ai/observe.js` all build their frame lists from
+   `keys_added`/`keys_removed`, so a brand-new track contributed **no affected frames at all** —
+   `changed_frame_range` came back `null`, and that range is exactly what Part 44 uses to avoid
+   re-rendering a whole shot. Only the human-readable line was right (it reads `t.keys`), which is
+   why it went unnoticed. Fixed at the source, with `keys` kept for existing callers.
+2. **`buildPatch` (app.js) pre-validated every op's `itemId` against the CURRENT project**, so a
+   patch that creates the item its later ops address was rejected for addressing the emitter it was
+   in the middle of creating. Ids added earlier in the same patch now count as present. **This one
+   is only reachable through the handler boundary** — the unit tests build patches directly and
+   never see it. It is the second time this programme has found a bug that only the in-app
+   smoketest could reach; budget for that step, do not skip it.
+
+**Deliberately not done, and named rather than hidden:** a VFXSpec compiles to ONE emitter — no
+multi-layer PNX authoring, no beams/trails/meshes, no light, no sound, no particle collision (all
+listed in `VFXSPEC_FIELDS.absent`, with the reason each is impossible in a Cadence project rather
+than merely unbuilt). There is still no Shot entity: `describeShot` reports what the project holds
+and names the rest in an `absent` block instead of inventing a record whose fields cannot be
+written (SHOT-001 is `partial` for exactly that reason, not `implemented`). Part 38's hierarchy is
+a declared intent with one real consequence (the budget share); nothing measures whether the
+primary effect actually READS as primary, which needs the observation passes (VFX-009).
+
+**A note on the known flakes:** the *Fire & smoke* / *Effect Look* cascade documented above did
+**not** fire on either full smoketest run this iteration. That does not mean it is fixed — it is
+GPU-timing dependent, and the previous two sessions both saw it. Do not read a clean run as
+evidence either way.
 
 ## Health pause - 2026-09-08 19:19:36 AST
 

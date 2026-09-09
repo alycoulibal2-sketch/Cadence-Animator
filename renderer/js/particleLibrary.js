@@ -135,6 +135,15 @@ function buildPresets() {
 }
 
 export const PARTICLE_PRESETS = buildPresets();
+
+// The three axes a preset id is built from, exported so a consumer does not have to recover them
+// by splitting ids on '-'. Material keys are themselves hyphenated ("explosion-debris"), so that
+// split only works while every theme and scale key is a single segment — a silent trap for whoever
+// adds "deep-ice". `ai/vfxspec.js` uses these as its spec vocabulary.
+export const MATERIAL_KEYS = MATERIALS.map((m) => m.key);
+export const THEME_KEYS = COLOR_THEMES.map((t) => t.key);
+export const SCALE_KEYS = SCALES.map((s) => s.key);
+export const presetId = (material, theme, scale) => `${material}-${theme}-${scale}`;
 export const CATEGORIES = ['All', ...new Set(MATERIALS.map((m) => m.category))];
 
 export function searchPresets(query, category) {

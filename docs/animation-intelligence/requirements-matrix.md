@@ -5,10 +5,10 @@ Directive Part 9. **This is the living document.** Every requirement in
 may disappear because it is inconvenient. If it is deferred, explain the dependency and preserve
 its interface."*
 
-Last reconciled against the source tree: **v0.11.0 + animation-intelligence Phases 1–5**, by
+Last reconciled against the source tree: **v0.11.0 + animation-intelligence Phases 1–6**, by
 reading `renderer/js/ai/*.js`, `renderer/js/observationPasses.js`, `test/aitest.mjs`, the
 semantic-layer, patch, animation-language, observation and motion blocks of `MCP_HANDLERS` in
-`renderer/js/app.js`, and the five semantic sections of `mcp-server/index.js`. Cells were verified
+`renderer/js/app.js`, and the six semantic sections of `mcp-server/index.js`. Cells were verified
 against the code, not carried forward.
 
 ## How to read a row
@@ -31,12 +31,12 @@ against the code, not carried forward.
 `Version introduced` is recorded in the Status cell for anything past `designed`.
 
 Status counts, this revision, counted from the table itself — **165 rows**:
-**implemented 75 · partial 22 · designed 8 · deferred 2 · blocked 1 · unplanned 57.**
+**implemented 78 · partial 24 · designed 8 · deferred 2 · blocked 1 · unplanned 52.**
 Nothing is `benchmarked`; no benchmark suite exists yet (BCH-001).
 
-The delta from the previous revision (*implemented 72 · partial 17 · designed 8 · deferred 2 ·
-blocked 1 · unplanned 65*) is Phase 5 and nothing else. **3 rows** moved to `implemented`
-(MOT-003, MOT-004, MOT-008) and **5** to `partial` (MOT-005, MOT-007, MOT-009, MOT-010, EXP-002).
+The delta from the previous revision (*implemented 75 · partial 22 · designed 8 · deferred 2 ·
+blocked 1 · unplanned 57*) is Phase 6 and nothing else. **3 rows** moved to `implemented`
+(VFX-002, VFX-010, SHOT-002) and **2** to `partial` (SHOT-001, VFX-011).
 Counts are counted from the table below by script, not hand-written.
 
 Phase 5 is the first phase in which this build measures MOTION rather than data or pixels. What it
@@ -196,7 +196,7 @@ perceptual comparison, depth ordering, temporal validation, undeclared contacts 
 | ID | Requirement | § | Pri | Status | Repr. | Module | MCP | UI | Tests | Bench | Limits |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | VFX-001 | Semantic VFX language + compiler | 37 | P1 | implemented (0.10.0) | PNX graph | `pnx/**` | 31 `pnx_*` tools | node editor, Effect Sheet | `pnxtest` — 293 checks, 292 pass here (the 1 failure is a hardware-dependent perf budget, not a defect) | — | authoring language is nodes/sheet, not `VFXSpec` prose |
-| VFX-002 | `VFXSpec` structure per Part 37.1 | 37.1 | P2 | unplanned | — | — | — | — | — | — | PNX covers the *capability*; the declarative spec object does not exist |
+| VFX-002 | `VFXSpec` structure per Part 37.1 | 37.1 | P2 | implemented (0.12.0) | plain-data spec | `ai/vfxspec.js` | `compile_effect` | — | `aitest` — 18 Phase 6 checks; in-app smoketest step "a parameterized impact effect is attached to a hand, timed to an event, and undone" | — | Compiles to ONE `kind:'vfx'` emitter item, deliberately not a PNX graph — the boundary decision is at the top of `ai/vfxspec.js`. The primitive vocabulary is `particleLibrary.js`'s 22 material archetypes rather than a new list. `VFXSPEC_FIELDS.absent` names what a Cadence project cannot hold: layers, beams/meshes, light, sound, particle collision |
 | VFX-003 | Effect primitives, parameterised and composable | 37.2 | P1 | implemented (0.10.0) | recipes | `pnx/library.js` | `pnx_list_recipes`, `pnx_add_recipe` | palette | `pnxtest` | — | — |
 | VFX-004 | Preview + render of an effect frame | 37 | P1 | implemented (0.10.0) | image | `pnx/render.js` | `pnx_render_frame`, `pnx_scrub` | studio | `pnxtest` | — | — |
 | VFX-005 | Determinism under scrubbing | 37, 67 | P0 | implemented (0.10.0) | checkpoint replay | `pnx/solver.js` | `pnx_verify_range` | — | `pnxtest` | — | — |
@@ -204,19 +204,19 @@ perceptual comparison, depth ordering, temporal validation, undeclared contacts 
 | VFX-007 | Export-compatibility probing | 24, 37 | P1 | implemented (0.11.0) | report | `pnx/targets` | `pnx_export_compatibility` | — | `pnxtest` | — | — |
 | VFX-008 | VFX temporal/quality analysis (Part 38 list) | 38 | P2 | designed | validators | `effectValidators.js` | `vfx_validate` | studio | `coretest` | — | covers a subset; attachment stability, depth integration, flicker are not measured |
 | VFX-009 | VFX failure patterns (Part 38 list) | 38 | P2 | unplanned | — | — | — | — | — | — | needs OBS-* to observe most of them |
-| VFX-010 | VFX timing tied to shot events (lead/lag) | 39 | P1 | unplanned | — | — | — | — | — | — | needs SHOT-002 |
-| VFX-011 | VFX hierarchy (primary/supporting/residual) | 38 | P2 | unplanned | — | — | — | — | — | — | — |
+| VFX-010 | VFX timing tied to shot events (lead/lag) | 39 | P1 | implemented (0.12.0) | rate envelope + findings | `ai/vfxspec.js` | `compile_effect`, `validate_effect_timing` | — | `aitest` — 18 Phase 6 checks; in-app smoketest step "a parameterized impact effect is attached to a hand, timed to an event, and undone" | — | `lead` is defined once, as how far BEFORE the event the effect PEAKS. The envelope is 4 keys on `@rate`; `@lifetime`/`@speed` stay static because vfx.js resolves them per spawn and a retroactive change is what it is built not to do. `validateTiming` judges peak-vs-event, an unclosed envelope and a hot start; a degenerate 0-frame attack/decay is clamped and reported |
+| VFX-011 | VFX hierarchy (primary/supporting/residual) | 38 | P2 | partial | role + budget share | `ai/vfxspec.js` `EFFECT_ROLES` | `compile_effect` (`role`), `validate_effect_timing` (stacked anchors) | — | `aitest` — 18 Phase 6 checks; in-app smoketest step "a parameterized impact effect is attached to a hand, timed to an event, and undone" | — | The role is a STATEMENT OF INTENT with one concrete consequence — the share of the particle budget (100/50/25%), reported when it reduces a cap. Nothing MEASURES whether the primary actually reads as primary; that needs the observation passes (VFX-009) |
 
 ## I. Shot, camera, events, audio — Parts 40, 41, 42
 
 | ID | Requirement | § | Pri | Status | Repr. | Module | MCP | UI | Tests | Bench | Limits |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SHOT-001 | Shot model (Part 40 field list) | 40 | P1 | unplanned | — | — | — | — | — | — | Phase 6/7 |
-| SHOT-002 | Shared shot-event timeline | 41 | P0 | unplanned | — | — | — | — | — | — | Phase 6; markers (`state.js`) are the migration target |
+| SHOT-001 | Shot model (Part 40 field list) | 40 | P1 | partial | report | `ai/events.js` `describeShot` | `describe_shot` | — | `aitest` — 18 Phase 6 checks; in-app smoketest step "a parameterized impact effect is attached to a hand, timed to an event, and undone" | — | Reports the shot-shaped facts a project ALREADY carries (fps, length, duration, play range, loop, priority, cameras, characters, effects, event frames) and names the rest in an `absent` block rather than inventing a Shot record with unwritable fields (Part 4.6). There is no Shot entity: writing "the shot" means writing the project. With ≥2 cameras nothing marks the shot camera — the editor's view is UI state and is never saved |
+| SHOT-002 | Shared shot-event timeline | 41 | P0 | implemented (0.12.0) | ordered timeline | `ai/events.js` | `list_shot_events` | timeline (the per-item Events track it projects) | `aitest` — 18 Phase 6 checks; in-app smoketest step "a parameterized impact effect is attached to a hand, timed to an event, and undone" | — | DERIVED from the per-item `project.markers` tables, never migrated — re-keying them would be a destructive migration across `state.js`, `io.js`, the timeline UI and every saved file, for nothing this cannot get by projecting (the call `ai/ids.js` made about the track table). Its value over the per-item view is `concurrentEvents` and `overlaps`, which are the cross-item facts no existing surface shows. An event id encodes its frame and does NOT survive a retime — stated, and a stale id says so rather than reading "not found". A marker table whose item is gone is reported, not listed |
 | SHOT-003 | `CameraSpec` | 40 | P1 | unplanned | — | — | — | — | — | — | — |
 | SHOT-004 | Camera reasoning (framing, readability, occlusion) | 40 | P1 | unplanned | — | — | — | — | — | — | needs OBS-* |
 | SHOT-005 | Deliberate camera shake with decay + budget | 40 | P2 | unplanned | — | — | — | — | — | — | — |
-| SHOT-006 | Event markers with width and code hooks | 41 | P1 | implemented (pre-existing, extended 0.12.0) | `project.markers` | `state.js`; `ai/patch.js` for transactional edits | `add_marker`, `set_marker`, `list_markers`, plus the `set_marker`/`restore_marker`/`delete_marker` patch ops | timeline | in-app smoketest; `aitest patch` (marker round trip, and the editor's width-clamp rule reproduced on a modify but not on a create) | — | still no causal parent, priority or dependent-system fields. A marker CAN now be protected (`{ kind: 'marker' }` / `{ kind: 'frame' }` selectors), and a patch that retimes over one is reported by scope analysis — escalated when the marker carries Luau, because that moves a gameplay event and not only a visual one |
+| SHOT-006 | Event markers with width and code hooks | 41 | P1 | implemented (pre-existing, extended 0.12.0) | `project.markers` | `state.js`; `ai/patch.js` for transactional edits | `add_marker`, `set_marker`, `list_markers`, plus the `set_marker`/`restore_marker`/`delete_marker` patch ops | timeline | in-app smoketest; `aitest patch` (marker round trip, and the editor's width-clamp rule reproduced on a modify but not on a create) | — | still no causal parent, priority or dependent-system fields (`ai/events.js` `EVENT_FIELDS` now names each absence and why); `concurrentEvents` reports co-timing, which is evidence of a relationship but not a declaration of one. A marker CAN now be protected (`{ kind: 'marker' }` / `{ kind: 'frame' }` selectors), and a patch that retimes over one is reported by scope analysis — escalated when the marker carries Luau, because that moves a gameplay event and not only a visual one |
 | AUD-001 | Audio as a shot partner | 42 | P3 | designed (pre-existing) | `project.audio` | `state.js`/`audio.js` | `set_project_props` | timeline | in-app smoketest | — | one track, offset + volume; no cue graph |
 
 ## J. Observation and regression — Parts 43, 44, 45, 46

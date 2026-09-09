@@ -1559,6 +1559,63 @@ server.tool(
   async (a) => { try { return textResult(await call('explain_motion_problem', a)); } catch (e) { return errorResult(e); } },
 );
 
+server.tool(
+  'list_shot_events',
+  'READ-ONLY. The whole shot\'s events in one ordered timeline (Part 41). Cadence stores event markers per item, so no existing surface shows two events on DIFFERENT items landing on the same frame, or one event\'s Luau hook firing inside another\'s span — this projects every per-item marker table into a single view and reports exactly that: `concurrent` (events sharing a frame, flagged `crossItem`) and `overlapping` (spans that intersect, with the extent). Co-timing is reported as a FACT, never as a problem: two characters impacting on one frame is usually the point. An event id encodes the frame it was read at, so it does NOT survive a retime — resolve by name after moving markers. A marker table whose owning item has been deleted is reported as a warning rather than listed as an event.',
+  {
+    itemId: z.string().optional().describe('Restrict to one item\'s events. Omit for the whole shot, which is the point of the tool.'),
+  },
+  async (a) => { try { return textResult(await call('list_shot_events', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'describe_shot',
+  'READ-ONLY. The shot-shaped facts this project actually carries (Part 40): fps, length, duration, play range, loop, priority, cameras, characters, effects and event frames. IMPORTANT: Cadence has NO Shot entity, and this does not invent one — it reports what is recorded and names what is not in an `absent` block (no staging or coverage record, no CameraSpec, and with two or more cameras nothing marks which one the shot uses, because the editor tracks a view as UI state and never saves it as shot data). Writing "the shot" means writing the project.',
+  {},
+  async (a) => { try { return textResult(await call('describe_shot', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'validate_effect_timing',
+  'READ-ONLY. Does each particle emitter\'s rate envelope land on the event it is reacting to (Parts 38-39)? For every `vfx` item it measures the `@rate` track and reports: whether the peak sits exactly on a nearby shot event or is off by N frames; an emitter with no envelope at all (which emits at a constant rate for the whole timeline and so is timed to nothing); an envelope whose last key is non-zero (it keeps emitting forever); and one whose first key is already hot. It also lists emitters stacked on the SAME anchor part, which is Part 38\'s hierarchy question — a primary plus its residual is the intended shape, so that is reported and not judged. This measures the envelope, not the picture: whether an effect READS as an impact needs the observation passes, which are not built (VFX-009).',
+  {},
+  async (a) => { try { return textResult(await call('validate_effect_timing', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'compile_effect',
+  'MUTATING (one reversible transaction; roll it back with rollback_transaction, or pass preview to dry-run it first). Compiles a declarative VFXSpec into a particle emitter that is attached, timed and reversible (Parts 37-39). The effect is described by WHAT IT IS rather than by emitter numbers: a `primitive` (one of 22 material archetypes — explosion-debris, blood-splatter, smoke, fire, muzzle-spark, confetti…), a colour `theme`, a `scale`, and a Part 38 `role` that governs its share of the particle budget (primary 100%, supporting 50%, residual 25%). `timing.event` names a shot event from list_shot_events and the rate envelope is built around it — `lead` is how far BEFORE the event the effect PEAKS, then attack/sustain/decay. The emitter is created ATTACHED to the anchor part, so it rides the animation instead of sitting still. The new item id is DERIVED from the spec, so compiling the same spec twice refuses as a duplicate instead of silently stacking two identical emitters. SCOPE: this compiles ONE emitter item; it does not author a multi-layer PNX effect graph (use the pnx_* and vfx_* tools for that), and it cannot declare light, sound or particle collision because a Cadence project has nowhere to keep them.',
+  {
+    primitive: z.string().describe('The material archetype, e.g. "explosion-debris". A wrong one is refused with the nearest match rather than silently defaulted; the full list comes back in the refusal.'),
+    theme: z.string().optional().describe('classic (the material\'s own colours) | ice | ember | toxic | arcane | holy.'),
+    scale: z.string().optional().describe('small | standard (default) | large — scales size, rate and pool cap together.'),
+    role: z.string().optional().describe('primary (default) | supporting | residual. Part 38\'s hierarchy; it sets the budget share, and a reduced cap is reported rather than applied silently.'),
+    name: z.string().optional().describe('Display name. Defaults to the preset\'s name.'),
+    anchor: z.union([
+      z.string().describe('A part name on the currently selected item.'),
+      z.object({ itemId: z.string(), partId: z.string().optional() }),
+    ]).optional().describe('The part the effect rides on. Omit for a world-space effect at the offset.'),
+    offset: z.array(z.number()).length(3).optional().describe('[x, y, z] studs in the anchor part\'s own space.'),
+    timing: z.object({
+      event: z.union([z.string(), z.number()]).optional().describe('A shot event name, an event id, or a frame. An event name that exists on two items is AMBIGUOUS and refused with the question, rather than resolved to the earlier one.'),
+      eventItemId: z.string().optional().describe('Disambiguates an event name carried by more than one item.'),
+      frame: z.number().optional().describe('An explicit frame, instead of an event.'),
+      lead: z.number().optional().describe('How far BEFORE the event the effect peaks (default 0). Negative trails it.'),
+      attack: z.number().optional().describe('Frames from emission start to peak rate (default 1). 0 is clamped to 1 and reported, because two keys on one frame are not a ramp.'),
+      sustain: z.number().optional().describe('Frames held at peak (default 0).'),
+      decay: z.number().optional().describe('Frames from peak back to zero (default 6).'),
+      peak: z.number().optional().describe('Multiplier on the preset\'s base rate at the peak (default 1).'),
+    }).optional(),
+    budget: z.object({ maxParticles: z.number() }).optional().describe('Particle pool cap before the role\'s share is applied.'),
+    colorStart: z.string().optional().describe('Overrides the theme, e.g. "#ffd36b".'),
+    colorEnd: z.string().optional(),
+    intent: z.string().optional().describe('The request this came from. Recorded in provenance; it does NOT affect the derived item id.'),
+    preview: z.boolean().optional().describe('Dry-run: compile and plan the patch, changing nothing.'),
+    force: z.boolean().optional().describe('Apply despite constraint warnings.'),
+  },
+  async (a) => { try { return textResult(await call('compile_effect', a)); } catch (e) { return errorResult(e); } },
+);
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

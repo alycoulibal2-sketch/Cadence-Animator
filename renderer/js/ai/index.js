@@ -39,13 +39,20 @@
 //   explain       Parts 44 and 45 — difference classification and evidence-backed explanation
 //   motion        Part 23 — velocity, acceleration, jerk, curvature, contact drift, chain lead/lag
 //   diagnose      Part 46 — the "why?" workflows, built on those measurements
+//   events        Part 41 — the shared shot-event timeline, derived from per-item markers
+//   vfxspec       Parts 37-39 — a declarative effect, compiled into reversible operations
 //
 // Phase 4 note on purity: the layer now reasons about pixels, and still imports no renderer. A
 // raster crosses the boundary as `{ width, height, encoding, data }` and nothing else; the GPU
 // work is in `renderer/js/observationPasses.js`, outside this tree.
 //
-// What is deliberately NOT here yet, so nothing accidentally implies it exists: the VFX compiler
-// (Part 37), shots and cameras (Parts 40-41), knowledge, memory and benchmarks (Parts 25, 57, 59).
+// Phase 6 note on the VFX boundary: `ai/vfxspec.js` compiles a declarative spec onto the
+// `kind: 'vfx'` emitter item, whose sampler (`renderer/js/vfx.js`) is pure and importable here.
+// It deliberately does NOT author `pnx/**` graphs — the reasoning is at the top of that file.
+//
+// What is deliberately NOT here yet, so nothing accidentally implies it exists: a Shot entity and
+// CameraSpec (Parts 40 and 41 beyond the event timeline — see `events.describeShot().absent`),
+// knowledge, memory and benchmarks (Parts 25, 57, 59).
 
 export * as hash from './hash.js';
 export * as certainty from './certainty.js';
@@ -72,6 +79,8 @@ export * as baseline from './baseline.js';
 export * as explain from './explain.js';
 export * as motion from './motion.js';
 export * as diagnose from './diagnose.js';
+export * as events from './events.js';
+export * as vfxspec from './vfxspec.js';
 
 export { CERTAINTY } from './certainty.js';
 export { ROLE, SIDE } from './roles.js';
@@ -99,7 +108,7 @@ export { DIAGNOSTICS, diagnose as diagnoseMotion } from './diagnose.js';
 /** The version of the semantic layer itself, separate from the app version. Bumped when a graph's
  *  shape changes in a way a consumer would notice. Phase 5 adds the Part 23 measurements and the
  *  Part 46 diagnostics, and turns two previously NOT-RUN checks into ones that run. */
-export const SEMANTIC_LAYER_VERSION = '1.5.0';
+export const SEMANTIC_LAYER_VERSION = '1.6.0';
 
 /** One place to ask what this layer can and cannot currently answer. Returned by
  *  `inspect_scene` so a model never has to infer capability from silence. */

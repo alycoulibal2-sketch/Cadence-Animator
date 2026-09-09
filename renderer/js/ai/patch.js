@@ -58,6 +58,8 @@ export const OP_KINDS = Object.freeze([
   'restore_marker',    // write a marker verbatim (the inverse of a modification or a delete)
   'delete_marker',
   'restore_group_entry', // put a key group's recorded time back (the inverse of a move's retarget)
+  'add_item',          // bring a whole item into being (Part 37's effects have to be CREATED)
+  'remove_item',       // take one back out; the exact inverse of add_item
 ]);
 
 /**
@@ -201,6 +203,8 @@ const OP_FIELDS = Object.freeze({
   restore_marker: ['itemId', 't', 'marker'],
   delete_marker: ['itemId', 't'],
   restore_group_entry: ['groupId', 'itemId', 'track', 't', 'to'],
+  add_item: ['item', 'tracks', 'markers'],
+  remove_item: ['itemId'],
 });
 const OP_REQUIRED = Object.freeze({
   set_key: ['itemId', 'track', 't'],
@@ -216,6 +220,8 @@ const OP_REQUIRED = Object.freeze({
   restore_marker: ['itemId', 't', 'marker'],
   delete_marker: ['itemId', 't'],
   restore_group_entry: ['groupId', 'itemId', 'track', 't', 'to'],
+  add_item: ['item'],
+  remove_item: ['itemId'],
 });
 
 // ---------------------------------------------------------------- planning and committing
@@ -958,7 +964,145 @@ const OPS = {
     rec.effect = 'modified';
     rec.inverse = [{ op: 'restore_group_entry', groupId: op.groupId, itemId: op.itemId, track: op.track, t: op.to, to: op.t }];
   },
+
+  /**
+   * Bring a whole item into being.
+   *
+   * Everything else in this file edits an item that already exists. Part 37 breaks that
+   * assumption: an impact effect has to be CREATED, and "reversible" is only true of a creation
+   * if the creation itself is an operation with an inverse. Before this op the only way to add an
+   * item was `state.addItem`, which lands outside the transaction and can only be undone by the
+   * editor's own undo stack.
+   *
+   * The item's id is carried IN the op and never minted here. `commitPatch` re-runs the ops live
+   * and compares the result against the hash the plan predicted, so an id from
+   * `crypto.randomUUID()` would make every commit fail its own post-condition. A caller derives a
+   * stable id instead (see `ai/vfxspec.js`, which hashes the spec) — which also makes compiling
+   * the same spec twice idempotent rather than silently duplicating the effect.
+   *
+   * `tracks` and `markers` are optional and exist for the inverse of `remove_item`: a rollback has
+   * to put back not just the item but everything that was keyed to it.
+   */
+  add_item(project, op, rec) {
+    const item = op.item;
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('add_item: "item" must be an object');
+    if (typeof item.id !== 'string' || !item.id) throw new Error('add_item: the item needs a string id — a patch never mints one, because commitPatch checks the result against the hash the plan predicted');
+    if (typeof item.kind !== 'string' || !item.kind) throw new Error('add_item: the item needs a kind');
+    if (ADDABLE_KINDS_REFUSED[item.kind]) throw new Error(`add_item: a "${item.kind}" item cannot be created by a patch — ${ADDABLE_KINDS_REFUSED[item.kind]}`);
+    if (!ADDABLE_KINDS[item.kind]) throw new Error(`add_item: unknown item kind "${item.kind}" (a patch can create: ${Object.keys(ADDABLE_KINDS).join(', ')})`);
+
+    rec.entity = ids.itemId(item);
+    rec.property = rec.entity;
+
+    project.items = project.items || [];
+    if (project.items.some((i) => i.id === item.id)) {
+      // Not a warning. Two items with one id would make every track, marker and provenance record
+      // keyed by it ambiguous, and `needItem` would resolve to whichever came first.
+      throw new Error(`add_item: an item with id "${item.id}" already exists — ids are the addressing every track, group, marker and provenance record uses`);
+    }
+
+    project.items.push(cloneProject(item));
+    project.tracks = project.tracks || {};
+    project.tracks[item.id] = cloneProject(op.tracks || {});
+    if (op.markers !== undefined) {
+      project.markers = project.markers || {};
+      project.markers[item.id] = cloneProject(op.markers);
+    }
+
+    const trackNames = Object.keys(project.tracks[item.id]);
+    rec.after = cloneProject(item);
+    rec.effect = 'created';
+    rec.frames = frameSpanOfTracks(project.tracks[item.id]);
+    rec.inverse = [{ op: 'remove_item', itemId: item.id }];
+
+    if (trackNames.length) {
+      rec.warnings.push(finding({
+        id: 'PATCH-ITEM-ARRIVED-KEYED',
+        certainty: CERTAINTY.CERTAIN,
+        statement: `this item arrives with ${trackNames.length} track(s) already keyed, so the keys were not checked by the keyframe operations that would normally have written them`,
+        evidence: [evidence('data', 'tracks supplied with the item', { tracks: trackNames })],
+        suggestion: { text: 'add the item bare and write its keys with set_key, unless this is a rollback putting back what was there', reversible: true },
+      }));
+    }
+  },
+
+  /**
+   * Take an item back out, capturing enough to put it back.
+   *
+   * `state.removeItem` drops the item and its track table and leaves any group entries and
+   * semantic records that referenced it pointing at nothing. Reproducing that would make this op
+   * non-invertible and would quietly corrupt a key group, so instead it REFUSES when anything
+   * outside the item's own tracks and markers still refers to it, and names what. Part 4.7: a
+   * missing capability is stated, not hidden.
+   */
+  remove_item(project, op, rec) {
+    const item = needItem(project, op.itemId);
+    rec.entity = ids.itemId(item);
+    rec.property = rec.entity;
+
+    const groupRefs = [];
+    for (const g of project.groups || []) {
+      for (const k of g.keys || []) if (k.itemId === op.itemId) { groupRefs.push(g.id); break; }
+    }
+    if (groupRefs.length) {
+      throw new Error(`remove_item: ${groupRefs.length} key group(s) still hold keys of this item (${groupRefs.join(', ')}) — removing it would leave them pointing at nothing; ungroup_keys first`);
+    }
+    const semanticRefs = semanticReferencesTo(project, op.itemId);
+    if (semanticRefs.length) {
+      throw new Error(`remove_item: the semantic layer still refers to this item (${semanticRefs.join(', ')}) — the semantic layer owns those records and a patch must not strand them`);
+    }
+    if ((project.items || []).some((i) => i.attachedTo?.itemId === op.itemId)) {
+      throw new Error('remove_item: another item is attached to this one — its transform space would vanish; detach_item first');
+    }
+
+    const tracks = cloneProject(project.tracks?.[op.itemId] || {});
+    const markers = project.markers?.[op.itemId] === undefined ? undefined : cloneProject(project.markers[op.itemId]);
+
+    rec.before = cloneProject(item);
+    rec.frames = frameSpanOfTracks(tracks);
+    project.items = project.items.filter((i) => i.id !== op.itemId);
+    if (project.tracks) delete project.tracks[op.itemId];
+    if (project.markers) delete project.markers[op.itemId];
+    rec.effect = 'deleted';
+
+    const back = { op: 'add_item', item: rec.before, tracks };
+    if (markers !== undefined) back.markers = markers;
+    rec.inverse = [back];
+  },
 };
+
+/** Item kinds a patch may create, and the reason each excluded one is excluded. The refusals are
+ *  the same ones `ITEM_FIELDS_REFUSED` gives for writing these fields on an item that exists. */
+const ADDABLE_KINDS = Object.freeze({
+  vfx: 'a particle emitter item (its emitter fields are plain numbers this file can already write)',
+  camera: 'a camera item',
+});
+const ADDABLE_KINDS_REFUSED = Object.freeze({
+  rig: 'rig topology is not animation data — add_rig builds a rig from a validated definition, and a hand-supplied one could not be checked here',
+  effect: 'an effect document is a whole PNX graph with its own undo and its own validators',
+  prop: 'the attachment offset of a prop is derived from the live solved poses, which this layer does not have — attach_item exists for that reason',
+});
+
+/** The frame span of a track table, or `[]` for one with no keys. Reported so a created item's
+ *  change range is the range its keys actually occupy rather than the whole timeline. */
+function frameSpanOfTracks(tracks) {
+  const ts = [];
+  for (const tr of Object.values(tracks || {})) for (const k of tr?.keys || []) if (Number.isFinite(k.t)) ts.push(k.t);
+  return ts.length ? [Math.min(...ts), Math.max(...ts)] : [];
+}
+
+/** Which semantic records name an item. `project.semantics` is owned by the semantic layer, so
+ *  this only READS it — it is the check that stops `remove_item` stranding a role or a lock. */
+function semanticReferencesTo(project, itemId) {
+  const sem = project.semantics;
+  if (!sem || typeof sem !== 'object') return [];
+  const hits = [];
+  for (const [table, val] of Object.entries(sem)) {
+    if (val && typeof val === 'object' && !Array.isArray(val) && val[itemId] !== undefined) { hits.push(table); continue; }
+    if (Array.isArray(val) && val.some((r) => r?.itemId === itemId || r?.target === itemId)) hits.push(table);
+  }
+  return hits;
+}
 
 /** The sentinel an inverse uses to mean "this field was not there before". A plain `undefined`
  *  cannot survive `makePatch`'s field copy, and writing `null` would be a different project. */
@@ -1016,7 +1160,9 @@ export function filterOps(ops, { property = null, track = null, itemId = null, t
   const keep = [], dropped = [];
   for (const op of ops) {
     let ok = true;
-    if (itemId && op.itemId !== itemId) ok = false;
+    // `add_item` names its item as `op.item.id`; every other op uses `op.itemId`. Without this an
+    // item-scoped rollback would silently drop the very op that created the item.
+    if (itemId && opItemId(op) !== itemId) ok = false;
     if (ok && track && op.track !== track) ok = false;
     if (ok && property) {
       const p = op.track ? ids.trackId(op.itemId, op.track) : null;
@@ -1032,6 +1178,11 @@ export function filterOps(ops, { property = null, track = null, itemId = null, t
     (ok ? keep : dropped).push(op);
   }
   return { ops: keep, dropped };
+}
+
+/** The item an op addresses, wherever that op happens to keep it. */
+function opItemId(op) {
+  return op.op === 'add_item' ? op.item?.id : op.itemId;
 }
 
 function opTimes(op) {
@@ -1060,6 +1211,8 @@ export function describeOp(op) {
     case 'restore_marker': return `restore marker @ ${op.t}`;
     case 'delete_marker': return `delete marker @ ${op.t}`;
     case 'restore_group_entry': return `group entry "${op.track}" ${op.t} → ${op.to}`;
+    case 'add_item': return `add ${op.item?.kind || 'item'} "${op.item?.name || op.item?.id}"`;
+    case 'remove_item': return `remove item ${op.itemId}`;
     default: return op.op;
   }
 }

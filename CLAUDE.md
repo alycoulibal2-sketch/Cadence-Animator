@@ -15,6 +15,8 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 | `renderer/js/ai/**` | The animation-intelligence semantic layer. **Pure** — see below. |
 | `renderer/js/ai/motion.js` | Part 23's measurements: velocity, acceleration, jerk, curvature, contact drift, chain lead/lag. Measurement only. |
 | `renderer/js/ai/diagnose.js` | Part 46's "why?" workflows. The judging layer; it consumes `motion.js` and never re-measures. |
+| `renderer/js/ai/events.js` | Part 41's shared shot-event timeline, **derived** from the per-item `project.markers` tables, never migrated. |
+| `renderer/js/ai/vfxspec.js` | Parts 37-39. A declarative effect compiled into reversible ops. Targets the `kind:'vfx'` emitter item, **never** `pnx/**` — the reasoning is at the top of the file. |
 | `renderer/js/observationPasses.js` | Diagnostic render passes. Outside `ai/` because three.js. |
 | `renderer/js/pnx/**`, `renderer-vfx/` | The procedural VFX engine and its own studio window. |
 | `mcp-server/index.js` | `server.tool(...)` registrations. The other half of every MCP tool. |
@@ -25,13 +27,13 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 `npm` is broken under Git Bash here. Use PowerShell, and invoke binaries directly.
 
 ```
-node test/aitest.mjs     # semantic layer
-node test/coretest.mjs   # core
-node test/pnxtest.mjs    # PNX engine
+node test/aitest.mjs     # semantic layer — 290 checks
+node test/coretest.mjs   # core           —  41
+node test/pnxtest.mjs    # PNX engine     — 298
 ```
 
 ```powershell
-# Electron smoketest, ~4 min, ~96 steps against the real app
+# Electron smoketest, ~4 min, 98 steps against the real app
 Remove-Item test-output/userdata -Recurse -Force -ErrorAction SilentlyContinue
 .\node_modules\.bin\electron.cmd . --disable-backgrounding-occluded-windows `
   --disable-renderer-backgrounding --disable-background-timer-throttling `
@@ -96,6 +98,18 @@ work.
   `ids.partId()` etc., never by string concatenation, or nothing joins to anything.
 - **`validate.js` imports `state.js`**, so it cannot be used from `ai/`. That is why the export
   acceptance check is blocked.
+- **A patch may now CREATE an item (`add_item`), and anything that pre-validates op ids must
+  account for it.** `buildPatch` in `app.js` checks every `op.itemId` against the live project;
+  ids added earlier in the same patch have to count as present, or compiling an effect is rejected
+  for addressing the emitter it is in the middle of creating. `add_item` keeps its id in
+  `op.item.id`, not `op.itemId`, so any code that filters or groups ops by item needs the same
+  care (see `opItemId` in `ai/patch.js`).
+- **A patch op's value field is `value`; a stored keyframe's is `v`.** Reading `k.value` off a
+  track silently measures `undefined`, and a comparison against it is quietly always false.
+- **An item id in a patch must be DERIVED, never minted.** `commitPatch` verifies the applied
+  result against the hash the plan predicted, so `crypto.randomUUID()` inside an op handler makes
+  every commit fail its own post-condition. Hash the request instead — which also makes the
+  operation idempotent.
 - **The transaction ledger and the snapshot/raster stores are in memory, session-scoped.** The
   durable record is the provenance graph inside the project. Anything that promises recovery across
   a restart is promising something it cannot do.

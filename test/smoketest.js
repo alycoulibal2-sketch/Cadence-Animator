@@ -2785,6 +2785,123 @@
     return out;
   });
 
+  // The Phase 6 success condition (directive Part 62): "Cadence can generate a parameterized
+  // impact effect that remains attached, timed, and reversible." Run against the LIVE app, because
+  // what only this can reach is the handler boundary: a spec arriving as MCP arguments, the anchor
+  // part name resolving against the real selection, the new item going through
+  // apply_animation_patch's own constraint check and transaction, the emitter actually SAMPLING
+  // particles at the frames the envelope says, and the whole effect coming back out on a rollback
+  // the Phase 2 machinery performs rather than a fixture edit.
+  await step('effects: a parameterized impact effect is attached to a hand, timed to an event, and undone', async () => {
+    const { sampleParticles } = await import('../renderer/js/vfx.js');
+    S.newProject('phase6-impact');
+    const item = await D.addBuiltinRig('r15');
+    const key = (track, t, v) => S.setKey(item.id, track, t, v, { es: 'Sine', ed: 'InOut', noUndo: true });
+    // A swing that ends in a hit, so there is a real motion for the effect to be timed against.
+    key('RightShoulder', 0, CF.IDENTITY.slice());
+    key('RightShoulder', 16, CF.fromEuler(0, 0, -1.4));
+    key('RightElbow', 0, CF.IDENTITY.slice());
+    key('RightElbow', 16, CF.fromEuler(0.6, 0, 0));
+    // The event the effect must hit. A width makes it a span, which is what `overlaps` reads.
+    D.mcp('add_marker', { itemId: item.id, t: 16, name: 'impact', width: 2, codeBegin: 'print("hit")' });
+    const out = {};
+    const before = D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
+
+    // 1. The shared timeline sees the event, across items rather than per item.
+    const tl = D.mcp('list_shot_events', {});
+    assert(tl.count === 1 && tl.events[0].name === 'impact', `the shot timeline must carry the event: ${JSON.stringify(tl.events)}`);
+    assert(tl.events[0].hasCode === true, 'a marker carrying Luau is a gameplay hook, not only a visual cue');
+    assert(tl.events[0].span[0] === 16 && tl.events[0].span[1] === 18, 'a widthed event occupies a span');
+    out.events = { count: tl.count, name: tl.events[0].name, span: tl.events[0].span };
+
+    // The shot report names what Cadence cannot hold, rather than implying it can.
+    const shot = D.mcp('describe_shot', {});
+    assert(shot.events === 1 && shot.characters.length === 1);
+    assert(/no Shot record/.test(shot.absent.shot_entity), 'the absent Shot entity must be stated');
+
+    // 2. Nothing is timed to anything yet, and the tool says so rather than reporting nothing.
+    const bare = D.mcp('validate_effect_timing', {});
+    assert(bare.emitters === 0 && bare.findings.length === 0, 'with no emitter there is nothing to judge');
+
+    // 3. COMPILE — a spec in the vocabulary of what the effect IS, with the anchor as a bare part
+    //    name resolved against the current selection.
+    S.setSelection(item.id, null);
+    const SPEC = {
+      primitive: 'explosion-debris', theme: 'ember', scale: 'large', role: 'primary',
+      anchor: 'RightHand', offset: [0, -0.5, 0],
+      timing: { event: 'impact', lead: 0, attack: 2, decay: 8 },
+      intent: 'a heavy impact on the sword hand',
+    };
+    const preview = D.mcp('compile_effect', { ...SPEC, preview: true });
+    assert(preview.compiled === true && preview.applied === false, 'a preview must compile without applying');
+    // `preview_animation_patch` returns a transaction record, not a plan: "nothing was changed" IS
+    // its success summary, so what says the patch is sound is status/blocked/problems.
+    assert(preview.preview.status === 'previewed' && preview.preview.blocked === false,
+      `the previewed patch must be sound: ${preview.preview.summary} ${JSON.stringify(preview.preview.problems)}`);
+    assert(preview.preview.operations.length === 4, `add_item + a 3-key envelope: ${preview.preview.operations.length}`);
+    assert(S.state.project.items.filter((i) => i.kind === 'vfx').length === 0, 'a dry run must leave the project alone');
+
+    const made = D.mcp('compile_effect', SPEC);
+    assert(made.applied === true, `the effect must apply: ${made.reason || made.summary}`);
+    assert(made.preset.id === 'explosion-debris-ember-large', `the spec must resolve to a real preset: ${made.preset?.id}`);
+    out.compiled = { item: made.item.name, preset: made.preset.id, envelope: made.envelope, hash: made.spec_hash };
+
+    // 4. ATTACHED — the emitter rides the hand, so it follows the swing instead of sitting still.
+    const vfx = S.state.project.items.find((i) => i.kind === 'vfx');
+    assert(vfx && vfx.attachedTo.itemId === item.id && vfx.attachedTo.partId === 'RightHand',
+      `the effect must be attached to the hand: ${JSON.stringify(vfx?.attachedTo)}`);
+    // Proof it MOVES with the arm: resolve its world origin the way viewport.js does, at two
+    // frames of the swing. This is the check a data-only test cannot make — it needs the solved rig.
+    const emitterWorldAt = (f) => {
+      S.setPlayhead(f, false);
+      D.updateScene();
+      const parentWorld = D.getInstance(item.id).partWorld(vfx.attachedTo.partId);
+      return CF.mul(parentWorld, vfx.attachedTo.offset);
+    };
+    const w0 = emitterWorldAt(0), w16 = emitterWorldAt(16);
+    const moved = Math.hypot(w16[0] - w0[0], w16[1] - w0[1], w16[2] - w0[2]);
+    assert(moved > 0.5, `an attached emitter must travel with its anchor part, moved ${moved.toFixed(3)} studs`);
+    out.attachment = { partId: vfx.attachedTo.partId, travel_studs: Number(moved.toFixed(3)) };
+
+    // 5. TIMED — the envelope peaks on the event, and the emitter really emits there and not before.
+    const timed = D.mcp('validate_effect_timing', {});
+    const peak = timed.findings.find((f) => f.id === 'VFX-PEAK-ON-EVENT');
+    assert(peak, `the envelope must land on the event: ${JSON.stringify(timed.findings.map((f) => f.id))}`);
+    assert(/frame 16/.test(peak.statement), peak.statement);
+    // The sampler is the ground truth: at the envelope's start nothing has spawned, at the peak
+    // something has. A rate envelope that no particle ever responds to would pass every check above.
+    const countAt = (f) => {
+      const resolveOriginAt = () => CF.mul(D.getInstance(item.id).partWorld(vfx.attachedTo.partId), vfx.attachedTo.offset);
+      S.setPlayhead(f, false);
+      D.updateScene();
+      return sampleParticles(vfx, f, S.state.project.fps, resolveOriginAt, S.evalTrackNum).length;
+    };
+    const atStart = countAt(14), atPeak = countAt(18);
+    assert(atStart === 0, `nothing should have spawned at the envelope's start, got ${atStart}`);
+    assert(atPeak > 0, `the peak must actually emit particles, got ${atPeak}`);
+    out.timing = { peak: peak.statement, particles_at_start: atStart, particles_at_peak: atPeak };
+
+    // Compiling the same spec again is refused as a duplicate rather than stacking two emitters.
+    const again = D.mcp('compile_effect', SPEC);
+    assert(again.applied !== true, 'the same spec twice must not silently create a second emitter');
+    assert(S.state.project.items.filter((i) => i.kind === 'vfx').length === 1);
+
+    // An unknown primitive is refused with the nearest match, not silently defaulted.
+    const wrong = D.mcp('compile_effect', { primitive: 'explosion', anchor: 'RightHand', timing: { event: 'impact' } });
+    assert(wrong.compiled === false && /did you mean explosion-debris/.test(JSON.stringify(wrong.findings)),
+      `a wrong primitive must be refused with a suggestion: ${wrong.reason}`);
+
+    // 6. REVERSIBLE — the item and its envelope come back out together, byte-identically.
+    const rb = D.mcp('rollback_transaction', { transactionId: made.transaction_id });
+    assert(rb.complete === true, 'a compiled effect must be as reversible as any other edit');
+    assert(S.state.project.items.some((i) => i.kind === 'vfx') === false, 'the emitter must be gone');
+    assert(S.state.project.tracks[vfx.id] === undefined, 'and so must its @rate track');
+    assert(D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project)) === before,
+      'after the rollback the project must be byte-identical to its pre-effect state');
+
+    return out;
+  });
+
   await step('semantic layer: a persisted lock survives save/load, blocks a patch, and is undoable', async () => {
     S.newProject('locks');
     await D.addBuiltinRig('r15');

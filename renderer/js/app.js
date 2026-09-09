@@ -3293,8 +3293,17 @@ function patchContext(constraints, frame) {
 // hide the resolution's certainty, and Part 12 forbids that.
 function buildPatch({ ops, intent, request, strict }) {
   if (!Array.isArray(ops) || !ops.length) throw new Error('a patch needs at least one operation — see the `ops` schema, or inspect_constraints for what a patch can and cannot express');
+  // The point of this check is to catch a bogus itemId before anything is planned. But a patch may
+  // now CREATE the item its later ops address (`add_item`, which carries the id in `op.item.id`),
+  // so ids added earlier in the same patch count as present — otherwise compiling an effect would
+  // be rejected for addressing the emitter it is in the middle of creating. Order matters, and it
+  // is the same order runOps applies them in.
+  const created = new Set();
   for (const op of ops) {
-    if (op.itemId && !S.getItem(op.itemId)) throw new Error(`no item with id "${op.itemId}" (list_items or inspect_scene has the real ids)`);
+    if (op.op === 'add_item' && op.item?.id) { created.add(op.item.id); continue; }
+    if (op.itemId && !created.has(op.itemId) && !S.getItem(op.itemId)) {
+      throw new Error(`no item with id "${op.itemId}" (list_items or inspect_scene has the real ids)`);
+    }
   }
   return AI.makePatch({ ops, intent: intent ?? null, request: request ?? null, strict: !!strict, author: 'ai' });
 }
@@ -4758,6 +4767,128 @@ const MCP_HANDLERS = {
       S.markDirty();
     }
     return { ...answer, workflows: AI.diagnose.DIAGNOSTICS, limitations: AI.diagnose.diagnoseLimitations() };
+  },
+  // ------------------------------------------------- shot events and effects (Parts 37-41)
+  //
+  // Phase 6. Three read tools and one that changes something:
+  //
+  //   list_shot_events       the whole shot's events in one ordered timeline, plus co-timing
+  //   describe_shot          the shot-shaped facts the project holds, and the ones it cannot
+  //   validate_effect_timing does each emitter's envelope land on the event it reacts to
+  //   compile_effect         a declarative VFXSpec becomes a reversible transaction
+  //
+  // `compile_effect` deliberately goes through `apply_animation_patch` rather than writing the
+  // item itself: that is what puts a new effect under the same constraint checks, snapshot and
+  // transaction ledger as every other edit, so it can be previewed first and rolled back after.
+
+  list_shot_events: ({ itemId = null } = {}) => {
+    const project = liveProject();
+    const timeline = AI.events.buildTimeline(project, { itemIds: itemId ? [itemId] : null });
+    return {
+      count: timeline.count,
+      // `byId` and `nameIndex` are Maps — useful in-process, not serialisable over MCP.
+      events: timeline.events,
+      items: timeline.items,
+      concurrent: AI.events.concurrentEvents(timeline),
+      overlapping: AI.events.overlaps(timeline).map((o) => ({
+        a: { id: o.a.id, name: o.a.name, itemId: o.a.itemId }, b: { id: o.b.id, name: o.b.name, itemId: o.b.itemId },
+        from: o.from, to: o.to, frames: o.frames, sameItem: o.sameItem,
+      })),
+      warnings: timeline.warnings,
+      fields: AI.events.EVENT_FIELDS,
+      limitations: timeline.limitations,
+    };
+  },
+
+  describe_shot: () => AI.events.describeShot(liveProject()),
+
+  validate_effect_timing: () => {
+    const report = AI.vfxspec.validateTiming(liveProject());
+    return {
+      ...report,
+      // The co-timing groups carry whole event objects; trim them to what a caller needs to act.
+      concurrent_events: report.concurrent_events.map((g) => ({
+        frame: g.frame, items: g.items, crossItem: g.crossItem, withCode: g.withCode,
+        events: g.events.map((e) => ({ id: e.id, name: e.name, itemId: e.itemId })),
+      })),
+    };
+  },
+
+  compile_effect: ({
+    primitive, theme, scale, role, name, anchor, offset, timing, budget, intent,
+    colorStart, colorEnd, preview = false, force = false,
+  } = {}) => {
+    const project = liveProject();
+    // An anchor given as a bare part name is resolved against the current selection, so
+    // `compile_effect { primitive: "explosion-debris", anchor: "RightHand" }` works while a rig is
+    // selected — the same defaulting every other tool here does.
+    const resolvedAnchor = typeof anchor === 'string'
+      ? { itemId: S.state.selection.itemId, partId: anchor }
+      : anchor ?? null;
+
+    const spec = {
+      primitive, theme, scale, role, name, offset, timing, budget, intent, colorStart, colorEnd,
+      anchor: resolvedAnchor,
+    };
+    const compiled = AI.vfxspec.compileSpec(project, spec);
+
+    if (!compiled.ok) {
+      // A refusal is a result, not an error: it carries the findings that say what to fix, and
+      // throwing would discard them.
+      return {
+        applied: false, compiled: false, reason: compiled.summary,
+        findings: compiled.findings, timing: compiled.timing,
+        vocabulary: { primitives: AI.vfxspec.PRIMITIVES, themes: AI.vfxspec.THEMES, scales: AI.vfxspec.SCALES, roles: Object.keys(AI.vfxspec.EFFECT_ROLES) },
+        fields: AI.vfxspec.VFXSPEC_FIELDS,
+      };
+    }
+
+    const head = {
+      compiled: true,
+      item: { id: compiled.item.id, name: compiled.item.name, kind: compiled.item.kind, attachedTo: compiled.item.attachedTo ?? null },
+      preset: compiled.preset, role: compiled.role, budget: compiled.budget,
+      envelope: compiled.envelope,
+      timing: {
+        event_frame: compiled.timing.event_frame, peak_frame: compiled.timing.peak_frame,
+        start_frame: compiled.timing.start_frame, end_frame: compiled.timing.end_frame,
+        duration_frames: compiled.timing.duration_frames, duration_seconds: compiled.timing.duration_seconds,
+        matched: compiled.timing.event.matched,
+      },
+      spec_hash: compiled.spec_hash,
+      summary: compiled.summary,
+      findings: compiled.findings,
+      limitations: compiled.limitations,
+    };
+
+    if (preview) {
+      const plan = MCP_HANDLERS.preview_animation_patch({ ops: compiled.ops, intent: intent ?? compiled.summary });
+      return { ...head, applied: false, preview: plan };
+    }
+
+    const result = MCP_HANDLERS.apply_animation_patch({
+      ops: compiled.ops,
+      intent: intent ? `${intent}: ${compiled.summary}` : compiled.summary,
+      request: intent ?? null,
+      force, snapshotFirst: true,
+    });
+
+    if (result.applied) {
+      // The effect exists because a spec said so, so the spec is what provenance records — an ops
+      // list alone would not say which event it was timed to or which preset it came from.
+      const node = AI.provenance.record(S.state.project, {
+        type: 'plan', author: 'ai',
+        summary: `VFXSpec ${compiled.spec_hash}: ${compiled.summary}`,
+        detail: {
+          spec, preset: compiled.preset, role: compiled.role, budget: compiled.budget,
+          envelope: compiled.envelope, timing: head.timing, transaction_id: result.transaction_id,
+        },
+        timestamp: new Date().toISOString(),
+      });
+      if (result.provenance_id) AI.provenance.link(S.state.project, 'implements', result.provenance_id, node);
+      S.setSelection(compiled.item.id, '@vfx');
+      S.markDirty();
+    }
+    return { ...head, ...result };
   },
 };
 

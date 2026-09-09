@@ -289,8 +289,13 @@ export function diffProjects(beforeRaw, afterRaw) {
     const aT = (after.tracks || {})[itemId] || {};
     for (const name of new Set([...Object.keys(bT), ...Object.keys(aT)])) {
       const b = bT[name], a = aT[name];
-      if (!b && a) { trackChanges.push({ itemId, track: name, change: 'added', keys: (a.keys || []).length }); continue; }
-      if (b && !a) { trackChanges.push({ itemId, track: name, change: 'removed', keys: (b.keys || []).length }); continue; }
+      // A whole new (or removed) track reports its key TIMES as well as its count. The count alone
+      // is what a human reads, but `frameRangeOf`, `ai/explain.js` and `ai/observe.js` all build
+      // their frame lists from `keys_added`/`keys_removed` — so with only a count, the keys on a
+      // brand-new track contributed no affected frames, and a regression pass would skip exactly
+      // the frames the new track occupies. `keys` is kept for the callers that read it.
+      if (!b && a) { const ts = keyTimes(a); trackChanges.push({ itemId, track: name, change: 'added', keys: ts.length, keys_added: ts }); continue; }
+      if (b && !a) { const ts = keyTimes(b); trackChanges.push({ itemId, track: name, change: 'removed', keys: ts.length, keys_removed: ts }); continue; }
       const d = diffTrack(b, a);
       if (d) trackChanges.push({ itemId, track: name, change: 'modified', ...d });
     }
@@ -305,6 +310,11 @@ export function diffProjects(beforeRaw, afterRaw) {
     identical: !itemsAdded.length && !itemsRemoved.length && !itemsChanged.length && !trackChanges.length,
     summary: summariseDiff(itemsAdded, itemsRemoved, itemsChanged, trackChanges, changedFrames),
   };
+}
+
+/** The finite key times on a track, in order. */
+function keyTimes(tr) {
+  return (tr?.keys || []).map((k) => k.t).filter(Number.isFinite).sort((x, y) => x - y);
 }
 
 function diffTrack(b, a) {
