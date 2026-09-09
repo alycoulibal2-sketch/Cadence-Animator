@@ -6,9 +6,11 @@
 // correction, the default must be minimal scope. A broad rewrite requires an explicit reason and
 // user visibility."
 //
-// Two of those ten cannot be answered from project data. `expected visual region` needs a render
-// (Part 43, Phase 4) and a meaningful `camera implications` answer needs a framing model (Part 40,
-// Phase 6). Both are returned as `null` WITH the reason and the requirement that unblocks them,
+// Two of those ten cannot be answered from project data. `expected visual region` would need to
+// PREDICT a render of a state that does not exist yet — the passes that measure one after the fact
+// do exist (Part 43/44, and `explain_change` reports the changed region), but projecting a planned
+// pose forward through the camera does not. A meaningful `camera implications` answer needs a
+// framing model (Part 40, Phase 6). Both are returned as `null` WITH the reason and what unblocks them,
 // because a scope report that quietly omits a row reads as "nothing to worry about there".
 //
 // The eight that CAN be answered are answered from the Dependency Graph rather than from
@@ -83,8 +85,9 @@ export function analyseScope(project, plan, { constraints = [], frame = 0 } = {}
     camera_implications: cameraImplications(project, directItems, dependents),
     expected_visual_region: {
       region: null,
-      reason: 'a screen-space region needs a render and a camera projection; the observation layer has only a beauty pass today',
-      blocked_on: 'OBS-002/OBS-003 (silhouette and object-ID passes, directive Part 43, Phase 4)',
+      reason: 'a scope report is produced BEFORE the patch is applied, and a screen-space region can only be measured by rendering the two states and comparing them. The silhouette and object-ID passes now exist (OBS-002/OBS-003) and `explain_change` reports the changed region from them — but that is an after-the-fact measurement, not a prediction, and predicting one would mean projecting every dependent part through the camera at the planned pose',
+      blocked_on: 'a forward screen-space projection of a planned pose — the measurement half is done (Phase 4), the prediction half is not',
+      measured_by: 'explain_change (Part 45), after the edit',
     },
 
     breadth,
@@ -95,8 +98,8 @@ export function analyseScope(project, plan, { constraints = [], frame = 0 } = {}
       frames: timeRange ? [timeRange.start, timeRange.end] : null,
       loop: 'fast',
       notRun: [
-        'no render was produced, so nothing about the visible result was measured (Part 43, Phase 4)',
-        'no baseline comparison was made, so "was this change expected?" is unanswered (Part 44, Phase 4)',
+        'no render was produced, so nothing about the visible result was measured. Scope analysis runs before the patch; the passes that could measure it need both states (run explain_change afterwards)',
+        'no baseline comparison was made, so "was this change expected?" is unanswered here. create_baseline before the edit and explain_change after it is the loop that answers it',
         'camera framing, occlusion and readability were not evaluated — Cadence has no framing model (Part 40, Phase 6)',
         'motion consequences (velocity, arc, contact drift) were not measured (Part 23, Phase 5)',
       ],
@@ -105,6 +108,27 @@ export function analyseScope(project, plan, { constraints = [], frame = 0 } = {}
 }
 
 // ---------------------------------------------------------------- propagation
+
+/**
+ * Which objects move as a consequence of these tracks changing — the same walk `analyseScope`
+ * does, exposed without a patch plan.
+ *
+ * The observation layer needs exactly this to ask its central question: the object-ID pass says
+ * which parts moved ON SCREEN, and the answer only means something against a list of which parts
+ * SHOULD have moved. That list has to come from this function rather than a second copy of the
+ * rule, or the two would eventually disagree and the disagreement would be reported as a
+ * regression.
+ *
+ * @param trackEntityIds `track:<itemId>|<name>` ids, as produced by `ids.trackId`.
+ */
+export function propagateTracks(project, trackEntityIds) {
+  const directItems = new Set();
+  for (const t of trackEntityIds) {
+    const p = ids.parseId(t);
+    if (p?.itemId) directItems.add(p.itemId);
+  }
+  return propagate(project, directItems, new Set(trackEntityIds));
+}
 
 /**
  * Follow the consequences of touching these tracks.
@@ -273,10 +297,12 @@ function regressionRequirement(project, timeRange, dependents, events) {
     'validate_animation — per-frame rotation/position pops, hinge-axis misalignment, degenerate CFrames (validate.js)',
     'diff_snapshots — exact scene-graph and keyframe difference against any held snapshot',
     'inspect_timeline — key times, easing and annotations after the edit',
+    'create_baseline before the edit, then explain_change after it — a rendered silhouette and object-ID comparison of the affected frames, with every difference classified',
   ];
   const unavailable = [
-    'a rendered comparison of the affected frames (needs OBS-001 plus a pixel/perceptual method — REG-003, Phase 4)',
-    'a baseline to compare against at all (REG-001, Phase 4): a snapshot is not yet an APPROVED baseline',
+    'a PERCEPTUAL comparison — the rendered methods are exact-pixel, coverage, edge displacement and object-ID; nothing here judges whether a difference is visually meaningful (REG-003)',
+    'depth, normal, motion-vector and alpha comparison — those passes do not exist (OBS-004/005/006, RND-002)',
+    'temporal validation across the changed range (flicker, one-frame pops between sampled frames): the observation policy targets suspect frames rather than rendering a run',
     'contact and foot-drift validation over the changed range (MOT-008, Phase 5)',
   ];
   if (events.overlapping?.some((e) => e.has_code)) {
@@ -294,7 +320,13 @@ function regressionRequirement(project, timeRange, dependents, events) {
     available,
     unavailable,
     can_fully_validate: false,
-    note: 'can_fully_validate is false and will stay false until Phase 4 lands baselines and image comparison. A pass from the available checks means "no data-side defect found", not "the shot still looks right".',
+    // Phase 4 moved a rendered comparison from "unavailable" to "available", and this stays false
+    // anyway. It is not a Phase counter — it is false whenever ANYTHING in `unavailable` is
+    // unavailable, and four things still are. A pass from the available checks now means "no
+    // data-side defect found, and the silhouette and visible objects at the sampled frames changed
+    // only where an edit explains it" — which is a great deal more than before, and still not
+    // "the shot looks right".
+    note: 'can_fully_validate is false because the list above is non-empty, not because a phase is pending. A rendered comparison IS available now (create_baseline then explain_change); what is missing is perceptual, depth-order, temporal and contact validation.',
   };
 }
 

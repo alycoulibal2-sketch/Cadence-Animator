@@ -73,10 +73,13 @@ export class TransactionLedger {
       changed_frame_range: null,
       expected_visual_effect: null,   // set below, honestly
       validation_results: null,
+      // Filled in by `recordBaselineComparison` when `explain_change` runs against a baseline.
+      // Until then it says "not compared", which is a different claim from "compared and clean" —
+      // and the reason it is a field rather than an absence.
       baseline_comparison: {
         compared: false,
-        reason: 'no approved baseline exists: a snapshot is a state, and what makes one a BASELINE is an approval this layer cannot yet record',
-        blocked_on: 'REG-001 (directive Part 44, Phase 4)',
+        reason: 'no baseline comparison has been run for this transaction. create_baseline before the edit and explain_change after it is what fills this in',
+        blocked_on: null,
       },
       approval_status: 'not_requested',
       rollback_method: null,
@@ -96,8 +99,8 @@ export class TransactionLedger {
     };
     txn.expected_visual_effect = {
       described: null,
-      reason: 'predicting the visible result needs a render; only the data-side change is known here',
-      blocked_on: 'OBS-001 exists (a beauty render) but nothing compares two renders — REG-003, Phase 4',
+      reason: 'predicting the visible result needs a render of a state that does not exist yet; only the data-side change is known at this point. The MEASURED visual effect is available after the fact from explain_change, which fills in baseline_comparison',
+      blocked_on: 'a forward projection of a planned pose through the camera — the after-the-fact measurement exists (Part 43/44), the prediction does not',
     };
     this.byId.set(id, txn);
     this.order.push(id);
@@ -405,6 +408,34 @@ export function decide(ledger, transactionId, decision, { timestamp = null, auth
   return publicView(txn);
 }
 
+/**
+ * Attach the outcome of a baseline comparison to a transaction (Part 55's `baseline_comparison`).
+ *
+ * Written by `explain_change`, not by the apply path: an apply cannot compare against a baseline
+ * because the comparison needs the AFTER state to have been rendered, which happens later. Only
+ * an explanation that actually classified this transaction's own differences may write here, so
+ * `explained` counts the differences that named it — a comparison that found nothing to do with
+ * this transaction records `explained: 0` rather than an implicit clean bill.
+ */
+export function recordBaselineComparison(ledger, transactionId, comparison) {
+  const txn = ledger.get(transactionId);
+  if (!txn) return null;
+  txn.baseline_comparison = {
+    compared: true,
+    baseline_id: comparison.baseline_id ?? null,
+    baseline_name: comparison.baseline_name ?? null,
+    explanation_id: comparison.explanation_id ?? null,
+    differences_explained_by_this_transaction: comparison.explained ?? 0,
+    unexpected_differences_in_the_same_check: comparison.unexpected ?? 0,
+    timestamp: comparison.timestamp ?? null,
+    reason: null,
+    blocked_on: null,
+    note: 'this records that a comparison RAN and what it attributed to this transaction. It is not an approval — Part 55 keeps acceptance separate, and that is `approval_status`',
+  };
+  txn.history.push({ status: txn.status, timestamp: comparison.timestamp ?? null, note: `baseline comparison against ${comparison.baseline_name || comparison.baseline_id}` });
+  return txn.baseline_comparison;
+}
+
 // ---------------------------------------------------------------- the mutating-tool result shape
 
 /**
@@ -455,7 +486,7 @@ export function mutationResult(txn, { status, applied, blocked, plan = null, con
       frames: txn.changed_frame_range ? [txn.changed_frame_range.start, txn.changed_frame_range.end] : null,
       loop: 'fast',
       notRun: [
-        'no render, no visual comparison, no baseline check (Part 43/44, Phase 4)',
+        'nothing was rendered and no baseline was compared BY THIS CALL — the passes and the comparison exist (Part 43/44); create_baseline before the edit and explain_change after it is what runs them, and inspect_transaction then reports the outcome in baseline_comparison',
         'no motion measurement: velocity, arcs, contact drift (Part 23, Phase 5)',
         ...(plan?.ui_affordances_not_applied?.length
           ? [`${plan.ui_affordances_not_applied.length} editor affordance(s) were deliberately not reproduced — see the warnings`]
@@ -477,10 +508,15 @@ export function compareStates(beforeProject, afterProject) {
   return {
     ...d,
     methods_used: ['scene-graph difference', 'keyframe-level curve difference'],
+    // These say what THIS function did not do, which is not the same as what the build cannot do.
+    // Exact-pixel, edge and object-ID comparison all exist now (`ai/raster.js`) — compareStates is
+    // handed two project objects and no rasters, so it cannot reach them. Naming the tool that can
+    // is the difference between "unavailable" and "unavailable here".
     methods_unavailable: [
-      'pixel / perceptual / edge comparison (needs a render — REG-003, Phase 4)',
-      'object-ID and depth comparison (needs OBS-003/OBS-004, Phase 4)',
-      'temporal comparison across a frame range (needs a render sequence, Phase 4)',
+      'pixel, edge-displacement and object-ID comparison: these EXIST (Part 43/44) but need rendered passes, and compareStates receives only project data — create_baseline then explain_change runs them',
+      'perceptual comparison — nothing in this build judges whether a difference is visually meaningful (REG-003)',
+      'depth, normal, motion-vector and alpha comparison — those passes do not exist (OBS-004/005/006)',
+      'temporal comparison across a frame range: flicker and one-frame pops between sampled frames are not looked for by anything',
     ],
   };
 }

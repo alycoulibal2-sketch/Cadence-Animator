@@ -349,13 +349,13 @@ export const CHECKS = Object.freeze({
     implemented: false,
     needs: 'a silhouette render pass',
     describe: () => 'the silhouette staying readable',
-    blocked_on: 'OBS-002 — silhouette pass (directive Part 43, Phase 4).',
+    blocked_on: 'the silhouette pass exists (OBS-002) and explain_change compares it after an edit. What blocks this CONSTRAINT is that checkConstraints runs on project data before the patch, so no raster reaches it — it is reported, never verified here.',
   },
   no_visual_change: {
     implemented: false,
     needs: 'a render and a pixel comparison',
     describe: () => 'no unapproved visual difference',
-    blocked_on: 'REG-003 image comparison (directive Part 44, Phase 4). Only the data-side diff exists today.',
+    blocked_on: 'image comparison exists now (Part 44: exact-pixel, coverage, edge displacement, object-ID) and explain_change runs it after the edit. What blocks this CONSTRAINT is that checkConstraints sees only project data at check time; a PERCEPTUAL "is this difference visually meaningful" judgement does not exist at all (REG-003).',
   },
   performance_budget: {
     implemented: false,
@@ -439,7 +439,7 @@ export function checkPatch(project, patch, constraints, { frame = 0, includeProj
       loop: 'fast',
       notRun: [
         ...notRun,
-        'nothing visual was checked: no render, silhouette, depth or pixel comparison exists on the animation side yet (Part 43/44, Phase 4)',
+        'nothing visual was checked HERE: the silhouette and object-ID passes and their comparison now exist (Part 43/44), but a constraint check runs on project data before the patch — create_baseline then explain_change is what actually looks. Depth comparison and any perceptual judgement do not exist at all',
         'nothing physical was checked: contact drift, balance and arc deviation need Phase 5 (Part 23)',
       ],
     }),

@@ -282,9 +282,13 @@ function restoreHeavy(items, stash) {
 // split out here and re-attached live in applySnapshot: the same carry-across-by-reference
 // pattern HEAVY_FIELDS already uses for immutable geometry, and for the same reason, since a
 // growing graph cloned on every setKey is exactly the cost that comment exists to avoid.
+// `provenance` and `baselines` are records ABOUT states, not state — the same pair ai/snapshot.js
+// holds out of a snapshot, for the same reason. An undo that erased the record of the change being
+// undone, or that deleted the baseline the user is comparing against, would defeat the point of
+// both. Kept in sync with ai/snapshot.js NOT_STATE by a test in test/aitest.mjs.
 function undoableSemantics(p) {
   if (!p.semantics) return null;
-  const { provenance, ...rest } = p.semantics;
+  const { provenance, baselines, ...rest } = p.semantics;
   return Object.keys(rest).length ? rest : null;
 }
 
@@ -302,13 +306,15 @@ function applySnapshot(s) {
   // `semantics` is handled separately from the Object.assign because it is the one field that
   // must sometimes be REMOVED: Object.assign never deletes, so assigning a snapshot taken before
   // the first role pin would otherwise leave the pin in place.
-  const history = state.project.semantics && state.project.semantics.provenance;
+  const carried = {};
+  for (const k of ['provenance', 'baselines']) {
+    if (state.project.semantics && state.project.semantics[k]) carried[k] = state.project.semantics[k];
+  }
   const restored = next.semantics;
   delete next.semantics;
   Object.assign(state.project, next);
-  if (restored || history) {
-    state.project.semantics = { ...(restored || {}) };
-    if (history) state.project.semantics.provenance = history;
+  if (restored || Object.keys(carried).length) {
+    state.project.semantics = { ...(restored || {}), ...carried };
   } else {
     delete state.project.semantics;
   }

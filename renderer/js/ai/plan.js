@@ -849,7 +849,7 @@ export function planMotion(project, { intent, itemId = null, constraints = [], b
       loop: 'fast',
       notRun: [
         ...seg.coverage.notRun,
-        'nothing was rendered: whether the planned change reads as intended is unanswered until Part 43 (Phase 4)',
+        'nothing was rendered: a plan is produced before the patch, so whether it reads as intended is unanswered HERE. explain_change measures it afterwards against a baseline (Part 43/44); a forward prediction of the rendered result still does not exist',
         'no contact was measured (Part 23 — Phase 5)',
         'no arc, silhouette or screen-space check was run (Parts 28, 43)',
       ],
@@ -922,7 +922,7 @@ function buildAcceptance({ intent, itemId, edits, range, contacts }) {
   return CAL.acceptanceSpec({
     checks,
     reviewRequired: contacts.length > 0 || edits.some((e) => e.strategy === 'lead_lag'),
-    baselinePolicy: 'the state immediately before the patch is the comparison point; no approved baseline exists until Phase 4',
+    baselinePolicy: 'the state immediately before the patch is the comparison point, unless create_baseline pinned an approved baseline first (Part 44) — which is the stronger option, because a baseline also holds rendered passes to compare against',
     tolerancePolicy: 'pose tolerances are in degrees of joint rotation; timing tolerances are in frames',
     escalationPolicy: 'a failed protected-state check should be rolled back, not overridden — rollback_transaction takes the transaction id',
   });

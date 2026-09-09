@@ -441,7 +441,7 @@ export const ACCEPTANCE_CHECKS = Object.freeze({
     summary: 'no unapproved pixel difference against the baseline beyond the threshold',
     args: 'baselineId, threshold',
     implemented: false,
-    blocked_by: 'no renderer or baseline in the semantic layer — Part 44 (Phase 4)',
+    blocked_by: 'baselines and a rendered comparison DO exist now (Part 44 — create_baseline then explain_change). What blocks this CHECK is that evaluateAcceptance receives two project objects and nothing else: no raster reaches it, and it must not stand in for the comparison it cannot run',
     proxy_for: null,
   },
   silhouette_readable: {
@@ -450,7 +450,7 @@ export const ACCEPTANCE_CHECKS = Object.freeze({
     summary: 'key poses read clearly in silhouette from the active camera',
     args: 'frames, cameraId',
     implemented: false,
-    blocked_by: 'needs a silhouette pass — Part 43 (Phase 4)',
+    blocked_by: 'the silhouette pass exists (OBS-002) and explain_change compares it, but "reads clearly" is a perceptual judgement and this build makes none — the rendered methods are exact-pixel, coverage, edge displacement and object-ID (REG-003)',
     proxy_for: null,
   },
   export_valid: {

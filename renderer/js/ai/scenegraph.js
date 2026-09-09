@@ -161,7 +161,7 @@ const ABSENT_EDGE_TYPES = [
   { type: 'material_dependency', reason: 'Cadence has no material entities' },
   { type: 'lighting_relationship', reason: 'Cadence has no light entities' },
   { type: 'cache_dependency', reason: 'no simulation cache exists on the animation side (the PNX solver has one, and it is not modelled here)' },
-  { type: 'render_impact', reason: 'needs the observation layer — only a beauty render exists today (Phase 4)' },
+  { type: 'render_impact', reason: 'the observation layer can now MEASURE which objects changed on screen after an edit (Part 43/44), but that is a measurement, not a modelled edge — nothing derives statically that this property affects that region' },
   { type: 'export_dependency', reason: 'export is a whole-item bake; nothing tracks per-property export dependence' },
   { type: 'rig_constraint', reason: 'Cadence has no rig constraints beyond joints themselves' },
 ];

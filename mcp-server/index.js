@@ -1431,6 +1431,79 @@ server.tool(
   async (a) => { try { return textResult(await call('evaluate_acceptance', a)); } catch (e) { return errorResult(e); } },
 );
 
+// ================================================================ observation and baseline
+//
+// Directive Parts 43 (the observation layer), 44 (deterministic visual regression) and 45 (change
+// explanation). The loop is: plan_observation → create_baseline → edit → explain_change, with
+// approve_difference to retire a difference that is intended.
+//
+// Two properties are worth knowing before calling any of these, because they decide whether the
+// answers mean anything. Passes are rendered with ANTIALIASING OFF and at a square resolution, so
+// exact pixel comparison is exact. And every render carries a camera fingerprint: explain_change
+// reproduces the baseline's exact viewpoint, and a comparison across two different viewpoints is
+// REFUSED rather than reported, because every pixel would differ for a reason that has nothing to
+// do with the animation.
+
+server.tool(
+  'plan_observation',
+  'READ-ONLY. Part 43\'s hierarchical observation policy: given what changed, which evidence is worth gathering, cheapest first — and which tiers were skipped, with the reason. Answers "should I render at all?" (usually no: a keyframe edit is fully described by the curve difference) and, when a render IS warranted, which passes at which frames. Also lists every Part 43 pass this build cannot produce, with what blocks each. Call this before create_baseline if you are not sure what to observe.',
+  {
+    from: z.string().optional().describe('Snapshot id for the before-state. Omit to use the live project.'),
+    to: z.string().optional().describe('Snapshot id for the after-state. Omit to use the live project.'),
+    question: z.string().optional().describe('What you are trying to find out — carried into the plan and the coverage report.'),
+    maxFrames: z.number().optional().describe('Cap on suspect frames (default 6). Frames dropped by the cap are named, never silently omitted.'),
+  },
+  async (a) => { try { return textResult(await call('plan_observation', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'create_baseline',
+  'MUTATING (appends to the project; no animation data is touched). Record an approved state as a baseline (Part 44): a pinned scene snapshot, the animation/camera/VFX revisions, and a rendered silhouette and object-ID pass at each chosen frame. The baseline lives INSIDE the project, so it survives save/load — but a saved file holds a digest and a 16x16 signature per observation, not pixels: the full rasters are session-only, and a comparison in a later session degrades to block granularity and says so. Four of Part 44\'s seventeen fields (lighting, colour management, simulation seeds, cache hashes) are null with the reason in `unavailable`, because Cadence has nothing behind them. Take a baseline BEFORE the edit you want to be able to explain.',
+  {
+    name: z.string().optional().describe('A name you will recognise later. Defaults to "baseline N".'),
+    frames: z.array(z.number()).optional().describe('Frames to observe. Defaults to the current playhead. plan_observation suggests a set.'),
+    passes: z.array(z.enum(['silhouette', 'object_id'])).optional().describe("Default ['silhouette','object_id']. Anything else is reported as skipped rather than silently dropped."),
+    size: z.number().optional().describe('Square render resolution, 32-512 (default 192). The comparison refuses to compare two different resolutions.'),
+    reason: z.string().optional().describe('Why this state is worth pinning.'),
+    acceptance: z.any().optional().describe('An AcceptanceSpec this baseline is the accepted result of (from plan_motion).'),
+    author: z.string().optional(),
+  },
+  async (a) => { try { return textResult(await call('create_baseline', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'list_baselines',
+  'READ-ONLY. Every baseline this project holds, with its frame range, passes, revisions, pinned snapshot and approved-difference count, plus whether the session still holds the full rasters.',
+  {},
+  async () => { try { return textResult(await call('list_baselines')); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'explain_change',
+  'READ-ONLY (it appends an analysis record to provenance; no animation data is touched). Part 44\'s regression workflow and Part 45\'s explanation, in one call: re-render the baseline\'s exact passes at its exact frames from its exact viewpoint, diff the project data, and report every difference with Part 44\'s ten answers — what, where, when, which objects, which transaction explains it, whether it is deterministic, and whether it needs you. Each is classified expected / unexpected / uncertain / approved: `expected` means a specific applied transaction names the entity or the object moves as a rig consequence of one that does; `uncertain` means the evidence needed was not available and is never reported as a pass. Causes are RANKED with the evidence that would distinguish them, and the minimum safe correction is named. This is the tool that answers "what did my edit actually change?".',
+  {
+    baselineId: z.string().optional().describe('From list_baselines. Omit for the most recent baseline.'),
+    frames: z.array(z.number()).optional().describe("Override which frames to re-observe. Defaults to exactly the baseline's own frames — anything else cannot be compared."),
+    size: z.number().optional().describe("Override the render resolution. Do not, unless you know why: a different resolution makes every pass incomparable and the result will say so."),
+    observe: z.boolean().optional().describe('Render the passes (default true). false gives the data-side comparison alone, and the coverage report names what was not looked at.'),
+    request: z.string().optional().describe('The question in your own words, kept on the explanation and in provenance.'),
+  },
+  async (a) => { try { return textResult(await call('explain_change', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'approve_difference',
+  'MUTATING (appends to the project). Record that a difference against a baseline is intended (Part 44\'s fourth classification). An approval is scoped to one target and REQUIRES a reason — an unattributed "this is fine" cannot be reviewed later, which is the whole point of recording it. Afterwards explain_change reports that difference as `approved` rather than as a finding.',
+  {
+    baselineId: z.string().describe('From list_baselines.'),
+    target: z.string().describe('What is approved: an entity id, a track entity id, or a difference\'s `where_did_it_change.entity` from explain_change.'),
+    kind: z.string().optional().describe("Restrict to one difference kind ('curve', 'silhouette', 'object_id_shift', 'object_property'). Default 'any'."),
+    reason: z.string().describe('Why this difference is intended. Required.'),
+    author: z.string().optional(),
+  },
+  async (a) => { try { return textResult(await call('approve_difference', a)); } catch (e) { return errorResult(e); } },
+);
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

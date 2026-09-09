@@ -38,6 +38,10 @@ const VOC = await import('../renderer/js/ai/vocabulary.js');
 const CAL = await import('../renderer/js/ai/cal.js');
 const INT = await import('../renderer/js/ai/intent.js');
 const PLAN = await import('../renderer/js/ai/plan.js');
+const RAS = await import('../renderer/js/ai/raster.js');
+const OBS = await import('../renderer/js/ai/observe.js');
+const BASE = await import('../renderer/js/ai/baseline.js');
+const EXP = await import('../renderer/js/ai/explain.js');
 const CF = await import('../renderer/js/cf.js');
 
 let passed = 0, failed = 0;
@@ -90,7 +94,7 @@ console.log('\n— purity —');
 check('purity: every ai/ module imports in plain Node with no renderer globals', () => {
   // Reaching this line at all means all 12 imports at the top of this file succeeded. Asserting a
   // symbol from each one keeps a future tree-shaking or re-export mistake from making that vacuous.
-  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN })) {
+  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN, RAS, OBS, BASE, EXP })) {
     assert.ok(Object.keys(mod).length > 0, `${name} exported nothing`);
   }
   assert.equal(typeof AI.SEMANTIC_LAYER_VERSION, 'string');
@@ -101,7 +105,7 @@ check('purity: every ai/ module on disk is imported by this file', () => {
   // could reach for `window` freely, and the check below that greps the sources would catch the
   // obvious cases but not a lazy `await import('three')`.
   const onDisk = fs.readdirSync(path.join(ROOT, 'renderer/js/ai')).filter((n) => n.endsWith('.js') && n !== 'index.js').sort();
-  const imported = ['cal.js', 'certainty.js', 'constraints.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'patch.js', 'plan.js', 'provenance.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js', 'vocabulary.js'];
+  const imported = ['baseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'explain.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js', 'vocabulary.js'];
   assert.deepEqual(onDisk, imported, 'a module was added to renderer/js/ai without being imported at the top of test/aitest.mjs');
 });
 
@@ -120,6 +124,8 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     // Phase 3
     'animation_vocabulary', 'set_vocabulary_term', 'interpret_intent', 'plan_motion',
     'apply_motion_plan', 'evaluate_acceptance',
+    // Phase 4
+    'plan_observation', 'create_baseline', 'list_baselines', 'explain_change', 'approve_difference',
   ];
   const src = fs.readFileSync(path.join(ROOT, 'mcp-server/index.js'), 'utf8');
   const found = new Map();
@@ -138,11 +144,15 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
   for (const t of ['inspect_scene', 'inspect_rig', 'inspect_timeline', 'resolve_semantic', 'selection_vocabulary', 'list_snapshots', 'diff_snapshots', 'inspect_provenance',
     // A dry run is read-only, and saying so is the point of preview existing at all.
     'preview_animation_patch', 'list_transactions', 'inspect_transaction', 'inspect_constraints',
-    'animation_vocabulary', 'interpret_intent', 'plan_motion', 'evaluate_acceptance']) {
+    'animation_vocabulary', 'interpret_intent', 'plan_motion', 'evaluate_acceptance',
+    // explain_change appends an analysis node to provenance and nothing else. That is the same
+    // bargain inspect_provenance and evaluate_acceptance already make, and calling it MUTATING
+    // would tell a caller to hesitate before asking what changed — exactly backwards.
+    'plan_observation', 'list_baselines', 'explain_change']) {
     assert.ok(found.get(t).startsWith('READ-ONLY'), `${t} must be declared READ-ONLY`);
   }
   for (const t of ['apply_animation_patch', 'rollback_transaction', 'lock_constraint', 'unlock_constraint',
-    'set_vocabulary_term', 'apply_motion_plan']) {
+    'set_vocabulary_term', 'apply_motion_plan', 'create_baseline', 'approve_difference']) {
     assert.ok(found.get(t).startsWith('MUTATING'), `${t} changes the project and must say MUTATING`);
   }
   // Part 50 also wants rollback capability declared. For the mutating patch tools that is the
@@ -1648,8 +1658,12 @@ check('scope: the two rows that need later phases are null WITH a reason', () =>
   const p = fixture();
   const plan = PATCH.planPatch(p, PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightHip', t: 5, value: I() }] }));
   const s = SCOPE.analyseScope(p, plan);
+  // Still null, but for a DIFFERENT reason since Phase 4: the passes exist, and a scope report
+  // runs before the patch, so the region could only be predicted rather than measured. The row
+  // has to keep saying which of those two it is, or a reader would assume the passes are missing.
   assert.equal(s.expected_visual_region.region, null);
-  assert.ok(/OBS-002/.test(s.expected_visual_region.blocked_on));
+  assert.ok(/predict/i.test(s.expected_visual_region.blocked_on), 'the reason must say the measurement exists and the PREDICTION does not');
+  assert.ok(/explain_change/.test(s.expected_visual_region.measured_by), 'it must point at the tool that does measure it');
   assert.equal(s.camera_implications.framing_effect, null);
   assert.ok(/SHOT-00/.test(s.camera_implications.blocked_on));
   assert.equal(s.camera_implications.cameras_in_project.length, 1, 'the camera that DOES exist is still reported');
@@ -1688,7 +1702,16 @@ check('transaction: a record carries Part 55\'s field list, with honest nulls', 
     assert.ok(f in txn, `the transaction record is missing Part 55's "${f}"`);
   }
   assert.equal(txn.baseline_comparison.compared, false);
-  assert.ok(/REG-001/.test(txn.baseline_comparison.blocked_on), 'an empty baseline comparison must say what unblocks it');
+  assert.ok(/create_baseline/.test(txn.baseline_comparison.reason), 'an uncompared transaction must say how a comparison would be made');
+  // "not compared" and "compared, and clean" are different claims, and the field exists to keep
+  // them apart. Once a comparison runs, `compared` flips and carries what it attributed.
+  TXN.recordBaselineComparison(ledger, txn.transaction_id, {
+    baseline_id: 'baseline:1:abc', baseline_name: 'before the swing', explanation_id: 'explain:xyz',
+    explained: 2, unexpected: 0, timestamp: '2026-09-08T00:00:00Z',
+  });
+  assert.equal(ledger.get(txn.transaction_id).baseline_comparison.compared, true);
+  assert.equal(ledger.get(txn.transaction_id).baseline_comparison.differences_explained_by_this_transaction, 2);
+  assert.equal(ledger.get(txn.transaction_id).approval_status, 'not_requested', 'a comparison is not an approval');
   assert.ok(/render/.test(txn.expected_visual_effect.reason));
   assert.equal(txn.approval_status, 'not_requested', 'applying is not accepting');
 });
@@ -1906,7 +1929,16 @@ check('transaction: compareStates names the comparison methods it did NOT use', 
   assert.equal(c.tracks.length, 1);
   assert.ok(c.methods_used.length === 2);
   assert.ok(c.methods_unavailable.length >= 3);
-  assert.ok(c.methods_unavailable.every((s) => /Phase 4/.test(s)));
+  // This used to assert every entry mentioned "Phase 4", which is why it kept passing after
+  // Phase 4 shipped and left compareStates claiming that pixel and object-ID comparison did not
+  // exist. What matters is that each entry distinguishes "does not exist" from "not reachable
+  // from here", so assert that instead of a phase number.
+  assert.ok(!c.methods_unavailable.some((s) => /Phase 4/.test(s)),
+    'Phase 4 shipped: an unavailable-method note that still defers to it denies a capability the build has');
+  assert.ok(c.methods_unavailable.some((s) => /EXIST/.test(s) && /explain_change/.test(s)),
+    'the methods that exist but need rasters must name the tool that runs them');
+  assert.ok(c.methods_unavailable.some((s) => /do not exist/.test(s)),
+    'the passes that genuinely do not exist must still be named');
 });
 
 check('transaction: the full Phase 2 loop runs end to end on one project', () => {
@@ -2142,7 +2174,16 @@ check('cal: acceptance never counts an unrunnable check as a pass', () => {
   assert.equal(r.accepted, true, 'the one runnable check passes on an unchanged project');
   assert.equal(r.fully_validated, false, 'but two checks did not run, so this is NOT fully validated');
   assert.equal(r.results.filter((x) => x.status === 'not_run').length, 2);
-  assert.ok(r.coverage.notRun.some((s) => /Phase 4/.test(s)));
+  // Each unrunnable check must say what actually blocks IT. Asserting on a phase number was the
+// old form of this check and it rotted the moment Phase 4 shipped: the reason still read "no
+  // renderer or baseline in the semantic layer" after both had been built. So assert the two
+  // reasons name their own real obstacle instead.
+  const reasons = Object.fromEntries(r.results.filter((x) => x.status === 'not_run').map((x) => [x.check, x.reason]));
+  assert.ok(/only project data|nothing else|no raster/.test(reasons.no_visual_regression),
+    `no_visual_regression must say that the check gets no raster, not that rendering does not exist: ${reasons.no_visual_regression}`);
+  assert.ok(!/Phase 4/.test(reasons.no_visual_regression),
+    'Phase 4 shipped: a reason that still defers to it is claiming a capability is absent when it is not');
+  assert.ok(/Phase 5/.test(reasons.contact_drift_within), 'contact drift is genuinely still unbuilt, and should say so');
 });
 
 check('cal: acceptance checks measure what they claim, and label the proxies', () => {
@@ -2461,11 +2502,614 @@ check('layer: the Phase 3 success condition — "heavier without changing timing
   assert.equal(H.contentHash(p), origin, 'the project must be exactly where it started');
 });
 
+console.log('\n— raster —');
+
+// A raster fixture: `draw` paints into a byte buffer with the same origin convention the real
+// passes use (row 0 at the top), so a region reported here means what it means in the app.
+function gray(width, height, draw, { camera = CAM_A } = {}) {
+  const data = new Uint8Array(width * height);
+  draw((x, y, v) => { data[y * width + x] = v; });
+  return RAS.makeRaster({ pass: 'silhouette', frame: 0, width, height, encoding: 'gray8', data, camera });
+}
+function idRaster(width, height, palette, draw, { camera = CAM_A } = {}) {
+  const data = new Uint8Array(width * height * 4);
+  draw((x, y, index) => {
+    const o = (y * width + x) * 4;
+    data[o] = index & 0xff; data[o + 1] = (index >> 8) & 0xff; data[o + 2] = (index >> 16) & 0xff; data[o + 3] = 255;
+  });
+  return RAS.makeRaster({ pass: 'object_id', frame: 0, width, height, encoding: 'id8', data, camera, palette });
+}
+const CAM_A = RAS.cameraFingerprint({ position: [9, 7, 12], quaternion: [0, 0, 0, 1], fov: 55, aspect: 1 });
+const CAM_B = RAS.cameraFingerprint({ position: [9, 7, 13], quaternion: [0, 0, 0, 1], fov: 55, aspect: 1 });
+const box = (x0, y0, w, h, v = 255) => (set) => { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) set(x, y, v); };
+
+check('raster: a buffer that does not match its own header is refused at construction', () => {
+  assert.throws(() => RAS.makeRaster({ pass: 'silhouette', width: 4, height: 4, encoding: 'gray8', data: new Uint8Array(15) }), /needs 16 bytes/);
+  assert.throws(() => RAS.makeRaster({ pass: 'object_id', width: 2, height: 2, encoding: 'id8', data: new Uint8Array(16) }), /without a palette names nothing/);
+});
+
+check('raster: the digest is over the pixels AND the shape', () => {
+  const a = gray(8, 8, box(1, 1, 3, 3));
+  const b = gray(8, 8, box(1, 1, 3, 3));
+  assert.equal(RAS.rasterDigest(a), RAS.rasterDigest(b));
+  assert.notEqual(RAS.rasterDigest(a), RAS.rasterDigest(gray(8, 8, box(2, 1, 3, 3))));
+  // Same bytes, different declared shape: a 4x16 and a 16x4 buffer of identical content are not
+  // the same image, and a digest that said they were would alias two baselines.
+  const flat = new Uint8Array(64).fill(7);
+  assert.notEqual(
+    RAS.rasterDigest(RAS.makeRaster({ pass: 'silhouette', width: 4, height: 16, encoding: 'gray8', data: flat, camera: CAM_A })),
+    RAS.rasterDigest(RAS.makeRaster({ pass: 'silhouette', width: 16, height: 4, encoding: 'gray8', data: flat, camera: CAM_A })),
+  );
+});
+
+check('raster: a comparison across two viewpoints is REFUSED, not measured', () => {
+  // The failure this pins: the user nudges the orbit camera between a baseline and a check, every
+  // silhouette moves, and a regression engine reports a whole-body change with total confidence.
+  const a = gray(8, 8, box(1, 1, 3, 3), { camera: CAM_A });
+  const b = gray(8, 8, box(1, 1, 3, 3), { camera: CAM_B });
+  for (const m of [RAS.pixelDifference(a, b), RAS.maskDifference(a, b), RAS.edgeDifference(a, b)]) {
+    assert.equal(m.comparable, false, `${m.method} must refuse across viewpoints`);
+    assert.match(m.reason, /camera moved/);
+  }
+  // And a raster with no fingerprint at all is refused too — unknown is not "probably fine".
+  const anon = RAS.makeRaster({ pass: 'silhouette', width: 8, height: 8, encoding: 'gray8', data: new Uint8Array(64), camera: null });
+  assert.equal(RAS.pixelDifference(a, anon).comparable, false);
+  assert.match(RAS.pixelDifference(a, anon).reason, /no camera fingerprint/);
+});
+
+check('raster: a resolution mismatch is refused rather than resampled', () => {
+  const a = gray(8, 8, box(1, 1, 3, 3));
+  const b = gray(16, 16, box(2, 2, 6, 6));
+  assert.equal(RAS.pixelDifference(a, b).comparable, false);
+  assert.match(RAS.pixelDifference(a, b).reason, /resampling/);
+});
+
+check('raster: pixel difference locates the change to an exact region', () => {
+  const a = gray(16, 16, box(2, 2, 4, 4));
+  const b = gray(16, 16, (set) => { box(2, 2, 4, 4)(set); box(10, 11, 2, 3)(set); });
+  const d = RAS.pixelDifference(a, b);
+  assert.equal(d.changed, true);
+  assert.equal(d.changed_pixels, 6);
+  assert.equal(d.max_channel_delta, 255);
+  assert.deepEqual(d.region, { x: 10, y: 11, width: 2, height: 3 });
+  assert.equal(RAS.pixelDifference(a, a).changed, false);
+  assert.equal(RAS.pixelDifference(a, a).region, null);
+});
+
+check('raster: silhouette coverage separates what was gained from what was lost', () => {
+  const a = gray(16, 16, box(2, 2, 4, 4));   // 16 px
+  const b = gray(16, 16, box(4, 2, 4, 4));   // 16 px, shifted right by 2
+  const d = RAS.maskDifference(a, b);
+  assert.equal(d.coverage_before, 16);
+  assert.equal(d.coverage_after, 16);
+  assert.equal(d.pixels_gained, 8);
+  assert.equal(d.pixels_lost, 8);
+  assert.equal(d.centroid_shift_px, 2);
+  // The count alone cannot tell a shift from a resize; IoU and the centroid can.
+  assert.ok(d.intersection_over_union > 0.3 && d.intersection_over_union < 0.4);
+});
+
+check('raster: edge displacement measures HOW FAR an outline moved, not how many pixels changed', () => {
+  const a = gray(32, 32, box(4, 4, 8, 8));
+  const near = gray(32, 32, box(5, 4, 8, 8));   // one pixel right
+  const far = gray(32, 32, box(16, 4, 8, 8));   // twelve pixels right
+  const dn = RAS.edgeDifference(a, near), df = RAS.edgeDifference(a, far);
+  assert.equal(dn.approximate, true, 'a chamfer distance must declare itself approximate');
+  assert.ok(dn.max_displacement_px <= 1.5, `a one-pixel shift should measure about 1px, got ${dn.max_displacement_px}`);
+  assert.ok(df.max_displacement_px > 8, `a twelve-pixel shift should measure far more, got ${df.max_displacement_px}`);
+  assert.ok(df.max_displacement_px > dn.max_displacement_px * 4);
+  assert.equal(RAS.edgeDifference(a, gray(32, 32, box(4, 4, 8, 8))).max_displacement_px, 0);
+});
+
+check('raster: object-ID difference names WHICH objects moved, appeared and vanished', () => {
+  const palette = { 1: 'part:hero/Torso', 2: 'part:hero/RightHand', 3: 'part:hero/LeftHand' };
+  const a = idRaster(32, 32, palette, (set) => {
+    box(10, 10, 6, 8, 1)(set); box(18, 12, 3, 3, 2)(set); box(4, 12, 3, 3, 3)(set);
+  });
+  const b = idRaster(32, 32, palette, (set) => {
+    box(10, 10, 6, 8, 1)(set); box(24, 12, 3, 3, 2)(set); // right hand moved 6px, left hand gone
+  });
+  const d = RAS.idDifference(a, b);
+  assert.equal(d.trustworthy, true, 'every pixel must be attributable to a palette entry');
+  assert.deepEqual(d.disappeared.map((x) => x.entity), ['part:hero/LeftHand']);
+  assert.deepEqual(d.appeared, []);
+  assert.equal(d.moved.length, 1);
+  assert.equal(d.moved[0].entity, 'part:hero/RightHand');
+  assert.equal(d.moved[0].centroid_shift_px, 6);
+  assert.equal(d.unchanged_count, 1, 'the torso held still and must be reported as unchanged, not omitted');
+});
+
+check('raster: a pixel the palette cannot name is counted, not attributed to a neighbour', () => {
+  const palette = { 1: 'part:hero/Torso' };
+  const r = idRaster(8, 8, palette, (set) => { box(1, 1, 2, 2, 1)(set); box(5, 5, 2, 2, 9)(set); });
+  const counts = RAS.objectPixelCounts(r);
+  assert.equal(counts.objects['part:hero/Torso'].pixels, 4);
+  assert.equal(counts.unclassified_pixels, 4);
+  const d = RAS.idDifference(r, idRaster(8, 8, palette, box(1, 1, 2, 2, 1)));
+  assert.equal(d.trustworthy, false, 'a comparison with unattributable pixels must not claim to be complete');
+  assert.match(d.note, /incomplete/);
+});
+
+check('raster: a signature localises without pretending to measure', () => {
+  const a = gray(64, 64, box(4, 4, 8, 8));
+  const b = gray(64, 64, box(40, 40, 8, 8));
+  const d = RAS.signatureDifference(RAS.signature(a, { blocks: 8 }), RAS.signature(b, { blocks: 8 }));
+  assert.equal(d.changed, true);
+  assert.ok(d.changed_blocks >= 2 && d.changed_blocks <= 8);
+  assert.ok(d.cannot_answer.some((s) => /by how many pixels/.test(s)), 'a degraded comparison must name what it cannot answer');
+  assert.equal(RAS.signatureDifference(RAS.signature(a), RAS.signature(a)).changed, false);
+});
+
+console.log('\n— observe —');
+
+check('observe: every Part 43 pass is present, and the 19 that do not exist say what blocks them', () => {
+  const all = Object.values(OBS.PASSES);
+  assert.ok(all.length >= 24, `Part 43 lists 24 observation kinds; PASSES has ${all.length}`);
+  const missing = all.filter((p) => !p.implemented);
+  assert.ok(missing.length >= 15);
+  for (const p of missing) assert.ok(p.unblocked_by && p.unblocked_by.length > 10, `${p.id} is unimplemented and does not say why`);
+  assert.deepEqual(OBS.availablePasses().sort(), ['beauty', 'changed_region_mask', 'object_bounding_boxes', 'object_id', 'silhouette']);
+  // The prose count drifted from the registry once already: observeLimitations said "4 of 24 …
+  // the other 20" while PASSES held 5 implemented and 19 not, because the pre-existing beauty
+  // render was left out of the tally in one place and counted in the other. Tie the sentence to
+  // the registry so the next pass to land cannot leave it stale.
+  const lim = OBS.observeLimitations().cannot.find((s) => /of Part 43's 24 observation kinds/.test(s));
+  assert.ok(lim, 'observeLimitations must state how many of Part 43\'s 24 kinds exist');
+  assert.ok(lim.startsWith(`${OBS.availablePasses().length} of Part 43's 24`),
+    `observeLimitations claims a different count from PASSES (${OBS.availablePasses().length} implemented): ${lim}`);
+  assert.ok(new RegExp(`the other ${missing.length} are enumerated`).test(lim),
+    `observeLimitations must say ${missing.length} are missing, to match PASSES: ${lim}`);
+});
+
+check('observe: a derived pass resolves back to the render that produces it', () => {
+  // Asking the renderer for "changed_region_mask" would produce nothing — it is post-processing
+  // over a silhouette. Resolving it here is what stops that from being a silent no-op.
+  assert.deepEqual(OBS.renderablePasses(['changed_region_mask', 'object_bounding_boxes']), ['silhouette', 'object_id']);
+  assert.deepEqual(OBS.renderablePasses(['depth']), [], 'an unimplemented pass resolves to nothing rather than to a lie');
+  assert.throws(() => OBS.renderablePasses(['xray']), /unknown pass/);
+});
+
+check('observe: an identical pair is settled at tier 1 and costs no render', () => {
+  const p = fixture();
+  const plan = OBS.observationPlan(SNAP.diffProjects(p, p));
+  assert.deepEqual(plan.recommended.passes, []);
+  assert.deepEqual(plan.recommended.frames, []);
+  assert.equal(plan.tiers[0].chosen, true);
+  assert.ok(plan.tiers.slice(1).every((t) => !t.chosen), 'no tier past the first may run once the answer is known');
+  assert.ok(plan.findings.some((f) => /No observation is warranted/.test(f.statement)));
+});
+
+check('observe: a joint edit stops at tier 3; a camera edit escalates to tier 5', () => {
+  const a = fixture();
+  const b = fixture();
+  b.tracks.hero.RightShoulder.keys[1].v = CF.fromEuler(0, 0, 1.6);
+  const local = OBS.observationPlan(SNAP.diffProjects(a, b), { length: a.length });
+  assert.deepEqual(local.recommended.passes, ['silhouette', 'object_id']);
+  assert.ok(local.recommended.frames.includes(8), 'the changed key time must be observed');
+  assert.equal(local.tiers[4].chosen, false, 'a local joint edit must not escalate to a full pass comparison');
+  assert.equal(local.escalation_triggers_fired.length, 0);
+
+  const c = fixture();
+  c.tracks.cam['@fov'].keys[1].v = 20;
+  const wide = OBS.observationPlan(SNAP.diffProjects(a, c), { length: a.length });
+  assert.equal(wide.tiers[4].chosen, true);
+  assert.ok(wide.escalation_triggers_fired.some((t) => t.trigger === 'camera'));
+});
+
+check('observe: suspect frames include the midpoints, and a frame dropped by the cap is named', () => {
+  const a = fixture();
+  const b = fixture();
+  b.tracks.hero.RightShoulder.keys[1].v = CF.fromEuler(0, 0, 1.6);
+  b.tracks.hero.RightShoulder.keys[2].v = CF.fromEuler(0, 0, -1.4);
+  const s = OBS.suspectFrames(SNAP.diffProjects(a, b), { length: 60, max: 6 });
+  assert.deepEqual(s.frames.map((f) => f.frame), [8, 12, 16]);
+  assert.ok(s.frames[1].why[0].includes('midway'), 'the midpoint must say why it was chosen');
+  const capped = OBS.suspectFrames(SNAP.diffProjects(a, b), { length: 60, max: 2 });
+  assert.equal(capped.frames.length, 2);
+  assert.ok(capped.note && /NOT observed/.test(capped.note), 'a frame the cap dropped must be named, not silently omitted');
+  assert.deepEqual(capped.dropped, [12]);
+});
+
+console.log('\n— baseline —');
+
+function observation(frame, pass, digest, cells) {
+  return { frame, pass, digest, camera: CAM_A, signature: { kind: 'mean_luminance', blocks: 2, cells, objects: null }, stats: null };
+}
+
+check('baseline: Part 44\'s seventeen fields are all present, and the four Cadence cannot fill say why', () => {
+  const p = fixture();
+  const b = BASE.createBaseline(p, {
+    name: 'before the swing', snapshot: { id: 'snapshot:aaa', hash: 'aaa' },
+    observations: [observation(8, 'silhouette', 'd1', [1, 2, 3, 4])],
+    resolution: '192x192', author: 'ai', timestamp: '2026-09-08T00:00:00Z',
+  });
+  for (const f of ['scene_snapshot', 'animation_revision', 'vfx_revision', 'camera_revision',
+    'lighting_and_environment_state', 'render_settings', 'frame_rate', 'resolution', 'frame_range',
+    'color_management', 'simulation_seeds', 'cache_hashes', 'diagnostic_passes_available',
+    'acceptance_criteria', 'approved_differences', 'author', 'timestamp']) {
+    assert.ok(f in b, `Part 44's "${f}" is missing from the baseline record`);
+  }
+  assert.equal(b.frame_rate, 30);
+  assert.deepEqual(b.frame_range, { start: 8, end: 8 });
+  // The four nulls must each carry their own reason. A null with no reason reads as "unchanged".
+  assert.equal(b.unavailable.length, 4);
+  for (const u of b.unavailable) {
+    assert.equal(b[u.field], null);
+    assert.ok(u.reason.length > 40, `${u.field} is null without a real reason`);
+  }
+  assert.ok(b.unavailable.some((u) => u.field === 'lighting_and_environment_state'));
+});
+
+check('baseline: animation, camera and VFX revisions move independently', () => {
+  const p = fixture();
+  const r0 = BASE.revisionsOf(p);
+  p.tracks.hero.RightShoulder.keys[1].v = CF.fromEuler(0, 0, 1.6);
+  const r1 = BASE.revisionsOf(p);
+  assert.notEqual(r0.animation, r1.animation);
+  assert.equal(r0.camera, r1.camera, 'a joint edit must not move the camera revision');
+  p.tracks.cam['@fov'].keys[1].v = 20;
+  const r2 = BASE.revisionsOf(p);
+  assert.notEqual(r1.camera, r2.camera);
+  assert.equal(r1.animation, r2.animation, 'a camera edit must not move the animation revision');
+});
+
+check('baseline: it lives in the project and survives a JSON round trip', () => {
+  const p = fixture();
+  BASE.createBaseline(p, { name: 'keep me', snapshot: { id: 'snapshot:aaa', hash: 'aaa' }, observations: [observation(0, 'silhouette', 'd1', [0, 0, 0, 0])], timestamp: 't' });
+  const reloaded = JSON.parse(JSON.stringify(p));
+  const list = BASE.listBaselines(reloaded);
+  assert.equal(list.baselines.length, 1);
+  assert.equal(list.baselines[0].name, 'keep me');
+  assert.equal(BASE.getBaseline(reloaded, 'keep me').observations[0].digest, 'd1');
+});
+
+check('baseline: an approval needs a target AND a reason, and then it bites', () => {
+  const p = fixture();
+  const b = BASE.createBaseline(p, { name: 'b', observations: [], timestamp: 't' });
+  assert.throws(() => BASE.approveDifference(p, b.id, { target: 'track:hero|RightHip' }), /needs a reason/);
+  assert.throws(() => BASE.approveDifference(p, b.id, { reason: 'because' }), /needs a target/);
+  BASE.approveDifference(p, b.id, { target: 'track:hero|RightHip', kind: 'curve', reason: 'the hip retime is the point of the edit', author: 'user' });
+  assert.equal(BASE.findApproval(b, { target: 'track:hero|RightHip', kind: 'curve' }).author, 'user');
+  assert.equal(BASE.findApproval(b, { target: 'track:hero|RightHip', kind: 'silhouette' }), null, 'a curve approval must not cover a silhouette difference');
+  assert.equal(BASE.findApproval(b, { target: 'track:hero|RightElbow', kind: 'curve' }), null);
+});
+
+check('baseline: taking one does NOT make the project look edited', () => {
+  // The defect this pins, found by the Phase 4 success-condition test: `create_baseline` writes
+  // into `project.semantics`, so a diff against the state it just pinned reported `project field
+  // "semantics" changed` — every comparison opened by announcing that a baseline had been taken,
+  // and explain_change classified it as an unexplained difference. A baseline is a record ABOUT
+  // states, so it belongs in NOT_STATE alongside provenance.
+  const p = fixture();
+  const store = new SNAP.SnapshotStore();
+  const snap = store.take(p, { reason: 'baseline' });
+  BASE.createBaseline(p, { name: 'b', snapshot: { id: snap.id, hash: snap.hash }, observations: [], timestamp: 't' });
+  const d = SNAP.diffProjects(store.get(snap.id).project, p);
+  assert.equal(d.identical, true, 'creating a baseline must not register as a change to the animation');
+  assert.deepEqual(d.project_fields, []);
+  // Content addressing has to agree, or a snapshot taken after the baseline would not dedupe
+  // against the one the baseline pins.
+  assert.equal(store.take(p, { reason: 'again' }).hash, snap.hash);
+  assert.ok(SNAP.NOT_STATE.includes('baselines') && SNAP.NOT_STATE.includes('provenance'));
+});
+
+check('baseline: undo does not delete a baseline, and neither does a restore', () => {
+  // Same rule from the other side. `state.js` holds the same two keys out of the undo snapshot,
+  // and this reads the source to prove the two lists have not drifted apart — a baseline that
+  // vanished on Ctrl+Z would take its approved differences with it.
+  const src = fs.readFileSync(path.join(ROOT, 'renderer/js/state.js'), 'utf8');
+  const m = src.match(/function undoableSemantics\(p\) \{[\s\S]*?const \{([^}]*)\} = p\.semantics;/);
+  assert.ok(m, 'undoableSemantics no longer destructures what it holds out of undo');
+  const held = m[1].split(',').map((s) => s.trim()).filter((s) => s && s !== '...rest');
+  assert.deepEqual(held.sort(), [...SNAP.NOT_STATE].sort(), 'state.js and ai/snapshot.js disagree about what is not state');
+});
+
+check('baseline: a missing snapshot is reported as missing, not as nothing-changed', () => {
+  const p = fixture();
+  const store = new SNAP.SnapshotStore();
+  const snap = store.take(p, { reason: 'x' });
+  const b = BASE.createBaseline(p, { snapshot: { id: snap.id, hash: snap.hash }, observations: [], timestamp: 't' });
+  assert.equal(BASE.snapshotAvailable(b, store).available, true);
+  assert.equal(BASE.snapshotAvailable(b, new SNAP.SnapshotStore()).available, false);
+  assert.match(BASE.snapshotAvailable(b, new SNAP.SnapshotStore()).reason, /no longer held/);
+});
+
+console.log('\n— explain —');
+
+// One applied transaction that claims the shoulder key at frame 8, in the ledger's own shape.
+function appliedTxn(entities, { id = 'txn:1:aaa', intent = 'make the swing heavier', status = 'applied' } = {}) {
+  return { transaction_id: id, status, interpreted_intent: intent, user_request: 'heavier', changed_entities: entities, changed_properties: [], timestamp: 't' };
+}
+
+check('explain: a change a transaction claims is EXPECTED and names the transaction', () => {
+  const before = fixture();
+  const after = fixture();
+  after.tracks.hero.RightShoulder.keys[1].v = CF.fromEuler(0, 0, 1.6);
+  const key = IDS.keyId('hero', 'RightShoulder', 8);
+  const out = EXP.explainChange({ before, after, transactions: [appliedTxn([key])], timestamp: 't' });
+
+  assert.equal(out.differences.length, 1);
+  const d = out.differences[0];
+  assert.equal(d.classification, 'expected');
+  assert.equal(d.classification_certainty, 'certain');
+  assert.equal(d.explained_by_transaction[0].transaction_id, 'txn:1:aaa');
+  assert.deepEqual(d.when_did_it_change.frames, [8]);
+  assert.equal(d.needs_user_intent, false);
+  assert.equal(out.minimum_safe_correction.action, null, 'nothing to correct when everything is explained');
+  assert.equal(out.ranked_causes[0].kind, 'recorded_edit');
+});
+
+check('explain: a change nothing claims is UNEXPECTED, with ranked causes and a correction', () => {
+  const before = fixture();
+  const after = fixture();
+  after.tracks.hero.RightElbow.keys[1].v = CF.fromEuler(0.9, 0, 0);
+  const out = EXP.explainChange({ before, after, transactions: [], timestamp: 't' });
+
+  assert.equal(out.classification_counts.unexpected, 1);
+  assert.equal(out.differences[0].needs_user_intent, true);
+  assert.ok(out.ranked_causes.length >= 2, 'a difference nobody claims has more than one plausible cause');
+  // The directive's rule: with several causes live, none may be reported as certain.
+  assert.ok(out.ranked_causes.every((c) => c.certainty !== 'certain'), 'no cause may be certain while others remain plausible');
+  for (const c of out.ranked_causes) assert.ok(c.distinguishing_evidence.length, `"${c.kind}" offers nothing that would distinguish it`);
+  assert.ok(/untracked_edit/.test(out.ranked_causes.map((c) => c.kind).join(',')));
+  assert.ok(out.minimum_safe_correction.action, 'an unexplained difference must come with a correction');
+});
+
+check('explain: a previewed or rolled-back transaction may NOT explain a difference', () => {
+  // The false-clean-bill case: a transaction that was planned but never applied, or one that was
+  // reversed, is not in the state being compared and cannot be its cause.
+  const before = fixture();
+  const after = fixture();
+  after.tracks.hero.RightShoulder.keys[1].v = CF.fromEuler(0, 0, 1.6);
+  const key = IDS.keyId('hero', 'RightShoulder', 8);
+  for (const status of ['previewed', 'rolled_back', 'failed', 'rejected']) {
+    const out = EXP.explainChange({ before, after, transactions: [appliedTxn([key], { status })], timestamp: 't' });
+    assert.equal(out.differences[0].classification, 'unexpected', `a "${status}" transaction must not explain a difference`);
+  }
+  const ok = EXP.explainChange({ before, after, transactions: [appliedTxn([key], { status: 'accepted' })], timestamp: 't' });
+  assert.equal(ok.differences[0].classification, 'expected');
+});
+
+check('explain: an approved difference stops being a finding', () => {
+  const before = fixture();
+  const after = fixture();
+  after.tracks.hero.RightElbow.keys[1].v = CF.fromEuler(0.9, 0, 0);
+  const bl = BASE.createBaseline(after, { name: 'b', observations: [], timestamp: 't' });
+  BASE.approveDifference(after, bl.id, { target: IDS.trackId('hero', 'RightElbow'), reason: 'the elbow follow-through is intended', author: 'user' });
+  const out = EXP.explainChange({ baseline: bl, before, after, transactions: [], timestamp: 't' });
+  assert.equal(out.differences[0].classification, 'approved');
+  assert.equal(out.classification_counts.unexpected, 0);
+  assert.equal(out.minimum_safe_correction.action, null);
+});
+
+check('explain: without a before-state nothing is EXPECTED — it is uncertain, and says why', () => {
+  const after = fixture();
+  const bl = BASE.createBaseline(after, {
+    name: 'b', snapshot: { id: 'snapshot:gone', hash: 'gone' },
+    observations: [observation(8, 'silhouette', 'digest-then', [10, 10, 10, 10])], timestamp: 't',
+  });
+  const now = { frame: 8, pass: 'silhouette', digest: 'digest-now', camera: CAM_A, signature: { kind: 'mean_luminance', blocks: 2, cells: [10, 90, 10, 10], objects: null } };
+  const out = EXP.explainChange({ baseline: bl, before: null, after, observations: [now], transactions: [], timestamp: 't' });
+
+  assert.equal(out.classification_counts.uncertain, 1);
+  assert.equal(out.classification_counts.expected, 0);
+  assert.ok(out.coverage.notRun.some((s) => /data-level difference/.test(s)));
+  assert.ok(out.coverage.notRun.some((s) => /full-resolution comparison/.test(s)));
+  assert.ok(out.findings.some((f) => f.id === 'explain:degraded-comparison'));
+  assert.equal(out.visual_difference.comparisons[0].degraded, true);
+  assert.match(out.visual_difference.comparisons[0].granularity, /1\/2/);
+});
+
+check('explain: identical digests settle a pass without any pixel work', () => {
+  const after = fixture();
+  const bl = BASE.createBaseline(after, { name: 'b', observations: [observation(8, 'silhouette', 'same', [1, 1, 1, 1])], timestamp: 't' });
+  const out = EXP.explainChange({
+    baseline: bl, before: fixture(), after,
+    observations: [{ frame: 8, pass: 'silhouette', digest: 'same', camera: CAM_A }],
+    transactions: [], timestamp: 't',
+  });
+  assert.equal(out.visual_difference.comparisons[0].method, 'digest');
+  assert.equal(out.visual_difference.comparisons[0].changed, false);
+  assert.equal(out.differences.length, 0);
+  assert.equal(out.header, 'Nothing changed.');
+});
+
+check('explain: an observation the baseline never took is reported, not compared', () => {
+  const after = fixture();
+  const bl = BASE.createBaseline(after, { name: 'b', observations: [observation(8, 'silhouette', 'd', [1, 1, 1, 1])], timestamp: 't' });
+  const out = EXP.explainChange({
+    baseline: bl, before: fixture(), after,
+    observations: [{ frame: 99, pass: 'silhouette', digest: 'x', camera: CAM_A }],
+    transactions: [], timestamp: 't',
+  });
+  const reasons = out.visual_difference.unmatched_observations.map((u) => u.reason).join(' ');
+  assert.match(reasons, /holds no observation of this pass at this frame/);
+  assert.match(reasons, /the baseline observed this pass at this frame and the current run did not/);
+  assert.ok(out.coverage.notRun.some((s) => /frame 8/.test(s)));
+});
+
+check('explain: each moved object is classified on its own, and occlusion is not called a regression', () => {
+  // This is the object-ID pass earning its cost, and the trap that comes with it.
+  //
+  // The shoulder key moved, so the forearm moving is a rig consequence: EXPECTED, but only highly
+  // likely, because propagation is structural inference rather than a measurement of this pixel
+  // change. The head also changed on screen and nothing in the data reaches it — but an ID pass
+  // records the frontmost object per pixel, so an arm swinging across a head changes the head's
+  // visible region without the head having moved. That is UNCERTAIN with the checks that would
+  // separate it, not a regression. One difference per object is what makes the distinction
+  // expressible at all: lumped together, the explained forearm would carry the head past the
+  // classifier unexamined.
+  const before = fixture();
+  const after = fixture();
+  after.tracks.hero.RightShoulder.keys[1].v = CF.fromEuler(0, 0, 1.6);
+  const forearm = IDS.partId('hero', 'RightLowerArm');
+  const head = IDS.partId('hero', 'Head');
+  const palette = { 1: forearm, 2: head };
+  const then = idRaster(32, 32, palette, (set) => { box(8, 8, 4, 4, 1)(set); box(20, 4, 4, 4, 2)(set); });
+  const now = idRaster(32, 32, palette, (set) => { box(14, 8, 4, 4, 1)(set); box(26, 4, 4, 4, 2)(set); });
+
+  const bl = BASE.createBaseline(after, {
+    name: 'b', observations: [{ frame: 8, pass: 'object_id', digest: RAS.rasterDigest(then), signature: RAS.signature(then), camera: CAM_A }],
+    timestamp: 't',
+  });
+  const out = EXP.explainChange({
+    baseline: bl, before, after,
+    observations: [{ frame: 8, pass: 'object_id', digest: RAS.rasterDigest(now), raster: now, camera: CAM_A }],
+    baselineRasters: (f, p) => (f === 8 && p === 'object_id' ? then : null),
+    transactions: [appliedTxn([IDS.keyId('hero', 'RightShoulder', 8)])],
+    expectedMovers: [{ entityId: forearm, name: 'RightLowerArm', reason: 'it hangs below RightUpperArm, which "RightShoulder" moves' }],
+    timestamp: 't',
+  });
+
+  const visual = out.differences.filter((d) => d.kind === 'object_id_shift');
+  assert.equal(visual.length, 2, 'each moved object must be its own difference — Part 44 asks "which objects" of EACH difference');
+
+  const arm = visual.find((d) => d.where_did_it_change.entity === forearm);
+  assert.equal(arm.classification, 'expected');
+  assert.equal(arm.classification_certainty, 'highly_likely', 'propagation is inference and must never be reported as certain');
+  assert.match(arm.classification_reason, /moves as a consequence/);
+  assert.match(arm.what_changed, /moved 6px on screen/);
+
+  const noggin = visual.find((d) => d.where_did_it_change.entity === head);
+  assert.equal(noggin.classification, 'uncertain', 'an occlusion change must not be reported as a regression');
+  assert.match(noggin.classification_reason, /partly hidden by one that moved/);
+  assert.equal(noggin.classification_certainty, 'possible');
+  assert.equal(out.classification_counts.unexpected, 0);
+
+  const occl = out.ranked_causes.find((c) => c.kind === 'occlusion');
+  assert.ok(occl, 'occlusion must be offered as a ranked cause');
+  assert.ok(occl.distinguishing_evidence.some((s) => /depth pass/.test(s)), 'and must name the pass that would settle it');
+  assert.ok(EXP.explainLimitations().cannot.some((s) => /front of it/.test(s)));
+});
+
+check('explain: a silhouette alone cannot say WHAT moved, so it is uncertain rather than a defect', () => {
+  // A silhouette is one outline for the whole rig. It can prove something moved and it can measure
+  // how far, but it names no object — attributing it needs the object-ID pass at the same frame.
+  // Reporting it as "unexpected" would turn "I cannot tell" into "something is wrong", which is
+  // the difference between a regression engine people read and one they learn to ignore.
+  const p = fixture();
+  const then = gray(32, 32, box(4, 4, 8, 8));
+  const now = gray(32, 32, box(6, 4, 8, 8));
+  const bl = BASE.createBaseline(p, { name: 'b', observations: [{ frame: 0, pass: 'silhouette', digest: RAS.rasterDigest(then), signature: RAS.signature(then), camera: CAM_A }], timestamp: 't' });
+  const out = EXP.explainChange({
+    baseline: bl, before: fixture(), after: p,
+    observations: [{ frame: 0, pass: 'silhouette', digest: RAS.rasterDigest(now), raster: now, camera: CAM_A }],
+    baselineRasters: () => then,
+    transactions: [], expectedMovers: [], timestamp: 't',
+  });
+  assert.equal(out.classification_counts.uncertain, 1);
+  assert.equal(out.classification_counts.unexpected, 0);
+  assert.match(out.differences[0].what_changed, /displaced by up to/, 'it must still MEASURE what it cannot attribute');
+  assert.match(out.differences[0].which_objects_or_passes.attribution, /no object-ID pass was rendered/);
+  assert.equal(out.minimum_safe_correction.action, null, 'nothing may be corrected on the strength of an unanswered question');
+  assert.ok(out.minimum_safe_correction.next_checks.length, 'it must say what would answer it instead');
+  // The causes are still ranked — abstaining from a classification is not abstaining from analysis.
+  const kinds = out.ranked_causes.map((c) => c.kind);
+  assert.ok(kinds.includes('observation_artefact'), 'a visual-only difference must offer the "the render changed, not the animation" cause');
+  assert.ok(kinds.includes('untracked_edit'));
+  assert.ok(kinds.includes('lost_record'));
+});
+
+check('explain: with an object-ID pass at the same frame, the silhouette borrows its attribution', () => {
+  const before = fixture();
+  const after = fixture();
+  after.tracks.hero.RightShoulder.keys[1].v = CF.fromEuler(0, 0, 1.6);
+  const forearm = IDS.partId('hero', 'RightLowerArm');
+  const palette = { 1: forearm };
+  const idThen = idRaster(32, 32, palette, box(8, 8, 4, 4, 1));
+  const idNow = idRaster(32, 32, palette, box(14, 8, 4, 4, 1));
+  const silThen = gray(32, 32, box(8, 8, 4, 4));
+  const silNow = gray(32, 32, box(14, 8, 4, 4));
+  const bl = BASE.createBaseline(after, {
+    name: 'b', timestamp: 't',
+    observations: [
+      { frame: 8, pass: 'object_id', digest: RAS.rasterDigest(idThen), signature: RAS.signature(idThen), camera: CAM_A },
+      { frame: 8, pass: 'silhouette', digest: RAS.rasterDigest(silThen), signature: RAS.signature(silThen), camera: CAM_A },
+    ],
+  });
+  const out = EXP.explainChange({
+    baseline: bl, before, after,
+    observations: [
+      { frame: 8, pass: 'object_id', digest: RAS.rasterDigest(idNow), raster: idNow, camera: CAM_A },
+      { frame: 8, pass: 'silhouette', digest: RAS.rasterDigest(silNow), raster: silNow, camera: CAM_A },
+    ],
+    baselineRasters: (f, pass) => (pass === 'object_id' ? idThen : silThen),
+    transactions: [appliedTxn([IDS.keyId('hero', 'RightShoulder', 8)])],
+    expectedMovers: [{ entityId: forearm, name: 'RightLowerArm', reason: 'it hangs below RightUpperArm, which "RightShoulder" moves' }],
+    timestamp: 't',
+  });
+  const sil = out.differences.find((d) => d.kind === 'silhouette');
+  assert.equal(sil.classification, 'expected');
+  assert.match(sil.which_objects_or_passes.attribution, /borrowed from the object-ID pass/);
+  assert.deepEqual(sil.which_objects_or_passes.objects, [forearm]);
+  assert.equal(out.classification_counts.unexpected, 0);
+  assert.equal(out.classification_counts.uncertain, 0);
+});
+
+check('explain: every result names what it did not look at', () => {
+  const out = EXP.explainChange({ before: fixture(), after: fixture(), timestamp: 't' });
+  assert.ok(out.coverage.notRun.length >= 15, 'the 20 unrendered Part 43 passes must all be named');
+  assert.ok(out.coverage.notRun.some((s) => /motion-vector/.test(s)));
+  assert.ok(out.coverage.notRun.some((s) => /no render pass was observed at all/.test(s)));
+  const lim = EXP.explainLimitations();
+  assert.ok(lim.cannot.length >= 4 && lim.assumptions.length >= 2);
+});
+
+console.log('\n— layer —');
+
 check('layer: capabilities() states both what it can and cannot do', () => {
   const c = AI.capabilities();
   assert.ok(c.can.length >= 5 && c.cannot.length >= 5);
   assert.ok(c.cannot.some((s) => /velocity/.test(s)));
-  assert.ok(c.cannot.some((s) => /baseline/.test(s)));
+  assert.ok(c.cannot.some((s) => /flicker/.test(s)));
+  assert.ok(c.can.some((s) => /baseline/.test(s)), 'Phase 4 exists and capabilities() must say so');
+});
+
+check('layer: the Phase 4 success condition — a scoped edit is explained, and the explanation undoes it', () => {
+  // Part 62 Phase 4: "Cadence can explain what changed after a scoped edit." End to end, without a
+  // renderer: baseline → scoped edit through the real transaction machinery → explain → the
+  // correction the explanation names, applied → back to the baseline exactly.
+  const p = fixture();
+  const store = new SNAP.SnapshotStore();
+  const ledger = new TXN.TransactionLedger();
+  const snap = store.take(p, { reason: 'baseline', pinned: true, timestamp: 't0' });
+  const bl = BASE.createBaseline(p, { name: 'before the swing', snapshot: { id: snap.id, hash: snap.hash }, observations: [], author: 'ai', timestamp: 't0' });
+  const startHash = H.contentHash(p);
+
+  const patch = PATCH.makePatch({ ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.9) }], intent: 'bigger wind-up' });
+  const plan = PATCH.planPatch(p, patch);
+  const txn = ledger.open({ intent: 'bigger wind-up', request: 'wind up further', tool: 'test', plan, beforeSnapshot: snap.id, timestamp: 't1' });
+  const applied = TXN.apply(p, patch, plan, { ledger, txn, timestamp: 't1' });
+  assert.equal(applied.applied, true);
+
+  const before = store.get(bl.scene_snapshot.id).project;
+  const changedTracks = SNAP.diffProjects(before, p).tracks.map((t) => IDS.trackId(t.itemId, t.track));
+  const movers = SCOPE.propagateTracks(p, changedTracks);
+  const out = EXP.explainChange({
+    baseline: bl, before, after: p,
+    transactions: ledger.list().transactions,
+    expectedMovers: movers.parts.map((m) => ({ entityId: m.entityId, name: m.name, reason: m.reason })),
+    timestamp: 't2',
+  });
+
+  // It explains it, and attributes it to the transaction that did it.
+  assert.equal(out.classification_counts.expected, 1);
+  assert.equal(out.classification_counts.unexpected, 0);
+  assert.match(out.header, /1 difference\(s\) — 1 expected/);
+  assert.equal(out.differences[0].explained_by_transaction[0].transaction_id, txn.transaction_id);
+  assert.match(out.differences[0].what_changed, /"RightShoulder": 1 key\(s\) modified at 8/);
+
+  // The propagation walk really did reach the arm below the shoulder — that is what makes a
+  // visual difference on the forearm explainable rather than a mystery.
+  assert.ok(movers.parts.some((m) => m.partId === 'RightLowerArm'), 'the propagation list must reach below the edited joint');
+
+  // And the loop closes: roll the transaction back and the project is byte-identical, with the
+  // explanation now reporting no difference at all.
+  TXN.rollback(p, ledger, txn.transaction_id, { timestamp: 't3' });
+  assert.equal(H.contentHash(p), startHash, 'the project must land exactly where the baseline pinned it');
+  const after = EXP.explainChange({ baseline: bl, before, after: p, transactions: ledger.list().transactions, timestamp: 't4' });
+  assert.equal(after.differences.length, 0);
+  assert.equal(after.header, 'Nothing changed.');
 });
 check('layer: the whole Phase 1 loop runs end to end on one project', () => {
   const p = fixture();

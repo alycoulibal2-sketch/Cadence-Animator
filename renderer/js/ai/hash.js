@@ -169,6 +169,23 @@ export function contentHash(value) {
   return h.digest();
 }
 
+/**
+ * 128-bit digest of a flat byte buffer, with an optional salt hashed in first.
+ *
+ * `contentHash` would give the same answer, but it walks the value as a typed token stream and
+ * emits nine bytes per element — on a 192x192 RGBA render pass that is 1.3 million hash steps for
+ * 147 456 bytes of actual data. A raster is already a flat, untyped byte buffer with its shape
+ * recorded alongside it, so the tagging buys nothing. The salt is where that shape goes: two
+ * buffers with identical bytes but different dimensions or passes must not share a digest.
+ */
+export function byteHash(bytes, salt = '') {
+  const h = new Hasher();
+  if (salt) h.str(salt);
+  h.u32(bytes.length);
+  h.bytes(bytes);
+  return h.digest();
+}
+
 /** `{ hash, length }` — length is the canonical byte count, used as a cheap collision guard. */
 export function contentFingerprint(value) {
   const h = new Hasher();

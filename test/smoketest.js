@@ -2501,7 +2501,8 @@
     assert(prov.nodes.some((n) => n.summary.includes(applied.transaction_id)), 'the apply must be recorded in provenance');
     const insp = D.mcp('inspect_transaction', { transactionId: applied.transaction_id, compareSnapshots: true });
     assert(insp.inverse_operations.length === 2, `expected 2 inverse operations, got ${insp.inverse_operations.length}`);
-    assert(insp.baseline_comparison.compared === false && /REG-001/.test(insp.baseline_comparison.blocked_on), 'an absent baseline must say what unblocks it');
+    assert(insp.baseline_comparison.compared === false && /create_baseline/.test(insp.baseline_comparison.reason),
+      'an uncompared transaction must say how a comparison would be made — "not compared" and "compared, and clean" are different claims');
     assert(insp.comparison.tracks.length === 2, 'the before/after snapshots must differ on both tracks');
     assert(insp.comparison.methods_unavailable.length >= 3, 'the comparison must name the methods it could not use');
 
@@ -2527,6 +2528,160 @@
     assert(!S.getKey(item.id, 'RightHip', 6), 'undo steps back one operation, not two');
     S.redo();
     assert(!S.getKey(item.id, 'RightShoulder', 6), 'redo must re-apply the rollback');
+    return out;
+  });
+
+  // The Phase 4 success condition (directive Part 62): "Cadence can explain what changed after a
+  // scoped edit." This is the only place the observation layer runs against a real GPU — the
+  // module tests in test/aitest.mjs feed it hand-drawn byte buffers, which proves the comparison
+  // maths and proves nothing whatsoever about whether three.js hands back the pixels this code
+  // thinks it does. Specifically at risk here and nowhere else: that the object-ID pass round-trips
+  // its indices through a render target without colour management corrupting them, that the
+  // silhouette excludes the ground, grid, handles and (crucially) the invisible-but-`visible: true`
+  // selection boxes, and that a pass reads the pose it was asked for rather than the previous one.
+  await step('observation: baseline → scoped edit → explain → roll back, against real rendered passes', async () => {
+    S.newProject('phase4-loop');
+    const item = await D.addBuiltinRig('r15');
+    S.setKey(item.id, 'RightShoulder', 0, CF.IDENTITY.slice(), { noUndo: true });
+    S.setKey(item.id, 'RightShoulder', 16, CF.fromEuler(0, 0, 0.9), { noUndo: true });
+    S.setKey(item.id, 'RightHip', 0, CF.IDENTITY.slice(), { noUndo: true });
+    S.setKey(item.id, 'RightHip', 16, CF.fromEuler(0.5, 0, 0), { noUndo: true });
+    const out = {};
+
+    // 1. The policy answers before anything is rendered: an identical pair needs no render at all.
+    const quiet = D.mcp('plan_observation', {});
+    assert(quiet.recommended.passes.length === 0, 'an unchanged project must not be worth a render');
+    assert(quiet.passes_unavailable.length >= 15 && quiet.passes_unavailable.every((p) => p.unblocked_by),
+      'every Part 43 pass this build lacks must be named with what blocks it');
+
+    // 2. A baseline: a pinned snapshot plus two real rendered passes at frame 16.
+    const made = await D.mcp('create_baseline', { name: 'before the wind-up', frames: [16], reason: 'phase 4 smoketest' });
+    const bl = made.baseline;
+    assert(bl.observations.length === 2, `expected a silhouette and an object-ID observation, got ${bl.observations.length}`);
+    assert(made.subjects_rendered >= 15, `an R15 rig should put 15+ part meshes in the pass, got ${made.subjects_rendered}`);
+    assert(bl.camera && bl.camera.source === 'viewport', 'a baseline must record the viewpoint it was rendered from');
+    assert(bl.unavailable.length === 4 && bl.unavailable.every((u) => u.reason.length > 40),
+      'the Part 44 fields Cadence cannot fill must each carry a real reason');
+    assert(bl.frame_rate === S.state.project.fps, 'the baseline must pin the frame rate it was taken at');
+    out.baseline = { id: bl.id, observations: bl.observations.length, subjects: made.subjects_rendered };
+
+    // The silhouette must contain the rig and NOT the ground plane, the grid or the per-part
+    // selection boxes — those are all in the scene and all would render solid under a flat
+    // override material. A full-frame silhouette is the failure this catches.
+    const sil = bl.observations.find((o) => o.pass === 'silhouette');
+    const lit = sil.signature.cells.filter((c) => c > 8).length;
+    assert(lit > 0, 'the silhouette pass drew nothing at all — the subject set or the render target is wrong');
+    assert(lit < sil.signature.cells.length, `the silhouette covers the whole frame (${lit}/${sil.signature.cells.length} blocks) — the ground, grid or selection boxes leaked into the pass`);
+    // `lit < 256` only catches a leak that fills the ENTIRE frame. The ground plane is the likely
+    // leak and it covers roughly the lower half, so bound this properly: an R15 rig framed by the
+    // default camera lights 19 of 256 blocks on this machine. The window is wide enough to absorb
+    // GPU and framing variation and still far below anything that has the ground or grid in it.
+    assert(lit >= 8 && lit <= 64,
+      `the silhouette lit ${lit}/${sil.signature.cells.length} blocks; expected 8..64 for a lone R15 rig — above that something (ground, grid, gizmo, or the opacity-0 selection boxes) is rendering into the pass, below it the rig is barely in frame`);
+    out.silhouetteBlocks = `${lit}/${sil.signature.cells.length}`;
+
+    // Taking a baseline must not itself register as an edit (ai/snapshot.js NOT_STATE).
+    const selfCheck = await D.mcp('explain_change', { baselineId: bl.id, request: 'did taking the baseline change anything?' });
+    assert(selfCheck.differences.length === 0, `a baseline compared against its own state must find nothing, found: ${selfCheck.header}`);
+    assert(selfCheck.visual_difference.comparisons.every((c) => c.method === 'digest' && !c.changed),
+      'two renders of the same pose must be byte-identical — if they are not, no comparison in this system means anything');
+
+    // 3. A scoped edit, through the real transactional path.
+    const applied = D.mcp('apply_animation_patch', {
+      ops: [{ op: 'set_key', itemId: item.id, track: 'RightShoulder', t: 16, value: CF.fromEuler(0, 0, 1.9) }],
+      intent: 'wind up further', request: 'push the wind-up further',
+    });
+    assert(applied.applied === true, `the edit should have applied: ${applied.summary}`);
+
+    // 4. Explain it. This is the success condition.
+    const ex = await D.mcp('explain_change', { baselineId: bl.id, request: 'what did that change?' });
+    out.explanation = { header: ex.header, counts: ex.classification_counts };
+
+    assert(ex.snapshot_availability.available === true, 'the pinned baseline snapshot must still be held');
+    assert(ex.classification_counts.unexpected === 0, `nothing should be unexpected: ${JSON.stringify(ex.classification_counts)}`);
+    assert(ex.classification_counts.expected >= 2, 'both the curve change and the visual change should be explained');
+
+    const curve = ex.differences.find((d) => d.kind === 'curve');
+    assert(curve, 'the keyframe change must be reported as a difference');
+    assert(curve.explained_by_transaction[0].transaction_id === applied.transaction_id,
+      'the curve difference must name the transaction that made it');
+    assert(curve.when_did_it_change.frames[0] === 16, 'it must say WHEN');
+
+    // The silhouette moved, and by a measured amount rather than a boolean.
+    const silDiff = ex.visual_difference.comparisons.find((c) => c.pass === 'silhouette');
+    assert(silDiff.changed === true, 'rotating a shoulder by a radian must move the silhouette');
+    assert(!silDiff.degraded, 'the baseline rasters are still in memory, so this must be a full-resolution comparison');
+    assert(silDiff.displacement_px > 1, `the outline should have measurably moved, got ${silDiff.displacement_px}px`);
+    assert(silDiff.region && silDiff.region.width < 192 && silDiff.region.height < 192,
+      'a shoulder edit must localise to part of the frame, not all of it');
+    out.silhouette = { displacement: silDiff.displacement_px, region: silDiff.region };
+
+    // The object-ID pass names WHICH parts moved, and they are the ones below the edited joint.
+    const idDiff = ex.visual_difference.comparisons.find((c) => c.pass === 'object_id');
+    assert(idDiff.trustworthy === true, 'every pixel in the ID pass must be attributable — colour management is corrupting the indices if not');
+    assert(idDiff.objects_moved.length > 0, 'the ID pass must name the parts that moved');
+    // The palette must mint the SAME ids ai/ids.js does, or nothing in the ID pass can be joined
+    // to anything else in the system — parseId returning null is that failure, not a formatting nit.
+    const movedNames = idDiff.objects_moved.map((m) => {
+      const parsed = D.AI.ids.parseId(m.entity);
+      assert(parsed && parsed.type === 'part', `the ID palette minted "${m.entity}", which ai/ids.js cannot parse back to a part`);
+      return parsed.partId;
+    });
+    assert(movedNames.some((n) => /RightLowerArm|RightHand|RightUpperArm/.test(n)),
+      `the arm below the edited shoulder must be among the movers, got: ${movedNames.join(', ')}`);
+    assert(!movedNames.some((n) => /LeftFoot|LeftLowerLeg/.test(n)),
+      `nothing on the far side of the body should move for a right-shoulder edit, got: ${movedNames.join(', ')}`);
+    out.movedParts = movedNames;
+
+    // Each moved object is classified on its own. A part below the edited joint is EXPECTED, but
+    // only highly likely — propagation is structural inference and must never be reported as
+    // certain. A part the arm swings ACROSS changes its visible pixels without moving, and that
+    // occlusion case must come back uncertain-with-a-reason rather than as a regression: an R15
+    // arm sweeping a radian crosses the torso, so this is not hypothetical.
+    const perObject = ex.differences.filter((d) => d.kind === 'object_id_shift');
+    assert(perObject.length === idDiff.objects_moved.length, 'each moved object must be its own difference');
+    const armDiff = perObject.find((d) => /RightUpperArm|RightLowerArm|RightHand/.test(d.where_did_it_change.entity));
+    assert(armDiff.classification === 'expected' && armDiff.classification_certainty === 'highly_likely',
+      `a propagated mover must be expected-but-inferred, got ${armDiff.classification}/${armDiff.classification_certainty}`);
+    const occluded = perObject.filter((d) => d.classification === 'uncertain');
+    for (const d of occluded) {
+      assert(/partly hidden by one that moved/.test(d.classification_reason), 'an unattributed on-screen change must offer the occlusion explanation');
+    }
+    if (occluded.length) {
+      const cause = ex.ranked_causes.find((c) => c.kind === 'occlusion');
+      assert(cause && cause.distinguishing_evidence.some((s) => /depth pass/.test(s)),
+        'occlusion must be a ranked cause naming the pass that would settle it');
+    }
+    out.occlusionSuspects = occluded.map((d) => D.AI.ids.parseId(d.where_did_it_change.entity)?.partId);
+
+    // Part 55's baseline_comparison is no longer a placeholder.
+    const insp = D.mcp('inspect_transaction', { transactionId: applied.transaction_id });
+    assert(insp.baseline_comparison.compared === true, 'the comparison must be written back onto the transaction');
+    assert(insp.baseline_comparison.differences_explained_by_this_transaction >= 1);
+    assert(insp.approval_status === 'not_requested', 'a comparison is not an approval');
+
+    // 5. Approving a difference retires it as a finding.
+    D.mcp('approve_difference', { baselineId: bl.id, target: curve.where_did_it_change.entity, kind: 'curve', reason: 'the bigger wind-up is the point of the edit', author: 'user' });
+    const after = await D.mcp('explain_change', { baselineId: bl.id });
+    assert(after.differences.find((d) => d.kind === 'curve').classification === 'approved', 'an approved difference must stop being reported as expected');
+
+    // 6. Roll it back, and the renders come back byte-identical to the baseline's.
+    const rb = D.mcp('rollback_transaction', { transactionId: applied.transaction_id });
+    assert(rb.rolled_back === true && rb.complete === true);
+    const back = await D.mcp('explain_change', { baselineId: bl.id, request: 'is it back?' });
+    assert(back.differences.length === 0, `after the rollback nothing should differ, got: ${back.header}`);
+    assert(back.visual_difference.comparisons.every((c) => c.method === 'digest' && !c.changed),
+      'a rolled-back edit must render pixel-identically to the baseline — a rendered pass that does not reproduce is not evidence');
+    out.afterRollback = back.header;
+
+    // 7. And the baseline itself survived every one of those, including the whole-project undo.
+    S.undo();
+    assert(D.mcp('list_baselines', {}).baselines.length === 1, 'undo must not delete a baseline');
+    S.redo();
+    S.loadProject(S.serialize());
+    const reloaded = D.mcp('list_baselines', {}).baselines;
+    assert(reloaded.length === 1 && reloaded[0].approved_differences === 1,
+      'a baseline and its approvals must survive save/load — that is what makes it a production asset rather than a screenshot');
     return out;
   });
 

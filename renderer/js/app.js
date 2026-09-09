@@ -26,6 +26,7 @@ import { runValidation } from './diagnostics.js';
 import './effectValidators.js'; // side effect: registers the shared validator pack
 import { buildEffectLua } from './effectExport.js';
 import * as AI from './ai/index.js'; // the semantic layer — pure, plain-data-in/out (see ai/index.js)
+import { RasterStore, observationOf, passLimitations, passSubjects, renderPasses } from './observationPasses.js'; // the GPU half of Part 43
 
 let builtinRigs = null;
 let settings = {};
@@ -3233,6 +3234,49 @@ const snapshotStore = new AI.SnapshotStore();
 // recovery it could not perform. The durable record is the provenance graph inside the project.
 const txnLedger = new AI.TransactionLedger();
 
+// Rendered passes, for this session only. A baseline in the project file carries a digest and a
+// 16x16 signature per observation; the pixels live here so a same-session comparison can measure a
+// displacement instead of pointing at a block. See observationPasses.js RasterStore.
+const rasterStore = new RasterStore();
+
+// Scrub, then wait for three.js to have actually painted the new pose before reading pixels.
+// Identical rule to scrub_to_frame and to the main process's render_frame delay: capturePage (and
+// readRenderTargetPixels) racing the paint was a real observed bug, and a pass read one frame
+// early would silently baseline the WRONG POSE — which is worse than a crash, because it looks
+// like a result.
+function settleAtFrame(frame) {
+  if (frame === null || frame === undefined) return Promise.resolve(S.state.playhead);
+  S.setPlayhead(frame, false);
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve(S.state.playhead)));
+  });
+}
+
+// Render the requested passes at each frame and return the compact observation form, keeping the
+// full rasters under `owner` so a later comparison can use them. Restores the playhead: observing
+// is a read, and a read that moves the user's playhead is not one.
+async function observeFrames({ frames, passes, size, camera, owner }) {
+  const previousFrame = S.state.playhead;
+  const observations = [];
+  const rasters = [];
+  let skipped = [];
+  try {
+    for (const f of frames) {
+      await settleAtFrame(f);
+      const out = renderPasses({ passes, frame: f, size, camera });
+      skipped = out.skipped;
+      for (const r of out.rasters) {
+        rasters.push(r);
+        if (owner) rasterStore.put(owner, r);
+        observations.push(observationOf(r));
+      }
+    }
+  } finally {
+    await settleAtFrame(previousFrame);
+  }
+  return { observations, rasters, skipped };
+}
+
 // Everything a patch tool needs to be honest, in one place so the preview and the apply path
 // cannot check different things. `constraints` are the per-request ones; persisted locks are
 // always included by checkPatch itself.
@@ -4030,11 +4074,14 @@ const MCP_HANDLERS = {
     const before = snapshotStore.take(S.state.project, { reason: `state before restoring ${id}`, author: 'ai', pinned: true, timestamp: new Date().toISOString() });
     const diff = AI.diffProjects(S.state.project, restored);
 
-    // Provenance is append-only history, not state — a snapshot never captured it (see
-    // ai/snapshot.js `withoutHistory`), so it is carried across rather than reverted. Rolling
-    // back to a baseline must not erase the record of what happened since, including the record
-    // of this restore.
-    const history = S.state.project.semantics && S.state.project.semantics.provenance;
+    // Provenance and baselines are records ABOUT states, not state — a snapshot never captured
+    // either (see ai/snapshot.js `NOT_STATE`), so they are carried across rather than reverted.
+    // Rolling back must not erase the record of what happened since, including the record of this
+    // restore, and must not delete the baseline somebody is restoring in order to get back to.
+    const carried = {};
+    for (const k of AI.snapshot.NOT_STATE) {
+      if (S.state.project.semantics && S.state.project.semantics[k]) carried[k] = S.state.project.semantics[k];
+    }
 
     S.pushUndo();
     // Replace contents in place rather than reassigning `state.project`: autosave scheduling and
@@ -4043,9 +4090,9 @@ const MCP_HANDLERS = {
     const p = S.state.project;
     for (const k of Object.keys(p)) delete p[k];
     Object.assign(p, restored);
-    if (history) {
+    if (Object.keys(carried).length) {
       p.semantics = p.semantics || {};
-      p.semantics.provenance = history;
+      Object.assign(p.semantics, carried);
     }
     AI.provenance.record(p, {
       type: 'decision', author: 'ai',
@@ -4442,6 +4489,181 @@ const MCP_HANDLERS = {
     return {
       baseline: id,
       ...AI.cal.evaluateAcceptance(before.project, S.state.project, acceptance, { itemId }),
+    };
+  },
+
+  // ------------------------------------------------- observation and baseline (Parts 43-45)
+  //
+  // The loop these five tools close, and the order they are meant to be used in:
+  //
+  //   plan_observation   what evidence would settle this question, cheapest first (Part 43)
+  //   create_baseline    snapshot + render the chosen passes, and pin it inside the project
+  //   <the edit>         apply_animation_patch / apply_motion_plan, as before
+  //   explain_change     re-render the SAME frames from the SAME viewpoint, classify every
+  //                      difference, and rank the causes (Parts 44-45)
+  //   approve_difference record that a difference is intended, so it stops being a finding
+  //
+  // Nothing here mutates animation data. create_baseline and approve_difference append to
+  // `project.semantics.baselines`, which is why they are declared MUTATING rather than read-only.
+
+  plan_observation: ({ from, to, question, maxFrames } = {}) => {
+    const a = from ? snapshotStore.get(from) : null;
+    if (from && !a) throw new Error(`No snapshot "${from}" is held`);
+    const b = to ? snapshotStore.get(to) : null;
+    if (to && !b) throw new Error(`No snapshot "${to}" is held`);
+    const diff = AI.diffProjects(a ? a.project : S.state.project, b ? b.project : S.state.project);
+    return {
+      ...AI.observationPlan(diff, { question, length: S.state.project?.length ?? null, maxFrames }),
+      passes_available: AI.observe.availablePasses(),
+      passes_unavailable: AI.observe.unavailablePasses(),
+      diff_summary: diff.summary,
+    };
+  },
+
+  create_baseline: async ({ name, frames, passes = ['silhouette', 'object_id'], size = 192, reason, acceptance, author = 'ai' } = {}) => {
+    const now = new Date().toISOString();
+    // The baseline's snapshot is PINNED. An unpinned one can be evicted, and a baseline whose
+    // before-state has evaporated can prove that something changed but not what — which is the
+    // degraded path in explain_change, not the one to plan for.
+    const snap = snapshotStore.take(S.state.project, {
+      reason: `baseline${name ? ` "${name}"` : ''}${reason ? ` — ${reason}` : ''}`, author, pinned: true, timestamp: now,
+    });
+
+    const chosen = Array.isArray(frames) && frames.length ? frames : [S.state.playhead];
+    const owner = snap.id; // rasters are keyed by the snapshot, so a deduplicated baseline reuses them
+    const { observations, skipped } = await observeFrames({ frames: chosen, passes, size, camera: null, owner });
+
+    const record = AI.createBaseline(S.state.project, {
+      name, snapshot: { id: snap.id, hash: snap.hash }, observations,
+      frameRange: { start: Math.min(...chosen), end: Math.max(...chosen) },
+      resolution: `${size}x${size}`, passes, acceptance: acceptance ?? null,
+      author, timestamp: now, reason: reason ?? null,
+      camera: observations[0]?.camera ?? null,
+    });
+    AI.provenance.record(S.state.project, {
+      type: 'render', author,
+      summary: `baseline "${record.name}": ${observations.length} observation(s) over ${passes.join(' + ')} at frame(s) ${chosen.join(', ')}`,
+      detail: { baseline_id: record.id, snapshot: snap.id, passes, frames: chosen, resolution: `${size}x${size}` },
+      links: [{ type: 'observes', target: snap.id }],
+      timestamp: now,
+    });
+    S.markDirty();
+    return {
+      baseline: record,
+      snapshot: snap,
+      subjects_rendered: passSubjects().length,
+      skipped_passes: skipped,
+      raster_store: rasterStore.stats(),
+      note: 'the baseline lives in the project and survives save/load; the full rasters do not. A comparison in a later session degrades to block granularity and says so.',
+    };
+  },
+
+  list_baselines: () => ({
+    ...AI.listBaselines(S.state.project),
+    raster_store: rasterStore.stats(),
+    passes_available: AI.observe.availablePasses(),
+  }),
+
+  approve_difference: ({ baselineId, target, kind, reason, author = 'ai' } = {}) => {
+    const entry = AI.approveDifference(S.state.project, baselineId, { target, kind, reason, author, timestamp: new Date().toISOString() });
+    AI.provenance.record(S.state.project, {
+      type: 'decision', author,
+      summary: `approved a difference against baseline ${baselineId}: ${target} — ${reason}`,
+      detail: { baseline_id: baselineId, ...entry },
+      entities: [target],
+      timestamp: new Date().toISOString(),
+    });
+    S.markDirty();
+    return { baseline: baselineId, approved: entry };
+  },
+
+  explain_change: async ({ baselineId, frames, size, observe = true, request } = {}) => {
+    const bl = AI.getBaseline(S.state.project, baselineId);
+    if (!bl) throw new Error(`No baseline "${baselineId || '(latest)'}" — list_baselines shows what this project holds, and create_baseline makes one`);
+    const now = new Date().toISOString();
+
+    const avail = AI.snapshotAvailable(bl, snapshotStore);
+    const before = avail.available ? snapshotStore.get(bl.scene_snapshot.id).project : null;
+
+    // Re-observe exactly what the baseline observed: the same passes at the same frames from the
+    // same viewpoint. Anything else is not a comparison, and ai/raster.js refuses it rather than
+    // producing a number.
+    const wantFrames = Array.isArray(frames) && frames.length
+      ? frames
+      : [...new Set(bl.observations.map((o) => o.frame))].sort((x, y) => x - y);
+    const wantPasses = [...new Set(bl.observations.map((o) => o.pass))];
+    const resolution = size || parseInt(bl.resolution, 10) || 192;
+
+    let observations = [];
+    if (observe && wantPasses.length) {
+      const out = await observeFrames({
+        frames: wantFrames, passes: wantPasses, size: resolution,
+        camera: bl.camera, owner: `check:${bl.id}`,
+      });
+      observations = out.observations.map((o, i) => ({ ...o, raster: out.rasters[i] }));
+    }
+
+    // Which parts SHOULD have moved, from the same propagation walk scope analysis uses. Without
+    // this, every part that moves because its parent joint was rotated reads as unexplained.
+    const changedTracks = before
+      ? AI.diffProjects(before, S.state.project).tracks.map((t) => AI.ids.trackId(t.itemId, t.track))
+      : [];
+    const movers = changedTracks.length ? AI.propagateTracks(S.state.project, changedTracks) : { parts: [], items: [], effects: [] };
+    const expectedMovers = movers.parts.map((p) => ({ entityId: p.entityId, name: p.name, reason: p.reason }));
+
+    const explanation = AI.explainChange({
+      baseline: bl,
+      before,
+      after: S.state.project,
+      observations,
+      // The store is keyed by the snapshot id, not the baseline id, so two baselines of a
+      // byte-identical state share one set of pixels — the same content-addressing the snapshot
+      // store gets for free, applied to the expensive half.
+      baselineRasters: rasterStore.lookup(bl.scene_snapshot?.id || bl.id),
+      transactions: txnLedger.list({ limit: 200 }).transactions,
+      expectedMovers,
+      timestamp: now,
+      request: request ?? null,
+    });
+
+    // Part 55's `baseline_comparison` field: written back onto every transaction this comparison
+    // actually attributed a difference to, so a later reader of the transaction can see that a
+    // comparison ran and what it found — rather than the "not compared" default.
+    const unexpected = explanation.classification_counts.unexpected;
+    const perTxn = new Map();
+    for (const d of explanation.differences) {
+      for (const t of d.explained_by_transaction) perTxn.set(t.transaction_id, (perTxn.get(t.transaction_id) || 0) + 1);
+    }
+    const annotated = [];
+    for (const [id, explained] of perTxn) {
+      const rec = AI.transaction.recordBaselineComparison(txnLedger, id, {
+        baseline_id: bl.id, baseline_name: bl.name, explanation_id: explanation.id,
+        explained, unexpected, timestamp: now,
+      });
+      if (rec) annotated.push(id);
+    }
+
+    AI.provenance.record(S.state.project, {
+      type: 'analysis', author: 'ai',
+      summary: `explained the change against baseline "${bl.name}": ${explanation.header}`,
+      detail: {
+        baseline_id: bl.id, explanation_id: explanation.id,
+        counts: explanation.classification_counts,
+        top_cause: explanation.ranked_causes[0]?.cause ?? null,
+        snapshot_available: avail.available,
+      },
+      entities: explanation.differences.flatMap((d) => d.which_objects_or_passes.objects).slice(0, 64),
+      links: [{ type: 'observes', target: bl.scene_snapshot?.id ?? bl.id }],
+      timestamp: now,
+    });
+    S.markDirty();
+
+    return {
+      ...explanation,
+      snapshot_availability: avail,
+      transactions_annotated: annotated,
+      observation_plan: before ? AI.observationPlan(explanation.data_difference, { question: request ?? null, length: S.state.project?.length ?? null }) : null,
+      pass_limitations: passLimitations(),
     };
   },
 };

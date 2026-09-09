@@ -33,10 +33,18 @@
 //   cal           Part 20 — IntentSpec, MotionPlan, PoseSpec, Timing/Spacing, Contact, Acceptance
 //   intent        Part 20.1 — a request becomes an IntentSpec, and says what it was taken to mean
 //   plan          Parts 20.2 and 24 — phase segmentation, the planner, the first motion compiler
+//   raster        Part 44's comparison systems, over plain byte buffers — the layer's only pixels
+//   observe       Part 43 — the pass catalogue and the hierarchical observation policy
+//   baseline      Part 44 — baselines as project data, not disposable screenshots
+//   explain       Parts 44 and 45 — difference classification and evidence-backed explanation
+//
+// Phase 4 note on purity: the layer now reasons about pixels, and still imports no renderer. A
+// raster crosses the boundary as `{ width, height, encoding, data }` and nothing else; the GPU
+// work is in `renderer/js/observationPasses.js`, outside this tree.
 //
 // What is deliberately NOT here yet, so nothing accidentally implies it exists: motion measurement
-// (Part 23), render passes (Part 43), baselines and regression (Part 44), the VFX compiler (Part
-// 37), shots and cameras (Parts 40-41), knowledge, memory and benchmarks (Parts 25, 57, 59).
+// (Part 23), the VFX compiler (Part 37), shots and cameras (Parts 40-41), knowledge, memory and
+// benchmarks (Parts 25, 57, 59).
 
 export * as hash from './hash.js';
 export * as certainty from './certainty.js';
@@ -57,6 +65,10 @@ export * as vocabulary from './vocabulary.js';
 export * as cal from './cal.js';
 export * as intent from './intent.js';
 export * as plan from './plan.js';
+export * as raster from './raster.js';
+export * as observe from './observe.js';
+export * as baseline from './baseline.js';
+export * as explain from './explain.js';
 
 export { CERTAINTY } from './certainty.js';
 export { ROLE, SIDE } from './roles.js';
@@ -73,18 +85,23 @@ export { interpret as interpretTerms, explain as explainTerms, vocabulary as ani
 export { intentSpec, motionPlan, poseSpec, contactSpec, acceptanceSpec, evaluateAcceptance, describePlan } from './cal.js';
 export { interpretRequest, intentVocabulary } from './intent.js';
 export { planMotion, compilePlan, segmentPhases } from './plan.js';
+export { propagateTracks } from './scope.js';
+export { makeRaster, rasterDigest, signature as rasterSignature, cameraFingerprint } from './raster.js';
+export { PASSES, observationPlan, suspectFrames, availablePasses } from './observe.js';
+export { createBaseline, listBaselines, getBaseline, approveDifference, snapshotAvailable } from './baseline.js';
+export { explainChange, CLASSIFICATION } from './explain.js';
 
 /** The version of the semantic layer itself, separate from the app version. Bumped when a graph's
  *  shape changes in a way a consumer would notice. Phase 3 adds the CAL structures and a project
  *  field (`semantics.vocabulary`), so this is a minor bump rather than a patch one. */
-export const SEMANTIC_LAYER_VERSION = '1.2.0';
+export const SEMANTIC_LAYER_VERSION = '1.3.0';
 
 /** One place to ask what this layer can and cannot currently answer. Returned by
  *  `inspect_scene` so a model never has to infer capability from silence. */
 export function capabilities() {
   return {
     version: SEMANTIC_LAYER_VERSION,
-    phase: 'Phase 3 — the formal animation language (directive Part 62)',
+    phase: 'Phase 4 — observation and baseline (directive Part 62)',
     can: [
       'project the scene, any rig and any timeline into stable-id graphs with semantic roles',
       'resolve semantic selections such as "the left foot", "the planted foot" and "the weapon hand", with evidence',
@@ -103,14 +120,20 @@ export function capabilities() {
       'plan a motion as phases, poses, timing, spacing, declared contacts and acceptance criteria',
       'compile a plan into operations, blocking any strategy a constraint forbids and naming what the motion loses',
       'evaluate an AcceptanceSpec against a before-state, separating pass, fail and NOT RUN',
+      'render a silhouette and an object-ID pass, and compare two of either by exact pixel, coverage, edge displacement and per-object screen movement',
+      'record a baseline inside the project — Part 44\'s field list, with the six fields Cadence has nothing behind named rather than omitted',
+      'classify each difference against a baseline as expected, unexpected, uncertain or approved, and say which transaction explains it',
+      'explain a change with ranked causes and the evidence that distinguishes them, and name the minimum safe correction',
+      'choose the cheapest evidence that can settle a question, and say what would make it escalate (Part 43\'s hierarchical policy)',
     ],
     cannot: [
       'measure velocity, acceleration, jerk, arcs or contact drift (Part 23 — Phase 5), so a declared foot contact is recorded and NOT verified',
-      'render anything but a beauty pass: no silhouette, depth, object-ID or motion-vector pass (Part 43 — Phase 4)',
-      'compare against an approved baseline or detect a visual regression (Part 44 — Phase 4)',
+      'render 20 of Part 43\'s 24 observation kinds — no depth, normal, motion-vector, alpha, shadow, material-ID, crop, contact-sheet or overlay pass (see observe.PASSES for what blocks each)',
+      'see anything but rig parts: props, effect items, screen effects, the ground and the grid are excluded from every pass by construction',
+      'detect flicker or a one-frame pop — that needs consecutive frames, and the policy targets suspect frames instead',
       'generate a motion from nothing: every planner strategy edits existing keys, and none may add or remove one (see plan.planLimitations())',
       'plan for cameras, props or effect items — the motion compiler covers rig joint tracks only',
-      'judge whether a result looks right. Nothing here renders, so every acceptance report ends by saying so',
+      'judge whether a result looks RIGHT. It can now say exactly what is different and who did it; whether that is good is not a measurement it makes',
       'patch rig topology, attachment, effect documents or key groups — those tools exist but are not transactional (see patch.patchLimitations())',
       'reason about shots, cameras, framing, shot events or VFX timing relationships (Parts 40-41 — Phase 6)',
     ],

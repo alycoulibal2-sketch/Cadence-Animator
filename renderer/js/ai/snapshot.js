@@ -71,29 +71,40 @@ function deepFreeze(value, seen = new WeakSet()) {
 }
 
 /**
- * What a snapshot deliberately does NOT capture: the provenance graph.
+ * What a snapshot deliberately does NOT capture: the two parts of `semantics` that are RECORDS
+ * ABOUT states rather than state.
  *
- * Provenance is append-only history (Part 56), and history is not part of the state a snapshot
- * describes. Including it would break two things at once:
+ *   provenance  append-only history (Part 56)
+ *   baselines   accepted states and the differences approved against them (Part 44)
+ *
+ * Neither is part of the state a snapshot describes, and including either breaks the same two
+ * things:
  *
  *   * Deduplication. `snapshot_scene` records "a snapshot was taken" in provenance, so two
  *     consecutive snapshots of an otherwise untouched project would differ by that record and
- *     never dedupe — which is exactly backwards, since nothing about the animation changed.
- *   * Restore. Rolling back to a baseline would erase the record of everything that happened
- *     since, INCLUDING the record of the restore itself. Part 55 requires history to be
- *     preserved through a recovery, not consumed by it.
+ *     never dedupe — which is exactly backwards, since nothing about the animation changed. The
+ *     baseline case is worse still: `create_baseline` snapshots the project and then writes a
+ *     baseline into it, so the project would no longer match the snapshot that IS its baseline,
+ *     and every comparison would open by reporting that a baseline had been taken.
+ *   * Restore. Rolling back would erase the record of everything since, INCLUDING the record of
+ *     the restore itself, and would delete every baseline and every approval made in between.
+ *     Part 55 requires history to be preserved through a recovery, not consumed by it.
  *
- * Role overrides, annotations and locks are NOT excluded: those are project state that an edit
- * can change and a restore should genuinely bring back.
+ * Role overrides, annotations, locks and vocabulary overrides are NOT excluded: those are project
+ * state that an edit can change and a restore should genuinely bring back.
  *
  * Exported because it defines what this layer means by "the state" — `ai/patch.js` verifies a
  * commit landed where the plan said by comparing the hash of exactly this projection, and a
  * provenance record written between plan and commit must not be able to invalidate that check.
  */
+export const NOT_STATE = Object.freeze(['provenance', 'baselines']);
+
 export function withoutHistory(project) {
-  if (!project || !project.semantics || !project.semantics.provenance) return project;
-  const { provenance, ...restSemantics } = project.semantics;
-  // If provenance was the ONLY thing in `semantics`, drop the key entirely rather than leaving an
+  if (!project || !project.semantics) return project;
+  if (!NOT_STATE.some((k) => k in project.semantics)) return project;
+  const restSemantics = { ...project.semantics };
+  for (const k of NOT_STATE) delete restSemantics[k];
+  // If those were the ONLY things in `semantics`, drop the key entirely rather than leaving an
   // empty object: a project that has never been annotated has no `semantics` at all, and `{}` and
   // `undefined` hash differently — which would make the first recorded provenance node look like
   // a state change forever after.
