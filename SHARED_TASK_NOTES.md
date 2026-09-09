@@ -28,45 +28,49 @@ whole, and Part 7 explicitly says to load only what the work needs.
 ## Where the programme is
 
 - Branch: `animation-intelligence`, off `main` at `8343e2f` (v0.11.0).
-- **Phases 0–6 are done. Phase 7 is HALF done** — its success condition is met and committed; four
-  of its rows remain (see below). Phases 8–9 are not started.
+- **Phases 0–7 are done.** Phases 8–9 are not started.
 - Commits: `54ea3f4` (Phase 1), `88265c9` (Phase 2), `0cadfd9` (Phase 3), `d36e10c` (Phase 4),
-  `c9973b8` (Phase 5), `a5da0ec` (Phase 6), Phase 7's first half is the tip.
-- The semantic layer is `renderer/js/ai/**` — 29 modules, 40 MCP tools (180 in the app overall).
+  `c9973b8` (Phase 5), `a5da0ec` (Phase 6), `a10d297` (Phase 7 first half), Phase 7's second half
+  is the tip.
+- The semantic layer is `renderer/js/ai/**` — 32 modules, 44 MCP tools (184 in the app overall).
   Phase 4 also added one module OUTSIDE that tree, `renderer/js/observationPasses.js`, which is
   where three.js lives.
 
-**Phase 7 is half done. Its success condition is already met** — *"Cadence can compare bounded
-alternatives and justify a recommendation"* (Part 62) — by `ai/experiment.js` and `ai/modes.js`,
-both committed with an in-app smoketest step behind them. **Four rows remain, and all four are
-review-and-report work rather than new measurement:**
+**Phase 8 is next: reference, style memory, and the knowledge suite.** Part 62's success condition
+is *"Cadence can adapt a new animation using approved project style without making unapproved
+global assumptions."* Its deliverables are reference profiles, project conventions, preference
+candidates, accepted/failed lesson capture, and knowledge-suite routing — the `KNW-*`, `MEM-*` and
+`REF-*` rows. (Benchmarks, `BCH-*`, are Phase 9.)
 
-- **`SIM-001` (Part 47, Cadence Simulation).** A 9-step pre-commit pipeline. Everything it needs
-  now exists — curves, contacts, motion, events, the constraint check, scope, acceptance. The work
-  is the report's *altitude* and its separation of measured scores from artistic suggestions. Part
-  47 is explicit: *"score only defined measurable dimensions"*, *"classify artistic suggestions
-  separately"*, and *"the report must never imply that a subjective score is ground truth"* — which
-  is the discipline `ai/experiment.js` already follows, so copy its shape.
-- **`REV-001` (Part 49, automatic shot review) + `OPS-005` (Part 14, quality hierarchy).** These
-  belong together: Part 49 wants 10 analysis steps and 10 return fields, and Part 14's 13-layer
-  ordering is what decides which finding to report first. **Part 14 is unusually implementable** —
-  13 named layers plus three concrete anti-patterns (*"do not add beautiful secondary motion to a
-  weak pose"*, camera shake for absent weight, VFX polish for an unclear impact) that become real
-  warnings when a proposed action sits below a failing higher layer. Several Part 49 steps are
-  blocked and must be reported as such: pose/silhouette readability (MOT-011/012), camera framing
-  (no active-camera model), reference comparison (Phase 8), annotated render crops.
-- **`MCP-012` (Part 52, reusable workflows).** 17 named workflows, each documenting 8 fields. **Rule
-  9 bites hardest here:** a registry of 17 shells would be worse than four real ones. The shape is a
-  declared registry where each entry either composes existing tools or carries `implemented: false`
-  with what blocks it — the `CHECKS`/`PASSES` pattern.
+**Read the directive parts directly. They are at
+`C:\Users\alyco\Documents\Cadence_Animator_Ultimate_Master_Directive.md`, and Phase 7 proved this
+matters:** Part 62's success condition for Phase 7 turned out to be *"compare bounded alternatives
+and justify a recommendation"*, which made Part 48 the keystone rather than the simulation report
+the phase title implied. Extract one part with
+`python -c "import re,io; s=io.open(PATH,encoding='utf-8').read(); print(re.search(r'^## 25\..*?(?=^## \d+\.)', s, re.M|re.S).group(0))"`.
+For Phase 8 that means Parts 25, 26, 57, 58 and 71–73.
 
-Read `ai/experiment.js`'s header before starting any of them: it is the template for how this phase
-reports a judgement without pretending a subjective score is a measurement.
+Four things about the ground Phase 8 lands on:
 
-**One thing to know before writing another report tool:** `preview_animation_patch`,
-`analyse_scope` and `evaluate_acceptance` already answer most of what a simulation report asks. The
-risk in this phase is a fourth thing that re-answers them slightly differently. Define what each new
-tool adds that those three do not, and compose them rather than re-measuring.
+- **The success condition's second half is the hard half.** "Without making unapproved global
+  assumptions" is the whole risk. `MEM-002` is already `partial` and is the pattern to copy:
+  `ai/vocabulary.js` stores a preference as a **scoped delta with required evidence and an
+  observations count**, never as a global rule, and the shared definition is frozen. Phase 8 should
+  generalise that shape, not invent a new one.
+- **There is no cross-project store, and choosing one is a real decision.** Nothing in Cadence holds
+  data outside a single `.cadence` file. "Approved project style" can live in
+  `project.semantics` (durable, travels with the file, already inside the undo allowlist —
+  see `state.js undoableSemantics`); knowledge that spans projects cannot, and needs either a new
+  user-data store in `src/main.js` (outside the pure layer, so it needs the plain-data boundary
+  Phase 4 used for pixels) or an explicit import step. **Settle this before writing a `KNW` row**,
+  the way Phase 6 had to settle the pnx/vfx boundary and Phase 7 the modes/enforcement point.
+- **`ai/baseline.js` is the closest existing thing to remembered work**, and it is already project
+  data rather than disposable screenshots. Read it before designing a store; what Phase 8 wants may
+  be a generalisation of it.
+- **`KNW-003` (the 12 classical principles) has a trap recorded in its own matrix cell.** Four
+  principles are already *implicitly* operationalised by the planner with no knowledge entry behind
+  them. A knowledge entry has to say when a technique is HARMFUL, and none of them does — so
+  "we already do anticipation" is not that row.
 
 ## The rules this codebase holds itself to
 
@@ -103,13 +107,13 @@ Run from the repo root. `npm` is broken under Git Bash here — use PowerShell, 
 `.\node_modules\.bin\electron.cmd` directly rather than `npm run`.
 
 ```
-node test/aitest.mjs     # semantic layer   — currently 303/303, ~1s
+node test/aitest.mjs     # semantic layer   — currently 314/314, ~1s
 node test/coretest.mjs   # core             — currently  41/41
 node test/pnxtest.mjs    # PNX engine       — currently 298/298
 ```
 
 ```powershell
-# the Electron smoketest: 99 steps against the real app, ~4 minutes
+# the Electron smoketest: 100 steps against the real app, ~4 minutes
 Remove-Item test-output/userdata -Recurse -Force -ErrorAction SilentlyContinue
 .\node_modules\.bin\electron.cmd . --disable-backgrounding-occluded-windows `
   --disable-renderer-backgrounding --disable-background-timer-throttling `
@@ -562,6 +566,91 @@ verbatim changed this phase's design materially — Part 62's success condition 
 *"compare bounded alternatives and justify a recommendation"*, which makes `EXPT-001` the keystone
 rather than the simulation report a phase title would suggest. **Read the actual parts for the phase
 you are on.** `awk`/`python -c` on `^## <n>\.` extracts one part cleanly.
+
+### Phase 7 (second half) — the shot review, the pre-commit simulation, and the workflow registry
+
+Three more modules, completing Phase 7:
+
+- **`ai/review.js`** (Parts 49 and 14). The structured shot review, plus the quality hierarchy that
+  orders it. `REV-001` is `partial`, not `implemented` — see below.
+- **`ai/simulate.js`** (Part 47). The pre-commit evaluation.
+- **`ai/workflows.js`** (Part 52). The sixteen named workflows as declared tool chains.
+
+Four MCP tools, both halves registered: `review_shot`, `simulate_change`, `list_workflows` (read)
+and `run_workflow` (mutating when its chain is). 184 tools in the app.
+`SEMANTIC_LAYER_VERSION` → `1.8.0`. Matrix: `SIM-001`, `OPS-005`, `MCP-012` to `implemented`,
+`REV-001` to `partial`; 165 rows now
+*implemented 83 · partial 25 · designed 7 · deferred 2 · blocked 1 · unplanned 47.*
+
+**The question this half had to answer first was "what does a fourth report add?"** —
+`preview_animation_patch`, `analyse_scope` and `evaluate_acceptance` already answer much of what a
+simulation report asks, and re-answering them slightly differently would have been worse than
+nothing (Part 4.6). The division that came out of it is recorded at the top of `ai/simulate.js` and
+is worth keeping:
+
+    preview_animation_patch   what would CHANGE
+    analyse_scope             how far the change REACHES
+    review_shot               whether the shot as it STANDS is any good
+    simulate_change           whether it would be any good AFTER — per quality layer
+
+**So the one thing only `simulate_change` says is whether a change makes the shot better or worse,
+layer by layer, before it is committed.** It plans on a clone, reviews both states and diffs the two
+reviews. A regression is *a layer whose verdict got worse*, never *a finding that appeared* —
+counting findings would report noise.
+
+**The decisions worth not relitigating:**
+
+- **Deterministic defects and artistic suggestions are separate arrays and are never merged.** Part
+  49 and Part 11 both require the distinction. A suggestion carries **no severity**, because a
+  severity on a subjective judgement is exactly how an opinion starts looking like a measurement.
+- **There is deliberately no overall score.** Part 47: *"The report must never imply that a
+  subjective score is ground truth."* One number would have to average a measured contact drift
+  against an unmeasurable pose judgement. `WHY_NO_OVERALL_SCORE` is exported so a reader of the
+  result finds the reason, and a test asserts the field does not exist.
+- **Layer beats severity in the ordering.** A blocking micro-polish nit ranks below a major timing
+  problem, because fixing the polish first is how a shot gets beautifully wrong. Part 14's *"fix the
+  highest-impact failing layer first"* is only an instruction a tool can follow if the ordering is
+  lexicographic on layer.
+- **Severity is this codebase's own convention and says so.** Parts 49 and 66 both require a
+  severity and no part defines a scale, so every finding carrying one has an `evidence` entry
+  labelling it a convention. It describes CONSEQUENCE; Part 13's certainty describes CONFIDENCE.
+- **An unmeasurable layer is reported as unmeasured, never as passing.** 3 of Part 14's 13 layers
+  are measured fully, 6 partly, 4 not at all. `"pose design: fine"` would be worse than useless.
+- **The registry is EXACTLY Part 52's sixteen, and a test pins it against the directive's list.** My
+  first version had 21 — I miscounted the directive as 17 and added five entries from Part 50. Two
+  of those existed only to say "this would be a shell", which belongs in a comment and not a
+  registry row. An extra row is drift; a missing one is a gap.
+- **Every workflow reports `benchmark_coverage: none`.** Part 52 requires the field and no benchmark
+  suite exists (BCH-001, Phase 9). Reporting none is the honest answer.
+- **Part 52's approval points are enforced, not documented.** `run_workflow` stops BEFORE the first
+  mutating step and returns the remaining plan so the caller sees what it would be approving;
+  `approve: true` runs the chain. Required input is validated before any step runs, because failing
+  three tools into a chain is worse than a refusal.
+
+**Two things the measurement layer taught this one:**
+
+1. **`motion.classifyVariation` deliberately refuses to call an unexplained discontinuity a
+   defect** — accidental jitter, procedural detail and an interpolation artefact are
+   indistinguishable in Cadence project data (Part 4.5). My first `review.js` looked for a
+   `classification === 'defect'` that does not exist, and would have overruled that refusal. An
+   unexplained jerk spike is now an artistic SUGGESTION pointing at
+   `explain_motion_problem`, and an authored one (stepped key, held pose, marked impact) is not
+   reported at all.
+2. **A compiled `ConstraintSpec` keeps its range in `time_range`, not on the condition, and its
+   `target` is an ARRAY of selectors.** Reading `condition.from` / `target.itemId` measured
+   `undefined` and reported *no contact problem at all* — a false clean bill of health, which is the
+   worst possible failure for a review tool. The mistake was assuming a shape instead of printing
+   one; `node -e` on a real compile takes ten seconds.
+
+**Also fixed here:** `review_shot`'s "no deterministic defect was found" recommendation previously
+returned `requires_user_approval: false`, while its own text says *"That is not \"the shot is
+good\""*. A statement that disclaims itself must not be auto-actionable.
+
+**`REV-001` is `partial`, and that is the honest status.** All 10 of Part 49's return fields are
+present, but 3 of its 10 analysis steps cannot run: key poses and silhouette (MOT-011/012), camera
+framing (no active-camera model) and the rendered baseline comparison. Part 49 also asks for
+"annotated render crops", which this layer cannot produce at all; it returns the suspect frame list
+to render instead.
 
 ## Health pause - 2026-09-08 19:19:36 AST
 

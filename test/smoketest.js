@@ -3017,6 +3017,119 @@
     return out;
   });
 
+  // The rest of Phase 7 (directive Parts 14, 47, 49, 52), against the LIVE app. What only this can
+  // reach: `run_workflow` actually executing a declared chain through the real MCP_HANDLERS and
+  // stopping at its approval point, and a review/simulation running on the singleton project.
+  await step('review + simulation: a shot is reviewed, a change is judged before it lands, and a workflow stops at its approval point', async () => {
+    S.newProject('phase7-review');
+    const item = await D.addBuiltinRig('r15');
+    const key = (track, t, v) => S.setKey(item.id, track, t, v, { es: 'Sine', ed: 'InOut', noUndo: true });
+    key('RightShoulder', 0, CF.IDENTITY.slice());
+    key('RightShoulder', 8, CF.fromEuler(0, 0, 1.2));
+    key('RightShoulder', 16, CF.fromEuler(0, 0, -0.9));
+    key('RightShoulder', 28, CF.IDENTITY.slice());
+    key('LeftHip', 0, CF.IDENTITY.slice());
+    for (const t of [0, 8, 16, 28]) key('LeftAnkle', t, CF.IDENTITY.slice());
+    D.mcp('add_marker', { itemId: item.id, t: 16, name: 'impact', width: 2 });
+    const CONSTRAIN = 'keep the left foot within 0.05 studs from frame 0 to 16';
+    const out = {};
+    const before = D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
+
+    // 1. REV-001 + OPS-005: the shot as it stands, reviewed and ordered by Part 14.
+    const clean = D.mcp('review_shot', { itemId: item.id, constrain: CONSTRAIN });
+    assert(clean.ok === true, 'the review must run');
+    assert(clean.active_mode === 'review / production', `review mode must be reported: ${clean.active_mode}`);
+    assert(clean.deterministic_defects.length === 0, `a clean shot should have no defects: ${JSON.stringify(clean.deterministic_defects.map((d) => d.id))}`);
+    // "No defect" is never reported as "good" — 4 of Part 14's 13 layers cannot be measured.
+    assert(/not "the shot is good"/.test(clean.recommended_corrections[0].statement), clean.recommended_corrections[0].statement);
+    assert(clean.recommended_corrections[0].requires_user_approval === true, 'a self-disclaiming statement must not be auto-actionable');
+    assert(clean.layers_not_reviewable.length === 4, `4 layers must be reported unreviewable, got ${clean.layers_not_reviewable.length}`);
+    assert(clean.layers_not_reviewable.every((l) => l.blocked_by), 'each unreviewable layer must say why');
+    assert(clean.annotated_render_crops.available === false, 'Part 49 asks for render crops and this layer has none');
+    out.review = { defects: clean.deterministic_defects.length, layers_reviewed: clean.layers_reviewed.length, not_reviewable: clean.layers_not_reviewable.map((l) => l.layer) };
+
+    // 2. SIM-001: judge a change BEFORE it lands. The hip rotation drags the planted foot.
+    const sim = D.mcp('simulate_change', {
+      ops: [{ op: 'set_key', itemId: item.id, track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }],
+      itemId: item.id, constrain: CONSTRAIN, intent: 'drive the swing from the hips', frame: 8,
+    });
+    assert(sim.ok === true, 'the simulation must run');
+    assert(sim.technical.verdict === 'fail', `the technical section must fail on the broken contact: ${sim.technical.verdict}`);
+    assert(sim.change_effect.measured === true && /worse/.test(sim.change_effect.verdict), sim.change_effect.verdict);
+    assert(sim.change_effect.highest_regressed_layer === 7, `contacts is layer 7, got ${sim.change_effect.highest_regressed_layer}`);
+    assert(/reconsider this change/.test(sim.recommended_actions[0].action), sim.recommended_actions[0].action);
+    // Part 47: no overall score, and the two pipeline steps that cannot run are named.
+    assert(sim.overall_score === undefined, 'Part 47 forbids implying a subjective score is ground truth');
+    assert(sim.steps.filter((s) => s.runs === false).map((s) => s.step).join(',') === '4,5', 'steps 4 and 5 cannot run here');
+    assert(sim.commit.applied === false, 'a simulation applies nothing');
+    out.simulation = {
+      technical: sim.technical.verdict,
+      effect: sim.change_effect.verdict,
+      regressed_layer: sim.change_effect.highest_regressed_layer,
+      first_action: sim.recommended_actions[0].action,
+    };
+
+    // Nothing so far touched the project.
+    assert(D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project)) === before,
+      'reviewing and simulating must leave the project byte-identical');
+
+    // 3. MCP-012: the registry is exactly Part 52's sixteen, and every entry documents its 8 fields.
+    const wf = D.mcp('list_workflows', {});
+    assert(wf.count === 16, `Part 52 lists 16 workflows, registry has ${wf.count}`);
+    assert(wf.implemented.length === 13 && wf.not_implemented.length === 3);
+    assert(wf.workflows.every((w) => w.benchmark_coverage.coverage === 'none'), 'no benchmark suite exists, so every workflow must say none');
+    assert(wf.not_implemented.every((w) => w.blocked_by), 'each unimplemented workflow must name what blocks it');
+    out.workflows = { count: wf.count, implemented: wf.implemented.length, blocked: wf.not_implemented.map((w) => w.name) };
+
+    // 4. A read-only workflow runs its whole chain through the real handlers.
+    const ran = D.mcp('run_workflow', { name: 'review_shot', args: { itemId: item.id, constrain: CONSTRAIN } });
+    assert(ran.ran === true && ran.completed === true, `a read-only chain must complete: ${JSON.stringify(ran.stopped_at)}`);
+    assert(ran.steps.length === 1 && ran.steps[0].ok === true && ran.steps[0].result.ok === true);
+
+    // 5. A mutating workflow STOPS at its approval point — Part 52's approval points, enforced.
+    const gated = D.mcp('run_workflow', { name: 'make_motion_heavier', args: { itemId: item.id } });
+    assert(gated.ran === true, 'the chain must start');
+    assert(gated.completed === false, 'it must not run past the approval point');
+    assert(gated.stopped_at.at === 'apply_motion_plan', `expected to stop at the mutating step, stopped at ${gated.stopped_at?.at}`);
+    assert(gated.stopped_at.remaining.length >= 1, 'the remaining plan must be shown so a caller sees what it is approving');
+    assert(/approve: true/.test(gated.stopped_at.resume_with), gated.stopped_at.resume_with);
+    // The read-only steps before it DID run, so the caller has the vocabulary and the plan.
+    assert(gated.steps.length === 3 && gated.steps.every((s) => s.ok), `3 read-only steps should have run, got ${gated.steps.length}`);
+    assert(D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project)) === before,
+      'stopping at the approval point must leave the project untouched');
+    out.approvalGate = { stopped_at: gated.stopped_at.at, ran_before_it: gated.steps.map((s) => s.tool) };
+
+    // 6. An unimplemented workflow is refused with what blocks it, and hands back no plan.
+    const blocked = D.mcp('run_workflow', { name: 'compare_to_reference', args: { itemId: item.id } });
+    assert(blocked.ran === false && blocked.steps.length === 0);
+    assert(/nothing has been ingested/.test(blocked.refused_because), blocked.refused_because);
+    // Missing required input is caught before any step runs.
+    const missing = D.mcp('run_workflow', { name: 'make_motion_heavier', args: {} });
+    assert(missing.ran === false && missing.missing_input.includes('itemId'), JSON.stringify(missing.missing_input));
+
+    // 7. Approving it does run the chain, and it is as reversible as any other edit.
+    const applied = D.mcp('run_workflow', { name: 'make_motion_heavier', args: { itemId: item.id }, approve: true });
+    assert(applied.completed === true, `an approved chain must complete: ${JSON.stringify(applied.stopped_at)}`);
+    const last = applied.steps.at(-1);
+    assert(last.tool === 'apply_motion_plan', `the last step must be the apply, got ${last.tool}`);
+    if (last.result.applied) {
+      const rb = D.mcp('rollback_transaction', { transactionId: last.result.transaction_id });
+      assert(rb.complete === true, 'a workflow-applied change must roll back like any other');
+      assert(D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project)) === before,
+        'and the rollback must land byte-identical');
+      out.approved = { applied: true, rolled_back: true };
+    } else {
+      // A plan every constraint blocked is a legitimate outcome, not a failure of the workflow.
+      out.approved = { applied: false, reason: last.result.reason ?? last.result.summary ?? null };
+    }
+
+    // The review is recorded, so a conclusion somebody may act on is traceable.
+    const prov = D.mcp('inspect_provenance', { type: 'analysis' });
+    assert(prov.nodes.some((n) => /^reviewed /.test(n.summary)), 'a review must be recorded in provenance');
+
+    return out;
+  });
+
   await step('semantic layer: a persisted lock survives save/load, blocks a patch, and is undoable', async () => {
     S.newProject('locks');
     await D.addBuiltinRig('r15');

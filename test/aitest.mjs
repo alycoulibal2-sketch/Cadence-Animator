@@ -48,6 +48,9 @@ const EV = await import('../renderer/js/ai/events.js');
 const VS = await import('../renderer/js/ai/vfxspec.js');
 const MODES = await import('../renderer/js/ai/modes.js');
 const EXPT = await import('../renderer/js/ai/experiment.js');
+const REVIEW = await import('../renderer/js/ai/review.js');
+const SIM = await import('../renderer/js/ai/simulate.js');
+const WF = await import('../renderer/js/ai/workflows.js');
 const CF = await import('../renderer/js/cf.js');
 const PARTICLES = await import('../renderer/js/particleLibrary.js');
 
@@ -134,7 +137,7 @@ check('purity: every ai/ module on disk is imported by this file', () => {
   // could reach for `window` freely, and the check below that greps the sources would catch the
   // obvious cases but not a lazy `await import('three')`.
   const onDisk = fs.readdirSync(path.join(ROOT, 'renderer/js/ai')).filter((n) => n.endsWith('.js') && n !== 'index.js').sort();
-  const imported = ['baseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'experiment.js', 'explain.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'modes.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js'];
+  const imported = ['baseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'experiment.js', 'explain.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'modes.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'review.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'simulate.js', 'snapshot.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js', 'workflows.js'];
   assert.deepEqual(onDisk, imported, 'a module was added to renderer/js/ai without being imported at the top of test/aitest.mjs');
 });
 
@@ -161,6 +164,7 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     'list_shot_events', 'describe_shot', 'validate_effect_timing', 'compile_effect',
     // Phase 7
     'operating_modes', 'compare_experiments',
+    'review_shot', 'simulate_change', 'list_workflows', 'run_workflow',
   ];
   const src = fs.readFileSync(path.join(ROOT, 'mcp-server/index.js'), 'utf8');
   const found = new Map();
@@ -192,12 +196,18 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     // Phase 7: `compare_experiments` records the comparison and applies NO candidate — every one is
     // planned against a clone. Calling it MUTATING would tell a caller to hesitate before asking
     // which alternative is better, which is exactly backwards.
-    'operating_modes', 'compare_experiments']) {
+    'operating_modes', 'compare_experiments',
+    // `review_shot` records the review it reached and nothing else — the same bargain
+    // explain_change makes. `simulate_change` and `list_workflows` write nothing at all.
+    'review_shot', 'simulate_change', 'list_workflows']) {
     assert.ok(found.get(t).startsWith('READ-ONLY'), `${t} must be declared READ-ONLY`);
   }
   for (const t of ['apply_animation_patch', 'rollback_transaction', 'lock_constraint', 'unlock_constraint',
     'set_vocabulary_term', 'apply_motion_plan', 'create_baseline', 'approve_difference',
-    'compile_effect']) {
+    'compile_effect',
+    // `run_workflow` executes a declared chain that may contain a mutating tool, so it declares
+    // MUTATING even though a read-only chain changes nothing.
+    'run_workflow']) {
     assert.ok(found.get(t).startsWith('MUTATING'), `${t} changes the project and must say MUTATING`);
   }
   // Part 50 also wants rollback capability declared. For the mutating patch tools that is the
@@ -4379,6 +4389,321 @@ check('layer: the Phase 7 success condition — bounded alternatives are compare
   assert.equal(r.applied, false);
   assert.match(r.next, /nothing has been applied/);
   assert.equal(H.contentHash(p), origin, 'comparing four candidates must leave the project byte-identical');
+});
+
+// ---------------------------------------------------------------- Phase 7: review, simulate, workflows
+
+check('review: Part 14\'s hierarchy orders findings, and layer beats severity', () => {
+  // Layer beating severity is the whole point: fixing a blocking micro-polish nit before a major
+  // timing problem is how a shot gets beautifully wrong.
+  const fs = [
+    { id: 'polish', quality_layer: 13, severity: 'blocking', certainty: C.CERTAINTY.CERTAIN, statement: 'a nit' },
+    { id: 'timing', quality_layer: 4, severity: 'major', certainty: C.CERTAINTY.CERTAIN, statement: 'timing is off' },
+    { id: 'contact', quality_layer: 7, severity: 'blocking', certainty: C.CERTAINTY.CERTAIN, statement: 'a contact slides' },
+  ];
+  assert.deepEqual(REVIEW.orderByHierarchy(fs).map((f) => f.id), ['timing', 'contact', 'polish']);
+
+  const first = REVIEW.highestFailingLayer(fs);
+  assert.equal(first.layer, 4);
+  assert.equal(first.name, 'timing');
+  assert.deepEqual(first.also_failing, [7, 13]);
+  assert.match(first.instruction, /highest-impact failing layer first/);
+
+  // Part 14's 13 layers, in the directive's order, each saying what measures it or what blocks it.
+  assert.equal(REVIEW.QUALITY_LAYERS.length, 13);
+  assert.deepEqual(REVIEW.QUALITY_LAYERS.map((l) => l.layer), Array.from({ length: 13 }, (_, i) => i + 1));
+  assert.equal(REVIEW.QUALITY_LAYERS[0].name, 'intent and purpose');
+  assert.equal(REVIEW.QUALITY_LAYERS[12].name, 'micro-polish');
+  for (const l of REVIEW.QUALITY_LAYERS) {
+    if (l.measured === false) assert.ok(l.blocked_by, `layer ${l.layer} is unmeasurable, so it must say why`);
+    else assert.ok(l.by, `layer ${l.layer} claims to be measured, so it must say by what`);
+  }
+  assert.equal(REVIEW.QUALITY_LAYERS.filter((l) => l.measured === true).length, 3);
+  assert.equal(REVIEW.QUALITY_LAYERS.filter((l) => l.measured === false).length, 4);
+});
+
+check('review: Part 14\'s three anti-patterns are caught by name, and the general rule catches the rest', () => {
+  const defects = [
+    { id: 'pose', quality_layer: 3, severity: 'major', certainty: C.CERTAINTY.CERTAIN, statement: 'the pose is weak' },
+    { id: 'weight', quality_layer: 6, severity: 'major', certainty: C.CERTAINTY.CERTAIN, statement: 'no weight' },
+  ];
+  // "Do not add beautiful secondary motion to a weak pose."
+  const sec = REVIEW.checkHierarchyInversion({ layer: 12 }, defects);
+  assert.equal(sec.inverted, true);
+  assert.equal(sec.findings[0].id, 'HIERARCHY-ANTIPATTERN');
+  assert.match(sec.findings[0].statement, /do not add beautiful secondary motion to a weak pose/);
+  // "Do not add camera shake to conceal absent weight."
+  const cam = REVIEW.checkHierarchyInversion({ layer: 10 }, defects);
+  assert.equal(cam.findings[0].id, 'HIERARCHY-ANTIPATTERN');
+  assert.match(cam.findings[0].statement, /camera shake to conceal absent weight/);
+  // Anything else at a lower layer gets the general rule, at a lower certainty.
+  const gen = REVIEW.checkHierarchyInversion({ layer: 13 }, defects);
+  assert.equal(gen.findings[0].id, 'HIERARCHY-INVERTED');
+  assert.equal(gen.findings[0].certainty, C.CERTAINTY.POSSIBLE, 'the general rule is a suspicion, not a certainty');
+  // Nothing higher failing: not inverted. A layer name resolves as well as a number.
+  assert.equal(REVIEW.checkHierarchyInversion({ layer: 'pose design' }, [defects[1]]).inverted, false);
+  assert.equal(REVIEW.checkHierarchyInversion({ layer: 2 }, defects).inverted, false);
+  // An action with no layer says so rather than guessing.
+  const none = REVIEW.checkHierarchyInversion({}, defects);
+  assert.equal(none.inverted, false);
+  assert.match(none.reason, /not attributed to a quality layer/);
+  assert.equal(REVIEW.HIERARCHY_ANTIPATTERNS.length, 3);
+});
+
+check('review: a shot with defects at two layers reports both, and names the higher one to fix first', () => {
+  const p = plantFixture();
+  // Break the planted contact (layer 7) and add an untimed emitter (layer 11).
+  p.tracks.hero.LeftHip.keys.push({ t: 16, v: CF.fromEuler(0.5, 0, 0) });
+  p.items.push({ id: 'amb', kind: 'vfx', name: 'Ambient dust', origin: I(), emitter: { rate: 6 }, visible: true });
+  p.tracks.amb = {};
+  const before = H.contentHash(p);
+
+  const r = REVIEW.reviewShot(p, { itemId: 'hero', constrain: 'keep the left foot within 0.05 studs from frame 0 to 16' });
+  assert.equal(r.ok, true);
+  assert.equal(r.active_mode, 'review / production');
+
+  const contact = r.deterministic_defects.find((d) => d.id === 'REVIEW-CONTACT-DRIFT');
+  assert.ok(contact, 'the broken declared contact must be found');
+  assert.equal(contact.quality_layer, 7);
+  assert.equal(contact.severity, REVIEW.SEVERITY.BLOCKING);
+  assert.match(contact.statement, /drifts 0\.9/);
+  const vfx = r.deterministic_defects.find((d) => d.id === 'VFX-NO-ENVELOPE');
+  assert.ok(vfx && vfx.quality_layer === 11);
+
+  // Part 14: contacts (7) outranks VFX relationship (11).
+  assert.equal(r.fix_first.layer, 7);
+  assert.deepEqual(r.fix_first.also_failing, [11]);
+  assert.equal(r.recommended_corrections[0].layer, 7, 'the correction order follows the hierarchy');
+
+  // Severity and certainty are reported separately — consequence is not confidence.
+  assert.ok(r.severity_summary.blocking >= 1);
+  assert.ok(r.confidence_summary.certain >= 2);
+  // Every severity is labelled as this codebase's convention, since the directive defines none.
+  assert.ok(contact.evidence.some((e) => e.kind === 'convention' && /severity/.test(e.statement)));
+  assert.ok(contact.evidence.some((e) => e.kind === 'convention' && /Part 14 layer 7/.test(e.statement)));
+
+  // A review changes nothing.
+  assert.equal(H.contentHash(p), before);
+});
+
+check('review: an unmeasurable layer is reported as unmeasured, never as passing', () => {
+  const p = plantFixture();
+  const r = REVIEW.reviewShot(p, { itemId: 'hero' });
+  // The four layers this build cannot measure are named with what blocks each.
+  assert.deepEqual(r.layers_not_reviewable.map((l) => l.layer), [2, 3, 10, 12]);
+  for (const l of r.layers_not_reviewable) assert.ok(l.blocked_by, `layer ${l.layer} must say why`);
+  assert.ok(!r.deterministic_defects.some((d) => [2, 3, 10, 12].includes(d.quality_layer)),
+    'a layer that cannot be measured cannot produce a defect');
+  // And the things Part 49 asks for that cannot be produced say so rather than being absent.
+  assert.equal(r.annotated_render_crops.available, false);
+  assert.match(r.annotated_render_crops.why, /renders nothing/);
+  assert.ok(r.coverage.notRun.some((s) => /annotated render crops/.test(s)));
+  assert.ok(r.coverage.notRun.some((s) => /no contact was DECLARED/.test(s)), 'nothing infers a contact');
+
+  // With no contact declared, layer 7 is not silently passed.
+  assert.ok(!r.deterministic_defects.some((d) => d.id === 'REVIEW-CONTACT-DRIFT'));
+});
+
+check('review: two rigs and no itemId is a question, not a guess', () => {
+  const p = plantFixture();
+  p.items.push({ id: 'hero2', kind: 'rig', name: 'Rival', rig: RIGS.r15, origin: I() });
+  const r = REVIEW.reviewShot(p, {});
+  assert.equal(r.ok, false);
+  assert.match(r.question, /Which character/);
+  assert.match(r.question, /Rival/);
+  // One rig needs no itemId.
+  assert.equal(REVIEW.reviewShot(plantFixture(), {}).ok, true);
+});
+
+check('simulate: a change that breaks a protection is reported as making a layer worse', () => {
+  const p = plantFixture();
+  const before = H.contentHash(p);
+  const r = SIM.simulateChange(p, {
+    ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }],
+    itemId: 'hero', constrain: 'keep the left foot within 0.05 studs from frame 0 to 16',
+    intent: 'drive the swing from the hips', frame: 8,
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.active_mode, 'analyze / production', 'a simulation changes nothing, so analyze mode is the default');
+
+  // The Technical section fails on the declared contact, with the measurement behind it.
+  assert.equal(r.technical.verdict, 'fail');
+  const contact = r.technical.rows.find((x) => x.check === 'declared contacts');
+  assert.equal(contact.verdict, 'fail');
+  assert.match(contact.detail, /0\.9/);
+  // A warn-level constraint is a warning here and says why apply would still proceed.
+  const prot = r.technical.rows.find((x) => x.check === 'protected state');
+  assert.equal(prot.verdict, 'warning');
+  assert.match(prot.note, /would proceed/);
+
+  // Decision 2: the product is the per-layer delta.
+  assert.equal(r.change_effect.measured, true);
+  assert.match(r.change_effect.verdict, /makes at least one quality layer worse/);
+  assert.equal(r.change_effect.highest_regressed_layer, 7);
+  assert.equal(r.change_effect.regressions[0].direction, 'worse');
+  assert.ok(r.change_effect.regressions[0].introduced[0].includes('drift'));
+
+  // The first recommended action is about the regression, not the first finding alphabetically.
+  assert.match(r.recommended_actions[0].action, /reconsider this change/);
+  assert.equal(r.recommended_actions[0].requires_user_approval, true);
+
+  // Nothing applied, and the report says what would apply it.
+  assert.equal(r.commit.applied, false);
+  assert.match(r.commit.apply_with, /apply_animation_patch/);
+  assert.ok(r.commit.inverse_available > 0);
+  assert.equal(r.unchanged, true);
+  assert.equal(H.contentHash(p), before);
+});
+
+check('simulate: there is deliberately no overall score, and steps 4 and 5 are named as not run', () => {
+  const p = plantFixture();
+  const r = SIM.simulateChange(p, { itemId: 'hero' });
+  // Part 47: "The report must never imply that a subjective score is ground truth."
+  assert.equal(r.overall_score, undefined, 'there must be no overall score field at all');
+  assert.match(r.no_overall_score, /never imply that a subjective score is ground truth/);
+
+  // The two pipeline steps that cannot run are named in every report.
+  const cannot = SIM.SIMULATION_STEPS.filter((s) => s.runs === false);
+  assert.deepEqual(cannot.map((s) => s.step), [4, 5]);
+  for (const s of cannot) assert.ok(s.why, `step ${s.step} must say why it cannot run`);
+  assert.equal(SIM.SIMULATION_STEPS.length, 9);
+  assert.ok(r.coverage.notRun.some((x) => /step 4/.test(x)));
+  assert.ok(r.coverage.notRun.some((x) => /step 5/.test(x)));
+  assert.equal(r.observation_plan.available_here, false);
+  assert.match(r.observation_plan.how, /create_baseline/);
+
+  // No ops is a legitimate call: review the shot as it stands, and say there is no delta.
+  assert.match(r.evaluating, /no proposed change/);
+  assert.equal(r.change_effect.measured, false);
+  assert.equal(r.review_after, null);
+
+  // A clean change is not called good.
+  const ok = SIM.simulateChange(p, {
+    ops: [{ op: 'set_key', itemId: 'hero', track: 'RightShoulder', t: 8, value: CF.fromEuler(0, 0, 1.5) }],
+    itemId: 'hero', frame: 8,
+  });
+  assert.equal(ok.technical.verdict, 'pass');
+  assert.match(ok.recommended_actions[0].statement, /not "the shot is good"/);
+  assert.equal(ok.recommended_actions[0].requires_user_approval, true);
+});
+
+check('workflows: the registry is exactly Part 52\'s sixteen, and every entry documents its eight fields', () => {
+  const DIRECTIVE = [
+    'review_shot', 'diagnose_frame', 'polish_animation', 'make_motion_heavier', 'make_motion_snappier',
+    'make_motion_floatier', 'make_motion_more_aggressive', 'preserve_timing_change_style',
+    'preserve_pose_change_spacing', 'find_unintended_changes', 'fix_only_unintended_changes',
+    'compare_to_reference', 'generate_three_meaningful_variations', 'create_vfx',
+    'synchronize_impact_event', 'prepare_for_export',
+  ];
+  assert.deepEqual([...WF.WORKFLOW_NAMES].sort(), [...DIRECTIVE].sort(),
+    'the registry must match the directive exactly — an extra row is drift, a missing one is a gap');
+
+  const l = WF.listWorkflows();
+  assert.equal(l.count, 16);
+  assert.equal(l.implemented.length, 13);
+  assert.equal(l.not_implemented.length, 3);
+  for (const w of l.workflows) {
+    // Part 52's eight required fields, on every entry including the unimplemented ones.
+    for (const f of ['goal', 'tools_used', 'required_input', 'protected_inputs', 'normal_output', 'failure_behavior', 'approval_points', 'benchmark_coverage']) {
+      assert.ok(w[f] !== undefined && w[f] !== null, `${w.name} is missing Part 52's "${f}"`);
+    }
+    // Part 52 requires benchmark coverage and no benchmark suite exists, so it must say none.
+    assert.equal(w.benchmark_coverage.coverage, 'none');
+    assert.match(w.benchmark_coverage.unblocked_by, /BCH-001/);
+    if (!w.implemented) assert.ok(w.blocked_by, `${w.name} is unimplemented, so it must say what blocks it`);
+  }
+});
+
+check('workflows: a workflow resolves to an ordered tool chain with its approval points marked', () => {
+  const r = WF.resolveWorkflow('make_motion_heavier', { itemId: 'hero' });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.plan.map((s) => s.tool), ['animation_vocabulary', 'interpret_intent', 'plan_motion', 'apply_motion_plan']);
+  assert.deepEqual(r.approval_required_at, ['apply_motion_plan'], 'only the mutating step needs approval');
+  assert.equal(r.plan.at(-1).args.itemId, 'hero');
+  assert.equal(r.workflow.vocabulary_term, 'heavy');
+  assert.equal(r.workflow.term_known, true, 'the term must exist in the real vocabulary');
+
+  // The four make_motion_* workflows are one pipeline parameterised by a term, and every term is real.
+  for (const [name, term] of [['make_motion_snappier', 'snappy'], ['make_motion_floatier', 'floaty'], ['make_motion_more_aggressive', 'aggressive']]) {
+    const w = WF.resolveWorkflow(name, { itemId: 'hero' });
+    assert.equal(w.workflow.vocabulary_term, term);
+    assert.equal(w.workflow.term_known, true, `${name} names "${term}", which must be a real vocabulary term`);
+  }
+
+  // A workflow whose whole point is preserving something compiles a real constraint for it.
+  const pres = WF.resolveWorkflow('preserve_timing_change_style', { itemId: 'hero', term: 'heavy' });
+  const apply = pres.plan.find((s) => s.tool === 'apply_motion_plan');
+  assert.ok(apply.args.constrain.constraints[0].aspect === 'timing', 'the protection must be an actual constraint, not prose');
+});
+
+check('workflows: an unimplemented workflow is refused with what blocks it, and missing input is caught first', () => {
+  const blocked = WF.resolveWorkflow('compare_to_reference', { itemId: 'hero' });
+  assert.equal(blocked.ok, false);
+  assert.deepEqual(blocked.plan, [], 'a refused workflow must not hand back a partial plan');
+  assert.match(blocked.reason, /nothing has been ingested/);
+  assert.equal(blocked.findings[0].id, 'WORKFLOW-NOT-IMPLEMENTED');
+
+  assert.match(WF.resolveWorkflow('polish_animation', { itemId: 'h' }).reason, /judgement Part 14 orders/);
+  assert.match(WF.resolveWorkflow('prepare_for_export', {}).reason, /validate\.js` imports `state\.js`/);
+
+  // Required input is checked BEFORE a plan is returned — failing three tools in is worse.
+  const missing = WF.resolveWorkflow('make_motion_heavier', {});
+  assert.equal(missing.ok, false);
+  assert.deepEqual(missing.missing_input, ['itemId']);
+  assert.equal(missing.findings[0].id, 'WORKFLOW-INPUT-MISSING');
+  assert.deepEqual(missing.plan, []);
+
+  const unknown = WF.resolveWorkflow('make_it_good', {});
+  assert.equal(unknown.ok, false);
+  assert.match(unknown.question, /not one of Part 52's workflows/);
+});
+
+check('layer: the rest of Phase 7 — a shot is reviewed, a change is simulated against it, and the hierarchy orders both', () => {
+  // The three Phase 7 rows that are not the success condition, end to end on one project:
+  // REV-001 (Part 49), OPS-005 (Part 14) and SIM-001 (Part 47), composed the way a caller would.
+  const p = plantFixture();
+  const origin = H.contentHash(p);
+  const CONSTRAIN = 'keep the left foot within 0.05 studs from frame 0 to 16';
+
+  // 1. REV-001: the shot as it stands is clean in the layers that can be measured.
+  const clean = REVIEW.reviewShot(p, { itemId: 'hero', constrain: CONSTRAIN });
+  assert.equal(clean.ok, true);
+  assert.equal(clean.deterministic_defects.length, 0);
+  assert.equal(clean.fix_first, null);
+  assert.match(clean.recommended_corrections[0].statement, /not "the shot is good"/,
+    'no defect found is not the same as good — 4 layers cannot be measured');
+
+  // 2. SIM-001: a proposed change is evaluated BEFORE it lands, and reported per layer.
+  const sim = SIM.simulateChange(p, {
+    ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }],
+    itemId: 'hero', constrain: CONSTRAIN, acceptance: { checks: [{ check: 'contact_drift_within', itemId: 'hero', effector: 'the left foot', start: 0, end: 16, tolerance: 0.05 }] },
+    intent: 'drive the swing from the hips', frame: 8,
+  });
+  assert.equal(sim.ok, true);
+  assert.equal(sim.technical.verdict, 'fail');
+  // Two layers regress: the contact itself (7) and the shot's own declared acceptance criterion
+  // (1, intent and purpose). Layer 1 outranks it, and that is the more useful thing to say first —
+  // "this violates what you declared this shot must do" beats "a contact slid".
+  const regressed = sim.change_effect.regressions.map((x) => x.layer).sort((a, b) => a - b);
+  assert.deepEqual(regressed, [1, 7]);
+  assert.equal(sim.change_effect.highest_regressed_layer, 1);
+  assert.equal(sim.commit.applied, false);
+
+  // 3. OPS-005: a proposal at a LOWER layer while layer 7 is failing is treating a symptom.
+  const after = SIM.simulateChange(p, {
+    ops: [{ op: 'set_key', itemId: 'hero', track: 'LeftHip', t: 16, value: CF.fromEuler(0.5, 0, 0) }],
+    itemId: 'hero', constrain: CONSTRAIN, frame: 8,
+  });
+  const wouldBe = after.change_effect.regressions.map((r) => ({ quality_layer: r.layer, id: 'REGRESSION', severity: 'blocking', certainty: C.CERTAINTY.CERTAIN, statement: r.introduced[0] }));
+  const inversion = REVIEW.checkHierarchyInversion({ layer: 12 }, wouldBe);
+  assert.equal(inversion.inverted, true);
+  assert.match(inversion.findings[0].statement, /layer 7/);
+
+  // 4. And Part 52 names the workflow that runs step 1.
+  assert.equal(WF.resolveWorkflow('review_shot', { itemId: 'hero' }).ok, true);
+
+  // None of it touched the project.
+  assert.equal(H.contentHash(p), origin, 'reviewing and simulating must leave the project byte-identical');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

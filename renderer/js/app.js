@@ -4968,6 +4968,124 @@ const MCP_HANDLERS = {
     }
     return result;
   },
+  // ------------------------------------------------- review, simulation and workflows (Parts 14, 47, 49, 52)
+  //
+  // The rest of Phase 7. Three read tools and one that runs a declared chain:
+  //
+  //   review_shot      Parts 49 + 14 — the structured review, ordered by the quality hierarchy
+  //   simulate_change  Part 47 — the pre-commit evaluation: the review, run on a planned result
+  //   list_workflows   Part 52 — the sixteen named workflows and what each one documents
+  //   run_workflow     Part 52 — executes a resolved chain, stopping at its approval points
+  //
+  // `run_workflow` is the only one that can change anything, and only because a chain it runs may
+  // contain a mutating tool. It stops BEFORE the first approval point unless the caller passes
+  // `approve`, which is what makes Part 52's "approval points" a mechanism rather than a note.
+
+  review_shot: ({ itemId = null, acceptance = null, constrain = null, from = null, to = null, mode = 'review' } = {}) => {
+    const result = AI.review.reviewShot(liveProject(), {
+      itemId: itemId ?? S.state.selection.itemId ?? null,
+      acceptance: acceptance ? (Array.isArray(acceptance) ? AI.cal.acceptanceSpec({ checks: acceptance }) : AI.cal.acceptanceSpec(acceptance)) : null,
+      constrain, from, to, mode,
+    });
+    // A review is a conclusion somebody may act on, so it is recorded — the same bargain
+    // explain_change and explain_motion_problem make. Nothing else is written.
+    if (result.ok) {
+      AI.provenance.record(S.state.project, {
+        type: 'analysis', author: 'ai',
+        summary: `reviewed "${result.subject.name}": ${result.deterministic_defects.length} defect(s), ${result.artistic_suggestions.length} suggestion(s)${result.fix_first ? `, fix ${result.fix_first.name} first` : ''}`,
+        detail: {
+          subject: result.subject,
+          defects: result.deterministic_defects.map((d) => ({ id: d.id, layer: d.quality_layer, severity: d.severity, certainty: d.certainty, statement: d.statement })),
+          suggestions: result.artistic_suggestions.map((s) => ({ id: s.id, layer: s.quality_layer, statement: s.statement })),
+          fix_first: result.fix_first ? { layer: result.fix_first.layer, name: result.fix_first.name } : null,
+          layers_reviewed: result.layers_reviewed,
+          layers_not_reviewable: result.layers_not_reviewable,
+        },
+        timestamp: new Date().toISOString(),
+      });
+      S.markDirty();
+    }
+    return result;
+  },
+
+  simulate_change: ({ ops = null, itemId = null, constrain = null, acceptance = null, intent = null, frame = null, mode = 'analyze' } = {}) => {
+    if (ops !== null && (!Array.isArray(ops) || !ops.length)) {
+      throw new Error('simulate_change: `ops` must be a non-empty array, or omitted entirely to evaluate the shot as it stands');
+    }
+    // The ops are validated the same way a real patch would be, so a bogus itemId is caught here
+    // rather than three measurements later.
+    if (ops) buildPatch({ ops, intent, request: null, strict: false });
+    return AI.simulate.simulateChange(liveProject(), {
+      ops, itemId: itemId ?? S.state.selection.itemId ?? null,
+      constrain, acceptance, intent, frame: frame ?? S.state.playhead, mode,
+    });
+  },
+
+  list_workflows: ({ name = null } = {}) => {
+    if (name) {
+      const r = AI.workflows.resolveWorkflow(name, {});
+      // A resolution with no arguments is how a caller asks "what does this workflow need?" —
+      // the missing-input refusal IS the answer, so it is not an error.
+      return { workflow: r.workflow ?? null, question: r.question ?? null, missing_input: r.missing_input ?? null, reason: r.reason ?? null, plan: r.plan ?? [] };
+    }
+    return AI.workflows.listWorkflows();
+  },
+
+  run_workflow: ({ name, args = {}, approve = false, stopAtApproval = true } = {}) => {
+    if (!name) throw new Error(`run_workflow needs a \`name\` — list_workflows returns the ${AI.workflows.WORKFLOW_NAMES.length} Part 52 workflows`);
+    const resolved = AI.workflows.resolveWorkflow(name, args);
+    if (!resolved.ok) {
+      return {
+        ran: false, workflow: resolved.workflow ?? null,
+        refused_because: resolved.reason ?? resolved.question ?? 'the workflow could not be resolved',
+        missing_input: resolved.missing_input ?? null, findings: resolved.findings, steps: [],
+      };
+    }
+
+    const steps = [];
+    let stopped = null;
+    for (const s of resolved.plan) {
+      if (s.requires_user_approval && stopAtApproval && !approve) {
+        // Part 52's approval points, enforced rather than documented. The remaining plan is
+        // returned so the caller can see exactly what it is approving.
+        stopped = {
+          at: s.tool, why: s.why ?? 'this step changes project data',
+          remaining: resolved.plan.slice(resolved.plan.indexOf(s)).map((x) => ({ tool: x.tool, args: x.args })),
+          resume_with: `run_workflow { name: "${name}", args: {...}, approve: true }`,
+        };
+        break;
+      }
+      if (!MCP_HANDLERS[s.tool]) {
+        steps.push({ tool: s.tool, ok: false, error: `no handler named "${s.tool}" — the workflow registry and MCP_HANDLERS have diverged` });
+        stopped = { at: s.tool, why: 'the tool does not exist', remaining: [] };
+        break;
+      }
+      try {
+        const out = MCP_HANDLERS[s.tool](s.args);
+        steps.push({ tool: s.tool, ok: true, result: out });
+        // A chain does not push past a step that refused: the later steps assume it worked.
+        if (out && (out.applied === false && out.blocked === true)) {
+          stopped = { at: s.tool, why: out.refused_because ?? 'the step was refused', remaining: [] };
+          break;
+        }
+      } catch (e) {
+        steps.push({ tool: s.tool, ok: false, error: e.message });
+        stopped = { at: s.tool, why: e.message, remaining: [] };
+        break;
+      }
+    }
+
+    return {
+      ran: true,
+      workflow: resolved.workflow,
+      completed: !stopped,
+      stopped_at: stopped,
+      approval_required_at: resolved.approval_required_at,
+      steps,
+      findings: resolved.findings,
+      limitations: AI.workflows.WORKFLOW_LIMITATIONS,
+    };
+  },
 };
 
 function initMcp() {

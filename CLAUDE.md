@@ -19,6 +19,9 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 | `renderer/js/ai/vfxspec.js` | Parts 37-39. A declarative effect compiled into reversible ops. Targets the `kind:'vfx'` emitter item, **never** `pnx/**` — the reasoning is at the top of the file. |
 | `renderer/js/ai/modes.js` | Part 11's operating modes. Policy, not police: it decides only "may this mutate", enforced in `apply_animation_patch`. |
 | `renderer/js/ai/experiment.js` | Part 48. Bounded named alternatives, compared on clones, with a recommendation that names its measurements — or withholds one. |
+| `renderer/js/ai/review.js` | Parts 49 + 14. The shot review, and the quality hierarchy that orders it. Defects and artistic suggestions never merge. |
+| `renderer/js/ai/simulate.js` | Part 47. The pre-commit report: the review run on a planned result, diffed per quality layer. No overall score, deliberately. |
+| `renderer/js/ai/workflows.js` | Part 52. Exactly the directive's 16 workflows as declared tool chains; `run_workflow` enforces their approval points. |
 | `renderer/js/observationPasses.js` | Diagnostic render passes. Outside `ai/` because three.js. |
 | `renderer/js/pnx/**`, `renderer-vfx/` | The procedural VFX engine and its own studio window. |
 | `mcp-server/index.js` | `server.tool(...)` registrations. The other half of every MCP tool. |
@@ -29,13 +32,13 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 `npm` is broken under Git Bash here. Use PowerShell, and invoke binaries directly.
 
 ```
-node test/aitest.mjs     # semantic layer — 303 checks
+node test/aitest.mjs     # semantic layer — 314 checks
 node test/coretest.mjs   # core           —  41
 node test/pnxtest.mjs    # PNX engine     — 298
 ```
 
 ```powershell
-# Electron smoketest, ~4 min, 99 steps against the real app
+# Electron smoketest, ~4 min, 100 steps against the real app
 Remove-Item test-output/userdata -Recurse -Force -ErrorAction SilentlyContinue
 .\node_modules\.bin\electron.cmd . --disable-backgrounding-occluded-windows `
   --disable-renderer-backgrounding --disable-background-timer-throttling `
@@ -44,8 +47,12 @@ Remove-Item test-output/userdata -Recurse -Force -ErrorAction SilentlyContinue
 # results: test-output/smoketest-report.json
 ```
 
-The smoketest is GPU-sensitive. Before concluding a failure is yours, `git stash` and re-run: a
-4-minute comparison against unmodified HEAD beats an hour of guessing.
+The smoketest is GPU- AND network-sensitive. Before concluding a failure is yours, `git stash` and
+re-run: a 4-minute comparison against unmodified HEAD beats an hour of guessing. Two steps flake
+intermittently on this machine — *classic clothing* (it fetches textures from `fts.rbxcdn.com`, so
+grep the log for `ENOTFOUND` before blaming your change) and *observation: baseline → scoped edit*
+(a pixel comparison that occasionally finds differences between a baseline and its own state).
+Neither pair is a fingerprint: across five runs in one session they appeared in two.
 
 ## Rules that are load-bearing
 
@@ -116,6 +123,14 @@ work.
   Part 11's operating mode is enforced (`analyze`/`compare`/`review` refuse to mutate, and the
   refusal is deliberately not forceable). A new mutating tool that writes to `state.js` directly
   bypasses the mode gate, the constraint check, the transaction and the snapshot at once.
+- **A compiled `ConstraintSpec` keeps its range in `time_range`, not on `condition`, and its
+  `target` is an ARRAY of selectors.** Reading `condition.from` or `target.itemId` silently yields
+  `undefined`, and a review built on that reported no contact problem at all — a false clean bill of
+  health. Print a real compiled spec with `node -e` before consuming a shape.
+- **`motion.classifyVariation` refuses to call an unexplained discontinuity a defect** and returns
+  `unclassified` instead (Part 4.5: jitter, procedural detail and an interpolation artefact are
+  indistinguishable in project data). A judging layer must not overrule that — report it as a
+  suggestion and point at `explain_motion_problem`.
 - **`report.allowed` is not "nothing is wrong".** A contact constraint compiles to `warn`, so a
   violation is reported while `allowed` stays true and the apply proceeds — correct there, because
   a human asked for that edit. Anything that treats `allowed` as a pass will let a violation

@@ -1651,6 +1651,54 @@ server.tool(
   async (a) => { try { return textResult(await call('compare_experiments', a)); } catch (e) { return errorResult(e); } },
 );
 
+server.tool(
+  'review_shot',
+  'READ-ONLY (it records the review in provenance; no animation data is touched). Part 49\'s structured shot review, ordered by Part 14\'s quality hierarchy. Returns deterministic defects and artistic suggestions as SEPARATE lists that are never merged — merging them is how a subjective opinion starts looking like a measurement — plus the single highest-impact failing layer, because Part 14 says to fix that one first. IMPORTANT about coverage: of Part 14\'s 13 quality layers this build measures 3 fully (timing, spacing, contacts), 6 only partly, and 4 NOT AT ALL — readability and staging, pose design, camera relationship and secondary motion. Those four are reported as unmeasured and NEVER as passing, each naming what blocks it, because "pose design: fine" would be worse than useless. Severity is this codebase\'s own convention (the directive requires a severity without defining a scale) and describes CONSEQUENCE, separately from Part 13\'s certainty which describes CONFIDENCE. A contact is only reviewed if one is DECLARED via `constrain` — nothing infers a contact. Part 49 also asks for annotated render crops, and this tool renders nothing: it returns the suspect frame list to look at instead. With two or more rigs and no itemId it asks which character rather than reviewing an arbitrary one.',
+  {
+    itemId: z.string().optional().describe('The character to review. Defaults to the selection, or the only rig.'),
+    acceptance: z.union([z.object({ checks: z.array(z.object({}).passthrough()) }), z.array(z.object({}).passthrough())]).optional().describe('An AcceptanceSpec. This is the ONLY way layer 1 (intent and purpose) becomes measurable — without it, nothing here knows what the shot is for, and that is reported rather than passed.'),
+    constrain: z.union([z.string(), z.object({}).passthrough()]).optional().describe('A constraint request in the closed grammar, e.g. "keep the left foot within 0.05 studs from frame 0 to 16". Declares what is protected AND what contact to measure.'),
+    from: z.number().optional().describe('First frame. Defaults to the item\'s keyed range.'),
+    to: z.number().optional().describe('Last frame.'),
+  },
+  async (a) => { try { return textResult(await call('review_shot', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'simulate_change',
+  'READ-ONLY. Part 47\'s Cadence Simulation: a controlled PRE-COMMIT evaluation of a proposed change. It plans the ops against a clone, reviews the shot before and after, and reports the difference PER QUALITY LAYER — which is the one thing no other tool can say. (preview_animation_patch says what would change; analyse_scope says how far it reaches; review_shot says whether the shot as it stands is any good; this says whether the change would make it better or worse, before it lands.) Returns Part 47\'s Technical / Animation / VFX sections plus recommended actions ordered by Part 14. There is deliberately NO overall score: Part 47 says the report "must never imply that a subjective score is ground truth", and a single number would have to average a measured contact drift against an unmeasurable judgement about pose design. Steps 4 and 5 of Part 47\'s nine-step pipeline — render diagnostic passes, run visual comparisons — CANNOT run here, because this layer has no pixels; they are named in every report, and the frames worth rendering afterwards are listed. Omit `ops` entirely to evaluate the shot as it stands. Nothing is ever applied.',
+  {
+    ops: z.array(z.object({}).passthrough()).optional().describe('The proposed operations, in the same shape apply_animation_patch takes. Omit to evaluate the shot as it stands with no proposed change.'),
+    itemId: z.string().optional().describe('The subject for the review half. Defaults to the selection.'),
+    constrain: z.union([z.string(), z.object({}).passthrough()]).optional().describe('What must not be disturbed, in the closed grammar. Also declares the contact to measure.'),
+    acceptance: z.union([z.object({ checks: z.array(z.object({}).passthrough()) }), z.array(z.object({}).passthrough())]).optional().describe('An AcceptanceSpec — the shot\'s own definition of done. A change that breaks it is reported as a layer-1 (intent) regression.'),
+    intent: z.string().optional().describe('The request this change came from.'),
+    frame: z.number().optional().describe('The frame constraints are evaluated at. Defaults to the playhead.'),
+  },
+  async (a) => { try { return textResult(await call('simulate_change', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'list_workflows',
+  'READ-ONLY. Part 52\'s sixteen reusable workflows — the registry is EXACTLY the directive\'s list, because an extra row would be drift and a missing one a gap. Each entry documents Part 52\'s eight required fields: goal, tools used, required input, protected inputs, normal output, failure behaviour, approval points and benchmark coverage. 13 are implemented as declared tool chains (a workflow composes existing tools and implements nothing itself, per Part 52\'s own instruction); 3 are not, and each names what blocks it — `polish_animation` (choosing which defect to correct is the judgement Part 14 orders and this build cannot make), `compare_to_reference` (nothing is ingested to compare against) and `prepare_for_export` (validate.js imports state.js, so the export check cannot run from the pure layer). EVERY workflow reports benchmark_coverage: none, which is not an oversight: Part 52 requires the field and no benchmark suite exists in this build (BCH-001). Pass a `name` to see one workflow and what it needs.',
+  {
+    name: z.string().optional().describe('One workflow to describe. Omit for the whole catalogue. Resolving with no arguments is how you ask what a workflow requires — the missing-input answer IS the answer.'),
+  },
+  async (a) => { try { return textResult(await call('list_workflows', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'run_workflow',
+  'MUTATING when the chain contains a mutating tool, otherwise read-only (each step is an ordinary tool call, so anything it applies is rolled back with rollback_transaction). Runs one of Part 52\'s workflows as its declared, ordered tool chain. Approval points are ENFORCED, not documented: execution stops BEFORE the first step that changes project data and returns the remaining plan so you can see exactly what you would be approving — pass `approve: true` to run the whole chain. Required input is validated before any step runs, because failing three tools into a chain is worse than a refusal. An unimplemented workflow is refused with what blocks it and hands back no partial plan. A chain also stops at the first step that refuses or throws, since later steps assume the earlier ones worked.',
+  {
+    name: z.string().describe('The workflow to run. list_workflows returns the sixteen.'),
+    args: z.object({}).passthrough().optional().describe('Arguments for the workflow — see its `required_input`.'),
+    approve: z.boolean().optional().describe('Run past the approval points. Without this the chain stops before the first mutating step and shows you the rest.'),
+    stopAtApproval: z.boolean().optional().describe('Default true. Set false with approve to run straight through.'),
+  },
+  async (a) => { try { return textResult(await call('run_workflow', a)); } catch (e) { return errorResult(e); } },
+);
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
