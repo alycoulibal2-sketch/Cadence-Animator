@@ -1,0 +1,43 @@
+{
+  "concept": "arc_trail_vfx_readability",
+  "category": "advanced",
+  "definition": "A rendered motion trail (a VFX trail/streak effect) following the path of a fast action's most important arc, added specifically to make that arc plainly visible to the player when the action itself happens too fast to read from the pose animation alone.",
+  "purpose": "Guarantee an important arc reads clearly even when the underlying motion is too fast for the eye (or the frame budget) to track from the character/weapon animation by itself.",
+  "visible_effect": "A visible streak, ribbon, or trail rendered along the swept path of a weapon, limb, or effect, tracing the same arc the action's pose animation follows.",
+  "psychological_or_gameplay_effect": "Turns an arc that would otherwise be inferred (or missed entirely, at high speed) into something directly and unambiguously seen, independent of the viewer's ability to track the underlying fast pose change.",
+  "physical_interpretation": "An exaggeration of a real visual phenomenon (the way a fast-moving object can leave an afterimage or a real light trail), rendered deliberately rather than relying on motion blur or the eye's own persistence of vision.",
+  "use_cases": [
+    "an attack or ability fast enough that its arc would otherwise be hard to read from the pose animation alone",
+    "any action whose arc is specifically the thing that needs to be communicated to the player (a telegraph, a readable wind-up-to-impact path)",
+    "a stylized game already using trail VFX as part of its visual language for weapon or ability reads"
+  ],
+  "non_use_cases": [
+    "a slow or already-legible action, where a trail would be visual noise rather than a readability aid",
+    "an arc the design specifically wants to be difficult to read (rare, but the inverse of the main use case)"
+  ],
+  "interactions": [
+    "Arcs — a VFX-side readability aid for the same underlying path `ai/motion.js` already measures as curvature/chord deviation",
+    "Motion smear readability (video 4) — a sibling technique solving the same fast-motion-readability problem through a DIFFERENT mechanism: a smear deforms the character/weapon's own silhouette, a trail is a separate rendered VFX element — unlike a smear, a trail is fully representable in Cadence, since it does not require any mesh deformation at all",
+    "Staging — Part 38's VFX hierarchy (`role: primary/secondary`) already exists to protect exactly this kind of supporting effect from competing with the character it supports"
+  ],
+  "style_variations": {
+    "game_combat": "a near-default convention for fast weapon or ability arcs in action games",
+    "realistic": "restrained or omitted outside a stylized power-fantasy moment, where an overt trail would look like a game effect rather than a natural phenomenon"
+  },
+  "cadence_representation": "A real, direct fit: unlike squash & stretch's smear (which needs mesh deformation Cadence does not have), a motion trail IS a VFX emitter concern — `ai/vfxspec.js`'s declarative effect system already compiles trail-shaped effects onto the `kind:'vfx'` emitter item, and Part 38's hierarchy (`role`) already exists to keep such a trail from competing with the character it supports.",
+  "control_surface": "`compile_effect` (an `ai/vfxspec.js` VFXSpec) targeting a trail-shaped emitter attached to the relevant weapon/limb item; `role: secondary` to protect staging.",
+  "detection_and_measurement_methods": "`ai/motion.js` already measures the underlying path (curvature, speed) a trail would need to follow; nothing currently judges whether a given fast action's speed/spacing makes it a good CANDIDATE for a trail (that judgement is the same kind of \"is this readable\" question the existing `staging` entry already states this build cannot make).",
+  "generation_or_modification_methods": "Fully generatable through the existing VFX compile path (`compile_effect`), once a caller decides a trail is wanted — unlike the motion-smear case, nothing about this technique is blocked by Cadence's lack of mesh deformation.",
+  "failure_modes": [
+    "a trail added to an action that was already readable, adding clutter without solving a real problem (Part 38's staging concern)",
+    "a trail whose shape does not actually follow the weapon/limb's real path, which would show the WRONG arc and could look more confusing than no trail at all",
+    "a trail at full budget share competing with the primary character read — exactly the failure mode the existing `staging` entry already names for VFX hierarchy generally"
+  ],
+  "roblox_considerations": "Directly exportable: a trail effect compiled through `ai/vfxspec.js` targets ordinary Roblox particle/beam-style VFX, no different from any other Cadence-authored effect.",
+  "performance_implications": "A real particle/trail budget cost, exactly as already accounted for by `ai/vfxspec.js`'s existing hierarchy budget-share mechanism — not a new cost model, the same one that already exists for VFX generally.",
+  "examples": [
+    "a motion trail added to a fast game action specifically to make its most important arc plainly visible to the player, named as a direct fix for actions that happen \"so fast\" the underlying motion alone would not read (video 6 @ 4:41–4:51)",
+    "a bright, curved slash-trail effect tracing a character's weapon swing in a stylized fighting game, confirmed on screen immediately after this point in the video (video 6 @ ~5:04–5:08)"
+  ],
+  "evidence_status": "video: https://youtu.be/lOzgxMgAnxQ @ 4:41–5:08 — Dan states the technique directly at 4:41–4:51; a matching visual example (an arc-shaped slash-trail effect on a weapon swing) is confirmed on screen shortly after, at t≈5:04–5:08; experimental until validated"
+}

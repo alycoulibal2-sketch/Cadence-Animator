@@ -1,0 +1,42 @@
+{
+  "concept": "arc_camera_angle_robustness",
+  "category": "advanced",
+  "definition": "An arcing (multi-axis) motion path stays visually readable across a wider range of viewing angles than a linear, single-axis motion, because a straight-line move toward or away from the camera can collapse to near-zero apparent screen-space movement from some angles, while an arc always has motion on more than one axis.",
+  "purpose": "Keep an action readable when the camera angle is not authored or fixed in advance — a game with a player-controlled camera cannot guarantee any one viewing angle, unlike film.",
+  "visible_effect": "A wide swipe or sweep reads clearly as motion from nearly any camera angle; a direct forward stab or thrust can look like almost nothing is happening when viewed close to head-on, because most of its motion is compressed into the depth axis the camera itself is looking down.",
+  "psychological_or_gameplay_effect": "A player who cannot read an attack's motion from their current camera angle loses the readability benefit that action was supposed to provide, independent of how well-animated it is from the \"intended\" angle — which, in an interactive context, does not exist.",
+  "physical_interpretation": "Purely a projection/viewing-geometry fact, not a claim about the physical motion itself: the SAME arc is equally \"real\" from every angle, but its on-SCREEN legibility is not, because screen-space motion is the 2D projection of a 3D path.",
+  "use_cases": [
+    "any action in a 3D game with a player-controlled (not fixed/authored) camera",
+    "an attack, ability, or telegraph specifically meant to be read by the player regardless of their current camera framing",
+    "choosing a swipe/sweep over a direct thrust when both would otherwise communicate the same intent"
+  ],
+  "non_use_cases": [
+    "a fixed-camera or cutscene context (film, a scripted in-engine cinematic) where the camera angle IS known in advance and arcs can be tuned to that one specific view instead",
+    "an action deliberately meant to be hard to read (rare, but the same logic in reverse applies to a \"hidden tell\" design)",
+    "a purely first-person action where the acting part has no external viewing angle to be robust against in the first place"
+  ],
+  "interactions": [
+    "Arcs — this is a game-specific reason to prefer arcs over the existing card's general \"organic and appealing\" reasoning; it applies even to a mechanical or stylized character where the classical appeal argument would not",
+    "Staging — Part 26.3's own list of open questions already names \"is the action readable in the active camera\" as something this build cannot check for lack of a camera model; this entry sharpens WHY that check matters specifically for arcs",
+    "Startup frame budget — a fast, hard-to-read arc and a fast, hard-to-read stab fail for compounding reasons if both are also short on startup frames"
+  ],
+  "style_variations": {
+    "game_combat": "the primary context this reasoning applies to; the more free the player camera, the more this consideration matters",
+    "cinematic": "the constraint that motivates this entry (an unknown camera angle) does not apply, so a director may deliberately choose an axial, camera-forward motion for a specific authored shot"
+  },
+  "cadence_representation": "Not represented, and not straightforwardly checkable: `ai/motion.js MOT-005` measures path curvature and chord deviation in WORLD space, which is exactly the data needed, but judging whether that path stays legible across a RANGE of camera angles requires a camera/viewing model this build does not have — the same honestly-stated gap the existing `staging` and `arcs` entries already name for camera-dependent questions generally.",
+  "control_surface": "`analyze_motion` reports world-space curvature; nothing projects that curvature through a range of hypothetical camera angles to judge multi-angle readability.",
+  "detection_and_measurement_methods": "Partially buildable: given curvature/chord-deviation data already measured per MOT-005, and a declared set of candidate camera angles, screen-space apparent motion at each angle is a projection computation this build could in principle run — but no code does, since Cadence has no active-camera model at all (the same limitation named throughout this table for anything camera-dependent).",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "choosing a linear/axial motion for an action that needs to read from an unknown player camera angle, discovering only in playtesting (from specific angles) that it reads as barely moving",
+    "over-applying this and making every action a wide swipe regardless of what the action actually is, which is its own readability and believability problem"
+  ],
+  "roblox_considerations": "Directly relevant: Roblox's default camera is player-controlled in the overwhelming majority of experiences, so this consideration applies by default rather than as an edge case.",
+  "performance_implications": "None.",
+  "examples": [
+    "a wide sword swipe reading clearly from nearly any angle, versus a direct forward spear/thrust that can look like almost no motion at all from a near-head-on camera angle — both shown side by side in the source footage (video 6 @ 4:19–4:39, a direct-thrust stance confirmed on screen at t=4:27–4:31 alongside a wide-swipe attack at t=4:35–4:52)"
+  ],
+  "evidence_status": "video: https://youtu.be/lOzgxMgAnxQ @ 4:19–4:39 — Dan states the swipe-vs-stab reasoning directly, illustrated with matching gameplay footage of both attack types; experimental until validated"
+}

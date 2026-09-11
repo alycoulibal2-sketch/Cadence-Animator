@@ -7,7 +7,7 @@
 - [x] 3. ANTICIPATION - The 12 Principles of Animation in Games — New Frame Plus (7:52) — https://youtu.be/28s1Hv3Zqlo
 - [x] 4. SQUASH & STRETCH - The 12 Principles of Animation in Games — New Frame Plus (8:19) — https://youtu.be/1kFRU_xBZnE
 - [x] 5. SLOW IN & SLOW OUT - The 12 Principles of Animation in Games — New Frame Plus (7:24) — https://youtu.be/3jNiNctcQ4c
-- [ ] 6. ARCS - The 12 Principles of Animation in Games — New Frame Plus (7:47) — https://youtu.be/lOzgxMgAnxQ
+- [x] 6. ARCS - The 12 Principles of Animation in Games — New Frame Plus (7:47) — https://youtu.be/lOzgxMgAnxQ
 - [ ] 7. FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games — New Frame Plus (16:53) — https://youtu.be/rYtrV1lChsA
 - [ ] 8. The most important animation principle: An introduction on animation spacing and timing — Dong Chang (11:04) — https://youtu.be/vSJ5lT_ma-E
 - [ ] 9. 3 Easy Ways to Master Animation Timing — Dong Chang (13:58) — https://youtu.be/13QIh7vsCpQ
@@ -126,4 +126,25 @@ Watched at `balanced` detail (100 scene-aware frames over 7:24, ~40 read directl
 
 **Entries written:** 1 (`W01-5-external-force-easing-override.json`), passed `validateProposedEntry` cleanly.
 
-**Next video: 6** (ARCS - The 12 Principles of Animation in Games, `balanced` detail).
+### 6. ARCS - The 12 Principles of Animation in Games — 2026-09-11
+
+Watched at `balanced` detail (100 scene-aware frames over 7:46, ~55 read directly) plus the full 204-segment caption transcript. The richest video of the batch so far for game-specific, non-redundant content — three new entries, all directly confirmed on screen.
+
+**Cross-check:** confirms the existing `arcs` card thoroughly — the joint-chain reasoning for why bodies move in arcs, the appeal/exaggeration point, the "motion capture smoothing can look MORE realistic than the raw data" observation (illustrated with Frozen's Anna, a mocap-informed film), the mechanical/external-force/comedic non-use-cases, and the curvature/chord-deviation-style visualization (a literal animation-curve-editor arc shown on screen at t=3:16) all match directly with no contradictions.
+
+**Three new entries — all game-engine-specific concerns the existing card, scoped to one authored motion, doesn't reach:**
+1. **Arc camera-angle robustness** (`W01-6-arc-camera-angle-robustness.json`) — a swipe/arc reads from nearly any camera angle because it has motion on more than one axis; a direct stab can look like almost no motion at all from a near-head-on angle, because its motion is compressed into the depth axis the camera looks down. This is WHY so many 3D game attacks are wide swipes rather than stabs — confirmed on screen with a direct-thrust stance (a spear held pointing at camera, t=4:27–4:31) contrasted against wide-swing attacks (t=4:35–4:52). Directly relevant to Roblox, whose default camera is player-controlled.
+2. **Arc trail VFX for readability** (`W01-6-arc-trail-vfx-readability.json`) — a rendered motion trail added specifically to keep a fast action's arc visible when the pose animation alone happens too fast to read. Confirmed on screen almost immediately after being named: a bright, curved slash-trail effect tracing a Smash Bros weapon swing (t≈5:04–5:08). Unlike video 4's motion-smear (which needs mesh deformation Cadence doesn't have), a trail is a real `ai/vfxspec.js` VFX-emitter concern — fully generatable with existing tools, not just measurable.
+3. **Cross-clip arc continuity** (`W01-6-cross-clip-arc-continuity.json`) — the seam between two separately-authored, runtime-blended animation clips can break arc continuity and produce visible pops, and this gets WORSE the heavier/bigger the character is meant to feel (confirmed on screen with Shadow of the Colossus footage at t=6:21, right as this point is made). Named directly as one of game animation's most persistent unsolved problems. Written with an explicitly honest `cadence_representation`: this is a runtime/engine-side (Roblox AnimationController) concern outside a single-timeline authoring tool's scope, not a gap Cadence itself needs to fill — stated plainly rather than left ambiguous.
+
+**Other observations, no new entry:** interrupting/breaking an arc to sell a hit (snap-to-hit-react, hit-stop, camera shake) is a specific, well-illustrated instance of the existing card's own "deliberately broken motion" non-use-case, not a structurally new concept — though it's a good concrete example to have on file if a future session wants one.
+
+**Capture candidates:**
+- `capture: direct-thrust vs. wide-swipe attack pair — video 6 @ 4:27–4:52 — the same design intent (a forward attack) executed as a direct stab versus a wide arcing swipe — reference pair for demonstrating camera-angle-robustness directly`
+
+**Checks for a later session to implement:**
+- `check: single_axis_attack_flag — whether a declared attack's effector path stays close to a single world-space axis for most of its duration (derivable from existing MOT-005 curvature/chord-deviation data) — flag for review under a player-camera style, not itself a failure — video 6 @ 4:19–4:39`
+
+**Entries written:** 3 (`W01-6-arc-camera-angle-robustness.json`, `W01-6-arc-trail-vfx-readability.json`, `W01-6-cross-clip-arc-continuity.json`), all passed `validateProposedEntry` cleanly.
+
+**Next video: 7** (FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games, `balanced` detail).

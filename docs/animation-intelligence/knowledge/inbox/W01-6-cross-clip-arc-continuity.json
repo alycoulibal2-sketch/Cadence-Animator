@@ -1,0 +1,35 @@
+{
+  "concept": "cross_clip_arc_continuity",
+  "category": "specialized",
+  "definition": "The seam between two separately-authored animation clips selected and blended together at runtime (by player input or game logic) can break arc continuity across body parts, producing visible pops or jerks at the transition — a problem that does not exist within a single authored clip, only across a runtime-chosen sequence of them.",
+  "purpose": "Name a real, largely unsolved category of game-animation-specific readability/weight problem, distinct from arc quality WITHIN one authored motion.",
+  "visible_effect": "A visible pop, snap, or sudden direction change in a limb's path exactly at the boundary between two blended animation clips, where the arc from clip A does not hand off smoothly into the arc clip B begins with.",
+  "psychological_or_gameplay_effect": "Breaks the sense of weight and continuity the arcs within each individual clip worked to establish; the video states this gets WORSE, not better, the bigger and heavier the character is meant to feel — exactly the characters whose weight depends most on smooth arcs are the ones most damaged by a bad seam.",
+  "physical_interpretation": "Not physical in itself — a runtime/authoring-pipeline problem: the physics of any one clip's motion may be perfectly correct, and the discontinuity still exists purely because of WHICH clip plays next, chosen live rather than authored as one continuous motion.",
+  "use_cases": [
+    "any interactive character whose player-facing animations are selected/blended at runtime from a set of separately authored clips (essentially all 3D game character animation)"
+  ],
+  "non_use_cases": [
+    "a single continuously-authored animation (film, a cutscene, or any one Cadence project timeline), where every pose belongs to the same authored motion and this specific problem cannot occur",
+    "an intentionally jarring transition, where the \"pop\" is itself the desired effect (rare, but the same broken-motion-on-purpose exception the existing `arcs` card already names)"
+  ],
+  "interactions": [
+    "Arcs — this is the CROSS-clip version of the same underlying concern the existing `arcs` entry already measures WITHIN one clip (MOT-005 curvature/chord deviation); the existing entry's scope stops at one motion's own arc quality",
+    "Follow-through/overlap — the existing `follow_through_overlap` entry already names blends, IK and physics objects as adjacent (if different) tools for continuity across a stop; the video names the same toolkit for continuity across a SWITCH between clips instead",
+    "Weight/timing — the video is explicit that the visual cost of a bad seam scales with how heavy the character is supposed to feel, tying this directly to squash_stretch/timing's own weight-communication concerns"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Out of scope by construction, and worth stating plainly rather than leaving implicit: Cadence authors ONE continuous project timeline per animation; it has no concept of multiple separately-authored clips selected and blended together at runtime the way a game's own AnimationController does. `ai/motion.js MOT-005` measures arc quality within whatever single timeline Cadence holds, which is the right and only scope for an authoring tool — the cross-clip blending problem this entry names belongs to the runtime engine (Roblox's own Animator/AnimationController), not to Cadence, and nothing here should be read as a gap Cadence itself needs to fill.",
+  "control_surface": "None — outside Cadence's authoring scope by design, not by omission.",
+  "detection_and_measurement_methods": "None in Cadence, and none should be expected: measuring a cross-clip blend seam requires knowing the runtime's actual blend behavior between two separately-loaded clips, which does not exist inside a single Cadence project.",
+  "generation_or_modification_methods": "None. The tools the video itself names (blend curves, transitions, inverse kinematics, physics-driven overlap objects) are runtime/engine-side mitigations, not something an authoring tool generates into a clip.",
+  "failure_modes": [
+    "treating within-clip arc smoothness (which Cadence CAN measure) as if it were evidence about cross-clip blend quality (which it cannot), overstating what a clean single-clip review actually proves about the shipped, blended result"
+  ],
+  "roblox_considerations": "Roblox's Animator/AnimationController performs the actual runtime blending between separately-loaded animations; whatever continuity tools exist for that (blend times, priority, IK) live there, not in a Cadence-authored `.cadence` project or its Roblox export.",
+  "performance_implications": "None from Cadence's side — any cost belongs to the runtime blending system.",
+  "examples": [
+    "a heavy, large character (the video cites Shadow of the Colossus’s scale directly in this section) showing more visible \"pops\" between blended animation clips than a small, light one would, because arc discontinuities are more noticeable and more damaging to a heavy character's sense of weight specifically (video 6 @ 6:21–6:31, Shadow of the Colossus footage confirmed on screen at t=6:21)"
+  ],
+  "evidence_status": "video: https://youtu.be/lOzgxMgAnxQ @ 5:54–6:53 — Dan states this is one of game animation's most daunting long-standing technical challenges, names the mitigation toolkit (blends, transitions, IK, physics overlap objects) and states it is a problem game animators are \"probably never going to be completely rid of\"; experimental until validated"
+}
