@@ -1,0 +1,40 @@
+{
+  "concept": "foot_lock_duration_scales_with_weight_before_launch",
+  "category": "advanced",
+  "definition": "Keeping the feet completely locked (zero positional drift) against the ground for as long as possible before a jump's liftoff communicates weight; a larger or heavier character gets both a longer foot-locked wind-up and an overall slower movement before that liftoff, and cartoony jumps push the lock duration further than expected by letting the body and legs stretch upward while the feet stay stuck to the ground.",
+  "purpose": "Give weight a concrete, riggable signal - a measurable zero-drift duration before launch - rather than leaving 'communicate weight' as an unquantified goal.",
+  "visible_effect": "The support foot shows no positional drift at all right up until the instant of liftoff; a bigger or heavier character's version of the same jump holds that lock longer and telegraphs the coming jump with a bigger, slower wind-up before it.",
+  "psychological_or_gameplay_effect": "A jump whose feet drift or slide during the wind-up reads as weightless regardless of how the rest of the body moves; a held, drift-free plant reads as real contact with the ground being pushed against.",
+  "physical_interpretation": "Force builds against a fixed contact point before launch (compression/loading); a foot that moves during that loading phase implies the ground is not actually being pushed against, i.e. no real force is being generated.",
+  "use_cases": [
+    "any jump, pounce, or launch wind-up where weight must read",
+    "scaling a cast of differently-sized or weighted characters' jump timing consistently - bigger or heavier gets a longer locked wind-up and an overall slower approach, not just a bigger height",
+    "a cartoony 'meaty' jump, where the lock can be pushed further than expected: the body and legs stretch upward while the feet stay stuck to the ground past when a realistic jump would have already left"
+  ],
+  "non_use_cases": [
+    "a character already airborne or mid-flight-phase - this concerns the wind-up before liftoff, not the flight itself",
+    "a deliberately weightless or floaty character (a ghost, a low-gravity setting) where foot drift during a jump is not a defect"
+  ],
+  "interactions": [
+    "weight_transfer_gates_locomotion_onset (W03, video 21) - the same family of claim (a locked or committed base of support gates when real motion is allowed to begin) applied to VERTICAL launch instead of horizontal travel",
+    "the video's own off-screen-feet cheat (@ 01:52-01:59): hiding the feet lets the viewer's brain assume they stayed planted even when they did not, and frees the animator to pose the character however is needed - the example shown on screen (a character towering over another because its feet are cropped off-frame) matches a real Toy Story night-exterior frame captured directly in this session at t=01:23"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly measurable today, not just buildable. ai/motion.js measureContactDrift (MOT-008) already reports how far a declared contact effector moves while it should be planted - exactly the zero-drift duration this technique is built on. Nothing currently reads that duration as a weight signal or scales an expectation by declared character size or weight, but the underlying measurement needs no new code.",
+  "control_surface": "sample_motion / the contact-drift measurement already exposes the raw distance-over-time; nothing derives a locked duration or compares it against a declared size or weight.",
+  "detection_and_measurement_methods": "Real: measureContactDrift (MOT-008) reports drift distance for a declared contact effector across a frame range - the number of consecutive frames with near-zero drift immediately before a jump's launch key is directly computable from that. Comparing the resulting duration against a declared character size or weight to check that a bigger character holds longer is not built, but needs no new measurement, only a join against declared character metadata that does not yet exist (Cadence stores no per-character size or weight declaration).",
+  "generation_or_modification_methods": "None. No strategy in ai/plan.js extends or scales a contact-hold duration from a declared weight or size.",
+  "failure_modes": [
+    "a foot that drifts or slides during a jump's wind-up, which reads as weightless regardless of the rest of the pose",
+    "giving a large or heavy character the same short wind-up as a small one, undercutting its implied weight"
+  ],
+  "roblox_considerations": "None beyond the existing contact/IK model; Roblox has no built-in per-character weight declaration either, so the same missing join applies there.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"if a character needs to jump but their feet move out of place while jumping, the movement quickly loses all of its impact and weight, but if you make sure the feet stay locked in place right up until they jump in the air, then everything feels much better\" - video @ 00:38-00:50",
+    "cartoony push: \"you can push this a lot farther than you'd think for really meaty cartoony jumps by having your character's feet stick pretty far onto the ground while their body and legs stretch upwards\" - video @ 01:02-01:12",
+    "size/weight scaling stated directly: \"if your character is large or weighs more they'll have a much bigger wind up before they jump, the larger a character is the slower their movement is going to be in general\" - video @ 01:17-01:24",
+    "the off-screen cheat, naming a character towering over Buzz because its feet are off screen - almost certainly Woody, the auto-captions render the name as \"witty\" - video @ 01:53-01:59"
+  ],
+  "evidence_status": "video: https://youtu.be/6lGPvMLE8Oo @ 00:26-01:59 - stated directly by the presenter (Doodley) as core technique; cross-checked against this session's read of ai/motion.js measureContactDrift (MOT-008); experimental until validated"
+}

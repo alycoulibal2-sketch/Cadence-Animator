@@ -1,0 +1,37 @@
+{
+  "concept": "straight_limb_reads_heavier_than_bent_limb_when_holding",
+  "category": "advanced",
+  "definition": "A bent arm holding an object implies the bicep (muscle alone) is supporting the load, which reads as light or temporary; a straight arm holding the same object implies the skeleton (bone stacked on joint) is bearing the load, which reads as heavier and more sustainable.",
+  "purpose": "Give a specific, single-joint posing rule for how much an object appears to weigh, independent of the object's own model.",
+  "visible_effect": "The identical prop, held in a bent arm, reads as light enough for the muscle alone to manage; held in a straight, locked arm, reads as heavy enough to need the skeleton's structural support.",
+  "psychological_or_gameplay_effect": "Lets an animator adjust perceived object weight with a single joint-angle choice, without changing the object, the character's effort performance, or the rest of the pose.",
+  "physical_interpretation": "A bent joint is held by active muscular contraction alone; a straight, locked joint transmits load through the bone and joint stack with far less ongoing muscular effort, which is why a straight-arm hold implicitly claims a heavier, longer-sustainable load.",
+  "use_cases": [
+    "posing an arm, or any single-joint support, and choosing its bend angle specifically for the weight it should imply",
+    "reviewing a pose where an object is stated to be heavy but held on a visibly relaxed, bent joint"
+  ],
+  "non_use_cases": [
+    "a joint bent for a reason unrelated to weight (a reach, a gesture, a stylistic pose) where no weight implication is intended",
+    "an object supported by more than the single joint being read (braced against the body, resting on a surface) where the bend-angle rule no longer isolates the weight cue"
+  ],
+  "interactions": [
+    "object_center_of_gravity_alignment_with_support (W03, video 22) — a second, independent posing lever for the same held-object-weight problem: that one is about where the object sits relative to the support base, this one is about how the supporting joint itself is angled",
+    "hip_rotation_balance_correction (W02, video 17) — both are single-joint rules read for a whole-pose consequence, though that one corrects balance and this one signals weight"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not computed. Joint rotation angle is directly readable from any authored pose (`ai/pose.js` reports rotation in degrees for every joint), but nothing interprets an elbow's bend angle as a weight signal — this would be a new, narrow rule reading one specific joint's rotation against a declared \"this is a held or supported object\" context, not a general capability.",
+  "control_surface": "None. The underlying angle is already visible in any pose query; nothing derives a weight implication from it.",
+  "detection_and_measurement_methods": "Partly real: the supporting joint's rotation in degrees is already measured for any authored pose (`ai/pose.js` / `ai/motion.js rotation`). Reading that angle as a weight signal is not built — it would need a declared \"this joint is supporting a held item\" context and a threshold separating a bent read from a straight read, neither of which exists.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "posing a stated-heavy held object on a visibly relaxed, bent supporting arm, undercutting the object's implied weight regardless of the rest of the performance",
+    "locking an arm straight for a genuinely light object, which can read as an unnecessarily stiff or effortful hold"
+  ],
+  "roblox_considerations": "None beyond the shared rig's joint-rotation model already used elsewhere.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"whenever you're bending the arm, you're saying that the bicep is the only thing holding this up... it's going to look lighter than if you had a straight arm\" — video @ 08:03-08:18",
+    "\"if you had a straight arm trying to hold something, it's going to look heavier... because you're basically saying your bicep is strong enough to hold that box, which if your bicep is strong enough, then it's not heavy\" — video @ 08:13-08:29"
+  ],
+  "evidence_status": "video: https://youtu.be/0x9f21vFqcE @ 08:03-08:29 — stated directly by the AnimSchool instructor in the transcript; presenter's stated technique, not a citation; experimental until validated"
+}

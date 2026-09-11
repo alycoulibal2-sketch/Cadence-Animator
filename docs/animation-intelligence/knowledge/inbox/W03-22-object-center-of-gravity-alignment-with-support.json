@@ -1,0 +1,37 @@
+{
+  "concept": "object_center_of_gravity_alignment_with_support",
+  "category": "advanced",
+  "definition": "A held or lifted object reads as genuinely heavy only when the object's own implied centre of gravity sits close to the character's centre of gravity and is positioned over the character's feet; an object held with its centre of gravity far from the character's own, with nothing structurally underneath it, reads as weightless regardless of the object's stated size.",
+  "purpose": "Give a concrete, checkable posing rule for whether a lifting or carrying pose credibly supports an object's implied weight, separate from how much effort the character's performance shows.",
+  "visible_effect": "A classic lifting pose — feet positioned under or near the object, the object's centre of gravity close to the character's own — reads as genuinely bearing a load; an object held out with empty space beneath it and its centre of gravity far from the character's reads as weightless or fake, even if the character's performance elsewhere shows strain.",
+  "psychological_or_gameplay_effect": "Prevents a held prop from reading as pasted onto the character rather than physically supported, independent of how much visible effort the performance shows elsewhere.",
+  "physical_interpretation": "An object's weight is transmitted to the ground through whatever structure supports it; the further the object's own centre of gravity sits from that support structure (the feet, in a standing lift), the less credible it is that the support is actually bearing the load.",
+  "use_cases": [
+    "posing a lift, carry, or hold where the object is meant to read as heavy",
+    "reviewing a held-prop pose for whether the object is positioned over the character's own base of support"
+  ],
+  "non_use_cases": [
+    "an object explicitly held at a distance from the body by design (a weapon at guard, a light prop) where no weight-bearing read is intended",
+    "an object already established as light or weightless in its fiction (an inflatable, a prop known to be empty)"
+  ],
+  "interactions": [
+    "leverage_requires_off_center_gravity (W03, video 22) — the companion rule for a different interaction: that one is about applying force to an external object (pushing), this one is about supporting an object's weight vertically (lifting/carrying); both read the same centre-of-gravity relationship for a different consequence",
+    "structural_understanding — the character-side half of this relationship (the character's own centre of mass and support polygon) is exactly `ai/pose.js measurePose`'s existing balance measurement; this entry adds the object's own implied centre of gravity as a second point that measurement does not currently track at all"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Partly measurable, partly not. The character's own centre of mass and support polygon are real (`ai/pose.js measurePose`, MOT-011). The held object's own centre of gravity is not tracked as a distinct point at all — Cadence has no notion of an item's mass distribution or its own centre of gravity, only the character rig's part-volume proxy. This entry's core comparison (distance between the object's centre of gravity and the character's) cannot be computed until an object carries at least a declared reference point for its own centre of gravity.",
+  "control_surface": "`compile_pose` / `author_motion` return the character-side centre of mass when support is declared; nothing represents a held item's own centre of gravity.",
+  "detection_and_measurement_methods": "Character side: real, via `ai/pose.js measurePose`'s `centre_of_mass` and `balance`. Object side: not measurable in this build — no field anywhere declares an item's own centre of gravity, so the distance this entry is built around cannot be computed, only the character-side half of it.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "holding a stated-heavy object far from the body with nothing visibly underneath it, which reads as weightless regardless of the character's effort performance",
+    "a lifting pose whose feet are not positioned near the object at all, which reads as the character standing next to the object rather than supporting it"
+  ],
+  "roblox_considerations": "None beyond the shared rig model; a held prop is typically its own attached item, which is where a future centre-of-gravity declaration would need to live.",
+  "performance_implications": "None.",
+  "examples": [
+    "presenter holding a sphere prop away from the body with empty space beneath it: \"it's not supported by the character, so it can't possibly be heavy because there's no support, there's nothing underneath it\" — video @ 01:29-01:40",
+    "the contrasting classic lifting pose: \"the feet are supporting it... the centre of the object and the character centre of gravity are as close as possible, there's no distance between them\" — video @ 01:43-01:57"
+  ],
+  "evidence_status": "video: https://youtu.be/0x9f21vFqcE @ 01:21-01:59 — stated directly by the AnimSchool instructor, contrasting two demonstrated poses on camera; presenter's stated technique, not a citation; experimental until validated"
+}

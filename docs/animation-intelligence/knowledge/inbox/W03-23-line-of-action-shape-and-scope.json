@@ -1,0 +1,40 @@
+{
+  "concept": "line_of_action_shape_and_scope",
+  "category": "advanced",
+  "definition": "A line of action can be straight or curved (convex when the body's force or movement runs away from its centre mass, concave when it runs inward toward the centre mass, or an S-curve combining both), and it can run through any two extremities of a pose - head to toe, hand to hand - not only through the spine; a well-composed pose usually carries one or two such lines and no more.",
+  "purpose": "State the full classical scope of a line-of-action read (its shape and its endpoints), which is broader than a single straight spine measurement, so a reviewer or a future measurement knows exactly what it is and is not yet checking.",
+  "visible_effect": "A convex line reads as an outward release of force or energy away from the body's centre; a concave line reads as movement gathering inward; an S-curve reads as both in sequence. A pose whose primary and secondary lines of action cross reads as a visually confused, X-shaped composition, unless the character is in a neutral standing or casual pose, where a single line of action is expected and sufficient.",
+  "psychological_or_gameplay_effect": "The shape and endpoints of a line of action are a large part of what makes a dynamic action pose (a superhero, an athlete mid-kick or mid-spike) read as powerful and directed, versus a neutral pose reading as calm - the presenter singles out superheroes and athletes as the clearest examples of extreme lines of action.",
+  "physical_interpretation": "A visual composition abstraction of where force or momentum reads as flowing through the body, not a physically simulated quantity - the same convention the appeal card's line-of-action measurement already treats as a design read, not a physics computation.",
+  "use_cases": [
+    "posing or reviewing any dynamic action pose (a jump, a kick, a superhero pose) where the FULL line of action - its curve direction and its two endpoints - is the thing being judged, not only whether a line exists",
+    "checking a pose for a primary/secondary line-of-action crossing that reads as a confused X shape",
+    "a neutral standing or casual pose, where the correct expectation is exactly one line of action, not zero and not several"
+  ],
+  "non_use_cases": [
+    "a pose where the line of action runs entirely along the spine with no significant limb extension - the existing spine-only measurement already covers this case adequately",
+    "more than two lines of action in a single pose - the source is explicit that this reads as visual clutter, not as extra information"
+  ],
+  "interactions": [
+    "appeal - that card's cadence_representation already states ai/pose.js measurePose fits a line of action through the spine parts (MOT-011); this entry names exactly what that measurement does not yet cover: curve shape (it is a STRAIGHT line - fitLine's power-iteration principal axis - so it cannot represent a concave/convex/S-curve distinction, only max_deviation_studs, a magnitude with no sign or shape) and endpoint scope (it is fit through spine-role parts only - root, hips, torso, chest, head - never through an extended hand or foot, which this source states is often where the more dynamic lines actually run)",
+    "structural_understanding - a different half of the same Part 26.11 split; unaffected by this entry"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Partial, and narrower than this source's definition. ai/pose.js measurePose's line_of_action (fitLine) is a single straight-line principal-axis fit through spine-role parts only (root, hips, torso, chest, head), returning a direction, a centroid, and max_deviation_studs. It cannot represent a concave, convex, or S-curve shape - those are directional/sign distinctions a single straight-line fit has no way to carry, only an unsigned deviation magnitude. It also cannot represent a hand-to-hand or head-to-toe line running through an extended limb, since limb effectors are never included in the fitted point set. Both gaps are named plainly rather than left implicit.",
+  "control_surface": "compile_pose / author_motion return the existing spine-only straight-line measurement whenever a pose is measured; nothing returns a curve classification or an extremity-to-extremity line.",
+  "detection_and_measurement_methods": "The existing straight-line, spine-only case is real (ai/pose.js measurePose, MOT-011, max_deviation_studs). A curve-shape classification is not built: it would need at minimum a fitted curve (not a straight line) through the same points, plus a rule reading whether the curve bows away from or toward the measured centre of mass. An extremity-to-extremity line (hand-to-hand, head-to-toe) is not built either: fitLine would need to accept an arbitrary point set including limb effectors, which the current call site never passes.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "treating the existing spine-only straight-line measurement as a complete line-of-action check, when a pose's real, more dynamic line of action runs through an extended arm or leg the measurement never sees",
+    "a primary and secondary line of action crossing into a distorted X shape on anything other than a neutral standing pose"
+  ],
+  "roblox_considerations": "None beyond the shared rig model; an R15 rig's hand and foot parts already exist as effectors elsewhere in ai/pose.js (IK targets), so extending fitLine's input set to include them would not need new rig data.",
+  "performance_implications": "None.",
+  "examples": [
+    "definition given directly: \"a convex line of action occurs when the force or movement of the body moves away from the center mass of the subject... a concave line of action occurs when the force and movement of the body goes inward towards the center mass... an S-curve is a combination\" - video @ 00:30-01:05",
+    "scope beyond the spine, stated directly: \"the line of action can be from the head to the toe, from one tip of a hand to the other tip of the other hand\" - video @ 02:53-03:07",
+    "the crossing rule, with a hand-drawn red/blue curve-pair example on screen at the matching timestamp: \"having a primary and secondary line of action cross, what you'll get is something that looks like a distorted cross or a distorted X... unless your character is just standing... in a casual pose, you'll usually just have one line of action\" - video @ 03:25-03:48",
+    "dynamic anime/superhero reference poses shown on screen (My Hero Academia's Deku mid-punch, Demon Slayer's Tanjiro mid-draw, Spider-Verse characters mid-leap) are all extended-limb poses where a spine-only straight line would miss the pose's actual dominant curve - video @ 01:47-04:25"
+  ],
+  "evidence_status": "video: https://youtu.be/P_BY38z-n4M @ 00:06-04:59 - stated directly by the presenter (Character Design 360) as the video's core definitions and rules, illustrated on screen with real-photo, anime and superhero reference images and a hand-drawn curve diagram; cross-checked directly against this session's read of renderer/js/ai/pose.js fitLine/measurePose (lines 360-389, 516-525); experimental until validated"
+}

@@ -1,0 +1,37 @@
+{
+  "concept": "leverage_requires_off_center_gravity",
+  "category": "advanced",
+  "definition": "A character standing with its centre of gravity directly over its own base of support has no leverage to push or pull a heavy external object; leverage against an external object requires shifting the centre of gravity off that base first (leaning into the push, straightening a back leg), which is what visibly sells the push as real force rather than a light touch.",
+  "purpose": "Distinguish a pose that merely touches a heavy object from a pose that credibly applies force to one, using the same centre-of-gravity-over-support relationship as balance, applied to an external interaction instead of self-locomotion.",
+  "visible_effect": "A character standing upright with weight centred over its feet while contacting an object reads as not really pushing; a character leaning its centre of gravity past its base of support, with a straightening back leg driving the motion, reads as genuinely exerting force.",
+  "psychological_or_gameplay_effect": "Makes a push or pull against a heavy prop read as credible rather than as a character merely standing next to a moving object.",
+  "physical_interpretation": "The same centre-of-mass-over-base-of-support relationship structural_understanding already names for balance, read here for its directional consequence: force applied to an external object requires the pushing body to be off its own balance point in the direction of the push, not standing neutrally over its support.",
+  "use_cases": [
+    "any pose where a character pushes, pulls, or braces against a heavy or fixed external object",
+    "reviewing a push or pull animation for whether the leaning/back-leg relationship a real push requires is actually present"
+  ],
+  "non_use_cases": [
+    "lifting a free-standing object straight up, where no horizontal leverage is being applied against a fixed point — see object_center_of_gravity_alignment_with_support for that case instead",
+    "a light or small object where no visible leverage is expected in the first place"
+  ],
+  "interactions": [
+    "structural_understanding — the same measured relationship (`ai/pose.js measurePose` balance against a DECLARED support polygon) as that card's balance check, read here for a directional-leverage consequence rather than a stability verdict",
+    "weight_transfer_gates_locomotion_onset (W03, video 21) — the same off-the-support-base mechanism that gates self-locomotion there gates leverage against an external object here; one predicts when the character itself starts moving, this one predicts whether a push reads as real force"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not computed as a push-leverage judgement. `ai/pose.js measurePose`'s `balance` already reports whether the centre-of-mass proxy sits inside a declared support polygon, and a pose where it falls outside the polygon toward the push direction is exactly the geometry this entry describes — but nothing currently reads that specific configuration (centre of mass outside support, in the direction of a declared push target) as a leverage verdict.",
+  "control_surface": "`compile_pose` / `author_motion` already return `balance` and `centre_of_mass` when support is declared; nothing consumes them for a push-leverage check.",
+  "detection_and_measurement_methods": "Real, via `ai/pose.js measurePose`: whether the centre-of-mass proxy falls inside or outside a DECLARED support polygon, and on which side, at a given frame (MOT-011). What is not built is reading that specifically as push leverage: it would need the declared support polygon plus a declared push-target direction, and a rule comparing the centre-of-mass offset against that direction — the measurement primitive exists, the interpretation does not.",
+  "generation_or_modification_methods": "None. No strategy in `ai/plan.js` currently derives a leaning/off-balance pose from a declared push or pull interaction.",
+  "failure_modes": [
+    "posing a character upright and centred while apparently pushing a heavy object, which reads as the object being light or the contact being decorative rather than load-bearing",
+    "leaning far past the support base for an object stated to be light, which reads as an unmotivated stumble rather than intentional effort"
+  ],
+  "roblox_considerations": "None beyond the shared Motor6D rig/root model already used by `ai/pose.js measurePose`.",
+  "performance_implications": "None.",
+  "examples": [
+    "presenter, standing with centre of gravity over his feet, states he has \"no leverage to really push something heavy\" in that pose — video @ 00:50-00:56",
+    "presenter shifts centre of gravity off-balance with a straightening back leg: \"now I can actually push something heavy... this leg straightening is what's making something go forward\" — video @ 01:02-01:11"
+  ],
+  "evidence_status": "video: https://youtu.be/0x9f21vFqcE @ 00:40-01:14 — physically demonstrated on camera by the AnimSchool instructor and stated directly in the transcript, not read from a written source; presenter's stated technique, not a citation; experimental until validated"
+}

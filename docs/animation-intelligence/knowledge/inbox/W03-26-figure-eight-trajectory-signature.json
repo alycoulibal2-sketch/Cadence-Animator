@@ -1,0 +1,37 @@
+{
+  "concept": "figure_eight_trajectory_signature",
+  "category": "advanced",
+  "definition": "Tracked from a side view, the hips during a walk (combining their vertical bob with their side-to-side swing) and the feet during a run - but not during a walk - trace a figure-eight shape; the same two-axis combination produces the same named shape in two different body parts depending on gait, and is absent from the feet in a walk because a walking foot contacts the ground too often to complete the loop.",
+  "purpose": "Give a specific, checkable geometric signature for a claim usually left qualitative ('the hips or feet move naturally') - a figure eight is a falsifiable path shape, not a vague description.",
+  "visible_effect": "Plotting the hip's position (walk) or a tracked foot's position (run) from a side view over one full cycle traces a self-crossing, figure-eight-shaped loop, produced by the vertical up/down motion combined with the lateral in/out swing.",
+  "psychological_or_gameplay_effect": "This is presented as a byproduct of correctly combined weight mechanics, not a separate thing to pose for - a walk or run built from the other rules in this video (vertical drop, hip counter-rotation, wide leg throw in a run) should produce this shape without deliberately drawing it.",
+  "physical_interpretation": "The trajectory is the direct geometric sum of two independent oscillations (vertical bob and lateral swing) that are out of phase with each other; a figure eight is what that sum looks like traced over time, not a separate mechanism of its own.",
+  "use_cases": [
+    "verifying a walk cycle's hip motion or a run cycle's foot motion against a specific path shape rather than eyeballing whether it looks natural",
+    "explaining why a run's tracked foot path looks different from a walk's - the shape moves from the hips to the feet and only appears once ground contact is infrequent enough (a run's flight phase) to let the loop complete"
+  ],
+  "non_use_cases": [
+    "a walk cycle's feet specifically - the source states this shape does not appear there because the feet contact the ground too often to trace the loop",
+    "a strictly 2D/side-scrolling character with no side-view depth to plot against"
+  ],
+  "interactions": [
+    "walk_cycle_vertical_drop_is_arrested_fall (W03, video 26) - the vertical half of this same trajectory",
+    "continuous_ground_contact_except_during_flight_phase (W03, video 26) - the run's flight phase (both feet briefly airborne) is exactly what gives a run's tracked foot enough uninterrupted time in the air to complete the figure-eight loop, which a walk's frequent contacts never allow"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not computed. ai/motion.js sampleMotion's position series already carries everything a path-shape classifier would need (per-frame world position for any declared part, hips or a foot); nothing currently classifies a sampled path's SHAPE (figure-eight versus a simple arc versus a flat line) - path_curvature measures LOCAL bend at each sample, not a global shape signature like this.",
+  "control_surface": "sample_motion already returns the raw position series; nothing derives a shape classification from it.",
+  "detection_and_measurement_methods": "Partly real: the position series is real (ai/motion.js sampleMotion). A figure-eight or self-crossing classification is not built - it would need a 2D projection (onto the side-view plane) of the sampled 3D path and a self-intersection test, neither of which exists; path_curvature's per-point measurement is a different, local quantity and cannot substitute for a global shape check.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "a hip trajectory during a walk that does not trace this shape - likely means the vertical drop and the lateral hip swing are not properly combined or out of phase",
+    "expecting this shape from a walking character's feet, where the source states it does not occur"
+  ],
+  "roblox_considerations": "None beyond the shared position-sampling model.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"the movement of the upper body should be creating an up and down motion and then you have a side to side motion from the hip swing that should naturally create a figure eight as the character goes through a walk cycle\" - video @ 03:54-04:04",
+    "\"from a side view the feet will also create that figure eight again like the hips, if you track one foot during a run cycle you'll start to see that figure eight appear - this doesn't apply to walks because they hit the ground more often\" - video @ 07:38-07:49"
+  ],
+  "evidence_status": "video: https://youtu.be/6lGPvMLE8Oo @ 03:54-04:04 and @ 07:38-07:49 - stated directly by the presenter, as two independent applications of the same named shape; cross-checked against this session's read of ai/motion.js sampleMotion (the raw series exists) and path_curvature's real but local scope (MEASUREMENTS in ai/motion.js); experimental until validated"
+}

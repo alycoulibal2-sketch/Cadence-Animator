@@ -1,0 +1,37 @@
+{
+  "concept": "effort_vs_effect_weight_signal",
+  "category": "advanced",
+  "definition": "Implied weight is read from the ratio between a character's visible exerted effort (strain, bracing, visible force) and the resulting effect (how far the object or the character's own body actually displaces) — high effort with a small effect reads as heavy, low effort with a large effect reads as light, independent of the object's stated size or the rig's actual mass.",
+  "purpose": "Give an animator a deliberate, adjustable dial for selling an object's weight through the character's performance, usable even on a rig with no physical mass or simulation behind it.",
+  "visible_effect": "A character straining hard (bracing, leaning, visible tension) while the object barely moves reads as struggling with something heavy; a character exerting minimal visible force while producing large displacement reads as handling something light, even where the two clips use the same object model.",
+  "psychological_or_gameplay_effect": "Lets a viewer judge an object's weight from the performer's relationship to it alone, without needing to know the object's real mass — the presenter's own framing: 5% effort producing 100% effect reads as light, 80% effort producing 5% effect reads as a heavy struggle.",
+  "physical_interpretation": "Not a physical simulation — a deliberately exaggerated performance convention standing in for a force/resistance relationship a rig with no mass model cannot compute.",
+  "use_cases": [
+    "any shot where a character interacts with an object whose weight must read correctly and the object itself carries no simulated mass",
+    "escalating a repeated failed attempt — the presenter's stated rule that a character should not repeat the identical effort level on a second try; a failed push should be followed by a visibly different, more intense attempt, not the same motion looped"
+  ],
+  "non_use_cases": [
+    "an object whose weight is already sold structurally (a visible mechanism, a stated in-fiction weight, a physics-simulated prop) where an exaggerated effort read would contradict the established behaviour",
+    "a single instantaneous effect with no visible ongoing exertion to compare against (a thrown object already in flight) — the ratio needs both a visible effort phase and a visible effect phase to compare"
+  ],
+  "interactions": [
+    "weight_then_strength_formula (W02, video 19) — a two-beat structure (establish resistance, then overcome it); this entry is the continuous ratio read moment-to-moment throughout a struggle, not only at its two beats — compatible descriptions of the same struggle at different grains",
+    "layered_anticipation (W01, video 1) — the presenter's \"we don't retry in the same way\" rule is a specific application of escalating intensity across repeated sub-phases before a resolution, the same shape layered_anticipation already names for a single wind-up"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not computed. Effort has no representation at all (it would require reading strain or bracing from a pose, which is not attempted anywhere); effect is measurable today as a displacement magnitude (`ai/motion.js sampleMotion` position/linear_velocity over the interaction phase), but nothing divides one by the other or calls the ratio a weight signal.",
+  "control_surface": "None for effort. `sample_motion` already returns the effect half (displacement/velocity) for any item and range.",
+  "detection_and_measurement_methods": "Effect half — real: total displacement or peak `linear_velocity` of the manipulated object (or the character's own root, for a self-directed struggle) across a declared interaction phase, from `ai/motion.js sampleMotion`. Effort half — not measurable in this build: there is no pose-strain or muscular-tension measure, so the numerator of the stated ratio cannot be computed, only the denominator. Reporting a ratio would need a declared or authored effort LEVEL as input, not a measurement of effort from the pose.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "an object read as heavy by its model or story context, animated with low visible effort and large easy displacement — the effort/effect mismatch reads as the object being light regardless of its stated size",
+    "repeating an identical failed attempt at the same effort level rather than escalating, which reads as the character not learning from the failure rather than as a struggle building"
+  ],
+  "roblox_considerations": "None specific.",
+  "performance_implications": "None.",
+  "examples": [
+    "presenter's own framing: \"if I put in five percent effort and I get a hundred percent effect, is that a heavy object\" versus \"if I put in eighty percent of my effort and I get five percent effect, does that look like a heavy object that I'm struggling with\" — video @ 02:18-02:53",
+    "the retry rule: \"we don't retry in the same way... if it doesn't work then I'm going to try harder, I'm going to try something different... more intensity\" — video @ 03:10-03:29"
+  ],
+  "evidence_status": "video: https://youtu.be/0x9f21vFqcE @ 02:00-03:32 — stated directly by the AnimSchool instructor as a named authored system (\"effort versus effect is a system that I came up with\"), not a citation of a written source; experimental until validated"
+}

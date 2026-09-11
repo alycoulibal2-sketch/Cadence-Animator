@@ -1,0 +1,38 @@
+{
+  "concept": "walk_cycle_vertical_drop_is_arrested_fall",
+  "category": "advanced",
+  "definition": "A walk cycle's canonical poses (Contact, Down, Pass, Up, Contact) are driven by one underlying mechanism: walking is a controlled forward fall, arrested by each new foot contact, so the body must reach its single highest point at the Up pose and then drop sharply exactly at the next Contact - that drop is the visible signature of the fall being caught.",
+  "purpose": "Give the classic walk-cycle pose vocabulary a single causal mechanism (falling, caught by the feet) instead of five poses memorised as an unconnected checklist, and name the one measurable consequence - a height peak at Up, a height drop landing exactly on Contact - that follows from it.",
+  "visible_effect": "The body's vertical position rises smoothly to a single peak at the Up pose, then falls and bottoms out at, not before and not after, the following Contact pose; a walk without this drop-at-contact reads as gliding rather than walking.",
+  "psychological_or_gameplay_effect": "The drop-at-contact is what makes a walk read as weight moving under gravity rather than a puppet sliding along a rail.",
+  "physical_interpretation": "A direct statement of bipedal locomotion as an inverted-pendulum, controlled-fall model: the body's centre of mass is unsupported (falling) through most of a step and is caught by the next foot's contact, so a height plot over one step is a single rise-then-drop, not a flat line or multiple bumps.",
+  "use_cases": [
+    "authoring or checking a walk cycle's vertical (Y) motion curve against the single-peak, drop-at-contact shape",
+    "diagnosing a walk that reads as sliding, gliding, or moonwalking rather than genuinely stepping"
+  ],
+  "non_use_cases": [
+    "a run cycle, where two additional constraints apply on top of this one (both feet airborne at once, a bigger drop) - see continuous_ground_contact_except_during_flight_phase",
+    "non-bipedal or non-gravity-bound locomotion (flight, swimming, a wheeled character) where no fall-and-catch mechanism applies"
+  ],
+  "interactions": [
+    "figure_eight_trajectory_signature (W03, video 26) - the same vertical drop, combined with the hips' lateral swing, is what produces the figure-eight trajectory that entry names; this entry isolates the vertical half alone",
+    "weight_transfer_gates_locomotion_onset (W03, video 21) - a companion mechanism: that entry is about the ONSET of travel (leaving a static support base), this one is about the STEADY-STATE rhythm once travel is already underway"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not computed as a named shape check. The raw data is entirely real: ai/motion.js sampleMotion's position series already reports vertical (Y) position and linear_velocity/acceleration per frame for any declared root or hip part - a single-peak-then-drop check would be a shape classification over data this build already samples, not a new measurement.",
+  "control_surface": "sample_motion already returns the needed series; nothing classifies its shape against the single-peak/drop-at-contact expectation.",
+  "detection_and_measurement_methods": "Real for the raw series (ai/motion.js sampleMotion, position/velocity). Not built: locating the single local maximum (Up) and confirming the subsequent local minimum lands within a small tolerance of a declared Contact marker or key - a shape-and-alignment check over an already-measured curve.",
+  "generation_or_modification_methods": "None. No strategy in ai/plan.js / authorMotion derives a walk's vertical curve from this rule.",
+  "failure_modes": [
+    "a walk whose vertical position stays flat or glides rather than peaking once and dropping - reads as sliding, not stepping",
+    "a vertical drop that lands before or after the Contact key rather than exactly on it, which desynchronises the visual weight cue from the foot that is supposed to be catching it"
+  ],
+  "roblox_considerations": "None beyond the shared root/part position model.",
+  "performance_implications": "None.",
+  "examples": [
+    "the five-pose vocabulary stated directly: \"a walk can be boiled down to just a handful of key poses: contact, down, pass, up, contact\" - video @ 02:09-02:17",
+    "the mechanism, stated directly: \"walking is effectively falling forward, but your feet catch yourself each time, and that drop is the fall forward\" - video @ 02:57-03:04",
+    "the specific timing requirement: \"you really want the body to reach the highest point in the cycle here [Up], then the body will drop down right when it starts to make contact\" - video @ 02:50-02:57"
+  ],
+  "evidence_status": "video: https://youtu.be/6lGPvMLE8Oo @ 02:09-03:07 - stated directly by the presenter as the walk cycle's core mechanism; cross-checked against this session's read of ai/motion.js sampleMotion's existing position/velocity output; experimental until validated"
+}

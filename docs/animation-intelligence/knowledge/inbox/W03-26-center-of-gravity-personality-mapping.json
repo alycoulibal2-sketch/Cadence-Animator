@@ -1,0 +1,46 @@
+{
+  "concept": "center_of_gravity_shift_personality_mapping",
+  "category": "advanced",
+  "definition": "A specific taxonomy mapping how a walking character's centre of gravity is shifted to a personality or emotional read: forward (hips/upper body ahead of centre) reads as aggressive/ready-to-act with wider steps; backward (open chest) reads as proud/happy, also with wider steps; wobbling side-to-side reads as drunk or sick; locked dead-centre reads as uptight/formal; and the body turned away from the direction of travel reads as cautious or afraid.",
+  "purpose": "Give 'add personality to a walk' a small, named set of concrete, reversible centre-of-gravity parameters instead of leaving it as an unquantified artistic instinct.",
+  "visible_effect": "Each named shift produces both a mechanical consequence (step width, in most cases) and a distinct silhouette/attitude read, using the same underlying centre-of-gravity mechanism as ordinary balance.",
+  "psychological_or_gameplay_effect": "Lets an animator dial in a specific emotional read through a small number of named, combinable parameters (forward/back lean amount, side-to-side wobble amount, lock-to-centre amount, travel-direction offset) rather than posing a whole new walk from scratch per emotion.",
+  "physical_interpretation": "The same centre-of-mass-over-base-of-support relationship used for ordinary balance (structural_understanding, weight_transfer_gates_locomotion_onset), deliberately mis-centred in a declared, named direction and amount.",
+  "use_cases": [
+    "authoring a walk cycle variant for a specific emotional beat without redesigning the whole cycle",
+    "an idle loop: the source ties the same lean-requires-foot-adjustment rule to standing still, where repeated small weight shifts between the feet are what make an idle read as alive rather than posed",
+    "a style/vocabulary parameter: this taxonomy is a ready-made set of named dimensions for ai/style.js's per-style multipliers, if a style ever wants to declare a character as habitually forward-leaning, wobbly, or locked-centre"
+  ],
+  "non_use_cases": [
+    "a walk cycle whose personality is meant to come from timing or spacing choices rather than centre-of-gravity position - this is one lever, not the only one",
+    "a momentary reaction pose rather than a sustained walking or standing state"
+  ],
+  "interactions": [
+    "weight_transfer_gates_locomotion_onset (W03, video 21) and leverage_requires_off_center_gravity (W03, video 22) - both use the same centre-of-gravity-over-support mechanism for a mechanical consequence (onset timing, push leverage); this entry is the same mechanism read for an EXPRESSIVE consequence instead",
+    "ai/style.js - the compiled per-style vocabulary multipliers are the natural home for a declared forward-leaning or wobbly character trait, if one is ever authored from this taxonomy"
+  ],
+  "style_variations": {
+    "aggressive_ready_to_act": "centre of gravity shifted forward, wider steps",
+    "proud_happy": "centre of gravity shifted backward with an open chest, also wider steps",
+    "drunk_sick": "centre of gravity wobbling side-to-side throughout the cycle",
+    "uptight_formal_military": "centre of gravity locked dead-centre with minimal shift",
+    "cautious_afraid": "body turned away from the direction of travel"
+  },
+  "cadence_representation": "Not computed or represented at all. No field in project.semantics declares a character's habitual centre-of-gravity offset, and ai/style.js's multipliers do not include this dimension.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "Partly real: ai/pose.js measurePose's centre_of_mass and balance (MOT-011) already measure where the centre of mass sits relative to a declared support at any given frame, which is the raw quantity every one of these named shifts is built from. Classifying a measured offset against these five named categories, or measuring step width to correlate with a forward/backward shift, is not built.",
+  "generation_or_modification_methods": "None. No strategy derives a walk's centre-of-gravity offset from a declared personality or emotion.",
+  "failure_modes": [
+    "applying a centre-of-gravity shift with no corresponding step-width or silhouette change, which undercuts the read the shift is supposed to create",
+    "combining shifts that contradict each other (a forward lean stated as aggressive alongside a travel-direction turn-away stated as cautious) without an authorial reason"
+  ],
+  "roblox_considerations": "None beyond the shared pose/balance model.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"if your character is angry and ready to punch someone, shift their hips and upper body forward a bit, their centre of gravity will be in front of them causing them to take wider steps\" - video @ 05:18-05:27",
+    "\"the same is true if you shift their body backwards, they still take wide steps, but it can instead create a sense of pride or happiness because they're opening their body up\" - video @ 05:27-05:33",
+    "\"mess with a character's centre of gravity throughout the walk cycle and they begin to feel drunk or sick; keep it locked down the centre and suddenly they feel uptight like a military officer; turn their body away from what they're walking towards and they seem cautious or afraid\" - video @ 05:34-05:46",
+    "the idle-loop application: \"any lean to one side is going to require you to move the foot a little bit to keep the character balanced - keep repeating this and you'll get a nice idle loop\" - video @ 08:38-08:46"
+  ],
+  "evidence_status": "video: https://youtu.be/6lGPvMLE8Oo @ 05:10-06:02 and @ 08:29-08:52 - stated directly by the presenter as a named taxonomy; cross-checked against this session's read of ai/pose.js measurePose (the underlying centre-of-mass/balance measurement) and the absence of any matching field in ai/style.js; experimental until validated"
+}

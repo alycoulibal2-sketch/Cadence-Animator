@@ -1,0 +1,41 @@
+{
+  "concept": "continuous_ground_contact_except_during_flight_phase",
+  "category": "advanced",
+  "definition": "Outside of a run's brief flight phase, at least one foot stays on the ground at all times - this is stated as a strict, general rule for walking, standing and balance-recovery alike, with the run's simultaneous both-feet-airborne moment as the one deliberate, named exception; a losing-balance reaction is characterised by rapid, successive single-foot placement changes that still always keep this rule, never by both feet leaving the ground at once outside a run.",
+  "purpose": "Turn 'keep it grounded' from a vague suggestion into a strict binary rule with one named, deliberate exception, so a zero-support frame can be judged correctly depending on the declared action type instead of always being treated the same way.",
+  "visible_effect": "A walk, a stand, or a balance-recovery reaction never shows a frame with zero declared foot contact; a run always shows a brief zero-contact frame near its Up-equivalent pose, historically the very thing early motion photography was built to prove.",
+  "psychological_or_gameplay_effect": "A walk or idle with an accidental zero-contact frame reads as floating or physically wrong; a run without a flight phase reads as flat or held-back, missing the launch quality real running has.",
+  "physical_interpretation": "A walk keeps the centre of mass continuously supported by alternating single-leg contact; a run periodically launches the centre of mass ballistically (both legs simultaneously off the ground) between steps, which is the actual biomechanical distinction between the two gaits, not merely a difference of speed.",
+  "use_cases": [
+    "validating a walk, idle, or balance-recovery action never has a frame with zero declared support",
+    "validating a run action does have a brief zero-support window near its flight-phase pose, and flagging one that never leaves the ground as suspiciously flat",
+    "classifying a losing-balance reaction by its rapid single-foot-at-a-time placement pattern rather than by any single held pose"
+  ],
+  "non_use_cases": [
+    "any explicitly airborne, flying, or non-grounded action type, where ground-contact rules do not apply at all",
+    "a walk cycle's ordinary double-support overlap moments (Contact/Down), which are not the flight phase and should show contact, not the reverse"
+  ],
+  "interactions": [
+    "weight_transfer_gates_locomotion_onset (W03, video 21) - a companion rule about the ONSET of losing support (weight leaving the base) rather than the maintenance of it over a whole action",
+    "figure_eight_trajectory_signature (W03, video 26) - the run's flight phase is exactly what gives a tracked foot enough uninterrupted air time to trace the figure-eight this entry's sibling names",
+    "structural_understanding - this is the time-extended, action-type-aware version of that card's single-frame balance/support-polygon measurement"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not computed. ai/pose.js measurePose's balance reports support at a SINGLE declared frame; nothing samples a support state across an action's full frame range, and nothing declares an action type (walk/run/idle/balance-recovery) that a contact expectation could be checked against. ai/motion.js measureContactDrift measures how far a contact effector drifts while assumed planted, but does not report whether ANY effector is planted at a given frame, which is the more basic fact this rule needs.",
+  "control_surface": "None. No existing tool samples ground-contact state across a frame range and compares it against a declared action type's expectation.",
+  "detection_and_measurement_methods": "Not measurable in this build as a single check. It would need per-frame contact state for every declared foot effector (a new measurement, not currently produced by measureContactDrift or sampleMotion), and a declared action type to know which expectation - always-supported versus one brief flight phase - applies. Both pieces are missing.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "a walk or idle animation with an accidental frame where both feet are off the ground, reading as a floating glitch rather than a step",
+    "a run animation with no flight phase at all, reading as flat or held-back rather than a real launch-and-land gait",
+    "treating a losing-balance reaction as if it needed a single dramatic pose, rather than the rapid successive foot-placement pattern the source names"
+  ],
+  "roblox_considerations": "None beyond the shared contact/IK model.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"a proper run has both feet lifted off the ground for just a brief moment... one of the earliest motion pictures in the late 1800s proved that horses lift all their feet off the ground while running, and this principle can be found in basically all running mammals\" - video @ 06:50-07:13",
+    "the general rule and its one exception, stated back to back: \"you try to keep at least one foot on the ground at all times... unlike running, where you're basically launching yourself with each step, allowing for both feet to leave the ground at once - at all other times your weight and balance is trying to stay centred, that's only possible when at least one foot is on the ground at a time\" - video @ 09:16-09:32",
+    "the balance-loss signature: \"characters that lose balance... you have lots of rapid foot placement changes as a character desperately tries to regain their balance\" - video @ 09:04-09:11"
+  ],
+  "evidence_status": "video: https://youtu.be/6lGPvMLE8Oo @ 06:41-07:13 and @ 08:58-09:32 - stated directly by the presenter, including a specific historical citation (early motion-picture horse photography); cross-checked against this session's read of ai/pose.js measurePose and ai/motion.js measureContactDrift, neither of which currently samples contact state across a frame range; experimental until validated"
+}

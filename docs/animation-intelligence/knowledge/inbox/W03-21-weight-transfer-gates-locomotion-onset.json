@@ -1,0 +1,42 @@
+{
+  "concept": "weight_transfer_gates_locomotion_onset",
+  "category": "advanced",
+  "definition": "A character's body does not translate in a direction until its weight has left the base of support in that direction; lifting the free foot while the centre of mass still sits fully over the support foot produces almost no displacement, while a fast weight shift off the support foot produces near-immediate falling motion in that direction.",
+  "purpose": "Explain, mechanically, why a locomotion or travel action costs a variable number of setup frames before real displacement begins, and name the lever an animator actually controls: the STARTING POSE's own weight position.",
+  "visible_effect": "A character posed with weight already shifted toward its direction of travel begins visibly displacing within very few frames of the first key; a character posed with weight centred or on the opposite foot spends several frames leaning and shifting before the same displacement begins, even for what is nominally the same action.",
+  "psychological_or_gameplay_effect": "A character that should read as already ready to go but is posed weight-centred reads as sluggish or hesitant to start, independent of how the rest of the motion is timed; the opposite mismatch (already weight-shifted when the shot wants a calm, uncommitted stance) reads as unintended urgency or a held-back lean.",
+  "physical_interpretation": "The body's centre of mass must exit the convex hull of its current base of support before unsupported translation (falling into the direction of travel) begins; with weight fully committed to one foot, lifting the other foot changes nothing about the support relationship and so produces no meaningful centre-of-mass displacement.",
+  "use_cases": [
+    "posing a character's first key for a shot with a stated urgency (a fast getaway, a reactive dodge) so it can begin travelling within very few frames",
+    "diagnosing a walk or run cycle's first step reading as slow to start, by checking whether the starting pose already had weight shifted toward the direction of travel",
+    "a blocking pass choosing between a relaxed/centred silhouette and a ready/weight-shifted one, based on how many frames the shot can spend before real motion must be visible"
+  ],
+  "non_use_cases": [
+    "a character already mid-stride or mid-travel — this concerns only the first step out of a static pose, not steady-state locomotion",
+    "non-physical or deliberately weightless motion (flight, teleport-style game abilities, ghosts) where no base-of-support relationship is being modelled at all",
+    "an action that does not require full-body translation (a punch, a gesture) where the mechanism this entry names does not gate the action's onset"
+  ],
+  "interactions": [
+    "structural_understanding — that card's balance measurement (`ai/pose.js measurePose`, MOT-011) is a SINGLE-FRAME snapshot of whether the centre of mass sits inside a declared support polygon; this entry is about the same measurement's CHANGE across a startup phase (the frame at which it would flip from supported to unsupported), which nothing currently samples across a range the way `sampleMotion` samples velocity",
+    "startup_frame_budget (W01, video 2) — that card treats startup frame count as a general design dial for how reactable an action feels; this entry names one concrete physical mechanism (weight has to leave the support base) that is a real driver of that count specifically for travel-initiating actions, not a restatement of it",
+    "weight_then_strength_formula (W02, video 19) — a different beat of the same weight-is-shown-not-stated family: that card is a struggle-then-release timing signature for a heavy lift, this one is the frame cost of leaving a stance, both readable from how weight visibly moves before the main action"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not computed anywhere. The two measurements this would join both exist individually — `ai/pose.js measurePose`'s `balance`/`centre_of_mass` at a single declared-support frame, and `ai/motion.js sampleMotion`'s per-frame `position`/`linear_velocity` series — but nothing currently calls `measurePose` across a frame RANGE the way `sampleMotion` samples motion, so there is no existing way to ask \"at which frame did the declared support relationship stop holding.\"",
+  "control_surface": "`compile_pose` / `author_motion` return a single frame's balance when support is declared; `sample_motion` (the MCP tool over `ai/motion.js sampleMotion`) already returns `position` and `linear_velocity` series that could detect the ONSET half (when displacement actually starts) without any new code — nothing currently joins that onset frame back to the starting pose's balance state.",
+  "detection_and_measurement_methods": "Onset half — real today: `ai/motion.js sampleMotion`'s `position` and `linear_velocity` series can report the first frame after an action's start key where `linear_velocity` departs meaningfully from near-zero, a literal frame count for how long until real displacement begins. Support half — real but single-frame: `ai/pose.js measurePose`'s `balance` reports whether the centre-of-mass proxy is inside a DECLARED support polygon at one frame; sampling it at the first key alone would say whether the character starts already unsupported toward its direction of travel. Joining the two — does the onset frame arrive sooner when the starting balance is already unsupported toward the travel direction — is not built.",
+  "generation_or_modification_methods": "None. No strategy in `ai/plan.js` or `authorMotion` currently derives a starting pose's weight position from a declared urgency or a target onset-frame count.",
+  "failure_modes": [
+    "posing a character weight-centred at the first key of a shot that needs an immediate fast start, costing several unplanned frames of lean-and-shift before real travel begins",
+    "posing a character already weight-shifted for a shot meant to read as calm or uncommitted, which reads as an unintended lean or held-back urgency",
+    "judging a walk cycle's startup as \"the timing is wrong\" when the actual cause is the starting pose's weight position, not the spacing of the keys that follow it"
+  ],
+  "roblox_considerations": "None beyond the shared Motor6D rig/root-part model already used by `ai/pose.js measurePose` and `ai/motion.js sampleMotion` — the mechanism is rig-independent.",
+  "performance_implications": "None.",
+  "examples": [
+    "presenter stands with weight fully on one foot and lifts the other: \"pretty much nothing happens, I don't go anywhere, because my whole weight is on this one\" — video @ 01:51-02:03",
+    "presenter switches weight off the support foot fast: \"I start falling... quite rapidly into going that way\" — video @ 02:04-02:16",
+    "the stated shot-planning consequence: pose the character weight-shifted toward the door for an immediate fast start (\"I can go okay and just get going right away\"), versus a centred pose that costs \"more time, more frames\" of lean-and-shift first — video @ 02:19-03:00"
+  ],
+  "evidence_status": "video: https://youtu.be/EASbvJNQz0U @ 01:45-03:00 — physically demonstrated on camera by James Baxter (animation supervisor, The SPA Studios) and stated directly in the transcript, not read from a written source; presenter's stated technique, not a citation; experimental until validated"
+}

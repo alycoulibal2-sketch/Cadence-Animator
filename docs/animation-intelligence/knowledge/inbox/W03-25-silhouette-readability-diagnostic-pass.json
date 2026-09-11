@@ -1,0 +1,40 @@
+{
+  "concept": "silhouette_readability_diagnostic_pass",
+  "category": "advanced",
+  "definition": "Rendering a pose as a flat, featureless silhouette (no interior detail, no colour, no facial expression) and checking whether the pose's intended action or direction still reads is a diagnostic pass distinct from viewing the fully rendered character — a pose that reads fine with full detail can still fail this test, and the fix is almost always more limb separation (negative space between limbs and torso) and more directional asymmetry (weight shifted off-centre toward the action), not detail added to the rendered character.",
+  "purpose": "Catch a pose that is only reading because of surface detail (facial expression, eye direction, colour) rather than because its underlying shape communicates the action, before that pose ships.",
+  "visible_effect": "A pose whose meaning depends on facial expression or colour reduces to an ambiguous or unreadable blob in silhouette — limbs merge into the torso, weight looks centred, no directional cue survives; the same pose corrected for silhouette (weight shifted onto the leading leg, the reaching arm separated from the torso with clear negative space under it, the head angled) reads its intended action with zero interior detail.",
+  "psychological_or_gameplay_effect": "A pose that survives the silhouette test reads at a glance, at a distance, or in low detail — the same readability budget a game HUD portrait, a small on-screen enemy, or a fast-cut action beat all depend on.",
+  "physical_interpretation": "Not physical — an information reduction: strip every channel except the outline shape and ask whether the pose's meaning survives.",
+  "use_cases": [
+    "reviewing a key pose whose story or gameplay intent must read even in poor visibility (backlit, small on screen, a fast action beat)",
+    "diagnosing a pose that reads fine in the full render but does not read well as a thumbnail or at a distance",
+    "a mid-pose diagnostic during blocking, not only a final check — the source's own example catches a structural proportion problem (an overextended neck) that full rendering was hiding"
+  ],
+  "non_use_cases": [
+    "a pose whose meaning is intentionally carried by facial expression or colour alone, with no expectation of reading in outline (a subtle emotional beat, a close-up reaction shot)",
+    "checking overall scene composition or camera framing — this is a single-character shape check, not a shot-composition tool"
+  ],
+  "interactions": [
+    "structural_understanding — that card already names \"silhouette readability: limb separation and negative space need a rendered pass (MOT-012, OBS-002)\" as absent; this entry is the concrete technique MOT-012 would need to judge, demonstrated end to end with a real before/after",
+    "line_of_action_shape_and_scope (W03, video 23) — a related but different reduction: line of action reads a pose's dominant curve, silhouette reads its outline shape; a pose can pass one check and fail the other"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Half-built. The render primitive already exists and is exactly this: renderer/js/observationPasses.js's 'silhouette' pass renders rig parts alone (everything else — ground, grid, gizmos, selection boxes — explicitly hidden by withSubjectsOnly) through a flat white MeshBasicMaterial, with antialiasing off so every pixel is unambiguously subject or background. It exists for a DIFFERENT purpose — ai/raster.js / ai/observe.js use it to detect whether a silhouette MOVED between a baseline and a check (a regression signal), always as a same-viewpoint comparison between two rasters. It is not wired to a readability judgment: nothing looks at a SINGLE silhouette raster and asks whether the pose's own shape (limb separation, negative space, asymmetry toward a declared direction) reads as anything in particular. That judgment is exactly what ai/index.js capabilities().cannot names as absent (MOT-012).",
+  "control_surface": "None for readability. The rendering half (renderPasses({ passes: ['silhouette'] })) is already callable and already produces the exact raster this technique needs; nothing consumes its output for a readability check.",
+  "detection_and_measurement_methods": "Partly real. Producing the silhouette raster itself is real (observationPasses.js, OBS-002). Judging it is not: a readability measurement would need at minimum a limb-separation metric (does each limb's silhouette region touch the torso's, or is there a gap — computable from the raster's own connected-component structure, no new rendering needed) and a declared-direction check (does the silhouette's mass lean toward a stated action direction). Neither is built; both are computable from data this build can already produce.",
+  "generation_or_modification_methods": "None. No strategy corrects a pose for silhouette readability (shifting weight, separating a limb) — authorMotion / ai/plan.js place poses without ever rendering or checking their outline.",
+  "failure_modes": [
+    "a pose that reads only because of facial expression or eye direction, which fails completely once reduced to outline — the source's own example (a character looking for something) is unreadable in silhouette until weight, limb separation and head angle are all adjusted",
+    "a structural proportion problem (the source's example: an overextended neck) hidden by texture and colour in the full render, visible immediately once reduced to a flat shape"
+  ],
+  "roblox_considerations": "None beyond the shared rig/render model; a Roblox-side equivalent would need the same subject-only, flat-material render this build already has for its own client.",
+  "performance_implications": "A single extra render pass per check, the same cost profile observationPasses.js already documents for its existing silhouette comparisons — not a new cost class.",
+  "examples": [
+    "four instantly-recognisable silhouettes (Bart Simpson, SpongeBob SquarePants, Mickey Mouse and others) shown with zero interior detail, offered as evidence a well-designed shape is identifiable by outline alone — video @ 01:56-03:04 (a character-DESIGN application; out of Cadence's own scope, which animates rigs rather than designs them)",
+    "a character posed to read as looking to his right, searching for something: in full colour the pose reads; reduced to a flat silhouette (brightness -100 in the source's software) the same pose is illegible — \"you have no idea what this character is doing\" — video @ 04:43-05:15",
+    "the corrected pose, after shifting weight onto the forward leg, separating the reaching arm from the torso with clear negative space, and angling the head: \"the silhouette kind of sells a story that he is now looking to his right\" — video @ 05:28-07:56, confirmed directly in this session's captured frames (clear negative space under the extended arm and between the separated legs at t=07:58, versus a flat, near-symmetric silhouette at t=05:26 before the fix)",
+    "the diagnostic catches a problem invisible in full render: \"his neck doesn't look entirely right so the silhouette has showed that to us\" — video @ 07:22-07:38"
+  ],
+  "evidence_status": "video: https://youtu.be/uwK0DFEbcCk @ 03:39-08:02 — demonstrated live on screen by the presenter (Eon, Start Animating) in Cartoon Animator, with the before/after silhouette confirmed directly in this session's captured frames (t=05:26 vs t=07:58); cross-checked against this session's read of renderer/js/observationPasses.js and structural_understanding's existing MOT-012/OBS-002 reference; experimental until validated"
+}
