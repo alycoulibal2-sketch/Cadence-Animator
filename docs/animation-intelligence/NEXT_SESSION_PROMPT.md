@@ -1,4 +1,4 @@
-# Cadence Animator — next session master prompt (v3, written 2026-09-11)
+# Cadence Animator — next session master prompt (v4, written 2026-09-11)
 
 You are continuing the Cadence Animation Intelligence programme in a FRESH session. Everything
 you need is in the repo; this prompt tells you where, what the numbers are, the target, what to
@@ -18,8 +18,9 @@ Read `LESSONS.md` when it exists.
    the same repo under `C:\Users\alyco\`). Work on branch `animation-intelligence`:
    `git fetch origin && git checkout animation-intelligence && git pull`. `main` is still v0.11.0
    at `8343e2f`; do not merge into it unless the user asks.
-2. `SHARED_TASK_NOTES.md` in full — the log between sessions. The Phase 9 entry at the bottom is
-   the latest; its "decisions worth not relitigating" apply to you.
+2. `SHARED_TASK_NOTES.md` in full — the log between sessions. The **Slice A** entry at the bottom
+   is the latest; its "decisions worth not relitigating" apply to you, and its two R15 rig traps
+   will cost you an hour each if you skip them.
 3. `docs/animation-intelligence/requirements-matrix.md` — the living state, one row per
    requirement, 165 rows. You will move rows and recount its header.
 4. `CLAUDE.md` — rules and pitfalls, each learned the hard way.
@@ -29,25 +30,39 @@ Read `LESSONS.md` when it exists.
 6. Before touching anything, prove the tree is green here:
 
    ```
-   node test/aitest.mjs                # 359/359
+   node test/aitest.mjs                # 373/373
    node test/coretest.mjs              #  41/41
    node test/pnxtest.mjs               # 298/298
-   node tools/benchmark.mjs --compare  # clean: 58 cells unchanged against the committed baseline
+   node tools/benchmark.mjs --compare  # clean: 64 cells unchanged against the committed baseline
    ```
 
 ## 1. Where the programme is (with the numbers)
 
-- **Part 62's nine phases are done.** Phase 9 is commit `dce03e7` on `animation-intelligence`,
-  pushed. The semantic layer is `renderer/js/ai/**`: 39 modules (`benchmarkBaseline.js` is
-  GENERATED), 57 semantic MCP tools (197 in the app). Matrix: implemented 85 · benchmarked 9 ·
-  partial 34 · designed 7 · deferred 2 · blocked 1 · unplanned 27. No unplanned P0 row remains.
-- **What was verified on 2026-09-11, and why it changes the mission.** The layer is the
-  quality-assurance half of a pipeline: it measures, constrains, explains and reverses edits
-  honestly. It does NOT make animation. Evidence, from the pure pipeline itself:
+- **Part 62's nine phases are done, and so is Slice A.** The semantic layer is
+  `renderer/js/ai/**`: 40 modules (`benchmarkBaseline.js` is GENERATED), 60 semantic MCP tools
+  (200 in the app), `SEMANTIC_LAYER_VERSION` 1.11.0. Matrix: implemented 87 · benchmarked 9 ·
+  partial 33 · designed 7 · deferred 2 · blocked 1 · unplanned 26. No unplanned P0 row remains.
+- **Slice A — GENERATION — is DONE.** `ai/pose.js` compiles a PoseSpec into exact keys (degrees
+  about named axes, or analytic two-bone IK onto a target in studs, landing at 4.6e-16 studs or
+  reporting the shortfall) and measures the solved pose (line of action, a volume-proxy centre of
+  mass, balance against DECLARED support). `plan.authorMotion` turns an IntentSpec + declared
+  phase frames + a PoseSpec per phase into a start key, key poses, breakdowns, holds and a settle.
+  Three tools: `pose_conventions`, `compile_pose`, `author_motion`. A 17th benchmark
+  (`authored_attack`) runs it from an EMPTY R15. Read the Slice A entry at the bottom of
+  `SHARED_TASK_NOTES.md` before touching any of it — especially the two R15 rig traps.
+- **What was verified on 2026-09-11, and what Slice A changed about it.** The layer WAS only the
+  quality-assurance half of a pipeline: it measured, constrained, explained and reversed edits
+  honestly, and did not make animation. Slice A closed the generation gap; everything else below
+  is still true. Evidence, from the pure pipeline itself:
   - The directive's own Part 3 product-promise request ("a 1.2-second anime sword slash, extremely
-    heavy, subtle anticipation, ...") on an EMPTY rig: 2 of about 23 content words understood,
-    intent confidence 0.06, **zero operations** — every planner strategy edits keys that already
-    exist (`plan.planLimitations().cannot[0]`).
+    heavy, subtle anticipation, ...") on an EMPTY rig used to produce **zero operations** — every
+    planner strategy edits keys that already exist. It still does: `plan_motion` on an empty
+    timeline correctly produces nothing, and `author_motion` is the entry point that produces the
+    motion (48 operations across 8 steps on the benchmark's script). **The INTERPRETATION half is
+    unchanged and still weak**: 2 of about 23 content words understood, intent confidence 0.06.
+    Authoring takes its poses from the script, so a weak interpretation cannot become a weak pose
+    — but nothing yet turns that sentence into a script, and that is what Slice F's `author_shot`
+    and the animate skill are for.
   - On an already-keyed slash the planner applies 3 of its 4 strategies (amplitude, spacing
     contrast, lead/lag). 9 of 15 motion dimensions compile; the rest are named as blocked.
   - `review_shot` measures 3 of Part 14's 13 quality layers fully (timing, spacing, contacts).
@@ -55,10 +70,12 @@ Read `LESSONS.md` when it exists.
     the top of the hierarchy Part 14 says to fix first.
   - `capabilities().cannot` has 21 lines, including "judge whether a result looks RIGHT".
   - The knowledge system is 12 principle cards, all `essential`.
-- **So expert output today still comes from the model's own animation judgement driving the 140
-  raw tools** (`set_keyframe`, `solve_ik`, `fill_frames`, ...) with the user reviewing renders. The
-  new layer keeps that honest and reversible. It adds no craft. The mission below is the craft,
-  and then the machinery that takes the craft past what one human attempt can do.
+- **So expert output today still comes from the model's own animation judgement** — but it now has
+  an exact compiler to drive instead of only the 140 raw tools: the model states degrees, frames and
+  reach targets in words, and `author_motion` computes the CFrames, solves the contacts and measures
+  the result. What the model still supplies alone is WHICH pose, WHICH frame and WHICH timing. The
+  mission below is the rest of the craft, and then the machinery that takes it past what one human
+  attempt can do.
 
 ## 2. The target, stated honestly, and the principle that reaches it
 
@@ -150,15 +167,20 @@ tool to change it, reported on every result. No profile weakens a gate.
 Each slice ends with: a smoketest step at the handler boundary, aitest checks (negative-tested), a
 Part 59 benchmark that measures it, matrix rows moved with honest Limits, the notes appended, this
 prompt bumped, a commit, a push. The order is by leverage: nothing can be expert until something
-can be authored (A); the skill and profiles make every later slice cheaper for every model (F);
-gates make mistakes impossible before anything gets ambitious (E); eyes before search because
-search needs to see (B, then D); reference last because it needs A, B and D to be worth anything.
+can be authored (A — DONE); the skill and profiles make every later slice cheaper for every model
+(F — next); gates make mistakes impossible before anything gets ambitious (E); eyes before search
+because search needs to see (B, then D); reference last because it needs A, B and D to be worth
+anything. **Slice F is now worth more than it was**: there is finally something for `author_shot`
+to compose, and `compile_pose` is the natural dry-run step in the skill's checklist.
 
-### Slice A — GENERATION (first)
+### Slice A — GENERATION — ✅ DONE (2026-09-11). Kept here for what it settled; do not redo it.
 
-Goal, verbatim, to put in the smoketest step name: *"from an empty R15, an IntentSpec becomes key
-poses at phase boundaries with breakdowns, holds and a settle, applied transactionally, measured,
-and rolled back to an empty timeline."*
+Goal, met and proven in `aitest`, the `authored_attack` benchmark and a smoketest step at the
+handler boundary: *"from an empty R15, an IntentSpec becomes key poses at phase boundaries with
+breakdowns, holds and a settle, applied transactionally, measured, and rolled back to an empty
+timeline."* **The one thing left open in this slice is the user's, not yours: §7.3, whether a set
+of starting recipes may ship.** Everything else below was built; the details are in the Slice A
+entry of `SHARED_TASK_NOTES.md`.
 
 1. **`ai/pose.js` — exact pose compilation.** Input: a `PoseSpec` (Part 20.3; `ai/cal.js poseSpec`
    carries the fields, the measurable half is null). Output: joint rotations as `set_key`
@@ -191,7 +213,7 @@ and rolled back to an empty timeline."*
    (balance as a volume proxy — say so), part of `MOT-013` (holds). Directive parts: 20.2–20.4,
    24, 26.2, 26.4, 28, 29, 32.
 
-### Slice F — MAKE THE MODEL'S JOB EASY (the skill, the profiles, the resources)
+### Slice F — MAKE THE MODEL'S JOB EASY (the skill, the profiles, the resources) — DO THIS ONE NEXT
 
 1. **The animate skill.** Write `.claude/skills/cadence-animate/SKILL.md` (and register it in the
    README): the operating procedure of directive Part 64 as a checklist a model follows —
@@ -326,10 +348,14 @@ Remove-Item test-output/userdata -Recurse -Force -ErrorAction SilentlyContinue
 # results: test-output/smoketest-report.json
 ```
 
-Two steps flake on both machines and are documented in the notes: *classic clothing* (fetches from
-the Roblox CDN — grep the log for `ENOTFOUND` before blaming your change) and *observation:
-baseline → scoped edit* (a GPU pixel comparison). A run where MANY render steps fail at once is a
-starved GPU. Never dismiss a failure in a step your change touched. `tools/benchmark.mjs --compare`
+103 steps as of Slice A. Two of them flake on both machines and are documented in the notes:
+*classic clothing* (fetches from the Roblox CDN — it times out after 20s, and the failing sub-step
+varies run to run) and *observation: baseline → scoped edit* (a GPU pixel comparison). Both failed
+on 3 of 4 runs on 2026-09-11, which is more than "occasionally" — so **prove it rather than assume
+it**: copy your changed files aside, `git checkout --` them, re-run, and compare. At HEAD on
+2026-09-11 the run was 100/102 with exactly those two failures and the same error text. A run where
+MANY render steps fail at once is a starved GPU. Never dismiss a failure in a step your change
+touched. `tools/benchmark.mjs --compare`
 exits 1 on a difference in EITHER direction: intended → `--write-baseline` and commit the diff;
 not intended → a regression.
 
@@ -353,11 +379,23 @@ not intended → a regression.
 - **`state.js snapshot()` clones a hard-coded field list**: a new top-level project field is
   outside undo until it is added there; `NOT_STATE` (`provenance`, `baselines`, `references`) is
   held out of snapshots and undo on purpose.
-- **Rig conventions for exact authoring**: every joint's rest axes are world-aligned, so a keyed
+- **Rig conventions for exact authoring** — all of this is now data in `ai/pose.js`
+  (`ROTATION_CONVENTION`, `AXIS_MEANING`, `BEND_AXES`) and reachable through `pose_conventions`;
+  read that tool rather than retyping it. Every joint's rest axes are world-aligned, so a keyed
   rotation sets the child's orientation exactly; the rig faces local −Z, right is +X; `+X`
-  shoulder/hip = limb forward, `−X` knee = natural bend, `−X` waist/neck = lean forward, `+Y` =
-  turn left; R15's upper-arm bone is angled (the elbow sits 0.5 studs outboard), so two-bone IK
-  needs the real rest offsets, not a straight bone.
+  shoulder/hip = limb forward, `+X` elbow and `−X` knee = natural bend, `−X` waist/neck = lean
+  forward, `+Y` = turn left.
+- **An R15 limb at rest is already at its reach limit**, and this cost two debugging rounds on
+  2026-09-11. Hip-pivot-to-foot is 1.85 studs against a chain maximum of exactly 1.85;
+  shoulder-to-hand is 1.6897 against 1.6888. So a reach target offset from a limb's REST position is
+  almost always out of range (the solver reports the shortfall honestly, and the test proves
+  nothing), and a planted foot on a straight leg becomes unreachable the moment the hips turn. Bend
+  the knee in the stance pose — what a real animator does — and sample test targets around the JOINT
+  PIVOT at a radius inside the reported `reach_range_studs`.
+- **The R15 upper arm is ANGLED**: the elbow pivot sits 0.5 studs outboard and 0.728 down from the
+  shoulder, so bone 1 is `(±0.5, −0.728, 0)` and maximum arm reach is 1.6888, not the 1.7675 that
+  |bone1| + |bone2| suggests. `ai/pose.js boneGeometry` derives both bones from the real C0/C1 and
+  `aitest` asserts the angle is still in `rigs/builtin.json`.
 - On the laptop `npm` is broken under Git Bash — use PowerShell and call `electron.cmd`
   directly. On both machines the Bash tool's working directory PERSISTS between calls.
 - A killed run can leave a poisoned source file mid negative-test: restore from the backup and
@@ -369,7 +407,12 @@ not intended → a regression.
 2. Merge `animation-intelligence` into `main` and release 0.12.0 (the README's release checklist
    includes the site sync; `site/` in the desktop checkout carries another session's superseded
    edits).
-3. Whether Slice A may ship a set of starting recipes (§3, A.3).
+3. **Still open, and now the blocking one for authoring ergonomics:** whether a set of starting
+   recipes may ship (§3, A.3) — a parameter set per action (windup angle, reach, weight shift,
+   impact frame, phase proportions) whose every value opens fully editable. Slice A deliberately
+   shipped none: `authorMotion` refuses to invent phase durations and asks instead. That is honest
+   and it is also friction on every call. A recipe set would remove it; a pose LIBRARY as a product
+   is still forbidden by the "full power" constraint.
 4. Which model runs sessions, and therefore which profile the MCP is registered with (§2b).
 5. Anything that costs money (Stripe, Render, RunPod, continuous runs).
 

@@ -889,3 +889,151 @@ value unplanned rows are the ones several other rows wait on: OBS-004 (a depth p
 disambiguate every object-ID occlusion case), SHOT-003/004 (a camera model unblocks three
 benchmark categories, MOT-006, REV-001's framing step and two "why?" workflows), and MOT-011
 (balance and centre of mass, which POL-001, CMP-001's key insertion and PHY-001 all cite).
+
+### Slice A — GENERATION: the layer can author a motion, not only edit one (2026-09-11, on the desktop)
+
+Part 62's nine phases were complete and the layer still could not make animation. That was
+verified, not assumed: on an EMPTY R15 the directive's own product-promise request ("a 1.2-second
+anime sword slash, extremely heavy, subtle anticipation") produced **zero operations**, because
+every one of `compilePlan`'s four strategies transforms keys that already exist. This slice is the
+other half.
+
+**One new module, one new planner entry point, one new acceptance check, three MCP tools, one
+benchmark.**
+
+- **`ai/pose.js`** (Parts 20.3, 26, 28, 29, 32) — pure at load, 380 lines. A PoseSpec in, `set_key`
+  operations out. Two exact mechanisms: a rotation goal in DEGREES about named axes (`CF.fromEuler`,
+  Rx·Ry·Rz — the same convention `get_rotation_degrees` reports and the editor's rotation fields
+  show), and **analytic two-bone IK** onto a world target. Also `measurePose`: line of action
+  (a least-squares 3D line through the spine parts), centre of mass (a part-VOLUME proxy, said so
+  every time) and balance against a DECLARED support polygon.
+- **`ai/plan.js authorMotion`** — an IntentSpec + declared phase frames + a PoseSpec per phase
+  become a `start` key, one `key_pose` per phase, `breakdown`s, `hold`s and a `settle`, each step
+  checked by the real constraint checker on its own and dropped whole if refused.
+- **`ai/cal.js key_times_include`** — a new acceptance check: a key exists at every named frame on
+  every named track.
+- **`pose_conventions`** (READ-ONLY), **`compile_pose`** (READ-ONLY dry run), **`author_motion`**
+  (MUTATING, through `apply_animation_patch` like every other mutating semantic tool). 200 tools in
+  the app. `SEMANTIC_LAYER_VERSION` → `1.11.0`.
+- **`authored_attack`** — a 17th benchmark, in the `heavy attack` category beside `heavy_attack`,
+  on a fixture with no tracks at all.
+
+**The Slice A goal, proven end to end in three places** (`aitest`, the benchmark, and a new
+smoketest step at the handler boundary): *from an empty R15, an IntentSpec becomes key poses at
+phase boundaries with breakdowns, holds and a settle, applied transactionally, measured, and rolled
+back to an empty timeline.* In the app: 48 operations across 8 steps on 6 joints at frames
+0, 7, 9, 13, 22, 25, 31, 36; the sword hand travels 1.832 studs by frame 13 in the app's own
+forward kinematics while the planted foot moves 8.6e-16; acceptance 5 passed, 0 failed, **0 not
+run**; the rollback leaves the item with **zero tracks**.
+
+**The number that says why this slice mattered.** Both halves now measure the same planted foot, in
+the same units, in the same benchmark run:
+
+| | `heavy_attack` (edit an authored slash) | `authored_attack` (generate one) |
+| --- | --- | --- |
+| contact_stability | 0.343 studs — crosses its 0.3 tolerance | **0 studs** |
+| constraint_violation_rate | 0.5 | 0 |
+| animation_intent_alignment | 0.833 | 1 |
+
+The difference is not a better algorithm. It is that an authored key can SOLVE for the contact
+(`target: { hold: true }` runs the IK to the foot's stance position at every key) where an edit can
+only measure the drift afterwards and report it. That closes the last thing MOT-008's row was
+waiting on: *"for `contact_firmness` — the verification half, though the EDIT half still needs an
+IK solve."*
+
+**The decisions worth not relitigating:**
+
+- **Frames are the caller's and are never inferred.** `segmentPhases`'s templates name an attack's
+  phases in ORDER and say nothing about their durations. `authorMotion` with an action type and no
+  frames returns the phase order plus a question — it does not invent proportions, because a
+  proportion this file made up would read as a measurement. Adding a default-proportion recipe is a
+  product decision and **the user's call** (see "For whoever comes next").
+- **Editing and authoring are separate entry points with separate acceptance criteria**, not one
+  function that branches on "does this timeline have keys". An edit proves that what it did not
+  mean to change did not change (`key_times_unchanged`, `scope_unchanged`); a generation proves
+  that what it promised exists (`key_times_include`). Those are different claims and a single
+  acceptance spec cannot make both.
+- **No strategy may add or remove a key, still.** Authoring does; the four strategies do not, and
+  must not — a strategy that silently inserted one would break every `key_times_unchanged` promise
+  the edit path makes.
+- **Every authored frame keys the whole joint set the script touches** (`keyAllTouched`, default
+  on). A joint posed in one phase and not the next would otherwise hold its value through the next
+  phase by interpolation — the classic "I didn't key it and it drifted". Carrying it forward
+  explicitly makes the hold visible in the timeline, to an x-sheet, and to every later strategy.
+- **A breakdown is a POSE BIAS, not a time fraction.** `bias: 0.22` at frame 9 of a 7→13 span puts
+  the pose 22% of the way between the two extremes at a frame 33% of the way through — measured in
+  the smoketest as `{ time_fraction: 0.333, pose_bias: 0.22 }`. That gap IS the favour. A compiler
+  that used the time fraction would emit a key that changes nothing and pass every test that only
+  counts keys.
+- **A settle overshoots BEFORE it rests**, by a declared ratio of the last transition's travel:
+  40° → 0° with `ratio: 0.25` sails to −10° and eases back. Both the breakdown and the overshoot go
+  through `plan.scaleAbout` — the same anchored scale `amplitude` uses — so there is one
+  interpolation primitive here, not two that could disagree.
+- **The bend direction is DECLARED, never discovered.** Cadence stores no joint limits (the Rig
+  Graph reports them as unknown, not unlimited), so `BEND_AXES` names +X for an elbow and −X for a
+  knee with the reason, the caller may override it, and `bend: 'reverse'` bends a knee backwards on
+  purpose. Refusing that would be a fabricated constraint; the "full power" rule forbids it.
+- **Balance needs declared support.** With none, `balance.supported` is `null` with the reason
+  (nothing infers a contact — MOT-016), and the centre of mass is still reported. That is the
+  honest half of the answer rather than a verdict computed against a guess.
+- **The model never writes a CFrame.** Every authoring input is degrees or studs; `ai/pose.js`
+  composes them. A wrong-axis pose becomes impossible rather than caught later — which is the point
+  of the whole surface, since composing rotations and picking an axis sign is what every model is
+  worst at.
+
+**Two rig facts that cost real time and are now in `CLAUDE.md`:**
+
+1. **An R15 limb at rest is already at its reach limit.** Hip-pivot-to-foot is 1.85 studs against a
+   maximum of exactly 1.85; shoulder-to-hand is 1.6897 against 1.6888. So a target offset from a
+   limb's REST position is nearly always out of range — the solver reports the shortfall correctly
+   and the test proves nothing. Both the first IK probe and the first smoketest run failed this way.
+   The fixes: bend the knee in the stance pose (what a real animator does, and why the benchmark
+   script opens with `LeftKnee: −26°`), and sample targets around the JOINT PIVOT at a radius inside
+   the reported `reach_range_studs`.
+2. **The R15 upper arm is ANGLED** — the elbow pivot sits 0.5 studs outboard and 0.728 down from the
+   shoulder — so the first bone is `(±0.5, −0.728, 0)`, and maximum arm reach is 1.6888 studs, not
+   the 1.7675 that |bone1| + |bone2| would suggest. `boneGeometry` derives both bones from the real
+   C0/C1, and `aitest` asserts the angle is still in `rigs/builtin.json` so a future rig edit cannot
+   silently invalidate the solver.
+
+**The pure IK is gated against the app's solver**, the way `ai/kinematics.js` is gated against
+`rigbuild.js`. Not by comparing POSES — `renderer/js/ik.js` is CCD over three joints with a
+different objective and will legitimately find a different arm — but by applying the pure pose
+through the APP's own `solvePoseWorlds` and measuring where the hand really lands: **4.58e-16 studs**
+over four targets, against the CCD solver's 0.0295 on the same targets. The closed form was chosen
+over iteration deliberately: a CCD result depends on its iteration count and its starting pose, and
+Part 59's `reproducibility` dimension would measure exactly that drift.
+
+**Negative-tested** by reintroducing each bug and watching the named check fail (all six confirmed):
+the solve made inexact (`maxStep 0.4`) → *"analytic two-bone IK lands on its target exactly"* fails;
+a `hold` target read from the project instead of the pose being authored → the Slice A check fails
+at 0.043 studs of drift; a breakdown using the time fraction → *"a breakdown is a POSE bias"* fails
+at 30° instead of 12°; phase durations invented from the template → *"asks for them instead of
+inventing durations"* fails; the per-step constraint check skipped → *"a constraint that refuses a
+key drops that step whole"* fails; `key_times_include` made blind plus one authored step dropped →
+the Slice A check fails.
+
+**Deliberately not done, and named rather than hidden:** no secondary motion, overlap or drag is
+generated — the authored keys are the poses asked for, and overlap is an EDIT (`lead_lag`) applied
+on top. No root motion: nothing writes `@origin`, so an authored character does not travel. No
+retime of an existing phase. No pose library and no starting recipes (§3 A.3 says to ask the user
+first, and the user was not available — the `AUTHORED_SLASH` constant in `ai/benchmark.js` is a
+benchmark fixture, not a product library). Nothing renders, so whether the authored poses READ is
+not measured anywhere: `curve_continuity` on `authored_attack` is 36 introduced spikes against a
+rig that never moved, which is a budget on how much acceleration contrast the script asked for and
+not a defect count — that is written into the benchmark's `known_failure_cases`. `review_shot` was
+NOT rewired to consume the new pose measurements, though it now could (REV-001's Limits says so).
+
+Verified: `aitest` **373/373** (up from 359 — 14 new checks), `coretest` 41/41, `pnxtest` 298/298,
+`tools/benchmark.mjs --compare` clean (64 cells, up from 58; the baseline was regenerated because
+the layer version moved and a benchmark was added). Smoketest **101/103**, 0 console errors — the
+two failures are the two pre-documented environmental flakes, and that was PROVEN rather than
+assumed: the same two steps fail identically at unmodified HEAD (102 checks, the same 2 failures),
+across four runs in this session. The new generation step passed on every run in which it was
+correct.
+
+**For whoever comes next:** the next decision is the user's — §3 A.3, whether Slice A may ship a set
+of starting recipes (a parameter set per action whose every value opens editable). Everything else
+in the next-session prompt's order is unchanged: Slice F (the skill, `next_best_actions`, MCP
+resources, operating profiles, `author_shot`) is now much more valuable than it was, because there
+is finally something for a one-call loop to compose.

@@ -32,7 +32,8 @@
 //   vocabulary    Part 21 — what "heavy" asks for, as dimensions rather than a slider
 //   cal           Part 20 — IntentSpec, MotionPlan, PoseSpec, Timing/Spacing, Contact, Acceptance
 //   intent        Part 20.1 — a request becomes an IntentSpec, and says what it was taken to mean
-//   plan          Parts 20.2 and 24 — phase segmentation, the planner, the first motion compiler
+//   plan          Parts 20.2 and 24 — phase segmentation, the planner, the motion compiler, and authoring
+//   pose          Parts 20.3, 26, 28, 29 — exact pose compilation: degrees in, analytic two-bone IK, measured
 //   raster        Part 44's comparison systems, over plain byte buffers — the layer's only pixels
 //   observe       Part 43 — the pass catalogue and the hierarchical observation policy
 //   baseline      Part 44 — baselines as project data, not disposable screenshots
@@ -108,6 +109,7 @@ export * as vocabulary from './vocabulary.js';
 export * as cal from './cal.js';
 export * as intent from './intent.js';
 export * as plan from './plan.js';
+export * as pose from './pose.js';
 export * as raster from './raster.js';
 export * as observe from './observe.js';
 export * as baseline from './baseline.js';
@@ -143,7 +145,8 @@ export { TransactionLedger, preview as previewPatch, apply as applyPatch, rollba
 export { interpret as interpretTerms, explain as explainTerms, vocabulary as animationVocabulary, setTerm, clearTerm } from './vocabulary.js';
 export { intentSpec, motionPlan, poseSpec, contactSpec, acceptanceSpec, evaluateAcceptance, describePlan } from './cal.js';
 export { interpretRequest, intentVocabulary } from './intent.js';
-export { planMotion, compilePlan, segmentPhases } from './plan.js';
+export { planMotion, compilePlan, segmentPhases, authorMotion } from './plan.js';
+export { compilePose, measurePose, solveTwoBone, poseConventions, rotationFromDegrees, degreesFromRotation } from './pose.js';
 export { propagateTracks } from './scope.js';
 export { makeRaster, rasterDigest, signature as rasterSignature, cameraFingerprint } from './raster.js';
 export { PASSES, observationPlan, suspectFrames, availablePasses } from './observe.js';
@@ -155,10 +158,13 @@ export { runSuite as runBenchmarkSuite, compareRuns as compareBenchmarkRuns, mak
 export { detectRecurringProblems, proposeImprovement, evaluateAdoption, decideProposal } from './improve.js';
 
 /** The version of the semantic layer itself, separate from the app version. Bumped when a graph's
- *  shape changes in a way a consumer would notice. Phase 9 adds the benchmark library, run
- *  comparison, and the architecture-improvement loop; every workflow's benchmark_coverage is now
- *  derived rather than `none`. */
-export const SEMANTIC_LAYER_VERSION = '1.10.0';
+ *  shape changes in a way a consumer would notice. 1.11.0 adds GENERATION: `ai/pose.js` compiles a
+ *  PoseSpec into exact keys (degrees about named axes, analytic two-bone IK), and `plan.authorMotion`
+ *  turns an IntentSpec plus declared phase frames into key poses with breakdowns, holds and a
+ *  settle. Every strategy in this layer still only EDITS; authoring is a separate entry point with
+ *  a separate acceptance spec, because "nothing else changed" and "what I promised exists" are
+ *  different claims. */
+export const SEMANTIC_LAYER_VERSION = '1.11.0';
 
 /** One place to ask what this layer can and cannot currently answer. Returned by
  *  `inspect_scene` so a model never has to infer capability from silence.
@@ -170,7 +176,7 @@ export const SEMANTIC_LAYER_VERSION = '1.10.0';
 export function capabilities() {
   return {
     version: SEMANTIC_LAYER_VERSION,
-    phase: 'Phase 9 — benchmarks and the architecture-improvement loop (directive Part 62; the last phase of the roadmap)',
+    phase: 'Part 62\'s nine phases are complete. Slice A — GENERATION: the layer can now author a motion from nothing, not only edit one',
     can: [
       'project the scene, any rig and any timeline into stable-id graphs with semantic roles',
       'resolve semantic selections such as "the left foot", "the planted foot" and "the weapon hand", with evidence',
@@ -188,6 +194,10 @@ export function capabilities() {
       'cut an animation into phases from key times and markers, and say how certain each phase name is',
       'plan a motion as phases, poses, timing, spacing, declared contacts and acceptance criteria',
       'compile a plan into operations, blocking any strategy a constraint forbids and naming what the motion loses',
+      'AUTHOR a motion from an empty timeline: an IntentSpec plus declared phase frames plus a PoseSpec per phase become key poses, breakdowns, holds and a settle, applied as one reversible transaction (authorMotion)',
+      'compile a pose exactly — a joint rotation in DEGREES about named axes in the rig\'s own convention, or an analytic two-bone reach that lands on its target to floating-point precision and reports the shortfall in studs when it cannot (ai/pose.js)',
+      'hold a declared contact by SOLVING for it at every authored key, so the planted foot stays put by construction rather than being measured afterwards and apologised for',
+      'measure a pose\'s line of action, a volume-proxy centre of mass, and balance against a DECLARED support polygon (MOT-011) — as measurements with their method named, never as a verdict on whether the pose reads',
       'evaluate an AcceptanceSpec against a before-state, separating pass, fail and NOT RUN',
       'render a silhouette and an object-ID pass, and compare two of either by exact pixel, coverage, edge displacement and per-object screen movement',
       'record a baseline inside the project — Part 44\'s field list, with the six fields Cadence has nothing behind named rather than omitted',
@@ -215,13 +225,15 @@ export function capabilities() {
     ],
     cannot: [
       'detect a contact nobody declared. Drift is measured against a ContactSpec; a foot the animator meant to plant and never said so about is not checked',
-      'measure screen-space velocity (no active-camera model), balance or centre of mass (part mass is unknown), or distance from an EXPECTED arc (no arc model)',
+      'measure screen-space velocity (no active-camera model) or distance from an EXPECTED arc (no arc model). Balance and centre of mass ARE measured now (ai/pose.js), with two stated caveats: the mass is a part-VOLUME proxy because Cadence stores no density, and the support polygon comes from contacts a caller DECLARED, because nothing infers one',
       'tell accidental jitter from deliberate texture: 6 of Part 23\'s 9 variation kinds have no mark in Cadence project data, and an unexplained discontinuity is reported as unclassified',
       'answer 3 of Part 46\'s 7 "why?" workflows — weight, effect change and camera framing are all blocked on models that do not exist (see diagnose.DIAGNOSTICS)',
       'render 20 of Part 43\'s 24 observation kinds — no depth, normal, motion-vector, alpha, shadow, material-ID, crop, contact-sheet or overlay pass (see observe.PASSES for what blocks each)',
       'see anything but rig parts: props, effect items, screen effects, the ground and the grid are excluded from every pass by construction',
       'detect flicker or a one-frame pop — that needs consecutive frames, and the policy targets suspect frames instead',
-      'generate a motion from nothing: every planner strategy edits existing keys, and none may add or remove one (see plan.planLimitations())',
+      'generate a motion from a STRATEGY: all four edit existing keys and none may add or remove one. Generation is `authorMotion`, a separate entry point, and it cannot invent phase DURATIONS either — a template names an attack\'s phases in order and says nothing about their length, so a call with no frames asks rather than guessing (see plan.planLimitations().authoring)',
+      'generate secondary motion, overlap, drag or root travel when authoring — the authored keys are the poses asked for, exactly. Overlap is an EDIT (lead_lag) applied afterwards, and nothing writes the @origin track',
+      'respect a joint limit when composing a pose: Cadence stores none, so a knee can be authored bending backwards, and `bend: "reverse"` does exactly that on purpose',
       'plan for cameras, props or effect items — the motion compiler covers rig joint tracks only',
       'judge whether a result looks RIGHT. It can now say exactly what is different and who did it; whether that is good is not a measurement it makes',
       'patch rig topology, attachment, effect documents or key groups — those tools exist but are not transactional (see patch.patchLimitations())',

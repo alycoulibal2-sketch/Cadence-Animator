@@ -4516,6 +4516,119 @@ const MCP_HANDLERS = {
     };
   },
 
+  // ------------------------------------------------- authoring (Parts 20.3, 24, 26, 32)
+  //
+  // The three tools above EDIT. These three GENERATE, and they are separate on purpose: an edit
+  // proves that what it did not mean to change did not change, and a generation has to prove that
+  // what it promised to create exists. Different acceptance criteria, different tools.
+  //
+  // The loop is: pose_conventions (what a goal may say) → compile_pose (one pose, measured, not
+  // applied) → author_motion (the whole script, transactionally) → analyze_contacts / render_frame
+  // → rollback_transaction. Every mutating step goes through apply_animation_patch, so the
+  // operating mode, the constraint check, the transaction and the snapshot all still apply.
+
+  pose_conventions: ({ itemId } = {}) => {
+    const project = liveProject();
+    const id = itemId ?? (project.items || []).find((i) => i.rig)?.id ?? null;
+    return {
+      ...AI.pose.poseConventions(project, id),
+      itemId: id,
+      limitations: AI.pose.poseLimitations(),
+      authoring: AI.plan.planLimitations().authoring,
+    };
+  },
+
+  compile_pose: ({ itemId, pose, t = null, holdFrame = 0, support = [], easing = null, onlyNamed = true } = {}) => {
+    if (!itemId) throw new Error('compile_pose needs an `itemId` — list_items shows the rigs');
+    if (!pose) throw new Error('compile_pose needs a `pose`: either a PoseSpec (from plan_motion) or the array of body_region_targets directly. pose_conventions lists the two goal forms and the axes they are written in');
+    const out = AI.pose.compilePose(liveProject(), {
+      itemId, pose, t: t ?? S.state.playhead, holdFrame, support, easing, onlyNamed,
+    });
+    return {
+      operations: out.ops.length,
+      would_apply: out.ops.map(AI.patch.describeOp),
+      ops: out.ops,
+      resolved: out.applied,
+      unresolved: out.unresolved,
+      degrees: out.degrees,
+      measured: out.measured,
+      findings: out.findings,
+      coverage: out.coverage,
+      next: 'nothing was applied. Pass `ops` to preview_animation_patch to dry-run it, or to apply_animation_patch to commit it as one reversible transaction',
+    };
+  },
+
+  author_motion: ({ request, intent, itemId, phases, start, settle, contacts, support, constrain, terms, mode, keyAllTouched = true, actionType = null, force = false } = {}) => {
+    const { intentSpec, constraints, interpretation, questions, compilation } = resolveIntent({ request, intent, itemId, constrain, terms, mode });
+    const target = itemId ?? intentSpec.target?.itemId ?? null;
+    const authored = AI.plan.authorMotion(liveProject(), {
+      intent: intentSpec, itemId: target, phases, start, settle,
+      contacts: contacts || [], support: support || [], constraints, keyAllTouched, actionType,
+      frame: S.state.playhead,
+    });
+
+    if (!authored.ops.length) {
+      // Not an error. A script with no timing, no resolvable goal, or every step blocked is a
+      // legitimate outcome carrying the explanation; throwing would discard it.
+      return {
+        authored: false, reason: authored.summary, intent: intentSpec, interpretation,
+        blocked: authored.blocked, questions: [...questions, ...authored.questions],
+        findings: authored.findings, risks: authored.risks, coverage: authored.coverage,
+      };
+    }
+
+    const result = MCP_HANDLERS.apply_animation_patch({
+      ops: authored.ops,
+      intent: `${intentSpec.request || intentSpec.id}: authored ${authored.steps.length} step(s) across frames ${authored.key_frames[0]}–${authored.key_frames[authored.key_frames.length - 1]}`,
+      request: intentSpec.request ?? null,
+      constrain: compilation.raw,
+      force, snapshotFirst: true,
+    });
+
+    const baseline = result.applied && result.before_snapshot ? snapshotStore.get(result.before_snapshot) : null;
+    const acceptance = baseline
+      ? AI.cal.evaluateAcceptance(baseline.project, S.state.project, authored.acceptance, { itemId: target })
+      : null;
+
+    if (result.applied) {
+      const planNode = AI.provenance.record(S.state.project, {
+        type: 'plan', author: 'ai',
+        summary: `authored ${authored.summary} from ${intentSpec.id}`,
+        detail: {
+          intent: intentSpec, plan_description: authored.description,
+          steps: authored.steps.map((s) => ({ kind: s.step, t: s.t, operations: s.operations })),
+          blocked: authored.blocked, key_frames: authored.key_frames, joints: authored.tracks,
+          transaction_id: result.transaction_id,
+          acceptance: acceptance ? { accepted: acceptance.accepted, fully_validated: acceptance.fully_validated, summary: acceptance.summary } : null,
+        },
+        timestamp: new Date().toISOString(),
+      });
+      if (result.provenance_id) AI.provenance.link(S.state.project, 'implements', result.provenance_id, planNode);
+      S.markDirty();
+    }
+
+    return {
+      ...result,
+      authored: result.applied,
+      intent: intentSpec,
+      interpretation,
+      plan: authored.plan,
+      description: authored.description,
+      steps: authored.steps,
+      key_frames: authored.key_frames,
+      joints: authored.tracks,
+      poses: authored.poses,
+      measured: authored.measured,
+      blocked: authored.blocked,
+      risks: authored.risks,
+      notes: authored.notes,
+      acceptance,
+      questions: [...questions, ...authored.questions],
+      findings: [...(result.findings || []), ...authored.findings],
+      coverage: authored.coverage,
+    };
+  },
+
   evaluate_acceptance: ({ acceptance, snapshotId, transactionId, itemId } = {}) => {
     if (!acceptance) throw new Error('evaluate_acceptance needs an `acceptance` spec — plan_motion returns one, or build one with the checks listed in animation_vocabulary.language.acceptance_checks');
     const id = snapshotId || (transactionId ? txnLedger.get(transactionId)?.before_snapshot : null);

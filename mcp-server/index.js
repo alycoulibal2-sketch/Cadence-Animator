@@ -1419,6 +1419,95 @@ server.tool(
   async (a) => { try { return textResult(await call('apply_motion_plan', a)); } catch (e) { return errorResult(e); } },
 );
 
+// ---------------------------------------------------------------- authoring (generation)
+
+const POSE_GOAL_SCHEMA = z.array(z.object({
+  joint: z.string().optional().describe('The exact joint/track name, e.g. "RightShoulder". inspect_rig lists them.'),
+  semantic_role: z.string().optional().describe('Or a role phrase ("right shoulder", "left knee") / a role id. Refused if it resolves to more than one joint — it never picks for you.'),
+  side: z.enum(['left', 'right', 'centre']).optional(),
+  rotation_goal: z.object({
+    x: z.number().optional(), y: z.number().optional(), z: z.number().optional(),
+  }).optional().describe('DEGREES about the joint\'s own axes, absolute from rest, composed Rx·Ry·Rz — the same numbers get_rotation_degrees reads back and the editor\'s rotation fields show. Never write a CFrame: call pose_conventions for what each axis means on this rig.'),
+  position_goal: z.object({
+    effector: z.string().describe('The part to place: "left foot", "right hand", or an exact part id.'),
+    target: z.object({
+      world: z.array(z.number()).optional().describe('An absolute world position in studs.'),
+      relative_to: z.string().optional().describe('Or a named part, plus `offset`.'),
+      offset: z.array(z.number()).optional().describe('Offset in world studs.'),
+      hold: z.boolean().optional().describe('Or hold the effector exactly where it is at the script\'s start frame — this is how a planted foot is AUTHORED rather than measured afterwards and apologised for.'),
+    }),
+    bend: z.enum(['natural', 'reverse']).optional().describe('Which way the middle joint bends. "natural" is the declared human direction; "reverse" deliberately bends a knee backwards, and nothing stops you.'),
+    twist_deg: z.number().optional().describe('Roll about the reach direction. Changes the limb\'s orientation without moving the effector at all.'),
+    chain_length: z.number().optional().describe('How many joints up from the effector to consider (default 3: the two most proximal solve, the rest hold).'),
+    bend_axis: z.array(z.number()).optional().describe('Required only where no natural bend is declared (a chain whose middle joint is a shoulder). Positive rotation about this axis is the bend.'),
+    effector_offset: z.array(z.number()).optional().describe('A point inside the effector part, in its own frame — a sword tip rather than a hand centre.'),
+  }).optional(),
+})).describe('Pose goals. A PoseSpec\'s body_region_targets array, or the goals directly.');
+
+server.tool(
+  'pose_conventions',
+  'READ-ONLY. What a pose goal may say, and what every axis means on this rig — read it before writing your first goal. Returns the rotation convention (degrees, Rx·Ry·Rz, the same numbers get_rotation_degrees reports), what +X/+Y/+Z do at each joint on a humanoid, the declared natural bend direction for every two-bone chain, and the exact reach chains this rig has with their bone lengths in studs. You never write a CFrame, a quaternion or an axis sign: state degrees and studs, and the compiler composes them.',
+  { itemId: z.string().optional().describe('The rig. Defaults to the first rig item in the project.') },
+  async (a) => { try { return textResult(await call('pose_conventions', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'compile_pose',
+  'READ-ONLY (a dry run). Turn pose goals into the keyframe operations that realise them at one frame, and measure the resulting pose — WITHOUT applying anything. Rotation goals are exact degrees; a reach goal is solved analytically onto its target and lands on it to floating-point precision, or reports how many studs short it falls and why (it never silently approximates). Returns the line of action, a volume-proxy centre of mass, and balance against the support you declare — measurements, not judgements: whether the pose READS is not something this build decides. Hand `ops` to preview_animation_patch or apply_animation_patch to commit it.',
+  {
+    itemId: z.string().describe('The rig to pose.'),
+    pose: POSE_GOAL_SCHEMA,
+    t: z.number().optional().describe('The frame to key at. Defaults to the playhead.'),
+    holdFrame: z.number().optional().describe('The frame a `{ hold: true }` reach target reads its position from (default 0).'),
+    support: z.array(z.string()).optional().describe('Effectors carrying the body\'s weight, e.g. ["left foot"]. Without it balance comes back null with the reason — nothing here infers which foot is planted.'),
+    easing: z.object({ es: z.string().optional(), ed: z.enum(['In', 'Out', 'InOut']).optional() }).optional(),
+    onlyNamed: z.boolean().optional().describe('Default true: key only the joints the goals reach. False keys every joint on the rig, making the frame a full-body pose nothing can drift out from under.'),
+  },
+  async (a) => { try { return textResult(await call('compile_pose', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'author_motion',
+  'MUTATING (transactional, undoable, rollback-capable). GENERATE animation on an empty or existing timeline: key poses at the phase frames you declare, plus breakdowns, holds and a settle, applied as one reversible transaction and then measured against an acceptance spec built for authoring. This is the counterpart of apply_motion_plan, which only ever transforms keys that already exist — on an empty rig that one correctly produces nothing, and this one produces the motion. Frames are yours and are never inferred: a phase template names an attack\'s phases in order and says nothing about their durations, so a call with no `phases` returns the phase names and a question rather than a guess. Every authored key is checked against your declared contacts by the same constraint checker an edit goes through, and a step a constraint refuses is dropped and named.',
+  {
+    request: z.string().optional().describe('What this motion IS, in a sentence — it carries the style and the preserve clause the acceptance is built from. Or pass `intent`.'),
+    intent: z.any().optional().describe('An IntentSpec from interpret_intent.'),
+    itemId: z.string().optional().describe('The rig to author onto.'),
+    actionType: z.enum(['attack', 'reaction', 'gesture', 'locomotion', 'idle', 'transition', 'other']).optional(),
+    start: z.object({
+      pose: POSE_GOAL_SCHEMA.optional(),
+      easing: z.object({ es: z.string().optional(), ed: z.enum(['In', 'Out', 'InOut']).optional() }).optional(),
+    }).optional().describe('The pose at the first phase\'s `from` frame. Omitted means the rig\'s rest pose, written explicitly as a key rather than left implied.'),
+    phases: z.array(z.object({
+      name: z.enum(['preparation', 'anticipation', 'acceleration', 'action', 'impact', 'follow_through', 'recovery', 'settle']).optional(),
+      from: z.number().describe('First frame of the phase.'),
+      to: z.number().describe('The frame this phase\'s key pose lands on.'),
+      pose: POSE_GOAL_SCHEMA.optional(),
+      hold_until: z.number().optional().describe('Write the same pose again at this frame, so the hold is real data rather than an accident of interpolation.'),
+      breakdown: z.object({
+        at: z.number().describe('The frame the breakdown key lands on, strictly inside the span.'),
+        bias: z.number().describe('How far between the two key poses the breakdown SITS (0 = the earlier pose, 1 = the later). Deliberately not the time fraction: the gap between them is what makes the motion favour one end.'),
+      }).optional(),
+      easing: z.object({ es: z.string().optional(), ed: z.enum(['In', 'Out', 'InOut']).optional() }).optional(),
+    })).optional().describe('The phase timing, in exact frames. Required — nothing here invents a duration.'),
+    settle: z.object({
+      overshoot_at: z.number().describe('A frame strictly between the second-to-last key and the last one.'),
+      ratio: z.number().describe('How far past the final pose the overshoot travels, as a fraction of the last transition.'),
+      easing: z.object({ es: z.string().optional(), ed: z.enum(['In', 'Out', 'InOut']).optional() }).optional(),
+    }).optional(),
+    contacts: z.array(z.object({
+      effector: z.string().describe('Use a ROLE PHRASE ("left foot"), not a part name — a part name resolves for the measurement and NOT for the constraint, and a violation rate of 0 would then be a lie.'),
+      start: z.number(), end: z.number(), tolerance_studs: z.number().optional(),
+      mode: z.enum(['planted', 'sliding', 'glancing', 'gripping', 'collision', 'suspended', 'custom']).optional(),
+    })).optional(),
+    support: z.array(z.string()).optional().describe('Effectors carrying the weight, for the balance measured at every key.'),
+    keyAllTouched: z.boolean().optional().describe('Default true: every authored frame keys every joint the script touches, so a joint posed in one phase and not the next holds visibly instead of drifting by interpolation.'),
+    constrain: CONSTRAIN_SCHEMA.optional(),
+    force: z.boolean().optional().describe('Apply despite a refusing constraint. Recorded as a user override on the transaction, not hidden.'),
+  },
+  async (a) => { try { return textResult(await call('author_motion', a)); } catch (e) { return errorResult(e); } },
+);
+
 server.tool(
   'evaluate_acceptance',
   'READ-ONLY. Run an AcceptanceSpec against the current project, comparing to a snapshot or a transaction\'s before-state. Each check comes back pass / fail / NOT RUN — never "passed" for something that could not be evaluated — and the summary counts all three separately. `proxies` names the checks that measure something adjacent to the artistic claim rather than the claim itself: rotation amplitude going up is a fact, "it reads heavier" is not something any check here can decide.',

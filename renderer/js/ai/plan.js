@@ -33,6 +33,7 @@ import * as CF from '../cf.js';
 import { paramsFor } from '../easing.js';
 import * as K from './kinematics.js';
 import * as MOTION from './motion.js';
+import * as POSE from './pose.js';
 import * as CAL from './cal.js';
 import * as VOC from './vocabulary.js';
 import * as ROLES from './roles.js';
@@ -1101,6 +1102,463 @@ function resolveOverlaps(ops) {
   return { kept, dropped: [...collisions.values()] };
 }
 
+// ---------------------------------------------------------------- authoring (Parts 26, 29, 32)
+//
+// `planMotion` above edits. This authors: an empty timeline in, key poses at declared phase
+// boundaries out, with breakdowns, holds and a settle, all COMPUTED from explicit numbers.
+//
+// Four decisions shaped it, each a place it could have gone wrong:
+//
+//   * **Frames are the caller's, never inferred.** `segmentPhases`'s templates name an attack's
+//     phases in order; they say nothing about how many frames each one should take, and this file
+//     will not invent proportions. A caller who names an action type without frames gets the
+//     template's phase ORDER back plus a question — not a guess wearing a number's clothes. Adding
+//     a default-proportion recipe is a product decision, not a compiler's.
+//   * **Every authored frame is a full key over the script's own joint set.** A joint posed in one
+//     phase and not the next would otherwise hold its value through the next phase by
+//     interpolation, which is the classic "I didn't key it and it drifted" bug. Carrying it
+//     forward explicitly makes the hold visible in the timeline, in the x-sheet and to every later
+//     strategy. `keyAllTouched: false` turns it off for a caller who wants a sparse track.
+//   * **A breakdown is a POSE BIAS, not a time fraction.** A key 40% of the way through a span
+//     holding a pose 25% of the way between its neighbours is what makes an arc favour its
+//     anticipation. Both numbers are reported side by side so the favour is visible.
+//   * **A settle overshoots BEFORE it rests.** The final pose is the rest pose; the overshoot key
+//     sits between the previous key and it, past the final value by a declared ratio of the last
+//     transition's travel. `scaleAbout` — the same anchored scale the `amplitude` strategy uses —
+//     computes both the breakdown and the overshoot, so there is one interpolation primitive here
+//     and not two that could disagree.
+
+/** The steps an authoring script compiles to. Named so a blocked one can be reported by kind. */
+export const AUTHOR_STEP_KINDS = Object.freeze(['start', 'key_pose', 'breakdown', 'hold', 'settle']);
+
+/** Which pose role a phase's arriving key plays, for the PoseSpec the plan carries. */
+function authoredPoseRole(name) {
+  return poseRoleFor(name);
+}
+
+function sortedUnique(values) {
+  return [...new Set(values.map((v) => Math.round(v * 1e6) / 1e6))].sort((a, b) => a - b);
+}
+
+/**
+ * Author a motion from an IntentSpec, a phase timing and a PoseSpec per phase.
+ *
+ * @param opts.intent      an IntentSpec — carries the request, the preserve clause and the style
+ * @param opts.itemId      the rig to author onto
+ * @param opts.phases      `[{ name, from, to, pose, hold_until?, breakdown?, easing? }]`, in frames
+ * @param opts.start       `{ pose, easing }` for the key at the first phase's `from`
+ * @param opts.settle      `{ overshoot_at, ratio, easing }`
+ * @param opts.constraints ConstraintSpecs the authored keys are checked against
+ * @param opts.contacts    declared contacts (`{ effector, start, end, tolerance_studs }`)
+ * @param opts.actionType  used ONLY to name the phases a caller must supply frames for
+ */
+export function authorMotion(project, {
+  intent, itemId = null, phases = null, start = null, settle = null,
+  constraints = [], contacts = [], support = [], actionType = null,
+  keyAllTouched = true, frame = 0,
+} = {}) {
+  if (!intent || !intent.id) throw new TypeError('authorMotion: an IntentSpec is required — build one with ai/intent.js interpretRequest, or by hand with ai/cal.js intentSpec');
+  const target = intent.target || {};
+  const id = itemId ?? target.itemId ?? null;
+  const item = itemOf(project, id);
+  if (!item) throw new Error(`authorMotion: no item "${id}" — pass itemId, or set intent.target.itemId`);
+  if (!item.rig) throw new Error(`authorMotion: "${item.name || id}" has no rig. Authoring writes joint rotations; a camera or prop has none`);
+
+  const findings = [...(intent.findings || [])];
+  const questions = [...(intent.unresolved_questions || [])];
+  const risks = [];
+  const notes = [];
+  const act = actionType ?? intent.action_type ?? null;
+
+  // --- the timing has to be given. A template names the phases; it does not time them.
+  if (!phases || !phases.length) {
+    const template = TEMPLATES[act];
+    const order = template
+      ? ['preparation', 'anticipation', 'action', 'follow_through', 'recovery', 'settle'].filter((n) => (act === 'reaction' ? n !== 'anticipation' : true))
+      : null;
+    const q = template
+      ? `Authoring needs frames. A "${act}" runs ${order.join(' → ')} (${template.why}). Give each phase a \`from\` and \`to\` in frames — this compiler will not invent durations, because a proportion it made up would read as a measurement.`
+      : 'Authoring needs `phases`: [{ name, from, to, pose }] in frames. No phase template exists for this action type, and inventing a phase structure would be a guess dressed as an analysis.';
+    questions.push(q);
+    findings.push(finding({
+      id: 'AUTHOR-NO-TIMING',
+      certainty: CERTAINTY.CERTAIN,
+      statement: 'No phase timing was supplied, so nothing was authored.',
+      evidence: [evidence('absence', template ? `the "${act}" template names the phase order but carries no durations` : `no phase template exists for action type "${act ?? 'unspecified'}"`)],
+      suggestion: { text: 'pass `phases: [{ name, from, to, pose }]` with exact frames', reversible: true },
+    }));
+    return authorResult({ project, itemId: id, intent, ops: [], steps: [], blocked: [], findings, questions, risks, notes, phases: [], keyTimes: [], contacts: [], acceptance: null, range: null, poses: [] });
+  }
+
+  // --- validate the timing before anything is compiled, so a bad script fails with the reason
+  const ordered = [...phases].sort((a, b) => a.from - b.from);
+  for (let i = 0; i < ordered.length; i++) {
+    const p = ordered[i];
+    if (!(Number.isFinite(p.from) && Number.isFinite(p.to))) throw new TypeError(`authorMotion: phase ${i} ("${p.name ?? 'unnamed'}") needs numeric \`from\` and \`to\` in frames`);
+    if (p.to <= p.from) throw new TypeError(`authorMotion: phase "${p.name ?? i}" ends at ${p.to}, which is not after its start ${p.from}`);
+    if (i && p.from < ordered[i - 1].to - EPS) throw new TypeError(`authorMotion: phase "${p.name ?? i}" starts at ${p.from}, before "${ordered[i - 1].name ?? i - 1}" ends at ${ordered[i - 1].to} — authoring does not overlap phases, because two poses arriving at one frame have no defined order`);
+  }
+
+  const tracks = tracksOf(project, id);
+  const startFrame = ordered[0].from;
+
+  // --- step 1: the start pose. Rest unless the caller gives one, and written explicitly rather
+  // than left to the editor's auto-zero-key affordance, which this layer deliberately does not do.
+  const steps = [];
+  const compiled = [];
+  const startCompile = POSE.compilePose(project, {
+    itemId: id, t: startFrame, pose: (start && start.pose) || [], support,
+  });
+  compiled.push({ kind: 'start', name: 'start', t: startFrame, out: startCompile });
+
+  // The pose the whole script is authored against at the hold frame — the stance, not the rig's
+  // rest, because the stance exists only as operations at this point.
+  const holdPose = startCompile.pose;
+
+  // --- step 2: one key pose per phase, each layered on the pose the previous key arrived at
+  let carried = { ...startCompile.pose };
+  for (const p of ordered) {
+    const out = POSE.compilePose(project, {
+      itemId: id, t: p.to, pose: p.pose || [], basePose: carried,
+      holdFrame: startFrame, holdPose, support,
+    });
+    compiled.push({ kind: 'key_pose', name: p.name ?? `frames ${p.from}–${p.to}`, t: p.to, phase: p, out });
+    carried = { ...out.pose };
+    if (p.hold_until !== undefined && p.hold_until !== null) {
+      if (!(p.hold_until > p.to + EPS)) throw new TypeError(`authorMotion: phase "${p.name ?? ''}" holds until ${p.hold_until}, which is not after its key at ${p.to}`);
+      // `applied` is cleared: the hold re-writes the pose the phase already solved, and repeating
+      // the phase's reach results here would report one solve as two.
+      compiled.push({ kind: 'hold', name: `${p.name ?? 'phase'} hold`, t: p.hold_until, phase: p, out: { ...out, ops: [], applied: [], findings: [], pose: out.pose }, holdOf: p.to });
+    }
+  }
+
+  // --- the joint set: every joint any step touched. Every authored frame keys all of them.
+  const touched = sortedTracks(compiled);
+  if (!touched.length) {
+    findings.push(finding({
+      id: 'AUTHOR-NO-GOALS',
+      certainty: CERTAINTY.CERTAIN,
+      statement: 'No pose goal resolved to a joint, so there is nothing to author.',
+      evidence: [evidence('absence', compiled.flatMap((c) => c.out.unresolved || []).map((u) => u.why).join('; ') || 'the script named no pose goals at all')],
+      suggestion: { text: 'give at least one phase a pose: { joint | semantic_role, rotation_goal: { x, y, z } } — inspect_rig lists the joints', reversible: true },
+    }));
+  }
+
+  // --- step 3: breakdowns, computed as a pose BIAS between the neighbouring key poses
+  const withBreakdowns = [];
+  for (let i = 0; i < compiled.length; i++) {
+    withBreakdowns.push(compiled[i]);
+    const next = compiled[i + 1];
+    if (!next || next.kind !== 'key_pose' || !next.phase || !next.phase.breakdown) continue;
+    const bd = next.phase.breakdown;
+    const from = compiled[i], to = next;
+    if (!(bd.at > from.t + EPS && bd.at < to.t - EPS)) throw new TypeError(`authorMotion: the breakdown for "${next.name}" is at frame ${bd.at}, which is not strictly between ${from.t} and ${to.t}`);
+    const bias = bd.bias ?? bd.pose_bias ?? null;
+    if (typeof bias !== 'number') throw new TypeError(`authorMotion: the breakdown for "${next.name}" needs a numeric \`bias\` — how far between the two key poses the breakdown sits (0 = the earlier pose, 1 = the later one). It is deliberately NOT the time fraction; the difference is what makes the motion favour one end`);
+    const pose = {};
+    for (const name of touched) {
+      const a = from.out.pose[name] || CF.IDENTITY.slice();
+      const b = to.out.pose[name] || CF.IDENTITY.slice();
+      pose[name] = scaleAbout(a, b, bias);
+    }
+    withBreakdowns.push({
+      kind: 'breakdown', name: `${next.name} breakdown`, t: bd.at,
+      // A breakdown is a real key pose, so it is measured like one — a breakdown that throws the
+      // balance outside the support polygon is exactly the kind of thing worth seeing.
+      out: { pose, ops: [], applied: [], unresolved: [], findings: [], measured: POSE.measurePose(project, { itemId: id, pose, support, frame: bd.at }) },
+      bias, between: [from.t, to.t], easing: bd.easing || null,
+    });
+  }
+
+  // --- step 4: the settle — an overshoot key before the final rest pose
+  const finalStep = withBreakdowns[withBreakdowns.length - 1];
+  const prevStep = withBreakdowns[withBreakdowns.length - 2];
+  let settleStep = null;
+  if (settle) {
+    if (!prevStep) throw new TypeError('authorMotion: a settle needs at least two authored keys — it overshoots the travel BETWEEN them');
+    const at = settle.overshoot_at ?? settle.at ?? null;
+    const ratio = settle.ratio ?? settle.overshoot_ratio ?? null;
+    if (!(typeof at === 'number' && at > prevStep.t + EPS && at < finalStep.t - EPS)) {
+      throw new TypeError(`authorMotion: the settle's \`overshoot_at\` must be strictly between the previous key (${prevStep.t}) and the final key (${finalStep.t}); got ${at}`);
+    }
+    if (!(typeof ratio === 'number' && ratio > 0)) throw new TypeError('authorMotion: a settle needs a positive `ratio` — how far past the final pose the overshoot travels, as a fraction of the last transition');
+    const pose = {};
+    for (const name of touched) {
+      const a = prevStep.out.pose[name] || CF.IDENTITY.slice();
+      const b = finalStep.out.pose[name] || CF.IDENTITY.slice();
+      pose[name] = scaleAbout(a, b, 1 + ratio);
+    }
+    settleStep = {
+      kind: 'settle', name: 'settle', t: at,
+      out: { pose, ops: [], applied: [], unresolved: [], findings: [], measured: POSE.measurePose(project, { itemId: id, pose, support, frame: at }) },
+      ratio, between: [prevStep.t, finalStep.t], easing: settle.easing || { es: 'Sine', ed: 'InOut' },
+    };
+    withBreakdowns.splice(withBreakdowns.length - 1, 0, settleStep);
+  }
+
+  // --- build the operations, in frame order, keying the whole joint set at every authored frame
+  const inOrder = [...withBreakdowns].sort((a, b) => a.t - b.t);
+  const keyTimes = sortedUnique(inOrder.map((s) => s.t));
+  if (keyTimes.length !== inOrder.length) {
+    throw new TypeError(`authorMotion: two authored keys land on the same frame (${inOrder.map((s) => `${s.name}@${s.t}`).join(', ')}) — a frame holds one pose, so the script has to choose`);
+  }
+  const running = {};
+  for (const step of inOrder) {
+    const ops = [];
+    const held = [];
+    // One easing for every operation at a frame, not one per track. A key's easing governs the
+    // segment that LEAVES it, so the direction comes from the phase that segment travels through
+    // — the same rule `spacing_contrast` applies to an existing key. Mixing per-track defaults
+    // into one key would make a held joint ease differently from a posed one at the same frame,
+    // which reads as the body coming apart.
+    const declared = step.kind === 'start' ? (start && start.easing) : (step.kind === 'key_pose' ? (step.phase && step.phase.easing) : step.easing);
+    const easing = { ...(departingEasing(step.t, ordered) || {}), ...(declared || {}) };
+    const names = keyAllTouched ? touched : sortedUnique2(step.out.ops.map((o) => o.track));
+    for (const name of names) {
+      const v = step.out.pose[name] ?? running[name] ?? CF.IDENTITY.slice();
+      const explicit = step.out.ops.some((o) => o.track === name) || step.kind === 'breakdown' || step.kind === 'settle';
+      if (!explicit && step.kind !== 'start') held.push(name);
+      const op = { op: 'set_key', itemId: id, track: name, t: step.t, value: v };
+      if (easing.es) op.es = easing.es;
+      if (easing.ed) op.ed = easing.ed;
+      ops.push(op);
+      running[name] = v;
+    }
+    steps.push({ ...step, ops, held, easing });
+  }
+
+  // --- every step is checked against the declared constraints on its own, so a blocked step names
+  // the constraint that blocked it rather than "something in the batch was refused" — the same
+  // rule compilePlan follows for a strategy.
+  const applied = [];
+  const blocked = [];
+  const finalOps = [];
+  for (const step of steps) {
+    if (!step.ops.length) continue;
+    const trial = makePatch({ ops: step.ops, intent: `author ${step.kind}: ${step.name} @ ${step.t}` });
+    const trialPlan = planPatch(project, trial);
+    const report = checkPatch(project, trial, constraints, { frame, result: trialPlan.result });
+    const refusing = report.violations.filter((v) => v.response === 'refuse');
+    if (refusing.length) {
+      const byConstraint = [...new Map(refusing.map((v) => [v.constraint_id, v])).values()];
+      blocked.push({
+        step: step.kind, name: step.name, t: step.t,
+        reason: `${byConstraint.length} constraint(s) refuse this: ${byConstraint.map((v) => v.rule).join('; ')}`,
+        blocked_by: 'constraint',
+        constraints: byConstraint.map((v) => ({ id: v.constraint_id, rule: v.rule, type: v.constraint_type, priority: v.priority, priority_name: v.priority_name })),
+        operations_dropped: step.ops.length,
+      });
+      findings.push(finding({
+        id: 'AUTHOR-STEP-BLOCKED',
+        certainty: CERTAINTY.CERTAIN,
+        statement: `the ${step.kind} at frame ${step.t} ("${step.name}") was dropped: ${byConstraint.map((v) => v.rule).join('; ')}.`,
+        evidence: [evidence('data', `${step.ops.length} operation(s) dropped`, byConstraint.map((v) => v.rule))],
+        frame: step.t,
+        suggestion: { text: 'relax the constraint, or move the key outside its protected range', reversible: true },
+      }));
+      continue;
+    }
+    const warnings = report.violations.filter((v) => v.response !== 'refuse');
+    applied.push({
+      step: step.kind, name: step.name, t: step.t, operations: step.ops.length,
+      tracks: step.ops.map((o) => o.track),
+      held_from_previous: step.held,
+      reached: (step.out.applied || []).filter((a) => a.kind === 'reach').map((a) => ({ effector: a.effector, residual_studs: a.residual_studs, reached: a.reached })),
+      contact_warnings: warnings.map((v) => v.rule),
+      bias: step.bias ?? null, ratio: step.ratio ?? null, between: step.between ?? null,
+      holds: step.holdOf ?? null,
+    });
+    finalOps.push(...step.ops);
+  }
+
+  // --- the plan this authored, in the same language a planned edit speaks
+  const range = [startFrame, Math.max(...keyTimes)];
+  const planPhases = ordered.map((p) => CAL.phaseSpec({
+    name: p.name ?? null,
+    timeRange: [p.from, p.to],
+    purpose: p.purpose ?? (p.name ? purposeOf(p.name) : null),
+    derivation: 'declared by the authoring script',
+    certainty: CERTAINTY.CERTAIN,
+    timingRules: [`${p.to - p.from} frame(s)${p.hold_until ? `, then held to ${p.hold_until}` : ''}${p.breakdown ? `, breakdown at ${p.breakdown.at} biased ${p.breakdown.bias}` : ''}`],
+    poseGoals: (p.pose || []).map((g) => (g.rotation_goal ? `${g.joint ?? g.semantic_role ?? g.role}: ${JSON.stringify(g.rotation_goal)}°` : `${g.position_goal?.effector ?? g.joint ?? 'effector'}: reach`)),
+  }));
+  const poseSpecs = steps.filter((s) => s.kind === 'key_pose' || s.kind === 'breakdown' || s.kind === 'settle' || s.kind === 'start').map((s) => CAL.poseSpec({
+    time: s.t,
+    role: s.kind === 'breakdown' ? 'breakdown' : s.kind === 'settle' ? 'recoil' : s.kind === 'start' ? 'key' : authoredPoseRole(s.phase?.name),
+    purpose: s.kind === 'breakdown' ? `a breakdown biased ${s.bias} between frames ${s.between.join(' and ')}` : s.kind === 'settle' ? `an overshoot ${s.ratio} past the final pose` : s.name,
+    bodyRegionTargets: (s.ops || []).map((o) => ({
+      role: null, joint: o.track,
+      rotationGoal: POSE.degreesFromRotation(o.value),
+      orientationIntent: null, constraint: null,
+    })),
+    lineOfAction: s.out.measured?.line_of_action ? `${s.out.measured.line_of_action.tilt_from_vertical_deg}° from vertical, spine deviation ${s.out.measured.line_of_action.max_deviation_studs} studs (measured)` : null,
+    // Null when no support was declared, because nothing infers one — the PoseSpec field stays
+    // null rather than carrying a balance verdict computed against a guess.
+    balanceState: balanceSentence(s.out.measured),
+    centerOfMassTarget: s.out.measured?.centre_of_mass ? `${JSON.stringify(s.out.measured.centre_of_mass.point)} — ${s.out.measured.centre_of_mass.method}` : null,
+    supportPolygon: s.out.measured?.balance?.support_polygon ?? null,
+    confidence: CERTAINTY.CERTAIN,
+    styleNotes: intent.style_profile,
+  }));
+
+  const contactSpecs = contacts.map((c) => CAL.contactSpec({
+    effector: c.effector, mode: c.mode || 'planted', start: c.start ?? null, end: c.end ?? null,
+    positionalTolerance: c.tolerance_studs ?? null, validationMethod: 'declared',
+    certainty: CERTAINTY.USER_INTENT_REQUIRED,
+    evidence: [evidence('data', 'declared on the authoring script')],
+  }));
+
+  const timing = CAL.timingSpec({
+    duration: range[1] - range[0],
+    frameRate: project.fps ?? null,
+    phaseBoundaries: ordered.map((p) => ({ name: p.name ?? null, at: p.from })),
+    heldFrames: steps.filter((s) => s.kind === 'hold').map((s) => ({ from: s.holdOf, to: s.t })),
+    impactFrames: ordered.filter((p) => p.name === 'impact').map((p) => p.to),
+    contactRanges: contacts.map((c) => [c.start, c.end]),
+    protectedTimes: (intent.critical_events || []).map((e) => ({ t: e.expected_time, tolerance: e.tolerance })),
+    retimingLimits: null,
+  });
+
+  const acceptance = buildAuthoringAcceptance({ itemId: id, tracks: touched, keyTimes: applied.map((a) => a.t), contacts, steps, project });
+
+  if (touched.length && !keyAllTouched) risks.push('keyAllTouched is off, so a joint posed in one phase and not the next holds its value by interpolation rather than by a key — a later strategy will not see that hold, and neither will an x-sheet');
+  const unreached = steps.flatMap((s) => (s.out.applied || []).filter((a) => a.kind === 'reach' && !a.reached).map((a) => ({ t: s.t, effector: a.effector, shortfall: a.shortfall })));
+  if (unreached.length) risks.push(`${unreached.length} reach goal(s) fell short of their target and were solved to the closest reachable pose — the shortfall in studs is on each one, and a contact declared over those frames will measure the difference`);
+  notes.push(...steps.flatMap((s) => (s.out.findings || []).map((f) => `${s.name}: ${f.statement}`)));
+  findings.push(...compiled.flatMap((c) => c.out.findings || []));
+
+  const plan = CAL.motionPlan({
+    intentId: intent.id,
+    duration: range[1] - range[0],
+    phases: planPhases,
+    rootMotionStrategy: 'unchanged — authoring writes joint tracks; nothing here writes the @origin track, so the character does not travel',
+    secondaryMotionStrategy: 'none — overlap and drag are not generated; a lead_lag edit after authoring is how they get added (plan_motion)',
+    styleOverrides: intent.style_profile,
+    protectedElements: [...intent.preserve, ...constraints.map((c) => c.property_or_semantic_rule)],
+    acceptanceCriteria: acceptance,
+    risks,
+    target: { itemId: id, timeRange: range, range_reason: 'the authoring script declared these frames', phases: planPhases.map((p) => p.id) },
+    edits: applied.map((a) => ({ id: `author:${a.step}:${a.t}`, strategy: `author_${a.step}`, dimension: null, pull: null, aspects: ['value'], summary: `${a.step} at frame ${a.t}: ${a.operations} key(s)`, contributes: 'the pose itself — this operation generates animation rather than transforming it' })),
+    blocked,
+    timing,
+    contacts: contactSpecs,
+    poses: poseSpecs,
+  });
+
+  return authorResult({
+    project, itemId: id, intent, ops: finalOps, steps: applied, blocked, findings: sortFindings(findings),
+    questions, risks, notes, phases: planPhases, keyTimes: applied.map((a) => a.t), contacts: contactSpecs,
+    acceptance, range, poses: poseSpecs, plan, touched, measured: steps.map((s) => ({ t: s.t, name: s.name, measured: s.out.measured })),
+  });
+}
+
+/**
+ * The easing a key at frame `t` should carry.
+ *
+ * A key's easing governs the segment that LEAVES it, so the direction is the one the phase that
+ * segment travels through wants — `PHASE_DIRECTION`, the same table `spacing_contrast` uses on an
+ * existing key, so an authored clip and an edited one speak the same language.
+ *
+ * Only the DIRECTION is defaulted. The style is left to `set_key`'s own default, because choosing
+ * Sine over Quart is a spacing decision and this is a pose generator; a caller who wants one says
+ * so per phase, and `plan_motion`'s spacing strategies reshape it afterwards.
+ */
+function departingEasing(t, ordered) {
+  const phase = ordered.find((p) => t >= p.from - EPS && t < p.to - EPS);
+  const dir = phase && phase.name ? PHASE_DIRECTION[phase.name] : null;
+  return dir ? { ed: dir } : null;
+}
+
+/** The balance field of an authored PoseSpec, or null when no support was declared to test against. */
+function balanceSentence(measured) {
+  const b = measured && measured.balance;
+  if (!b || b.supported === null || b.supported === undefined) return null;
+  return b.supported
+    ? `supported, margin ${b.margin_studs} studs (measured against the declared support)`
+    : `unsupported by ${Math.abs(b.margin_studs)} studs (measured against the declared support)`;
+}
+
+function sortedTracks(compiled) {
+  return [...new Set(compiled.flatMap((c) => (c.out.ops || []).map((o) => o.track)))].sort();
+}
+function sortedUnique2(values) { return [...new Set(values)].sort(); }
+
+/**
+ * The acceptance spec for an authored motion.
+ *
+ * Different from a planned EDIT's spec in the one way that matters: an edit proves that what it
+ * did not mean to change did not change, and an authoring run has to prove that what it promised
+ * to create actually exists. `key_times_include` is that check, and `pose_changed_at` on the first
+ * and last authored frames is what proves the poses reached the joints rather than compiling to
+ * identity everywhere.
+ */
+function buildAuthoringAcceptance({ itemId, tracks, keyTimes, contacts, steps }) {
+  const checks = [];
+  if (keyTimes.length) checks.push({ check: 'key_times_include', itemId, times: keyTimes, tracks });
+  // The extremes: whichever authored key is furthest from the start pose has to be measurably
+  // different from it, or nothing was authored but keys.
+  const keyed = steps.filter((s) => s.kind === 'key_pose' && s.ops.length);
+  if (keyed.length && tracks.length) {
+    const first = keyed[0];
+    const biggest = keyed.reduce((best, s) => {
+      const d = (s.ops || []).reduce((acc, o) => acc + K.angleBetween(CF.IDENTITY, o.value), 0);
+      return d > best.d ? { s, d } : best;
+    }, { s: keyed[0], d: -1 });
+    const track = (biggest.s.ops || []).slice().sort((a, b) => K.angleBetween(CF.IDENTITY, b.value) - K.angleBetween(CF.IDENTITY, a.value))[0];
+    if (track) checks.push({ check: 'pose_changed_at', itemId, track: track.track, t: track.t, min_deg: 5 });
+    if (first !== biggest.s) checks.push({ check: 'key_count_within', itemId, max: Math.max(64, tracks.length * (keyTimes.length + 2)) });
+    else checks.push({ check: 'key_count_within', itemId, max: Math.max(64, tracks.length * (keyTimes.length + 2)) });
+  }
+  for (const c of contacts) {
+    checks.push({ check: 'contact_drift_within', itemId, effector: c.effector, start: c.start, end: c.end, tolerance: c.tolerance_studs, mode: c.mode || 'planted' });
+  }
+  checks.push({ check: 'scope_unchanged', itemIds: [itemId] });
+  return CAL.acceptanceSpec({
+    checks,
+    reviewRequired: 'a person watches the authored range and rates it — no measurement here says the motion reads as intended (Part 4.5)',
+    baselinePolicy: 'the before-state is an empty (or pre-existing) timeline; the acceptance compares against it',
+    tolerancePolicy: 'a declared contact carries its own tolerance in studs; a reach that fell short reports its shortfall rather than being counted as reached',
+  });
+}
+
+/** One result shape for every exit, so a caller never has to branch on which failure happened. */
+function authorResult({ project, itemId, intent, ops, steps, blocked, findings, questions, risks, notes, phases, keyTimes, contacts, acceptance, range, poses, plan = null, touched = [], measured = [] }) {
+  return {
+    plan,
+    ops,
+    steps,
+    blocked,
+    authored: ops.length > 0,
+    summary: ops.length
+      ? `${ops.length} operation(s) across ${steps.length} authoring step(s) on ${touched.length} joint(s), frames ${range[0]}–${range[1]}${blocked.length ? `, ${blocked.length} blocked` : ''}`
+      : `nothing was authored${blocked.length ? ` — all ${blocked.length} step(s) were blocked` : ''}`,
+    tracks: touched,
+    key_frames: keyTimes,
+    phases,
+    poses,
+    contacts,
+    acceptance,
+    measured,
+    findings,
+    questions,
+    risks,
+    notes,
+    description: plan ? CAL.describePlan(plan) : 'nothing was authored',
+    coverage: coverage({
+      scope: `item ${itemId}${range ? `, frames ${range[0]}–${range[1]}` : ''}`,
+      frames: range,
+      loop: 'fast',
+      notRun: [
+        'nothing was rendered. Whether the authored poses read — silhouette, staging, whether the arc is the one intended — is not measured anywhere in this build (MOT-012, Parts 28, 43)',
+        'no secondary motion, overlap or drag was generated: the keys are the poses asked for, exactly. Adding overlap is an EDIT (plan_motion\'s lead_lag) on top of what this authored',
+        'no joint limit was consulted — Cadence stores none (the Rig Graph reports them as unknown, not unlimited)',
+        'phase durations are the caller\'s. Nothing here judges whether an anticipation of that length is right for that action; Part 26 has no measurable rule this build could apply',
+        'a contact is measured only where one was DECLARED. A foot the script meant to plant and nobody declared is not checked (MOT-016)',
+      ],
+    }),
+  };
+}
+
 /** What the planner and compiler can and cannot do, for a caller who should not have to infer it
  *  from an empty result. */
 export function planLimitations() {
@@ -1110,9 +1568,29 @@ export function planLimitations() {
     })),
     phase_sources: ['declared boundaries (certain)', 'named markers (highly likely)', 'a rate template for attack and reaction (possible)'],
     gains: GAIN,
+    authoring: {
+      entry_point: 'authorMotion',
+      step_kinds: AUTHOR_STEP_KINDS,
+      can: [
+        'generate keys on an empty timeline from an IntentSpec, declared phase frames and a PoseSpec per phase',
+        'compute each pose exactly: degrees about named axes, or an analytic two-bone reach to a target in studs (ai/pose.js)',
+        'insert a breakdown at a declared frame with a declared POSE BIAS, which is what makes an arc favour one end',
+        'hold a pose by writing it again at a declared frame, so the hold is visible in the data rather than implied by interpolation',
+        'overshoot before a final pose by a declared ratio of the last transition — a settle',
+        'check every authored key against declared contacts through the same constraint checker an edit goes through, and drop a step a constraint refuses',
+        'measure the line of action, a volume-proxy centre of mass and balance against declared support at every authored key',
+      ],
+      cannot: [
+        'invent phase durations. A template names an attack\'s phases in order and says nothing about their length; authorMotion asks rather than guessing, and adding a default-proportion recipe is a product decision',
+        'generate secondary motion, overlap or drag — the keys are the poses asked for. Overlap is an EDIT (lead_lag) applied on top',
+        'author root motion: nothing writes the @origin track, so an authored character does not travel',
+        'author anything but rig joint tracks — no camera, prop, effect item or marker',
+        'decide which pose is wanted, or judge whether the result reads (Part 4.5)',
+      ],
+    },
     cannot: [
-      'generate a motion from nothing — every strategy edits existing keys, so an empty timeline has nothing to make heavier',
-      'add or remove keys: holds, added settles and inserted breakdowns. This was blocked on the contact model; MOT-008 now measures drift, so an inserted key CAN be checked against a declared contact. What is still missing is a strategy that inserts one, and the pose reasoning (MOT-011: balance and centre of mass) to decide where it belongs',
+      'generate a motion from nothing WITH A STRATEGY: all four strategies transform existing keys, so an empty timeline has nothing to make heavier. Generation is `authorMotion` above — a separate entry point, because editing and authoring are different operations with different acceptance criteria',
+      'add or remove keys FROM A STRATEGY. `authorMotion` inserts breakdowns, holds and settles (checked against declared contacts, MOT-008); no strategy does, and none may — a strategy that silently added a key would break every `key_times_unchanged` promise the edit path makes',
       'plan for cameras, props or effect items — only rig joint tracks',
       'reshape a path. Curvature, bow and per-frame velocity are measured now (analyze_motion), but no strategy consumes them — the planner still reasons about keys and easings, not trajectories',
       'reason about silhouette or screen space (Parts 28, 43 — screen space needs an active camera, MOT-006)',

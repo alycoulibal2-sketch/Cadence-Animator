@@ -74,9 +74,16 @@ examined, and `inspect_scene` returns a list of what the layer can and *cannot* 
 added transactions with scoped rollback, constraints and locks, a formal animation language and
 planner, silhouette and object-ID passes with baselines, motion and contact measurement, a VFX
 compiler timed to shot events, operating modes, experiments, a structured shot review, knowledge,
-memory and style, and — last — a benchmark library that runs the real pipeline on permanent
-fixtures and an improvement loop that evaluates a proposed change against it without ever applying
-one. Design, status per requirement, and the defects this work uncovered are in
+memory and style, a benchmark library that runs the real pipeline on permanent fixtures, and an
+improvement loop that evaluates a proposed change against it without ever applying one.
+
+Most recently it learned to **generate**, not only edit. `author_motion` turns a request, a phase
+timing in exact frames and a pose goal per phase into key poses, breakdowns, holds and a settle, as
+one reversible transaction. Poses are computed rather than guessed: a joint goal is degrees about a
+named axis in the rig's own convention, and a reach goal is solved analytically onto its target —
+so a planted foot can be *held* at every key instead of being measured afterwards and apologised
+for. Where a target is out of reach the shortfall comes back in studs rather than a silently
+approximated pose. Design, status per requirement, and the defects this work uncovered are in
 [`docs/animation-intelligence/`](docs/animation-intelligence/).
 
 ## Keyboard

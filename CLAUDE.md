@@ -13,6 +13,7 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 | `renderer/js/viewport.js` | three.js scene, orbit/transform controls, picking. |
 | `renderer/js/rigbuild.js` | `RigInstance` and friends: meshes, joints, FK solve. |
 | `renderer/js/ai/**` | The animation-intelligence semantic layer. **Pure** — see below. |
+| `renderer/js/ai/pose.js` | Parts 20.3, 26, 28, 29, 32. The first module that GENERATES: a PoseSpec compiles into exact keys — degrees about named axes in the rig's own convention, or analytic two-bone IK onto a target in studs. Also measures the solved pose: line of action, a volume-proxy centre of mass, balance against DECLARED support. Never judges. |
 | `renderer/js/ai/motion.js` | Part 23's measurements: velocity, acceleration, jerk, curvature, contact drift, chain lead/lag. Measurement only. |
 | `renderer/js/ai/diagnose.js` | Part 46's "why?" workflows. The judging layer; it consumes `motion.js` and never re-measures. |
 | `renderer/js/ai/events.js` | Part 41's shared shot-event timeline, **derived** from the per-item `project.markers` tables, never migrated. |
@@ -26,7 +27,7 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 | `renderer/js/ai/knowledge.js` | Parts 25, 26, 71, 73. The twelve classical principles (full 20-field structure), the relevance gate, the premium-animation standard. Compiled reference data, like `vocabulary.js TERMS` — not project state. |
 | `renderer/js/ai/memory.js` | Parts 57, 58. Scoped project/preference memory in `project.semantics.memory`, undoable. A correction is only surfaced as a candidate once observed enough times; accepting one changes only its own status field. |
 | `renderer/js/ai/reference.js` | Part 36. A motion profile built from an in-project item via `ai/motion.js`, stored in `project.semantics.references` (NOT_STATE, like baselines). `emulate`/`not_copied` are the caller's own declaration. |
-| `renderer/js/ai/benchmark.js` | Part 59. The benchmark library: 25 categories (16 defined), 16 fixtures through the REAL pipeline, 21 dimensions (11 measured), `runSuite`, `compareRuns` (per cell, no score), human evaluation as a separate block. The implementation under test is injected (`makeImplementation`). |
+| `renderer/js/ai/benchmark.js` | Part 59. The benchmark library: 25 categories (16 defined), 17 fixtures through the REAL pipeline, 21 dimensions (11 measured), `runSuite`, `compareRuns` (per cell, no score), human evaluation as a separate block. The implementation under test is injected (`makeImplementation`). Two pipelines, not one: `runPlanPipeline` (edit) and `runAuthorPipeline` (generate). |
 | `renderer/js/ai/benchmarkBaseline.js` | **GENERATED** by `node tools/benchmark.mjs --write-baseline`. The committed production run every fresh run is compared against. Never hand-edit; re-generate and commit the diff with the change that moved a number. |
 | `renderer/js/ai/improve.js` | Part 60. Detect recurring problems from durable evidence, record a proposal (category REQUIRED), evaluate its adoption rule against two runs, record a human decision with a version and a rollback path. Applies nothing (Part 4.8). |
 | `tools/benchmark.mjs` | The suite from the command line: run, `--compare` (exit 1 on any deterministic difference), `--write-baseline`, `--options '{…}'` / `--prototype file.mjs` for prototypes, `--json` to hand a run to `review_architecture_experiment`. |
@@ -40,7 +41,7 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 `npm` is broken under Git Bash here. Use PowerShell, and invoke binaries directly.
 
 ```
-node test/aitest.mjs                # semantic layer — 359 checks
+node test/aitest.mjs                # semantic layer — 373 checks
 node test/coretest.mjs              # core           —  41
 node test/pnxtest.mjs               # PNX engine     — 298
 node tools/benchmark.mjs --compare  # Part 59 suite vs the committed baseline (deterministic only)
@@ -178,6 +179,28 @@ work.
   proposal past `evaluated`; `decideProposal` records what a PERSON chose and refuses an approval
   with no evaluation behind it. Nothing under `ai/` may adopt a change, flip an option default, or
   edit a threshold on its own — the adopting change is a commit, and git is the rollback path.
+- **An R15 arm at rest is already at its reach limit.** Hip-pivot-to-foot is 1.85 studs and the leg
+  chain's maximum is 1.85; shoulder-to-hand is 1.6897 against a maximum of 1.6888. So a reach target
+  offset from a limb's REST position is almost always out of range, and a planted foot on a straight
+  leg becomes unreachable the moment the hips turn — the solver reports the shortfall honestly and
+  the result is useless. Bend the knee in the stance pose (the same thing a real animator does), and
+  sample test targets around the JOINT PIVOT at a radius inside `reach_range_studs`, never around
+  the effector's rest position. This cost two debugging rounds.
+- **The R15 upper arm is ANGLED**: the elbow pivot sits 0.5 studs outboard and 0.728 down from the
+  shoulder pivot, so the first bone vector is `(±0.5, −0.728, 0)`, not a straight `(0, −L, 0)`. A
+  two-bone solver built on straight collinear bones places the hand systematically wrong and never
+  knows it — `ai/pose.js boneGeometry` derives both bones from the real C0/C1 offsets, and a test
+  asserts the angle is still there in `rigs/builtin.json`.
+- **A breakdown's bias is a POSE fraction, not a time fraction**, and a settle's ratio is a fraction
+  of the LAST TRANSITION's travel, not of the pose. Both go through `plan.scaleAbout` — the same
+  anchored scale the `amplitude` strategy uses — so there is one interpolation primitive and not two
+  that could disagree. `bias: 0.22` at a frame a third of the way through the span is the whole of
+  what makes an arc favour its anticipation; a compiler that used the time fraction would produce a
+  key that changes nothing and passes every test that only counts keys.
+- **Rolling back a GENERATION must remove tracks, not just keys.** `set_key` on a track that did not
+  exist inverts to `remove_track`; a rollback that only cleared the keys would leave the rig
+  carrying fifteen empty tracks and report itself complete. Both the benchmark and the smoketest
+  assert the timeline is EMPTY after the rollback, not merely byte-identical.
 - **Accepting a memory candidate (`review_preference_candidate`, decision `accept`) changes only
   that entry's own `status` field.** It never writes `ai/vocabulary.js` or a track by itself — that
   silent step is exactly the "unapproved global assumption" Part 62 forbids. A caller that wants an

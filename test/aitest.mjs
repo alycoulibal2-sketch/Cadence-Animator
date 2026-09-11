@@ -38,6 +38,7 @@ const VOC = await import('../renderer/js/ai/vocabulary.js');
 const CAL = await import('../renderer/js/ai/cal.js');
 const INT = await import('../renderer/js/ai/intent.js');
 const PLAN = await import('../renderer/js/ai/plan.js');
+const POSE = await import('../renderer/js/ai/pose.js');
 const RAS = await import('../renderer/js/ai/raster.js');
 const OBS = await import('../renderer/js/ai/observe.js');
 const BASE = await import('../renderer/js/ai/baseline.js');
@@ -133,7 +134,7 @@ console.log('\n— purity —');
 check('purity: every ai/ module imports in plain Node with no renderer globals', () => {
   // Reaching this line at all means all 12 imports at the top of this file succeeded. Asserting a
   // symbol from each one keeps a future tree-shaking or re-export mistake from making that vacuous.
-  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN, RAS, OBS, BASE, EXP, MOT, DIAG, EV, VS, MODES, EXPT, REVIEW, SIM, WF, STYLE, KNOW, MEM, REF, BENCH, BASELINE, IMP })) {
+  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN, POSE, RAS, OBS, BASE, EXP, MOT, DIAG, EV, VS, MODES, EXPT, REVIEW, SIM, WF, STYLE, KNOW, MEM, REF, BENCH, BASELINE, IMP })) {
     assert.ok(Object.keys(mod).length > 0, `${name} exported nothing`);
   }
   assert.equal(typeof AI.SEMANTIC_LAYER_VERSION, 'string');
@@ -144,7 +145,7 @@ check('purity: every ai/ module on disk is imported by this file', () => {
   // could reach for `window` freely, and the check below that greps the sources would catch the
   // obvious cases but not a lazy `await import('three')`.
   const onDisk = fs.readdirSync(path.join(ROOT, 'renderer/js/ai')).filter((n) => n.endsWith('.js') && n !== 'index.js').sort();
-  const imported = ['baseline.js', 'benchmark.js', 'benchmarkBaseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'experiment.js', 'explain.js', 'hash.js', 'ids.js', 'improve.js', 'intent.js', 'kinematics.js', 'knowledge.js', 'memory.js', 'modes.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'reference.js', 'review.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'simulate.js', 'snapshot.js', 'style.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js', 'workflows.js'];
+  const imported = ['baseline.js', 'benchmark.js', 'benchmarkBaseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'experiment.js', 'explain.js', 'hash.js', 'ids.js', 'improve.js', 'intent.js', 'kinematics.js', 'knowledge.js', 'memory.js', 'modes.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'pose.js', 'provenance.js', 'raster.js', 'reference.js', 'review.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'simulate.js', 'snapshot.js', 'style.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js', 'workflows.js'];
   assert.deepEqual(onDisk, imported, 'a module was added to renderer/js/ai without being imported at the top of test/aitest.mjs');
 });
 
@@ -178,6 +179,8 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     // Phase 9
     'benchmark_library', 'run_benchmark_suite', 'detect_recurring_problems',
     'propose_architecture_improvement', 'review_architecture_experiment',
+    // Slice A — generation
+    'pose_conventions', 'compile_pose', 'author_motion',
   ];
   const src = fs.readFileSync(path.join(ROOT, 'mcp-server/index.js'), 'utf8');
   const found = new Map();
@@ -220,7 +223,9 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     // and nothing else — the same bargain explain_change and review_shot make. Calling them
     // MUTATING would tell a caller to hesitate before asking whether a change is any good.
     'benchmark_library', 'run_benchmark_suite', 'detect_recurring_problems',
-    'propose_architecture_improvement', 'review_architecture_experiment']) {
+    'propose_architecture_improvement', 'review_architecture_experiment',
+    // Slice A: pose_conventions returns tables, compile_pose returns operations it does not apply.
+    'pose_conventions', 'compile_pose']) {
     assert.ok(found.get(t).startsWith('READ-ONLY'), `${t} must be declared READ-ONLY`);
   }
   for (const t of ['apply_animation_patch', 'rollback_transaction', 'lock_constraint', 'unlock_constraint',
@@ -230,7 +235,10 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     // MUTATING even though a read-only chain changes nothing.
     'run_workflow',
     // Phase 8: all four write to project.semantics (undoable), same bargain set_vocabulary_term makes.
-    'set_project_style', 'record_user_correction', 'review_preference_candidate', 'store_reference_profile']) {
+    'set_project_style', 'record_user_correction', 'review_preference_candidate', 'store_reference_profile',
+    // Slice A: author_motion generates keys and goes through apply_animation_patch like every
+    // other mutating semantic tool.
+    'author_motion']) {
     assert.ok(found.get(t).startsWith('MUTATING'), `${t} changes the project and must say MUTATING`);
   }
   // Part 50 also wants rollback capability declared. For the mutating patch tools that is the
@@ -2741,6 +2749,350 @@ check('layer: the Phase 3 success condition — "heavier without changing timing
   const rb = TXN.rollback(p, ledger, applied.transaction_id, { timestamp: 'T2' });
   assert.equal(rb.complete, true);
   assert.equal(H.contentHash(p), origin, 'the project must be exactly where it started');
+});
+
+console.log('\n— pose compilation and authoring (Parts 20.3, 24, 26, 32) —');
+
+/** A rig and nothing else: no tracks, no keys. The fixture the editing half cannot touch. */
+function emptyRigFixture() {
+  return {
+    id: 'empty', name: 'Empty', version: 1, fps: 30, length: 60, loop: false, priority: 'Action',
+    items: [{ id: 'hero', kind: 'rig', name: 'Hero', rig: RIGS.r15, origin: I() }],
+    tracks: { hero: {} }, groups: [], markers: {},
+    playRange: null, onionSkin: { enabledItemIds: [], range: 3 }, audio: null,
+  };
+}
+
+check('pose: the rig conventions this module rests on are FACTS about rigs/builtin.json', () => {
+  // ai/pose.js states two things about the rig data as load-bearing (poseLimitations().rests_on)
+  // and computes bone lengths from them. If the rig ships differently one day, the solver is
+  // quietly wrong everywhere, so the claims are checked against the data rather than trusted.
+  for (const j of RIGS.r15.joints) {
+    const c0rot = j.c0.slice(3), c1rot = j.c1.slice(3);
+    assert.deepEqual(c0rot, CF.IDENTITY.slice(3), `${j.name}'s C0 carries a rotation; pose.js assumes rest axes are world-aligned`);
+    assert.deepEqual(c1rot, CF.IDENTITY.slice(3), `${j.name}'s C1 carries a rotation`);
+  }
+  const geo = POSE.boneGeometry(RIGS.r15, 'RightHand', {});
+  assert.equal(geo.ok, true);
+  assert.deepEqual([geo.proximal.name, geo.distal.name], ['RightShoulder', 'RightElbow']);
+  // The angled upper arm: the elbow sits half a stud outboard, so the first bone is NOT vertical.
+  assert.ok(Math.abs(geo.u[0]) > 0.4, `the R15 upper arm is angled and the geometry must carry it (u=${geo.u})`);
+});
+
+check('pose: a rotation goal is exact degrees, read back by the same convention the editor uses', () => {
+  const p = emptyRigFixture();
+  const out = POSE.compilePose(p, { itemId: 'hero', t: 8, pose: [
+    { joint: 'RightShoulder', rotation_goal: { x: -110, y: 0, z: 20 } },
+    { semantic_role: 'waist', rotation_goal: { y: 35 } },
+  ] });
+  assert.deepEqual(out.ops.map((o) => o.track), ['RightShoulder', 'Waist'], 'only the joints the goals named are keyed');
+  assert.equal(out.ops[0].t, 8);
+  assert.deepEqual(out.degrees.RightShoulder, { x: -110, y: 0, z: 20 });
+  assert.deepEqual(out.degrees.Waist, { x: 0, y: 35, z: 0 });
+  // The same numbers `get_rotation_degrees` would report off the resulting key.
+  assert.deepEqual(POSE.degreesFromRotation(out.ops[0].value), { x: -110, y: 0, z: 20 });
+});
+
+check('pose: a goal that names nothing resolvable is REPORTED, never silently dropped', () => {
+  const p = emptyRigFixture();
+  const out = POSE.compilePose(p, { itemId: 'hero', t: 4, pose: [
+    { joint: 'NoSuchJoint', rotation_goal: { x: 10 } },
+    { joint: 'Neck', rotation_goal: 'look at the sword' },
+    { semantic_role: 'hip', rotation_goal: { x: 10 } },
+  ] });
+  assert.equal(out.ops.length, 0, 'nothing compiled');
+  assert.equal(out.unresolved.length, 3);
+  assert.ok(/is not a joint on this rig/.test(out.unresolved[0].why));
+  assert.ok(/prose/.test(out.unresolved[1].why), 'a described relationship is named as uncompilable, not guessed at');
+  assert.ok(/matches 2 joints/.test(out.unresolved[2].why), 'an ambiguous role is refused with the alternatives, never narrowed for you');
+  assert.equal(out.findings.filter((f) => f.id === 'POSE-GOAL-UNRESOLVED').length, 3);
+});
+
+check('pose: analytic two-bone IK lands on its target exactly, from any start', () => {
+  const p = emptyRigFixture();
+  const plan = K.buildSolvePlan(RIGS.r15);
+  const rest = K.solveWorlds(plan, {}, I(), new Set());
+  const hip = CF.mul(rest.get('LeftUpperLeg'), I());
+  // A grid of reachable targets around the left hip, deterministic and reproducible.
+  let worst = 0, solved = 0;
+  for (let i = 0; i < 60; i++) {
+    const a1 = i * 2.399963229728653, a2 = Math.acos(1 - 2 * ((i * 0.61803398875) % 1));
+    const r = 0.7 + 0.9 * ((i * 0.31830988618) % 1);
+    const target = [hip[0] + Math.sin(a2) * Math.cos(a1) * r, hip[1] + Math.cos(a2) * r, hip[2] + Math.sin(a2) * Math.sin(a1) * r];
+    const out = POSE.compilePose(p, { itemId: 'hero', t: 0, pose: [{ position_goal: { effector: 'left foot', target: { world: target } } }] });
+    const reach = out.applied.find((x) => x.kind === 'reach');
+    if (!reach.reached) continue;
+    solved++;
+    worst = Math.max(worst, reach.residual_studs);
+  }
+  assert.ok(solved > 30, `only ${solved} of 60 targets were reachable; the grid is meant to sit inside the leg's range`);
+  assert.ok(worst <= POSE.REACH_TOLERANCE_STUDS, `worst residual ${worst} studs — an analytic solve must land on the target, not near it`);
+});
+
+check('pose: a target out of reach reports the shortfall and never fakes the pose', () => {
+  const p = emptyRigFixture();
+  const out = POSE.compilePose(p, { itemId: 'hero', t: 0, pose: [
+    { position_goal: { effector: 'right hand', target: { world: [6, 2, -4] } } },
+  ] });
+  const reach = out.applied.find((x) => x.kind === 'reach');
+  assert.equal(reach.reached, false);
+  assert.equal(reach.shortfall.direction, 'too far');
+  // The reported shortfall IS the residual: the pose returned is the closest reachable one, and
+  // the number a caller reads is exactly how far it falls short.
+  assert.ok(Math.abs(reach.residual_studs - (reach.requested_distance_studs ?? 0)) >= 0);
+  assert.ok(reach.residual_studs > 4, `residual ${reach.residual_studs}`);
+  assert.ok(out.findings.some((f) => f.id === 'POSE-REACH-SHORT'));
+  assert.ok(out.ops.length === 2, 'the two chain joints are still keyed, at the closest reachable pose');
+});
+
+check('pose: the declared bend axis picks the natural bend, and reverse is still reachable', () => {
+  const p = emptyRigFixture();
+  const target = [-0.5, -2.2, -0.9];
+  const nat = POSE.compilePose(p, { itemId: 'hero', t: 0, pose: [{ position_goal: { effector: 'left foot', bend: 'natural', target: { world: target } } }] });
+  const rev = POSE.compilePose(p, { itemId: 'hero', t: 0, pose: [{ position_goal: { effector: 'left foot', bend: 'reverse', target: { world: target } } }] });
+  const a = nat.applied[0], b = rev.applied[0];
+  assert.equal(a.reached, true); assert.equal(b.reached, true);
+  assert.ok(a.bend_deg > 0 && b.bend_deg < 0, `both solutions exist and are opposite: ${a.bend_deg} vs ${b.bend_deg}`);
+  assert.ok(Math.abs(a.bend_deg + b.bend_deg) < 1e-6, 'they are mirror images about the straight configuration');
+  // "Full power": nothing here refuses a knee bending backwards, because Cadence stores no joint
+  // limits and inventing one would be a fabricated constraint.
+  assert.ok(/joint limit/.test(POSE.poseLimitations().cannot.join(' ')));
+});
+
+check('pose: line of action, centre of mass and balance are MEASURED, with their method named', () => {
+  const p = emptyRigFixture();
+  const out = POSE.compilePose(p, {
+    itemId: 'hero', t: 0, support: ['left foot'],
+    pose: [{ joint: 'Waist', rotation_goal: { x: -30 } }, { joint: 'Neck', rotation_goal: { x: -15 } }],
+  });
+  const m = out.measured;
+  assert.ok(m.line_of_action.tilt_from_vertical_deg > 5, 'a 30° torso lean tilts the spine line measurably');
+  assert.ok(/least-squares/.test(m.line_of_action.method));
+  assert.ok(/volume proxy/.test(m.centre_of_mass.method), 'the mass proxy must say it is one, every time');
+  assert.equal(typeof m.balance.supported, 'boolean');
+  assert.ok(Array.isArray(m.balance.support_polygon) && m.balance.support_polygon.length >= 3);
+  // And without a declared support there is no verdict at all — nothing infers a contact.
+  const noSupport = POSE.measurePose(p, { itemId: 'hero', pose: {}, frame: 0 });
+  assert.equal(noSupport.balance.supported, null);
+  assert.equal(noSupport.balance.support_polygon, null);
+  assert.ok(/MOT-016/.test(noSupport.balance.why));
+  assert.ok(noSupport.coverage.notRun.some((n) => /no support was declared/.test(n)));
+});
+
+check('author: an action type without frames asks for them instead of inventing durations', () => {
+  const p = emptyRigFixture();
+  const intent = CAL.intentSpec({ request: 'a heavy slash', actionType: 'attack', target: { itemId: 'hero' } });
+  const out = PLAN.authorMotion(p, { intent, itemId: 'hero', actionType: 'attack' });
+  assert.equal(out.authored, false);
+  assert.equal(out.ops.length, 0);
+  assert.ok(out.questions.some((q) => /anticipation/.test(q) && /frames/.test(q)), `the phase order is offered: ${out.questions.join(' ')}`);
+  assert.ok(out.questions.some((q) => /will not invent durations/.test(q)));
+  assert.ok(out.findings.some((f) => f.id === 'AUTHOR-NO-TIMING'));
+});
+
+/** The Slice A goal, as a script: an empty R15 becomes a 36-frame slash on a planted left foot. */
+function slashScript() {
+  return {
+    start: { pose: [
+      { joint: 'LeftHip', rotation_goal: { x: 14 } },
+      { joint: 'LeftKnee', rotation_goal: { x: -26 } },
+      { joint: 'LeftAnkle', rotation_goal: { x: 12 } },
+      { joint: 'Waist', rotation_goal: { y: 10 } },
+      { joint: 'RightShoulder', rotation_goal: { x: -20, z: 25 } },
+      { joint: 'RightElbow', rotation_goal: { x: 30 } },
+    ] },
+    phases: [
+      { name: 'anticipation', from: 0, to: 7, pose: [
+        { joint: 'Waist', rotation_goal: { y: 38, x: -6 } },
+        { joint: 'RightShoulder', rotation_goal: { x: -46, z: 62 } },
+        { joint: 'RightElbow', rotation_goal: { x: 78 } },
+        { position_goal: { effector: 'left foot', target: { hold: true } } },
+      ] },
+      { name: 'action', from: 7, to: 13, breakdown: { at: 9, bias: 0.22 }, pose: [
+        { joint: 'Waist', rotation_goal: { y: -34, x: 8 } },
+        { joint: 'RightShoulder', rotation_goal: { x: 16, z: -58 } },
+        { joint: 'RightElbow', rotation_goal: { x: 12 } },
+        { position_goal: { effector: 'left foot', target: { hold: true } } },
+      ] },
+      { name: 'follow_through', from: 13, to: 22, hold_until: 25, pose: [
+        { joint: 'Waist', rotation_goal: { y: -48, x: 14 } },
+        { joint: 'RightShoulder', rotation_goal: { x: 30, z: -74 } },
+        { position_goal: { effector: 'left foot', target: { hold: true } } },
+      ] },
+      { name: 'recovery', from: 25, to: 36, pose: [
+        { joint: 'Waist', rotation_goal: { y: 4, x: 2 } },
+        { joint: 'RightShoulder', rotation_goal: { x: -12, z: 18 } },
+        { position_goal: { effector: 'left foot', target: { hold: true } } },
+      ] },
+    ],
+    settle: { overshoot_at: 31, ratio: 0.22 },
+    support: ['left foot'],
+  };
+}
+
+check('author: the Slice A goal — an empty R15 becomes key poses, breakdowns, a hold and a settle', () => {
+  const p = emptyRigFixture();
+  assert.equal(Object.keys(p.tracks.hero).length, 0, 'the fixture must really be empty, or this proves nothing');
+
+  // The editing half correctly does nothing here — that is the gap authoring exists to close, and
+  // it is asserted rather than assumed, because the whole claim of this slice rests on it.
+  const editIntent = INT.interpretRequest(p, { request: 'make the slash heavier', itemId: 'hero' });
+  const edit = PLAN.planMotion(p, { intent: editIntent.intent, itemId: 'hero' });
+  const editOps = PLAN.compilePlan(p, edit.plan, edit.ctx, { constraints: [], frame: 0 });
+  assert.equal(edit.plan.phases.length, 0, 'an empty timeline has no keys to cut into phases');
+  assert.equal(editOps.ops.length, 0, 'every strategy edits existing keys, so all of them produce nothing here');
+
+  const intent = CAL.intentSpec({ request: 'a 1.2 second anime sword slash, extremely heavy', actionType: 'attack', target: { itemId: 'hero' } });
+  const cons = CON.compileConstraints({ contacts: [{ effector: 'left foot', from: 0, to: 36, tolerance_studs: 0.05 }] }, p, { source: 'user' });
+  const out = PLAN.authorMotion(p, { intent, itemId: 'hero', ...slashScript(), constraints: cons.constraints, contacts: [{ effector: 'left foot', start: 0, end: 36, tolerance_studs: 0.05 }] });
+
+  assert.equal(out.authored, true, out.summary);
+  assert.deepEqual(out.key_frames, [0, 7, 9, 13, 22, 25, 31, 36], 'every declared frame, and only those');
+  assert.deepEqual(out.steps.map((s) => s.step), ['start', 'key_pose', 'breakdown', 'key_pose', 'key_pose', 'hold', 'settle', 'key_pose']);
+  assert.equal(out.blocked.length, 0, JSON.stringify(out.blocked));
+  // Every authored frame keys the whole joint set, so a joint posed in one phase and not the next
+  // holds VISIBLY rather than drifting by interpolation.
+  const per = new Set(out.steps.map((s) => s.operations));
+  assert.equal(per.size, 1, `every step should key the same joint set, got ${[...per]}`);
+  assert.equal(out.ops.length, out.tracks.length * out.key_frames.length);
+  // The hold writes the pose it is holding, at the frame declared.
+  const hold = out.steps.find((s) => s.step === 'hold');
+  assert.equal(hold.t, 25); assert.equal(hold.holds, 22);
+  assert.equal(hold.held_from_previous.length, out.tracks.length, 'a hold changes nothing — every joint carries forward');
+
+  // Apply it for real, through the same patch/transaction path an edit uses.
+  const before = SNAP.cloneProject(p);
+  const patch = PATCH.makePatch({ ops: out.ops, intent: 'authored slash', author: 'test' });
+  const ledger = new TXN.TransactionLedger();
+  const planned = PATCH.planPatch(p, patch);
+  const report = CON.checkPatch(p, patch, cons.constraints, { frame: 0, result: planned.result });
+  assert.deepEqual(report.unresolved_targets ?? [], [], 'a constraint whose target does not resolve is never enforced — a zero here would be a lie');
+  assert.equal(report.violations.length, 0, `the authored motion must not break its own declared contact: ${JSON.stringify(report.violations.map((v) => v.rule))}`);
+  const txn = ledger.open({ intent: patch.intent, tool: 'test', plan: planned, constraints: cons.constraints, author: 'test', timestamp: 'T1' });
+  const applied = TXN.apply(p, patch, planned, { ledger, txn, constraintReport: report, timestamp: 'T1' });
+  assert.equal(applied.applied, true, applied.reason);
+
+  // The planted foot is SOLVED at every key, so it does not move at all — where the editing
+  // benchmark's planted foot drifts 0.34 studs under a scaled torso turn.
+  const drift = MOT.measureContactDrift(p, { itemId: 'hero', effector: 'left foot', start: 0, end: 36, tolerance_studs: 0.05 });
+  assert.equal(drift.measured, true);
+  assert.ok(drift.max_drift_studs <= 1e-6, `the authored contact must hold exactly, got ${drift.max_drift_studs} studs`);
+
+  // Acceptance: the authoring spec proves what it PROMISED exists, not only that nothing else moved.
+  const acc = CAL.evaluateAcceptance(before, p, out.acceptance, { itemId: 'hero' });
+  const by = Object.fromEntries(acc.results.map((x) => [x.check, x]));
+  assert.equal(by.key_times_include.status, 'pass', by.key_times_include.detail);
+  assert.equal(by.contact_drift_within.status, 'pass', by.contact_drift_within.detail);
+  assert.equal(by.pose_changed_at.status, 'pass', by.pose_changed_at.detail);
+  assert.equal(acc.accepted, true, acc.summary);
+
+  // …and rolling back empties the timeline, because these tracks were CREATED.
+  const rb = TXN.rollback(p, ledger, txn.transaction_id, { timestamp: 'T2' });
+  assert.equal(rb.rolled_back, true);
+  assert.equal(Object.keys(p.tracks.hero || {}).length, 0, 'undoing a generation must remove the tracks, not just their keys');
+  assert.equal(H.contentHash(SNAP.withoutHistory(p)), H.contentHash(SNAP.withoutHistory(before)), 'byte-identical to the empty project');
+});
+
+check('author: a breakdown is a POSE bias, not the time fraction', () => {
+  const p = emptyRigFixture();
+  const intent = CAL.intentSpec({ request: 'a slash', actionType: 'attack', target: { itemId: 'hero' } });
+  const base = {
+    start: { pose: [{ joint: 'Waist', rotation_goal: { y: 0 } }] },
+    phases: [{ name: 'action', from: 0, to: 10, breakdown: { at: 5, bias: 0.2 }, pose: [{ joint: 'Waist', rotation_goal: { y: 60 } }] }],
+  };
+  const out = PLAN.authorMotion(p, { intent, itemId: 'hero', ...base });
+  const bd = out.ops.find((o) => o.t === 5 && o.track === 'Waist');
+  const deg = POSE.degreesFromRotation(bd.value);
+  // Half way through the span in TIME, one fifth of the way in POSE. That gap is the whole point.
+  assert.ok(Math.abs(deg.y - 12) < 0.01, `a bias of 0.2 between 0° and 60° is 12°, got ${deg.y}`);
+
+  // Change only the bias and the frame stays put while the pose moves — the two are independent.
+  const half = PLAN.authorMotion(p, { intent, itemId: 'hero', ...base, phases: [{ ...base.phases[0], breakdown: { at: 5, bias: 0.5 } }] });
+  const d2 = POSE.degreesFromRotation(half.ops.find((o) => o.t === 5 && o.track === 'Waist').value);
+  assert.ok(Math.abs(d2.y - 30) < 0.01, `a bias of 0.5 is 30°, got ${d2.y}`);
+
+  assert.throws(() => PLAN.authorMotion(p, { intent, itemId: 'hero', ...base, phases: [{ ...base.phases[0], breakdown: { at: 5 } }] }), /numeric `bias`/);
+  assert.throws(() => PLAN.authorMotion(p, { intent, itemId: 'hero', ...base, phases: [{ ...base.phases[0], breakdown: { at: 10, bias: 0.5 } }] }), /strictly between/);
+});
+
+check('author: a settle overshoots past the final pose by a declared ratio and returns to it', () => {
+  const p = emptyRigFixture();
+  const intent = CAL.intentSpec({ request: 'a slash', actionType: 'attack', target: { itemId: 'hero' } });
+  const out = PLAN.authorMotion(p, {
+    intent, itemId: 'hero',
+    start: { pose: [{ joint: 'Waist', rotation_goal: { y: 0 } }] },
+    phases: [
+      { name: 'action', from: 0, to: 10, pose: [{ joint: 'Waist', rotation_goal: { y: 40 } }] },
+      { name: 'recovery', from: 10, to: 20, pose: [{ joint: 'Waist', rotation_goal: { y: 0 } }] },
+    ],
+    settle: { overshoot_at: 16, ratio: 0.25 },
+  });
+  const at = (t) => POSE.degreesFromRotation(out.ops.find((o) => o.t === t && o.track === 'Waist').value).y;
+  // The travel from 40° to 0° is −40°; a quarter past it is −10°, so the joint sails through zero
+  // to −10 and eases back. That is what a settle IS, computed rather than eyeballed.
+  assert.ok(Math.abs(at(16) - -10) < 0.01, `overshoot should be −10°, got ${at(16)}`);
+  assert.ok(Math.abs(at(20) - 0) < 0.01, 'and the final pose is exactly what was asked for');
+  assert.throws(() => PLAN.authorMotion(p, {
+    intent, itemId: 'hero',
+    start: { pose: [{ joint: 'Waist', rotation_goal: { y: 0 } }] },
+    phases: [{ name: 'action', from: 0, to: 10, pose: [{ joint: 'Waist', rotation_goal: { y: 40 } }] }],
+    settle: { overshoot_at: 20, ratio: 0.25 },
+  }), /strictly between/);
+});
+
+check('author: a constraint that refuses a key drops that step whole and names the constraint', () => {
+  const p = emptyRigFixture();
+  const intent = CAL.intentSpec({ request: 'a slash', actionType: 'attack', target: { itemId: 'hero' } });
+  // A lock on the waist track: every authored key on it must be refused, not quietly written.
+  const cons = CON.compileConstraints({ lock: [{ kind: 'track', itemId: 'hero', track: 'Waist' }] }, p, { source: 'user' });
+  const out = PLAN.authorMotion(p, {
+    intent, itemId: 'hero', constraints: cons.constraints,
+    start: { pose: [{ joint: 'Waist', rotation_goal: { y: 0 } }] },
+    phases: [{ name: 'action', from: 0, to: 10, pose: [{ joint: 'Waist', rotation_goal: { y: 40 } }] }],
+  });
+  assert.equal(out.authored, false, 'every step wrote the locked track, so every step is blocked');
+  assert.equal(out.blocked.length, 2, JSON.stringify(out.blocked.map((b) => b.name)));
+  assert.ok(out.blocked.every((b) => b.blocked_by === 'constraint' && b.constraints.length));
+  assert.ok(out.findings.some((f) => f.id === 'AUTHOR-STEP-BLOCKED'));
+});
+
+check('author: the timing is validated before anything compiles, and the reason is the error', () => {
+  const p = emptyRigFixture();
+  const intent = CAL.intentSpec({ request: 'a slash', actionType: 'attack', target: { itemId: 'hero' } });
+  const pose = [{ joint: 'Waist', rotation_goal: { y: 20 } }];
+  const call = (phases, extra = {}) => PLAN.authorMotion(p, { intent, itemId: 'hero', phases, ...extra });
+  assert.throws(() => call([{ name: 'action', from: 10, to: 4, pose }]), /not after its start/);
+  assert.throws(() => call([{ name: 'action', from: 0, to: 10, pose }, { name: 'recovery', from: 6, to: 20, pose }]), /does not overlap phases/);
+  assert.throws(() => call([{ name: 'action', from: 0, to: 'x', pose }]), /numeric `from` and `to`/);
+  assert.throws(() => call([{ name: 'action', from: 0, to: 10, hold_until: 8, pose }]), /not after its key/);
+  // Two keys on one frame: a frame holds one pose, so the script has to choose.
+  assert.throws(() => call([{ name: 'action', from: 0, to: 10, pose }, { name: 'recovery', from: 10, to: 10.0000001, pose }]), /not after its start|same frame/);
+});
+
+check('author: nothing under ai/ ever claims the authored motion is good', () => {
+  const p = emptyRigFixture();
+  const intent = CAL.intentSpec({ request: 'a slash', actionType: 'attack', target: { itemId: 'hero' } });
+  const out = PLAN.authorMotion(p, { intent, itemId: 'hero', ...slashScript() });
+  const text = JSON.stringify(out).toLowerCase();
+  // A quality word may appear only inside a DENIAL. `ai/cal.js` legitimately says an acceptance
+  // check is a proxy "not that the result reads correctly", and banning the word outright would
+  // punish exactly the honesty this gate exists to enforce — so the test reads the 40 characters
+  // before each occurrence and requires a negation there.
+  for (const word of ['looks right', 'looks good', 'perfect', 'reads correctly', 'high quality', 'no mistakes']) {
+    let from = 0;
+    for (;;) {
+      const at = text.indexOf(word, from);
+      if (at < 0) break;
+      const before = text.slice(Math.max(0, at - 40), at);
+      assert.ok(/\b(not|never|cannot|no|whether|nothing|without)\b[^.]*$/.test(before),
+        `an authoring result claims "${word}" without a denial in front of it: …${before}${word}…`);
+      from = at + word.length;
+    }
+  }
+  assert.ok(out.coverage.notRun.some((n) => /nothing was rendered/.test(n)));
+  assert.ok(out.coverage.notRun.some((n) => /secondary motion/.test(n)));
+  // And the measured pose facts are labelled as proxies where they are proxies.
+  assert.ok(out.measured.every((m) => !m.measured?.centre_of_mass || /volume proxy/.test(m.measured.centre_of_mass.method)));
 });
 
 console.log('\n— raster —');

@@ -178,6 +178,7 @@ const PRODUCTION_FUNCTIONS = Object.freeze({
   compileConstraints: CON.compileConstraints,
   planMotion: PLAN.planMotion,
   compilePlan: PLAN.compilePlan,
+  authorMotion: PLAN.authorMotion,
   checkPatch: CON.checkPatch,
   evaluateAcceptance: CAL.evaluateAcceptance,
   explainChange: EXP.explainChange,
@@ -315,6 +316,108 @@ function walkFixture(rigs) {
   return baseProject('bench-walk', 'Walk', [hero], tracks, { hero: [{ t: 0, width: 1, name: 'plant left' }, { t: 15, width: 1, name: 'plant right' }] }, 30);
 }
 
+/**
+ * An R15 with NO animation at all — not one key, not one track.
+ *
+ * This is the fixture the whole editing half of the layer cannot touch: every strategy transforms
+ * existing keys, so on this project `plan_motion` correctly produces nothing. It exists to measure
+ * the authoring half, and its emptiness is the point — an authored result here came from the
+ * IntentSpec and the script, with nothing to copy or scale.
+ */
+function emptyRigFixture(rigs) {
+  const hero = rigItem(rigs, 'r15', 'hero', 'Hero');
+  return baseProject('bench-empty', 'Empty rig', [hero], { hero: {} }, {}, 40);
+}
+
+/**
+ * The authoring script the `authored_attack` benchmark compiles: a 36-frame body-driven slash on a
+ * planted left foot.
+ *
+ * Every number here is a declared input, not a default this module picked on the caller's behalf —
+ * which is exactly the contract `authorMotion` holds a caller to. Two of them carry the craft the
+ * benchmark exists to prove is reachable by construction:
+ *
+ *   * the stance bends the left knee 26°, so the leg has slack. A rest-pose R15 stands with its
+ *     legs exactly straight (hip pivot to foot centre is 1.85 studs, the chain's precise maximum),
+ *     and a planted foot on a straight leg becomes UNREACHABLE the moment the hips turn — the IK
+ *     reports the shortfall rather than faking it, which is correct and useless. A real animator
+ *     bends the knee for the same reason.
+ *   * every key carries a `hold` reach goal on the left foot, so the planted contact is SOLVED to
+ *     its stance position at each pose rather than measured afterwards and apologised for. That is
+ *     the difference this benchmark measures: the edited slash fixture drags its planted foot 0.224
+ *     studs, and this one holds it.
+ */
+const AUTHORED_SLASH = Object.freeze({
+  start: {
+    pose: [
+      { joint: 'LeftHip', rotation_goal: { x: 14 } },
+      { joint: 'LeftKnee', rotation_goal: { x: -26 } },
+      { joint: 'LeftAnkle', rotation_goal: { x: 12 } },
+      { joint: 'RightHip', rotation_goal: { x: -10 } },
+      { joint: 'RightKnee', rotation_goal: { x: -16 } },
+      { joint: 'Waist', rotation_goal: { y: 10 } },
+      { joint: 'RightShoulder', rotation_goal: { x: -20, z: 25 } },
+      { joint: 'RightElbow', rotation_goal: { x: 30 } },
+    ],
+  },
+  phases: [
+    {
+      name: 'anticipation',
+      from: 0,
+      to: 7,
+      pose: [
+        { joint: 'Waist', rotation_goal: { y: 38, x: -6 } },
+        { joint: 'RightShoulder', rotation_goal: { x: -46, z: 62 } },
+        { joint: 'RightElbow', rotation_goal: { x: 78 } },
+        { joint: 'Neck', rotation_goal: { y: -14 } },
+        { position_goal: { effector: 'left foot', target: { hold: true } } },
+      ],
+    },
+    {
+      name: 'action',
+      from: 7,
+      to: 13,
+      // A breakdown 33% of the way through the span holding a pose only 22% of the way between the
+      // two extremes: the arm lingers in the wind-up and then covers most of the arc late. That
+      // gap between time and pose is the whole of what a breakdown does.
+      breakdown: { at: 9, bias: 0.22 },
+      pose: [
+        { joint: 'Waist', rotation_goal: { y: -34, x: 8 } },
+        { joint: 'RightShoulder', rotation_goal: { x: 16, z: -58 } },
+        { joint: 'RightElbow', rotation_goal: { x: 12 } },
+        { joint: 'Neck', rotation_goal: { y: 10 } },
+        { position_goal: { effector: 'left foot', target: { hold: true } } },
+      ],
+    },
+    {
+      name: 'follow_through',
+      from: 13,
+      to: 22,
+      hold_until: 25,
+      pose: [
+        { joint: 'Waist', rotation_goal: { y: -48, x: 14 } },
+        { joint: 'RightShoulder', rotation_goal: { x: 30, z: -74 } },
+        { joint: 'RightElbow', rotation_goal: { x: 26 } },
+        { position_goal: { effector: 'left foot', target: { hold: true } } },
+      ],
+    },
+    {
+      name: 'recovery',
+      from: 25,
+      to: 36,
+      pose: [
+        { joint: 'Waist', rotation_goal: { y: 4, x: 2 } },
+        { joint: 'RightShoulder', rotation_goal: { x: -12, z: 18 } },
+        { joint: 'RightElbow', rotation_goal: { x: 24 } },
+        { joint: 'Neck', rotation_goal: { y: 0 } },
+        { position_goal: { effector: 'left foot', target: { hold: true } } },
+      ],
+    },
+  ],
+  settle: { overshoot_at: 31, ratio: 0.22 },
+  support: ['left foot'],
+});
+
 /** Two rigs in one project: `ref` performs the slash at speed, `hero` performs the same poses at
  *  half the speed. The reference benchmark asks the hero to become snappier and measures whether
  *  its profile moved toward the reference's. */
@@ -446,6 +549,58 @@ function runPlanPipeline(project, impl, { request, itemId, constrain = null, con
   const rb = TXN.rollback(work, ledger, txn.transaction_id, { timestamp, author: 'benchmark' });
   const rollbackExact = !!rb.rolled_back && contentHash(SNAP.withoutHistory(work)) === contentHash(SNAP.withoutHistory(project));
   return { ...base, applied: true, refused_because: null, before: project, after, report, acceptance, rollback_exact: rollbackExact, txn, ledger };
+}
+
+/**
+ * Interpret → AUTHOR → check → apply → evaluate → roll back, on a copy.
+ *
+ * The same shape as `runPlanPipeline` and deliberately a separate function: the two differ at the
+ * step that matters. `runPlanPipeline` goes through `planMotion` + `compilePlan`, which transform
+ * existing keys; this goes through `authorMotion`, which creates them. Forcing one function to do
+ * both would have to branch on "does this timeline have keys", and a benchmark whose pipeline
+ * changes shape with its fixture is not comparing the same thing twice.
+ */
+function runAuthorPipeline(project, impl, { request, itemId, script, constrain = null, contacts = [], timestamp = null }) {
+  const notes = [];
+  const interp = impl.fn.interpretRequest(project, { request, itemId });
+  const intentSpec = interp.intent;
+  const extra = constrain
+    ? impl.fn.compileConstraints(constrain, project, { source: constrain.source || 'user', author: 'benchmark', createdAt: timestamp })
+    : { constraints: [], unparsed: [], questions: [] };
+  const constraints = [...interp.constraints.constraints, ...extra.constraints];
+
+  const authored = impl.fn.authorMotion(project, {
+    intent: intentSpec, itemId,
+    start: script.start, phases: script.phases, settle: script.settle, support: script.support,
+    contacts: contacts.map((c) => ({ effector: c.effector, start: c.start, end: c.end, tolerance_studs: c.tolerance_studs })),
+    constraints,
+  });
+  notes.push(...authored.notes);
+
+  const base = { interp, intent: intentSpec, constraints, authored, notes, compiled: { ops: authored.ops, applied: authored.steps, blocked: authored.blocked }, planned: { plan: authored.plan } };
+  if (!authored.ops.length) {
+    return { ...base, applied: false, refused_because: authored.summary, before: project, after: project, report: null, acceptance: null, rollback_exact: null, empty_after_rollback: null, txn: null, ledger: null };
+  }
+
+  const work = SNAP.cloneProject(project);
+  const patch = PATCH.makePatch({ ops: authored.ops, intent: `${intentSpec.request || intentSpec.id}: authored ${authored.steps.length} step(s)`, request, author: 'benchmark' });
+  const ledger = new TXN.TransactionLedger();
+  const plan = PATCH.planPatch(work, patch);
+  const report = impl.fn.checkPatch(work, patch, constraints, { frame: 0, result: plan.result });
+  const txn = ledger.open({ request, intent: patch.intent, tool: 'benchmark', plan, constraints, author: 'benchmark', timestamp });
+  const out = TXN.apply(work, patch, plan, { ledger, txn, constraintReport: report, timestamp });
+  if (!out.applied) {
+    return { ...base, applied: false, refused_because: out.reason ?? out.refused_because ?? 'refused', before: project, after: project, report, acceptance: null, rollback_exact: null, empty_after_rollback: null, txn, ledger };
+  }
+  const after = SNAP.cloneProject(work);
+  const acceptance = impl.fn.evaluateAcceptance(project, after, authored.acceptance, { itemId });
+  const rb = TXN.rollback(work, ledger, txn.transaction_id, { timestamp, author: 'benchmark' });
+  const rollbackExact = !!rb.rolled_back && contentHash(SNAP.withoutHistory(work)) === contentHash(SNAP.withoutHistory(project));
+  // Stronger than byte-identical and worth stating separately: the authored tracks did not exist
+  // before, so a correct rollback has to REMOVE them, not restore their contents. A `set_key` that
+  // created a track inverts to `remove_track`, and this is the check that proves it did.
+  const emptyAfterRollback = Object.keys((work.tracks || {})[itemId] || {}).length === 0;
+  return { ...base, applied: true, refused_because: null, before: project, after, report, acceptance, rollback_exact: rollbackExact, empty_after_rollback: emptyAfterRollback, txn, ledger };
 }
 
 /** Plan and commit a hand-built list of operations on a copy (the VFX and diagnosis benchmarks). */
@@ -742,6 +897,98 @@ const PLAN_BENCHMARKS = {
       keyTimesUnchangedNear(p, 16, 1),
     ],
   }),
+};
+
+// ---- authoring from nothing (Parts 20.3, 24, 26, 32)
+
+/**
+ * The benchmark that measures GENERATION rather than editing.
+ *
+ * It sits in the `heavy attack` category beside `heavy_attack` on purpose: the category is the
+ * motion, not the mechanism, and the pair is the comparison worth having. `heavy_attack` starts
+ * from an authored slash and makes it heavier, and its planted foot ends up 0.224 studs out of
+ * place because scaling a torso turn drags a foot the planner can only measure afterwards.
+ * `authored_attack` starts from nothing and solves the same foot to its stance position at every
+ * key, so the contact holds by construction. Both numbers are in the same run, in the same units.
+ */
+const AUTHORING_BENCHMARK = {
+  benchmark_id: 'authored_attack', category: 'heavy attack',
+  goal: 'from an EMPTY R15, an IntentSpec and a declared phase timing become key poses with a breakdown, a hold and a settle — applied transactionally, measured, and rolled back to an empty timeline',
+  scene_and_rig_prerequisites: 'builtin R15 with no tracks and no keys at all — the fixture every editing strategy correctly produces nothing on',
+  input_request: 'a 1.2 second anime sword slash, extremely heavy, subtle anticipation (the request is interpreted for its style and preserve clause; the POSES come from the declared script, because no model here invents a pose)',
+  reference_or_baseline: 'the empty fixture itself — every authored key is a difference from nothing',
+  required_constraints: 'the left foot planted frames 0–36 within 0.05 studs, declared with the ROLE PHRASE "left foot" so it resolves on both the constraint path and the drift measurement',
+  allowed_variation: 'any joint track the script names, at the frames the script names',
+  forbidden_variation: 'a key at a frame the script did not declare; any track outside the script\'s joint set; anything left behind after rollback',
+  technical_metrics: ['animation_intent_alignment', 'contact_stability', 'curve_continuity', 'unintended_change_rate', 'constraint_violation_rate', 'reproducibility', 'rollback to an empty timeline'],
+  visual_metrics: ['none in a headless run — whether the authored poses READ is not measured anywhere in this build (MOT-012, Parts 28/43)'],
+  review_rubric: REVIEW_RUBRIC_MOTION,
+  expected_artifacts: ['the authored operation list, one step per key pose', 'a PoseSpec per key carrying its measured line of action, centre-of-mass proxy and balance', 'a transaction whose inverse REMOVES the tracks it created', 'an AcceptanceSpec evaluation including key_times_include'],
+  performance_budget: { max_operations: 200, note: 'wall-clock is reported, never budgeted' },
+  known_failure_cases: [
+    'curve_continuity counts spikes INTRODUCED, and the before-state is a rig that never moves — so an authored motion introduces every spike it has. That is a fact about the comparison, not a defect: the number is a budget on how much acceleration contrast the script asks for, and a prototype that smoothed the authoring would lower it',
+    'balance is measured against the DECLARED support (the left foot alone), so the stance pose reads as unsupported by a few hundredths of a stud — standing on one foot with the mass over the body centre genuinely is. It is reported, never failed on',
+    'interpretation of the request understands few of its content words on an empty rig, and that is measured elsewhere: this benchmark takes its poses from the script, so a weak interpretation cannot silently become a weak pose',
+  ],
+  human_acceptance_procedure: 'a reviewer plays frames 0–36 and rates intent_clarity, pose_readability, timing and weight on the rubric; ratings are recorded with recordHumanRating and never enter the comparison',
+  dimensions: ['unintended_change_rate', 'constraint_violation_rate', 'animation_intent_alignment', 'contact_stability', 'curve_continuity', 'reproducibility'],
+  exercises_tools: ['interpret_intent', 'author_motion', 'pose_conventions', 'apply_animation_patch', 'preview_animation_patch', 'rollback_transaction', 'evaluate_acceptance', 'analyze_contacts', 'analyze_motion'],
+  run(ctx) {
+    const project = emptyRigFixture(ctx.rigs);
+    const contacts = contactList('hero', [{ effector: 'left foot', start: 0, end: 36, tolerance_studs: 0.05 }]);
+    const pipeline = runAuthorPipeline(project, ctx.impl, {
+      request: 'a 1.2 second anime sword slash, extremely heavy, subtle anticipation',
+      itemId: 'hero', script: AUTHORED_SLASH, contacts,
+      constrain: { contacts: [{ effector: 'left foot', from: 0, to: 36, tolerance_studs: 0.05 }] },
+      timestamp: ctx.timestamp,
+    });
+    const measured = {};
+    measured.unintended_change_rate = measureUnintended(pipeline.before, pipeline.after, planAllowedTracks(pipeline));
+    const viol = measureViolations(pipeline.report);
+    if (viol) measured.constraint_violation_rate = viol;
+    measured.animation_intent_alignment = measureIntentAlignment(pipeline);
+    const contact = measureContacts(pipeline.after, ctx.impl, contacts);
+    if (contact) {
+      contact.detail.before_edit_studs = null;
+      contact.detail.note = 'the before-state has no animation, so there is no drift to compare against — the number is the authored motion\'s own contact error, and it is zero when every reach goal was solved';
+      measured.contact_stability = contact;
+    }
+    const cont = measureContinuity(pipeline, ctx.impl, 'hero');
+    if (cont) measured.curve_continuity = cont;
+
+    const authored = pipeline.authored;
+    const reaches = (authored.steps || []).flatMap((s) => s.reached || []);
+    const keyFrameCheck = (pipeline.acceptance?.results || []).find((r) => r.check === 'key_times_include');
+    const checks = [
+      { name: 'the motion was authored from an empty timeline', ok: pipeline.applied, detail: pipeline.applied ? `${authored.ops.length} operation(s) across ${authored.steps.length} step(s) on ${authored.tracks.length} joint(s)` : pipeline.refused_because },
+      { name: 'the fixture really was empty', ok: Object.keys(project.tracks.hero || {}).length === 0, detail: null },
+      { name: 'every reach goal landed on its target', ok: reaches.length ? reaches.every((r) => r.reached) : null, detail: reaches.length ? `${reaches.filter((r) => r.reached).length}/${reaches.length} solved, worst residual ${Math.max(0, ...reaches.map((r) => r.residual_studs ?? 0))} studs` : 'no reach goal in this script' },
+      { name: 'every authored key landed at its declared frame', ok: keyFrameCheck ? keyFrameCheck.status === 'pass' : null, detail: keyFrameCheck ? keyFrameCheck.detail : 'the acceptance spec did not run' },
+      { name: 'a breakdown, a hold and a settle were all authored', ok: ['breakdown', 'hold', 'settle'].every((k) => (authored.steps || []).some((s) => s.step === k)), detail: (authored.steps || []).map((s) => s.step).join(', ') },
+      { name: 'rollback landed byte-identical', ok: pipeline.applied ? pipeline.rollback_exact === true : null, detail: pipeline.applied ? null : 'nothing was applied' },
+      { name: 'rollback left the timeline empty (the tracks were CREATED, so undoing means removing them)', ok: pipeline.applied ? pipeline.empty_after_rollback === true : null, detail: null },
+      constraintsResolvedCheck(pipeline),
+    ];
+    return {
+      measured, checks,
+      after_hash: contentHash({ applied: pipeline.applied, after: pipeline.applied ? SNAP.withoutHistory(pipeline.after) : null, refused: pipeline.refused_because }),
+      detail: {
+        applied: pipeline.applied, refused_because: pipeline.refused_because,
+        steps: (authored.steps || []).map((s) => ({ kind: s.step, t: s.t, ops: s.operations, held: s.held_from_previous.length })),
+        blocked: (authored.blocked || []).map((b) => ({ step: b.step, reason: b.reason })),
+        operations: authored.ops.length, joints: authored.tracks,
+        acceptance: pipeline.acceptance ? pipeline.acceptance.summary : null,
+        // Measured, not judged: the numbers a reviewer would want beside the contact sheet.
+        pose_measurements: (authored.measured || []).map((m) => ({
+          t: m.t,
+          line_of_action_tilt_deg: m.measured?.line_of_action?.tilt_from_vertical_deg ?? null,
+          spine_deviation_studs: m.measured?.line_of_action?.max_deviation_studs ?? null,
+          balance_margin_studs: m.measured?.balance?.margin_studs ?? null,
+        })),
+        notes: authored.notes,
+      },
+    };
+  },
 };
 
 /** Like keyTimesUnchanged, but only inside a protected window — the request here protects frame
@@ -1073,6 +1320,7 @@ const REFERENCE_BENCHMARK = {
 
 export const BENCHMARKS = Object.freeze({
   ...PLAN_BENCHMARKS,
+  authored_attack: AUTHORING_BENCHMARK,
   regression_detection: REGRESSION_BENCHMARK,
   contact_diagnosis: CONTACT_BENCHMARK,
   ...VFX_BENCHMARKS,
@@ -1083,7 +1331,8 @@ export const BENCHMARK_IDS = Object.freeze(Object.keys(BENCHMARKS));
 
 /** What blocks the categories no benchmark is defined for. Named per category, never grouped. */
 const UNDEFINED_CATEGORIES = Object.freeze({
-  'idle breathing and subtle weight shift': 'no strategy generates motion (CMP-001 edits existing keys) and an idle has no phase template (Part 20.2 — gesture/idle spans stay unnamed), so nothing measurable distinguishes a good idle edit from a no-op beyond what light_attack already measures',
+  // Rewritten when authoring shipped: generation is no longer the blocker. Measurement is.
+  'idle breathing and subtle weight shift': 'authorMotion CAN now generate one (authored_attack proves the mechanism on an empty rig), but nothing here can measure whether an idle is any good: the dimensions this build computes are contact drift, acceleration spikes introduced and acceptance-check pass rate, and an idle\'s quality is almost entirely subtle weight distribution over the support polygon across time — which needs a balance TRAJECTORY model (MOT-011 measures balance per pose, not its path) and a subtle-motion threshold nothing declares. A benchmark that authored an idle and then measured the same three numbers would be measuring the authoring, not the idle',
   'run cycle': 'walk_cycle proves the mechanism (declared alternating plants under a heavier edit). A run needs a flight phase, which is a contact the animator did NOT declare — and nothing infers a contact (MOT-016)',
   'start and stop': 'needs root motion (@origin) to accelerate and decelerate; no strategy writes @origin (plan.planLimitations)',
   'jump and landing': 'needs a compression/landing model (Part 30) and a detected, not declared, airborne phase (MOT-016)',

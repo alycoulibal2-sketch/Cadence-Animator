@@ -7,20 +7,20 @@
 // Wall-clock numbers are stripped, because a busy machine is not a regression. This module is
 // data only, and is pure at load like the rest of ai/.
 //
-// semantic layer 1.10.0 · commit 0147c9c · written 2026-09-11T10:14:07.023Z
+// semantic layer 1.11.0 · commit 3753418 · written 2026-09-11T11:43:31.809Z
 
 export const BASELINE_META = Object.freeze({
-  "semantic_layer_version": "1.10.0",
-  "commit": "0147c9c",
-  "written_at": "2026-09-11T10:14:07.023Z",
-  "benchmarks": 16
+  "semantic_layer_version": "1.11.0",
+  "commit": "3753418",
+  "written_at": "2026-09-11T11:43:31.809Z",
+  "benchmarks": 17
 });
 
 export const BASELINE_RUN = Object.freeze({
   "kind": "benchmark_run",
-  "id": "run:7c9d0ad9",
+  "id": "run:358d41e9",
   "label": "production",
-  "created_at": "2026-09-11T10:14:07.023Z",
+  "created_at": "2026-09-11T11:43:31.809Z",
   "implementation": {
     "label": "production",
     "production": true,
@@ -38,6 +38,7 @@ export const BASELINE_RUN = Object.freeze({
     "reaction",
     "walk_cycle",
     "constrained_correction",
+    "authored_attack",
     "regression_detection",
     "contact_diagnosis",
     "sparks",
@@ -1727,6 +1728,403 @@ export const BASELINE_RUN = Object.freeze({
       ],
       "coverage": {
         "scope": "benchmark constrained_correction (constrained correction), 2 runs",
+        "frames": null,
+        "loop": "full",
+        "notRun": [
+          "time_to_acceptable_result: a human decides when a result is acceptable; a headless run has no acceptance event to time. Part 59 lists this for a production session, which the provenance graph can carry once a decision node marks acceptance",
+          "number_of_user_corrections: a correction is an edit a HUMAN makes to the AI's work (Part 57) — none happens inside a benchmark. `record_user_correction` captures them in a real session",
+          "number_of_iterations: iterations are round trips between the model and the user; a benchmark makes one pass by construction",
+          "visual_temporal_continuity: flicker and one-frame pops need consecutive rendered frames; nothing in ai/ renders, and the observation policy targets suspect frames rather than sequences (OBS-*)",
+          "camera_readability: no active-camera model exists (SHOT-003/004); readability from a camera needs framing, which nothing here computes",
+          "export_success: the export validator (renderer/js/validate.js) imports state.js and cannot run in the pure layer — the same gap that keeps export_valid unrunnable in ai/cal.js",
+          "render_cost: nothing renders in a headless run. The Electron smoketest can time a render; a number from it would belong in that run's report, not in a run that drew nothing",
+          "tool_call_efficiency: the count of MCP calls a MODEL needs to reach a result is a fact about the model's session, not about the pipeline; a benchmark makes a fixed number of calls by construction",
+          "rollback_frequency: how often a human rolls a result back is session data; the transaction ledger and provenance carry it in a real session (ai/improve.js detectRecurringProblems reads it)",
+          "user_approval_rate: approval is a human decision. It is recorded per proposal by ai/improve.js and per difference by approve_difference, never inferred",
+          "no pixel was rendered: the visual metrics are the Electron smoketest's (OBS-002/003), not this run's",
+          "human evaluation: the rubric is attached, nobody has rated it"
+        ]
+      }
+    },
+    {
+      "benchmark_id": "authored_attack",
+      "category": "heavy attack",
+      "goal": "from an EMPTY R15, an IntentSpec and a declared phase timing become key poses with a breakdown, a hold and a settle — applied transactionally, measured, and rolled back to an empty timeline",
+      "implementation": {
+        "label": "production",
+        "production": true,
+        "options_on": [],
+        "overrides": []
+      },
+      "human_evaluation": {
+        "rubric": [
+          "intent_clarity",
+          "pose_readability",
+          "timing",
+          "weight",
+          "absence_of_distracting_artifacts"
+        ],
+        "full_rubric": [
+          "intent_clarity",
+          "pose_readability",
+          "timing",
+          "weight",
+          "camera_readability",
+          "vfx_integration",
+          "style_fit",
+          "absence_of_distracting_artifacts"
+        ],
+        "procedure": "a reviewer plays frames 0–36 and rates intent_clarity, pose_readability, timing and weight on the rubric; ratings are recorded with recordHumanRating and never enter the comparison",
+        "ratings": null,
+        "separate_from_measured": true,
+        "note": "Part 59: human evaluation is structured, subjective, and kept apart from the deterministic outcomes. recordHumanRating writes here and only here; compareRuns never reads this block."
+      },
+      "status": "ran",
+      "measured": {
+        "unintended_change_rate": {
+          "value": 0,
+          "unit": "ratio",
+          "direction": "lower",
+          "method": "tracks changed outside the operations the pipeline declared, over all tracks changed (0 when nothing changed); items and project fields that changed unannounced count as well",
+          "detail": {
+            "changed_tracks": 9,
+            "unintended_tracks": [],
+            "unannounced_items": [],
+            "project_fields": []
+          }
+        },
+        "constraint_violation_rate": {
+          "value": 0,
+          "unit": "ratio",
+          "direction": "lower",
+          "method": "violations reported by constraints.checkPatch on the final patch, over constraints checked — warn-level violations included, because a warning is still a violation",
+          "detail": {
+            "checked": 1,
+            "evaluated": 1,
+            "unresolved": 0,
+            "violations": []
+          }
+        },
+        "animation_intent_alignment": {
+          "value": 1,
+          "unit": "ratio",
+          "direction": "higher",
+          "method": "acceptance checks the plan's own AcceptanceSpec could run that passed, over those that ran (0 when the pipeline refused to apply). A PROXY: amplitude rising is a fact, \"it reads heavier\" is not (ai/cal.js proxy_for)",
+          "detail": {
+            "passed": 5,
+            "ran": 5,
+            "not_run": 0,
+            "failed": [],
+            "proxy": "a passing acceptance check is a measured fact about the data, not a judgement that the motion reads as asked"
+          }
+        },
+        "contact_stability": {
+          "value": 0,
+          "unit": "studs",
+          "direction": "lower",
+          "method": "the largest drift measureContactDrift reports across the benchmark's DECLARED contacts after the edit — measured against the effector's own position on the contact's first frame, because Cadence has no ground plane (MOT-008)",
+          "detail": {
+            "contacts": [
+              {
+                "effector": "left foot",
+                "max_drift_studs": 0,
+                "within_tolerance": true,
+                "tolerance_studs": 0.05
+              }
+            ],
+            "reference": "the effector's own world position on the contact's first frame (MOT-008)",
+            "before_edit_studs": null,
+            "note": "the before-state has no animation, so there is no drift to compare against — the number is the authored motion's own contact error, and it is zero when every reach goal was solved"
+          }
+        },
+        "curve_continuity": {
+          "value": 36,
+          "unit": "count",
+          "direction": "lower",
+          "method": "acceleration spikes INTRODUCED by the edit on contact-capable parts: samples above 4× the subject's median acceleration (the convention ai/diagnose.js declares) after, minus the same count before. Not smoothness — heavier is allowed to add contrast",
+          "detail": {
+            "before": 0,
+            "after": 36,
+            "per_part_after": [
+              {
+                "part": "LeftLowerLeg",
+                "spikes": 0
+              },
+              {
+                "part": "RightLowerLeg",
+                "spikes": 0
+              },
+              {
+                "part": "LeftLowerArm",
+                "spikes": 9
+              },
+              {
+                "part": "RightLowerArm",
+                "spikes": 9
+              },
+              {
+                "part": "LeftFoot",
+                "spikes": 0
+              },
+              {
+                "part": "RightFoot",
+                "spikes": 0
+              },
+              {
+                "part": "LeftHand",
+                "spikes": 9
+              },
+              {
+                "part": "RightHand",
+                "spikes": 9
+              }
+            ],
+            "convention": "a spike is a sample above 4× the subject's median acceleration and above 0.01 studs/frame² (ai/diagnose.js)"
+          }
+        },
+        "reproducibility": {
+          "value": 1,
+          "unit": "boolean",
+          "direction": "higher",
+          "method": "the benchmark is run twice in one process and the two result hashes compared: 1 when identical, 0 when not",
+          "detail": {
+            "runs": 2,
+            "hashes": [
+              "79ce5da8",
+              "79ce5da8"
+            ]
+          }
+        }
+      },
+      "not_measured": [
+        {
+          "dimension": "time_to_acceptable_result",
+          "reason": "a human decides when a result is acceptable; a headless run has no acceptance event to time. Part 59 lists this for a production session, which the provenance graph can carry once a decision node marks acceptance"
+        },
+        {
+          "dimension": "number_of_user_corrections",
+          "reason": "a correction is an edit a HUMAN makes to the AI's work (Part 57) — none happens inside a benchmark. `record_user_correction` captures them in a real session"
+        },
+        {
+          "dimension": "number_of_iterations",
+          "reason": "iterations are round trips between the model and the user; a benchmark makes one pass by construction"
+        },
+        {
+          "dimension": "regression_detection_recall",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "regression_detection_false_positive_rate",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "correct_causal_diagnosis_rate",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "reference_alignment",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "visual_temporal_continuity",
+          "reason": "flicker and one-frame pops need consecutive rendered frames; nothing in ai/ renders, and the observation policy targets suspect frames rather than sequences (OBS-*)"
+        },
+        {
+          "dimension": "vfx_timing_alignment",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "camera_readability",
+          "reason": "no active-camera model exists (SHOT-003/004); readability from a camera needs framing, which nothing here computes"
+        },
+        {
+          "dimension": "export_success",
+          "reason": "the export validator (renderer/js/validate.js) imports state.js and cannot run in the pure layer — the same gap that keeps export_valid unrunnable in ai/cal.js"
+        },
+        {
+          "dimension": "render_cost",
+          "reason": "nothing renders in a headless run. The Electron smoketest can time a render; a number from it would belong in that run's report, not in a run that drew nothing"
+        },
+        {
+          "dimension": "tool_call_efficiency",
+          "reason": "the count of MCP calls a MODEL needs to reach a result is a fact about the model's session, not about the pipeline; a benchmark makes a fixed number of calls by construction"
+        },
+        {
+          "dimension": "rollback_frequency",
+          "reason": "how often a human rolls a result back is session data; the transaction ledger and provenance carry it in a real session (ai/improve.js detectRecurringProblems reads it)"
+        },
+        {
+          "dimension": "user_approval_rate",
+          "reason": "approval is a human decision. It is recorded per proposal by ai/improve.js and per difference by approve_difference, never inferred"
+        }
+      ],
+      "checks": [
+        {
+          "name": "the motion was authored from an empty timeline",
+          "ok": true,
+          "detail": "72 operation(s) across 8 step(s) on 9 joint(s)"
+        },
+        {
+          "name": "the fixture really was empty",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "name": "every reach goal landed on its target",
+          "ok": true,
+          "detail": "4/4 solved, worst residual 0 studs"
+        },
+        {
+          "name": "every authored key landed at its declared frame",
+          "ok": true,
+          "detail": "every one of 9 track(s) has a key at each of 8 frame(s): 0, 7, 9, 13, 22, 25, 31, 36"
+        },
+        {
+          "name": "a breakdown, a hold and a settle were all authored",
+          "ok": true,
+          "detail": "start, key_pose, breakdown, key_pose, key_pose, hold, settle, key_pose"
+        },
+        {
+          "name": "rollback landed byte-identical",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "name": "rollback left the timeline empty (the tracks were CREATED, so undoing means removing them)",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "name": "every declared constraint was resolved and enforced",
+          "ok": true,
+          "detail": null
+        }
+      ],
+      "result_hash": "79ce5da8c5d8722e24b14dad115a3a9a",
+      "reproducible": true,
+      "elapsed_ms": null,
+      "detail": {
+        "applied": true,
+        "refused_because": null,
+        "steps": [
+          {
+            "kind": "start",
+            "t": 0,
+            "ops": 9,
+            "held": 0
+          },
+          {
+            "kind": "key_pose",
+            "t": 7,
+            "ops": 9,
+            "held": 3
+          },
+          {
+            "kind": "breakdown",
+            "t": 9,
+            "ops": 9,
+            "held": 0
+          },
+          {
+            "kind": "key_pose",
+            "t": 13,
+            "ops": 9,
+            "held": 3
+          },
+          {
+            "kind": "key_pose",
+            "t": 22,
+            "ops": 9,
+            "held": 4
+          },
+          {
+            "kind": "hold",
+            "t": 25,
+            "ops": 9,
+            "held": 9
+          },
+          {
+            "kind": "settle",
+            "t": 31,
+            "ops": 9,
+            "held": 0
+          },
+          {
+            "kind": "key_pose",
+            "t": 36,
+            "ops": 9,
+            "held": 3
+          }
+        ],
+        "blocked": [],
+        "operations": 72,
+        "joints": [
+          "LeftAnkle",
+          "LeftHip",
+          "LeftKnee",
+          "Neck",
+          "RightElbow",
+          "RightHip",
+          "RightKnee",
+          "RightShoulder",
+          "Waist"
+        ],
+        "acceptance": "5 passed, 0 failed, 0 not run",
+        "pose_measurements": [
+          {
+            "t": 0,
+            "line_of_action_tilt_deg": 0,
+            "spine_deviation_studs": 0,
+            "balance_margin_studs": -0.0345
+          },
+          {
+            "t": 7,
+            "line_of_action_tilt_deg": 5.85,
+            "spine_deviation_studs": 0.0529,
+            "balance_margin_studs": -0.008
+          },
+          {
+            "t": 9,
+            "line_of_action_tilt_deg": 3.38,
+            "spine_deviation_studs": 0.0306,
+            "balance_margin_studs": -0.0348
+          },
+          {
+            "t": 13,
+            "line_of_action_tilt_deg": 7.805,
+            "spine_deviation_studs": 0.0704,
+            "balance_margin_studs": 0.0729
+          },
+          {
+            "t": 22,
+            "line_of_action_tilt_deg": 13.696,
+            "spine_deviation_studs": 0.1222,
+            "balance_margin_studs": 0.0514
+          },
+          {
+            "t": 25,
+            "line_of_action_tilt_deg": 13.696,
+            "spine_deviation_studs": 0.1222,
+            "balance_margin_studs": 0.0514
+          },
+          {
+            "t": 31,
+            "line_of_action_tilt_deg": 1.431,
+            "spine_deviation_studs": 0.013,
+            "balance_margin_studs": -0.0344
+          },
+          {
+            "t": 36,
+            "line_of_action_tilt_deg": 1.949,
+            "spine_deviation_studs": 0.0177,
+            "balance_margin_studs": -0.0265
+          }
+        ],
+        "notes": []
+      },
+      "findings": [],
+      "coverage": {
+        "scope": "benchmark authored_attack (heavy attack), 2 runs",
         "frames": null,
         "loop": "full",
         "notRun": [
@@ -4040,10 +4438,10 @@ export const BASELINE_RUN = Object.freeze({
     }
   ],
   "summary": {
-    "ran": 16,
+    "ran": 17,
     "not_run": 0,
     "failed": 0,
-    "reproducible": 16,
+    "reproducible": 17,
     "checks_failed": 1,
     "checks_not_applicable": 2
   },
@@ -4110,7 +4508,7 @@ export const BASELINE_RUN = Object.freeze({
     "blocked": [
       {
         "category": "idle breathing and subtle weight shift",
-        "blocked_by": "no strategy generates motion (CMP-001 edits existing keys) and an idle has no phase template (Part 20.2 — gesture/idle spans stay unnamed), so nothing measurable distinguishes a good idle edit from a no-op beyond what light_attack already measures"
+        "blocked_by": "authorMotion CAN now generate one (authored_attack proves the mechanism on an empty rig), but nothing here can measure whether an idle is any good: the dimensions this build computes are contact drift, acceleration spikes introduced and acceptance-check pass rate, and an idle's quality is almost entirely subtle weight distribution over the support polygon across time — which needs a balance TRAJECTORY model (MOT-011 measures balance per pose, not its path) and a subtle-motion threshold nothing declares. A benchmark that authored an idle and then measured the same three numbers would be measuring the authoring, not the idle"
       },
       {
         "category": "run cycle",
@@ -4149,7 +4547,7 @@ export const BASELINE_RUN = Object.freeze({
   "elapsed_ms": null,
   "no_overall_score": "Part 59: \"Do not optimize a metric in isolation. A faster system that damages user work is not better.\" One number would average a contact drift in studs against a recall rate, and a comparison that improved it could still have broken a planted foot. Verdicts are per dimension, per benchmark, and the counts are counts — not a score.",
   "coverage": {
-    "scope": "16 benchmark(s) against implementation \"production\"",
+    "scope": "17 benchmark(s) against implementation \"production\"",
     "frames": null,
     "loop": "full",
     "notRun": [
@@ -4159,7 +4557,7 @@ export const BASELINE_RUN = Object.freeze({
     ]
   },
   "limitations": [
-    "16 benchmarks cover 16 of Part 59's 25 categories; the rest are listed with what blocks each (listBenchmarks().categories). No benchmark is a shell: each runs the real pipeline and measures at least two dimensions.",
+    "17 benchmarks cover 16 of Part 59's 25 categories; the rest are listed with what blocks each (listBenchmarks().categories). No benchmark is a shell: each runs the real pipeline and measures at least two dimensions.",
     "11 of Part 59's 21 evaluation dimensions are measured. The other 10 are session facts (corrections, iterations, approval, rollback frequency, tool calls) or need a renderer (render cost, visual continuity, camera readability) or the impure validator (export), and each says so in EVALUATION_DIMENSIONS.",
     "A headless run renders nothing. The visual metrics of every benchmark are \"none\", and the silhouette/object-ID comparison belongs to the Electron smoketest (OBS-002/003).",
     "animation_intent_alignment is a PROXY: it counts the plan's own acceptance checks that passed. Amplitude rising is a fact; whether the motion reads as asked is not measured by any dimension here.",

@@ -367,6 +367,18 @@ export const ACCEPTANCE_CHECKS = Object.freeze({
     implemented: true,
     proxy_for: 'export size and editability — not a measured runtime cost',
   },
+  // The counterpart of key_times_unchanged, and the check an AUTHORED motion needs: an edit
+  // proves nothing moved, a generation has to prove the keys it promised actually landed. Without
+  // it a generator whose compiler silently dropped a phase would still report a clean acceptance,
+  // because every OTHER check here measures what changed rather than what was supposed to appear.
+  key_times_include: {
+    id: 'key_times_include',
+    category: 'temporal_checks',
+    summary: 'a key exists at every named frame, on every named track',
+    args: 'itemId, times: [frames], tracks?',
+    implemented: true,
+    proxy_for: null,
+  },
   no_new_tracks: {
     id: 'no_new_tracks',
     category: 'objective_checks',
@@ -632,6 +644,21 @@ function runAcceptance(before, after, c, itemId) {
       return a <= c.max
         ? { status: 'pass', detail: `${a} keys, budget ${c.max}`, measured: a }
         : { status: 'fail', detail: `${a} keys exceeds the budget of ${c.max}`, measured: a };
+    }
+
+    case 'key_times_include': {
+      const times = c.times || [];
+      const names = trackNames(after, itemId, c.tracks && c.tracks.length ? c.tracks : null);
+      if (!times.length) return { status: 'not_run', reason: 'no times were named, so there is nothing to look for', detail: 'empty `times`', measured: null };
+      if (!names.length) return { status: 'fail', detail: `no tracks to check on item "${itemId}"`, measured: { tracks: 0 } };
+      const missing = [];
+      for (const name of names) {
+        const at = new Set(keysIn(tracksOf(after, itemId)[name], null).map((k) => k.t));
+        for (const t of times) if (![...at].some((x) => Math.abs(x - t) <= 1e-6)) missing.push({ track: name, t });
+      }
+      return missing.length
+        ? { status: 'fail', detail: `${missing.length} of ${names.length * times.length} expected key(s) are absent`, measured: missing.slice(0, 20) }
+        : { status: 'pass', detail: `every one of ${names.length} track(s) has a key at each of ${times.length} frame(s): ${times.join(', ')}`, measured: { tracks: names.length, times } };
     }
 
     case 'no_new_tracks': {

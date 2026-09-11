@@ -3318,6 +3318,167 @@
     return out;
   });
 
+  await step('generation: from an empty R15, an IntentSpec becomes key poses at phase boundaries with breakdowns, holds and a settle, applied transactionally, measured, and rolled back to an empty timeline', async () => {
+    S.newProject('slice-a-authoring');
+    const item = await D.addBuiltinRig('r15');
+    const out = {};
+    assert(Object.keys(S.getTracks(item.id)).length === 0, 'the rig must start with no animation at all, or this proves nothing');
+
+    // 1. The conventions a caller reads before writing a goal — and the gate on the pure IK.
+    // `ai/pose.js` reimplements reaching in closed form; `renderer/js/ik.js` does it by CCD against
+    // the live three.js instance. Two implementations of the same geometry drift, so the pure one
+    // is checked against the app's the way ai/kinematics.js is checked against rigbuild.js: not
+    // that the POSES match (CCD has three joints and a different objective), but that the pure
+    // solve lands on the target IN THE APP'S OWN forward kinematics.
+    const conv = D.mcp('pose_conventions', { itemId: item.id });
+    assert(/Rx·Ry·Rz/.test(conv.rotation.order) && conv.rotation.units === 'degrees', 'the rotation convention is stated, in degrees');
+    const hand = conv.reach_chains.find((c) => c.effector === 'RightHand');
+    assert(hand && hand.solves.join(',') === 'RightShoulder,RightElbow' && hand.holds[0] === 'RightWrist', JSON.stringify(hand));
+    assert(Math.abs(hand.bone_studs[0] - 0.8836) < 0.002, `the angled R15 upper arm must be measured from the real rest offsets, got ${hand.bone_studs[0]}`);
+
+    const inst = D.getInstance(item.id);
+    const restWorlds = inst.solvePoseWorlds(S.evalPose(item, 0), item.origin, S.unparentedSet(item.id));
+    // Targets are sampled around the SHOULDER PIVOT at a radius inside the chain's stated reach
+    // range, not around the hand's rest position: an R15 arm hangs very nearly straight, so the
+    // rest hand already sits at 1.69 of a 1.69-stud maximum and any offset from it is out of
+    // range. The pure solver reports that correctly — which makes it a useless cross-check.
+    const shoulder = item.rig.joints.find((j) => j.name === 'RightShoulder');
+    const pivot = CF.mul(restWorlds.get(shoulder.part0), shoulder.c0);
+    assert(hand.bone_studs[0] + hand.bone_studs[1] > 1.2, 'the reach radius below must sit inside the chain');
+    let worstPure = 0, worstCcd = 0, compared = 0;
+    for (const dir of [[0.3, 0.4, -0.87], [-0.5, 0.2, -0.84], [0.6, -0.5, -0.62], [0.1, 0.99, -0.1]]) {
+      const target = [pivot[0] + dir[0] * 1.2, pivot[1] + dir[1] * 1.2, pivot[2] + dir[2] * 1.2];
+      const pure = D.mcp('compile_pose', { itemId: item.id, t: 0, pose: [{ position_goal: { effector: 'right hand', target: { world: target } } }] });
+      const reach = pure.resolved.find((r) => r.kind === 'reach');
+      assert(reach && reach.reached, `the pure solve reported ${reach && reach.residual_studs} studs short of a reachable target`);
+      // Apply the pure pose through the APP's own FK and measure where the hand really lands.
+      const pose = {};
+      for (const op of pure.ops) pose[op.track] = op.value;
+      const got = inst.solvePoseWorlds({ ...S.evalPose(item, 0), ...pose }, item.origin, S.unparentedSet(item.id)).get('RightHand');
+      worstPure = Math.max(worstPure, Math.hypot(got[0] - target[0], got[1] - target[1], got[2] - target[2]));
+      // …and the app's own CCD solver on the same target, so a target the pure solve "reaches" and
+      // the app's cannot would be caught as a disagreement about the rig, not about the maths.
+      const ccd = D.mcp('solve_ik', { itemId: item.id, partId: 'RightHand', target, key: false });
+      worstCcd = Math.max(worstCcd, ccd.errorStuds);
+      compared++;
+    }
+    assert(worstPure < 1e-6, `the analytic solve must land on the target inside the app's own FK; worst ${worstPure} studs over ${compared} targets`);
+    assert(worstCcd < 0.05, `the app's CCD solver disagrees about reachability (worst ${worstCcd} studs) — that is a rig disagreement, not a maths one`);
+    out.ik_crosscheck = { targets: compared, pure_worst_studs: +worstPure.toExponential(2), ccd_worst_studs: +worstCcd.toFixed(4) };
+    assert(Object.keys(S.getTracks(item.id)).length === 0, 'compile_pose and solve_ik with key:false are dry runs and must have written nothing');
+
+    // 2. Authoring needs FRAMES, and says so rather than inventing them.
+    const asked = D.mcp('author_motion', { request: 'a heavy anime sword slash', itemId: item.id, actionType: 'attack' });
+    assert(asked.authored === false && asked.questions.some((q) => /frames/.test(q) && /anticipation/.test(q)), JSON.stringify(asked.questions));
+    out.asked_for_timing = asked.questions[asked.questions.length - 1].slice(0, 90);
+
+    // 3. The real thing: a 36-frame slash on a planted left foot, authored from nothing.
+    const script = {
+      request: 'a 1.2 second anime sword slash, extremely heavy, subtle anticipation',
+      itemId: item.id,
+      support: ['left foot'],
+      contacts: [{ effector: 'left foot', start: 0, end: 36, tolerance_studs: 0.05 }],
+      constrain: { contacts: [{ effector: 'left foot', from: 0, to: 36, tolerance_studs: 0.05 }] },
+      start: { pose: [
+        { joint: 'LeftHip', rotation_goal: { x: 14 } },
+        { joint: 'LeftKnee', rotation_goal: { x: -26 } },
+        { joint: 'LeftAnkle', rotation_goal: { x: 12 } },
+        { joint: 'Waist', rotation_goal: { y: 10 } },
+        { joint: 'RightShoulder', rotation_goal: { x: -20, z: 25 } },
+        { joint: 'RightElbow', rotation_goal: { x: 30 } },
+      ] },
+      phases: [
+        { name: 'anticipation', from: 0, to: 7, pose: [
+          { joint: 'Waist', rotation_goal: { y: 38, x: -6 } },
+          { joint: 'RightShoulder', rotation_goal: { x: -46, z: 62 } },
+          { joint: 'RightElbow', rotation_goal: { x: 78 } },
+          { position_goal: { effector: 'left foot', target: { hold: true } } },
+        ] },
+        { name: 'action', from: 7, to: 13, breakdown: { at: 9, bias: 0.22 }, pose: [
+          { joint: 'Waist', rotation_goal: { y: -34, x: 8 } },
+          { joint: 'RightShoulder', rotation_goal: { x: 16, z: -58 } },
+          { joint: 'RightElbow', rotation_goal: { x: 12 } },
+          { position_goal: { effector: 'left foot', target: { hold: true } } },
+        ] },
+        { name: 'follow_through', from: 13, to: 22, hold_until: 25, pose: [
+          { joint: 'Waist', rotation_goal: { y: -48, x: 14 } },
+          { joint: 'RightShoulder', rotation_goal: { x: 30, z: -74 } },
+          { position_goal: { effector: 'left foot', target: { hold: true } } },
+        ] },
+        { name: 'recovery', from: 25, to: 36, pose: [
+          { joint: 'Waist', rotation_goal: { y: 4, x: 2 } },
+          { joint: 'RightShoulder', rotation_goal: { x: -12, z: 18 } },
+          { position_goal: { effector: 'left foot', target: { hold: true } } },
+        ] },
+      ],
+      settle: { overshoot_at: 31, ratio: 0.22 },
+    };
+    const a = D.mcp('author_motion', script);
+    assert(a.authored === true, `authoring refused: ${a.reason || JSON.stringify(a.blocked)}`);
+    assert(JSON.stringify(a.key_frames) === JSON.stringify([0, 7, 9, 13, 22, 25, 31, 36]), `key frames ${JSON.stringify(a.key_frames)}`);
+    assert(a.steps.map((s) => s.step).join(',') === 'start,key_pose,breakdown,key_pose,key_pose,hold,settle,key_pose', a.steps.map((s) => s.step).join(','));
+    assert(a.blocked.length === 0, JSON.stringify(a.blocked));
+    out.authored = { operations: a.steps.reduce((n, s) => n + s.operations, 0), joints: a.joints.length, frames: a.key_frames };
+
+    // The keys are really in the project, at the frames declared, on the joints declared.
+    const tracks = S.getTracks(item.id);
+    assert(a.joints.every((n) => tracks[n] && a.key_frames.every((f) => tracks[n].keys.some((k) => Math.abs(k.t - f) < 1e-6))),
+      'every authored joint must carry a key at every declared frame');
+    // The breakdown is a POSE bias, not a time fraction: at frame 9 the waist is 22% of the way
+    // from its frame-7 pose to its frame-13 one, though frame 9 is a third of the way in time.
+    const deg = (f) => D.mcp('get_rotation_degrees', { itemId: item.id, track: 'Waist', frame: f }).y;
+    const [y7, y9, y13] = [deg(7), deg(9), deg(13)];
+    const poseFraction = (y9 - y7) / (y13 - y7);
+    assert(Math.abs(poseFraction - 0.22) < 0.02, `the breakdown pose bias should be 0.22, measured ${poseFraction.toFixed(3)} (${y7}° → ${y9}° → ${y13}°)`);
+    out.breakdown = { time_fraction: +((9 - 7) / (13 - 7)).toFixed(3), pose_bias: +poseFraction.toFixed(3) };
+
+    // 4. The planted foot is SOLVED at every key, so it does not move — the thing an edit can only
+    // measure afterwards. The declared effector is a ROLE PHRASE, so it resolves on both paths.
+    const contact = D.mcp('analyze_contacts', { itemId: item.id, contacts: [{ effector: 'left foot', start: 0, end: 36, tolerance_studs: 0.05 }] });
+    assert(contact.contacts_declared === 1 && contact.results[0].measured === true, contact.summary);
+    const drift = contact.results[0].max_drift_studs;
+    assert(drift <= 1e-4, `the authored contact must hold; measured ${drift} studs`);
+    assert(contact.results[0].within_tolerance === true, contact.summary);
+    out.contact_drift_studs = drift;
+
+    // 5. Measured, never judged: line of action and balance are reported with their method, and
+    // nothing anywhere says the result is good.
+    assert(a.measured.length === a.key_frames.length, 'every authored key carries its measurements');
+    const m13 = a.measured.find((x) => x.t === 13).measured;
+    assert(typeof m13.line_of_action.tilt_from_vertical_deg === 'number' && /least-squares/.test(m13.line_of_action.method));
+    assert(/volume proxy/.test(m13.centre_of_mass.method), 'the mass proxy must say it is one');
+    assert(typeof m13.balance.supported === 'boolean' && Array.isArray(m13.balance.support_polygon));
+    out.pose_measurements = a.measured.map((x) => ({ t: x.t, tilt: x.measured.line_of_action.tilt_from_vertical_deg, balance: x.measured.balance.margin_studs }));
+
+    // 6. Acceptance proves what was PROMISED exists, not only that nothing else moved.
+    const by = Object.fromEntries(a.acceptance.results.map((r) => [r.check, r]));
+    assert(by.key_times_include.status === 'pass', by.key_times_include.detail);
+    assert(by.contact_drift_within.status === 'pass', by.contact_drift_within.detail);
+    assert(a.acceptance.accepted === true, a.acceptance.summary);
+    out.acceptance = a.acceptance.summary;
+
+    // 7. The authored keys really drive the REAL rig, through state.js's own evaluation and the
+    // three.js instance — not just through the pure layer that wrote them. This is the boundary
+    // this step exists to cross: at frame 13 the sword arm has swung a long way from rest, and the
+    // planted foot has not moved at all.
+    const w0 = inst.solvePoseWorlds(S.evalPose(item, 0), item.origin, S.unparentedSet(item.id));
+    const w13 = inst.solvePoseWorlds(S.evalPose(item, 13), item.origin, S.unparentedSet(item.id));
+    const handTravel = Math.hypot(...[0, 1, 2].map((i) => w13.get('RightHand')[i] - w0.get('RightHand')[i]));
+    const footTravel = Math.hypot(...[0, 1, 2].map((i) => w13.get('LeftFoot')[i] - w0.get('LeftFoot')[i]));
+    assert(handTravel > 1.0, `the sword hand should have travelled by frame 13; the app's own FK says ${handTravel.toFixed(3)} studs`);
+    assert(footTravel < 1e-4, `the planted foot must not move in the app's own FK either; ${footTravel.toExponential(2)} studs`);
+    out.app_fk = { hand_travel_studs: +handTravel.toFixed(3), foot_travel_studs: +footTravel.toExponential(2) };
+
+    // 8. And it is fully reversible: rolling the transaction back empties the timeline, because
+    // these tracks were CREATED. A rollback that only cleared their keys would leave the rig
+    // carrying fifteen empty tracks and call itself complete.
+    const rb = D.mcp('rollback_transaction', { transactionId: a.transaction_id });
+    assert(rb.rolled_back === true || rb.complete === true, JSON.stringify(rb));
+    assert(Object.keys(S.getTracks(item.id)).length === 0, `undoing a generation must REMOVE the tracks it created; ${Object.keys(S.getTracks(item.id)).length} left behind`);
+    out.rolled_back_to_empty = true;
+    return out;
+  });
+
   await step('semantic layer: a persisted lock survives save/load, blocks a patch, and is undoable', async () => {
     S.newProject('locks');
     await D.addBuiltinRig('r15');
