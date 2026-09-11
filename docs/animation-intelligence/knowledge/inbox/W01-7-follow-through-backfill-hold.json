@@ -1,0 +1,41 @@
+{
+  "concept": "follow_through_backfill_hold",
+  "category": "advanced",
+  "definition": "Holding an exaggerated, clearly-posed follow-through at the end of a fast action specifically so the viewer can visually register and mentally reconstruct an action that happened too quickly to actually see as it occurred.",
+  "purpose": "Give the player a chance to retroactively understand a fast action's shape and power, when the action itself was too fast to track in the moment.",
+  "visible_effect": "A distinct, held, exaggerated ending pose immediately after a fast action, clearly showing the shape, direction, and magnitude of what just happened, even though the action's own motion was too brief to see clearly.",
+  "psychological_or_gameplay_effect": "Lets the player's eye catch up after the fact — the brain backfills an understanding of the action from the held follow-through pose rather than from the (unseen) action itself, so the action still reads as clear and satisfying despite being too fast to watch happen.",
+  "physical_interpretation": "The pose itself is a real physical consequence of the action's momentum (the same inertia the base `follow_through_overlap` principle already describes) — what is new here is treating the HOLD DURATION on that pose as a deliberate readability tool, not just an honest physical consequence.",
+  "use_cases": [
+    "an action fast enough that the player cannot see the motion itself happen frame to frame",
+    "any high-speed attack or ability whose shape or power still needs to register even though its motion does not",
+    "a player-facing action where responsiveness rules out a long anticipation, so legibility has to be recovered on the back end instead"
+  ],
+  "non_use_cases": [
+    "an action already slow enough to read as it happens, where an exaggerated hold would just look like an unnecessary pause",
+    "a rapid combo or chain of actions where holding each follow-through would break the flow between them"
+  ],
+  "interactions": [
+    "Follow-through/overlap — this is a deliberate READABILITY use of the same pose the existing card already treats as a weight/inertia signal; the same pose can be doing both jobs at once",
+    "Recovery-weight substitution / startup frame budget — a sibling case of the same family: when anticipation is too short to sell power or clarity, both the recovery window (video 3) and now the follow-through pose itself (this entry) can be asked to do that job instead",
+    "Arc trail VFX / motion smear readability — sibling readability techniques for a fast action, but those work DURING the fast motion; this one works AFTER it"
+  ],
+  "style_variations": {
+    "game_combat": "the primary context this applies to, especially for the fastest, least-anticipated moves in a kit"
+  },
+  "cadence_representation": "Not represented as a deliberate readability dial, though ordinarily authorable: holding a pose is simply a duration choice on existing keys, ordinary Cadence territory — what is missing is treating \"hold duration on a follow-through pose\" as a legibility lever the way `anticipation_depth` is a dial for the wind-up side.",
+  "control_surface": "Ordinary key/timing placement on the follow-through phase; no dedicated vocabulary dimension names this as a legibility control.",
+  "detection_and_measurement_methods": "Partially measurable: `ai/cal.js PHASE_NAMES`/`ai/plan.js segmentPhases` can locate a follow-through phase and its duration from existing key/marker evidence, the same way it already locates anticipation; nothing currently checks that duration against the preceding action's own speed to judge whether a \"backfill\" hold is long enough to do its job.",
+  "generation_or_modification_methods": "None dedicated; a caller would lengthen the hold on existing follow-through keys directly.",
+  "failure_modes": [
+    "a follow-through pose held too briefly to actually register, wasting the technique",
+    "holding it so long it reads as a new, separate pause rather than the natural conclusion of the preceding action",
+    "applying this to an action that was already readable, adding an unneeded delay"
+  ],
+  "roblox_considerations": "None specific — a pure keyframe-timing technique independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "a strong, exaggerated follow-through pose named directly as the way a player \"visually registers and mentally backfills\" an action that happened too fast to see (video 7 @ 14:01–14:17)"
+  ],
+  "evidence_status": "video: https://youtu.be/rYtrV1lChsA @ 13:59–14:17 — Dan states the technique and its purpose directly, over fighting-game footage (Granblue Fantasy Versus) rather than one single named freeze-frame example; experimental until validated"
+}

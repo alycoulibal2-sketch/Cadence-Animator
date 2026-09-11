@@ -1,0 +1,39 @@
+{
+  "concept": "physics_sim_blend_seam_mitigation",
+  "category": "specialized",
+  "definition": "Running cloth, hair, or other dangling elements through independent real-time physics simulation — rather than hand-keying them into every animation clip — so their motion continues reacting to the character's actual root motion regardless of which authored clip is currently blended in, smoothing over the seams between clips.",
+  "purpose": "Mitigate the cross-clip arc/motion discontinuity problem at its most visible points (hair, cloth, capes) by making those elements independent of WHICH clip is playing, rather than trying to author every clip-to-clip transition by hand.",
+  "visible_effect": "A simulated coat, cape, or hair continues swinging, settling, or following through smoothly across a transition between two different animation clips, instead of snapping or resetting at the clip boundary the way a hand-keyed version tied to one specific clip would.",
+  "psychological_or_gameplay_effect": "Hides exactly the kind of seam-pop `cross_clip_arc_continuity` names as one of game animation's hardest unsolved problems, at least for the specific class of loosely-attached elements a physics rig can drive — it does not solve the seam problem for the character's own core body motion, only for what is simulated.",
+  "physical_interpretation": "A real physics simulation (not an animation-curve approximation), driven by the character's actual root/attachment-point motion each frame regardless of which clip produced that motion.",
+  "use_cases": [
+    "hair, capes, coats, tails, and other loosely-attached elements on a character who blends between many separately-authored clips at runtime",
+    "specifically the elements most exposed by a bad blend seam, since they are the parts most visibly \"left behind\" by a sudden clip change"
+  ],
+  "non_use_cases": [
+    "the character's own core rig motion, which this technique does not touch — it mitigates the SYMPTOM on attached elements, not the underlying cross-clip arc discontinuity in the body itself",
+    "a single continuously-authored clip (no blending occurs, so there is no seam to hide)",
+    "a tightly-fit, non-dangling piece of the character, already named in `follow_through_overlap`'s own reasoning as too solid to benefit from overlap at all"
+  ],
+  "interactions": [
+    "Cross-clip arc continuity (video 6) — this is a concrete, working mitigation for that entry's own named problem, specifically for the loosely-attached subset of a character's motion, not the whole-body seam problem",
+    "Follow-through/overlap — the existing card already names drag/secondary-delay as a KEYED technique; this entry is the SIMULATED alternative to keying it, with the specific added benefit of surviving clip changes a keyed version cannot",
+    "Weight/timing — a simulated element inherits real momentum from root motion automatically, which is exactly what makes it clip-agnostic"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Out of scope, and an honest one to state: Cadence has no real-time physics simulation of any kind (`ai/vfxspec.js`'s particle systems are the closest thing, and those are VFX emitters, not physically-simulated rig attachments) — everything in a Cadence project is authored keys. The `secondary_delay` vocabulary dimension is the KEYED alternative this entry's non_use_cases name, and it is bound to whichever ONE clip it was authored into, exactly the limitation a physics sim exists to avoid.",
+  "control_surface": "None. `secondary_delay` is the nearest existing lever, and it is the keyed technique this entry is explicitly NOT describing.",
+  "detection_and_measurement_methods": "None — this is a runtime simulation behavior, not something a static authored project has data about.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "relying on physics sim alone while the character's own core body motion still pops at clip boundaries — this technique hides the symptom on attached elements, not the underlying cause",
+    "a simulated element with unstable or exaggerated physics parameters calling attention to itself as \"simulated\" rather than reading as natural drag",
+    "physics-driving an element that is too rigid or tightly-fit to plausibly move independently in the first place"
+  ],
+  "roblox_considerations": "Roblox has real, usable primitives for this (constraints, and cloth/rope simulation via existing physics objects), so this technique is more directly reachable on the Roblox side than through Cadence's own authoring model.",
+  "performance_implications": "A real runtime physics cost per simulated element, distinct from Cadence's own keyframe-only cost model — this is a genuine, non-trivial cost this entry should not understate.",
+  "examples": [
+    "an Overwatch emote's coattails continuing to swing on independently-simulated cloth physics after the emote animation itself has already finished and blended back to idle (video 7 @ 14:42–15:06)"
+  ],
+  "evidence_status": "video: https://youtu.be/rYtrV1lChsA @ 14:19–15:34 — Dan states the technique and its seam-hiding benefit directly, naming a specific Overwatch emote example (\"watch Anna's coat\"); the exact frame of that example fell in a gap in this session's sparse-coverage frame sample for this 16-minute video (the tool's own length warning), so this rests on the transcript rather than a directly-viewed frame; experimental until validated"
+}

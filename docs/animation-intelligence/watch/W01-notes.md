@@ -8,7 +8,7 @@
 - [x] 4. SQUASH & STRETCH - The 12 Principles of Animation in Games — New Frame Plus (8:19) — https://youtu.be/1kFRU_xBZnE
 - [x] 5. SLOW IN & SLOW OUT - The 12 Principles of Animation in Games — New Frame Plus (7:24) — https://youtu.be/3jNiNctcQ4c
 - [x] 6. ARCS - The 12 Principles of Animation in Games — New Frame Plus (7:47) — https://youtu.be/lOzgxMgAnxQ
-- [ ] 7. FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games — New Frame Plus (16:53) — https://youtu.be/rYtrV1lChsA
+- [x] 7. FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games — New Frame Plus (16:53) — https://youtu.be/rYtrV1lChsA
 - [ ] 8. The most important animation principle: An introduction on animation spacing and timing — Dong Chang (11:04) — https://youtu.be/vSJ5lT_ma-E
 - [ ] 9. 3 Easy Ways to Master Animation Timing — Dong Chang (13:58) — https://youtu.be/13QIh7vsCpQ
 - [ ] 10. Animation basics: The art of timing and spacing - TED-Ed — TED-Ed (6:42) — https://youtu.be/KRVhtMxQWRs
@@ -147,4 +147,24 @@ Watched at `balanced` detail (100 scene-aware frames over 7:46, ~55 read directl
 
 **Entries written:** 3 (`W01-6-arc-camera-angle-robustness.json`, `W01-6-arc-trail-vfx-readability.json`, `W01-6-cross-clip-arc-continuity.json`), all passed `validateProposedEntry` cleanly.
 
-**Next video: 7** (FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games, `balanced` detail).
+### 7. FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games — 2026-09-11
+
+Watched at `balanced` detail. This is a 16:53 video — well beyond the tool's "best accuracy under 10 minutes" guidance — so even at the 100-frame cap coverage was sparse (the tool's own warning), and one specific example (the Overwatch coat-physics moment) fell in a coverage gap; noted honestly in that entry's `evidence_status` rather than claimed as directly seen. ~30 frames read directly, spread across the full length, plus the complete 536-segment transcript, which is the strongest source for this video regardless — Dan narrates in exhaustive, timestamped, named-example detail throughout (Rocket League antenna, Horizon Zero Dawn's Aloy hair/cloth, Streets of Rage 4, Crash Bandicoot 4, Overwatch's Zenyatta and Ana, Spiritfarer's Stella, RDR2 horseback riding, Jak & Daxter, Mario, Junkrat, Guardians of the Galaxy's Quill).
+
+**Cross-check:** the most thorough confirmation of any video in this batch for its principle — the existing `follow_through_overlap` card's lead/lag chain measurement, drag-by-material-weight, and mechanical-style non-use-case all match directly and repeatedly across many named examples. Two direct cross-references to earlier entries in this batch, both confirming rather than contradicting: "exaggerate the follow through instead [of anticipation]... using the finish and recovery time of each action to sell its power" (video @ 13:35–13:58) is the same substitution `recovery_weight_substitution` (video 3) already names, from the follow-through side instead of the anticipation side; and 2D sprite characters "simply pop directly from their run cycle to their idle... no follow through at all, and it's fine" (video @ 11:44–10:58) is the stopping-side counterpart to `implied_zero_frame_anticipation` (video 3).
+
+**Two new entries:**
+1. **Follow-through as a "backfill" legibility hold** (`W01-7-follow-through-backfill-hold.json`) — holding an exaggerated follow-through pose specifically so the player can visually register and retroactively reconstruct an action that happened too fast to actually watch occur. Distinct from video 6's arc-trail/video 4's motion-smear: those aid readability DURING a fast motion, this one works AFTER it, via a deliberate hold duration (video @ 13:59–14:17).
+2. **Physics simulation as a cross-clip blend-seam mitigation** (`W01-7-physics-sim-blend-seam-mitigation.json`) — running cloth/hair through independent real-time physics (rather than hand-keying it per clip) so it keeps reacting to root motion regardless of which authored clip is blended in, smoothing exactly the kind of seam-pop `cross_clip_arc_continuity` (video 6) names as one of game animation's hardest unsolved problems. Named directly with a specific example: an Overwatch emote's coattails continuing to swing on simulated physics after the emote clip itself has already ended (video @ 14:19–15:34). Written with the same honest out-of-scope `cadence_representation` as its sibling entry: Cadence has no real-time physics simulation at all.
+
+**Other observations, no new entry:** the video's own admission that follow-through/overlap terminology is used inconsistently across the field (drag, settles, flapping, bounce, jiggle, wave motion, primary/secondary motion, successive breaking of joints, lead and follow — video @ 11:47–12:30) is a useful glossary note but not a technique of its own — worth remembering if a future session needs to reconcile inconsistent terminology across the watch batches. The extensive multi-character overlap breakdowns (Aloy's hair/cloth/rope/quiver/bow each reacting differently by material, Axel/Cherry's idle-loop joint-chain offset, Cherry's guitar-slam power originating in the hips) are excellent concrete illustrations of the existing card's chain lead-lag measurement, not structurally new concepts.
+
+**Capture candidates:**
+- `capture: proper stop with offset-timing follow-through — video 7 @ 11:08–11:35 — Spiritfarer's Stella: foot plants first, weight leans back, then torso straightens and arms drift into place last — a clean, fully-described reference for a "responsive but not robotic" stop`
+
+**Checks for a later session to implement:**
+- `check: backfill_hold_duration_vs_action_speed — the hold duration on a follow-through phase (existing phase/marker timing) relative to the preceding action's own duration — should be long enough to register for player-controlled actions faster than roughly a startup_frame_budget "fast" threshold — video 7 @ 13:59–14:17`
+
+**Entries written:** 2 (`W01-7-follow-through-backfill-hold.json`, `W01-7-physics-sim-blend-seam-mitigation.json`), both passed `validateProposedEntry` cleanly.
+
+**Next video: 8** (The most important animation principle: An introduction on animation spacing and timing — Dong Chang, `balanced` detail).
