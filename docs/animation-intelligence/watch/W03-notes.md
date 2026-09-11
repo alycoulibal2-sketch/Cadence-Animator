@@ -513,14 +513,18 @@ studied anime examples alike; no performed 3D human motion to source from.
 ## End of session (2026-09-11)
 
 All ten videos watched: 21–23, 25–30 produced entries; video 24 (Good Posing vs Bad Posing) produced
-none, for a stated reason (see its section) rather than being skipped silently. **27 knowledge
-entries** written to `knowledge/inbox/W03-*.json`, all validated against both Part 72 gates
-(`validateProposedEntry` 20/20 fields, `validateEvidenceSource` URL+timestamp) before being counted
-here. **1 capture candidate** (video 21's weight-shift-into-first-step demonstration — every other
-video was either 2D/hand-drawn, pre-existing third-party footage, or a screen-recorded software
-session, none of which Roblox Studio's Animation Capture can source from). **10 `check:` lines**
-across the ten videos, now sitting in this file for the merge session to lift into `LESSONS.md`'s
-checks queue.
+none, for a stated reason (see its section) rather than being skipped silently. **23 knowledge
+entries** written to `knowledge/inbox/W03-*.json` (1+4+1+0+1+5+4+2+2+3 across videos 21–30 in
+order), all validated against both Part 72 gates (`validateProposedEntry` 20/20 fields,
+`validateEvidenceSource` URL+timestamp) and re-checked for concept-name collisions in one final
+sweep after the batch's last commit — 23 files, 23 unique concepts, zero failures. (An earlier draft
+of this summary said 27, from arithmetic I didn't check against the actual file count — caught and
+fixed before this was the only record of it, which is exactly why the check is worth running rather
+than trusting the add-up.) **1 capture candidate** (video 21's weight-shift-into-first-step
+demonstration — every other video was either 2D/hand-drawn, pre-existing third-party footage, or a
+screen-recorded software session, none of which Roblox Studio's Animation Capture can source from).
+**12 `check:` lines** across the ten videos, now sitting in this file for the merge session to lift
+into `LESSONS.md`'s checks queue.
 
 **What contradicted an existing card:** nothing, cleanly — no video in this batch stated a claim
 that conflicts with a card already in the corpus. What DID happen twice, and is worth naming as its
