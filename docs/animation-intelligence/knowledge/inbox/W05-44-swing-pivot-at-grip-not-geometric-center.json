@@ -1,0 +1,37 @@
+{
+  "concept": "swing_pivot_at_grip_not_geometric_center",
+  "category": "advanced",
+  "definition": "When a held prop rotates in response to a camera/body turn (drag, overshoot, settle), place the effective rotation AXIS at the character's GRIP point on the prop, not at the prop's own geometric centre — so a weapon held near one end rotates around that end, not around its midpoint.",
+  "purpose": "Make a dragged/overshooting prop's rotation read as being held and swung by a hand at a specific point, rather than as an independent object rotating around its own centre of mass the way an unattached object would.",
+  "visible_effect": "The end of the prop nearest the grip stays comparatively still while the far end sweeps through a wider arc during a turn — visibly different from a centre-pivoted rotation, where both ends would sweep equally.",
+  "psychological_or_gameplay_effect": "Reinforces that the object is HELD (grip-driven) rather than floating or independently simulated — a subtle but perceptible physical-plausibility cue distinct from the drag/lag timing itself.",
+  "physical_interpretation": "A rigid body rotated about an off-centre pivot (the grip) rather than about its own centre of mass — ordinary rigid-body rotation, just correctly located at the point of applied control rather than defaulted to the object's centroid.",
+  "use_cases": [
+    "any held/attached prop whose grip point is visibly offset from its own geometric centre (a two-handed weapon held near one end, a tool held by a handle far from its working end)",
+    "any rig where a generic attach/parent system might default an item's rotation to its own origin/centroid rather than to the actual grip location"
+  ],
+  "non_use_cases": [
+    "a prop gripped at or very near its own geometric centre (a pistol, a small tool), where the distinction from a centre-pivot is negligible",
+    "a prop rigidly welded with no independent rotation at all — there is no pivot choice to make if the prop never moves relative to its parent"
+  ],
+  "interactions": [
+    "held_object_drag_frame_count (W02) and lever_arm_dependent_drag (W02) — both concern a held object's motion relative to its grip; this entry adds the specific claim that the ROTATION AXIS itself, not just the drag amount, should sit at the grip rather than the object's centre",
+    "weapon_attach_under_root_avoids_subframe_chain_desync (video 43) — both are about getting a held item's pivot/parenting relationship right; that entry is about hierarchy depth and interpolation, this one is about WHERE on the object the effective pivot sits"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not explicitly modelled: Cadence's `attach_item` attaches an item to a part with an offset, and the item then rotates with whatever part/joint drives it — so the MECHANISM to place a pivot away from an item's own origin already exists (position the item's origin at the grip point when authoring it, per ordinary Motor6D/attachment convention), but no tool in this build checks or enforces that an item's authored origin corresponds to its actual held/grip point rather than its geometric centre; a mis-origined prop would rotate visibly wrong with no warning.",
+  "control_surface": "`attach_item`'s offset and the item's own authored origin together determine the effective pivot; nothing validates that origin against the item's geometry or a declared grip point.",
+  "detection_and_measurement_methods": "Not directly measurable from motion data alone — telling a correctly-pivoted rotation from an incorrectly-centred one requires knowing the prop's own geometry (its bounding box or declared grip point) to compare against the rotation centre `ai/motion.js` would otherwise just take as given; `get_bounding_box` could supply the geometry half of that comparison, but no code combines it with a rotation-centre check today.",
+  "generation_or_modification_methods": "None — an authoring-time origin/offset choice, not a per-clip generation step.",
+  "failure_modes": [
+    "authoring or importing a prop with its origin at its geometric centre by default (a common DCC-tool default) and attaching it without correcting the origin to the actual grip point, producing a visibly wrong swing pivot",
+    "a two-handed prop with two independent grip points, where a single fixed pivot cannot correctly represent both — outside this entry's single-pivot scope entirely"
+  ],
+  "roblox_considerations": "A Roblox `Motor6D`'s `C0`/`C1` offsets directly control where an attached part's effective rotation origin sits relative to its parent — this technique maps onto getting those offsets right for a held prop's mesh, exactly the kind of concrete, checkable authoring detail `get_bounding_box` combined with a declared grip point could validate.",
+  "performance_implications": "None.",
+  "examples": [
+    "Winston's weapon described directly: 'Winston's weapon rotates but the rotation axis happens closer to the top of the weapon because that's where he holds it' (video @ 11:57–12:02)",
+    "contrasted implicitly against the video's other weapon-drag examples (Sombra, Hanzo, McCree) which describe TIMING (lead/lag) differences without this entry's additional axis-location claim — Winston's is the one example in this video naming the pivot point itself, not only the drag timing around it (video @ 11:33–12:02)"
+  ],
+  "evidence_status": "video: https://youtu.be/7Dga-UqdBR8 @ 11:57–12:02 — Dan (New Frame Plus) states the off-centre rotation-axis observation directly for Winston's weapon, attributing it explicitly to his grip location; no frames extracted (transcript-only); experimental until validated"
+}

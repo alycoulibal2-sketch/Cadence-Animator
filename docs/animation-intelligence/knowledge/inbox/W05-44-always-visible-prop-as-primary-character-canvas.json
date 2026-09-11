@@ -1,0 +1,37 @@
+{
+  "concept": "always_visible_prop_as_primary_character_canvas",
+  "category": "advanced",
+  "definition": "In a context where a character's face and body are never shown (a first-person view), deliberately keep their one consistently-visible prop (a weapon, tool, or held item) on screen as close to 100% of the time as possible, and invest character-defining animation detail specifically into that prop's design, idle behaviour and handling — because it is the only canvas available for character read.",
+  "purpose": "Recover most of a \"hands and a gun\" first-person view's lost character-communication bandwidth (no face, no full body, no posture) by concentrating it onto the one element that IS always visible.",
+  "visible_effect": "A held item's silhouette, wear, looseness/rigidity and constant micro-motion are legible on-screen almost continuously, rather than only during discrete action animations (fire, reload).",
+  "psychological_or_gameplay_effect": "Read at a glance ('this not only allows each weapon's unique design to show you who you're playing... but also showcases each weapon's unique animation which also just happens to reflect the personality of the weapon's owner') — character recognition and re-recognition both happen through this one channel continuously, not only during scripted beats.",
+  "physical_interpretation": "None — a staging/screen-composition discipline, not a property of the motion itself.",
+  "use_cases": [
+    "any severely constrained viewpoint (first-person, over-the-shoulder with a dominant held item, a cockpit view) where full-body acting is unavailable and one prop is the only consistently visible element",
+    "a character roster that must be told apart primarily by silhouette/read at a glance rather than by dialogue or face"
+  ],
+  "non_use_cases": [
+    "a view with a fully visible body and face, where concentrating character read onto one prop would leave the majority of the available channels unused",
+    "a prop meant to be gameplay-neutral/interchangeable across characters (a generic pickup), where investing it with owner-specific personality would misrepresent it as character-defining when it is not"
+  ],
+  "interactions": [
+    "per_character_spring_tuning_as_personality_control (video 43) — a sibling technique for the SAME constrained-view problem: that entry tunes a shared motion SYSTEM per character, this one dedicates screen TIME and prop DESIGN per character; a real first-person character pipeline uses both together",
+    "decoupled_view_model_fov_protects_authored_pose (video 43) — both concern deliberate control over what exactly is visible and how, in the same first-person view-model space"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented — a staging/direction decision about what stays on screen and for how long, made by the exported game's camera and UI framing, not by anything a `.cadence` project file records. Cadence authors the prop's own animation (`add_prop_item`, attach/detach, property tracks) but has no concept of 'percentage of runtime this item is on screen', which is a property of the CONSUMING game's camera and layout, not of the clip.",
+  "control_surface": "None directly; `add_prop_item`/`attach_item` author the prop's presence and motion, but nothing measures or targets its on-screen time.",
+  "detection_and_measurement_methods": "None in this build — screen-visibility duration depends on a camera and viewport this build does not simulate; nothing in `ai/motion.js` or `ai/pose.js` has access to a camera frustum to compute it.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "investing personality detail into a prop that is not actually kept on screen consistently, wasting the work on a channel the player rarely perceives",
+    "treating this as a substitute for other character-communication channels when they ARE available (a view with visible face/body), rather than the constrained-view-specific technique it is"
+  ],
+  "roblox_considerations": "None specific — a camera/UI framing discipline for the exported game to implement; Cadence's own export (a clip on a rig) is agnostic to how much of the frame the resulting prop occupies at runtime.",
+  "performance_implications": "None.",
+  "examples": [
+    "Soldier 76's rifle animated as 'a finely tuned precision machine' (fast, sharp, snapping into place) contrasted directly against Junkrat's launcher ('rickety and crude... held together by duct tape and a wish', with visibly loose, vibrating parts) — two opposite personalities read entirely through weapon idle motion (03:17–04:01)",
+    "the presenter's own summary claim: 'just having each weapon visible on screen reinforces personality in so many tiny subtle little ways' (04:19–04:26)"
+  ],
+  "evidence_status": "video: https://youtu.be/7Dga-UqdBR8 @ 02:52–04:26 — Dan (New Frame Plus) states the always-visible-prop discipline directly and demonstrates it with a Soldier 76/Junkrat weapon-design contrast; no frames extracted (transcript-only); experimental until validated"
+}

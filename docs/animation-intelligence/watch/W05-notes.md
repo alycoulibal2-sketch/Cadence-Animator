@@ -5,7 +5,7 @@
 - [x] 41. Animation Bootcamp: An Indie Approach to Procedural Animation — GDC (26:13) — https://youtu.be/LNidsMesxSE
 - [x] 42. Animation Bootcamp: 2018 Tricks of the Trade — GDC (31:10) — https://youtu.be/o1tti636Kag
 - [x] 43. Animation Bootcamp: The First Person Animation of Overwatch — GDC (34:03) — https://youtu.be/7t0hLZd_8Z4
-- [ ] 44. How Overwatch Conveys Character in First Person — New Frame Plus (15:32) — https://youtu.be/7Dga-UqdBR8
+- [x] 44. How Overwatch Conveys Character in First Person — New Frame Plus (15:32) — https://youtu.be/7Dga-UqdBR8
 - [ ] 45. Animation Bootcamp: Animating Cameras for Games — GDC (26:26) — https://youtu.be/hP1Vz70WouE
 - [ ] 46. Animation Bootcamp: Script to Screen: The Development Diary of Marvel's Spider-Man — GDC (31:13) — https://youtu.be/r_rJJyIPrmM
 - [ ] 47. Evolving Combat in 'God of War' for a New Perspective — GDC (59:52) — https://youtu.be/hE5tWF-Ou2k
@@ -234,3 +234,70 @@ presenter explicitly ran out of time and skipped material more than once).
 `W05-43-fixed-camera-licenses-invisible-pose-cheats.json` — all five pass `validateProposedEntry`
 and `validateEvidenceSource`; re-swept for concept-name collisions against the full corpus (12
 compiled + W01–W04 inbox/merged + this batch so far) with none found.
+
+### 44. How Overwatch Conveys Character in First Person — New Frame Plus (Dan)
+
+2026-09-11. Watched at `transcript` detail (402 caption segments; one non-English caption track hit
+an HTTP 429 and was skipped, the primary `en` track came through clean on the first pull — a distinct,
+narrower version of the "captions present but check coherence" lesson from W03: here it was a
+DIFFERENT track that failed, not the one actually used, so nothing needed re-checking). This video is
+an explicit companion to video 43 — same subject (Overwatch first-person animation), credited at the
+very end to Matt Bame's GDC talk by name — but from an external analytical/critique lens rather than a
+developer's own account, with many more named per-character comparisons across the full roster than
+video 43 had room for. Matches W05.md's framing for this video exactly: character through motion, with
+no face ever in frame.
+
+**What it teaches, specifically:**
+1. Keep the one consistently-visible element (the weapon/hands) on screen as close to always as
+   possible, and invest character-defining design and idle detail specifically there, since it is the
+   ONLY available canvas in this view — demonstrated with a direct Soldier 76 (precision, tight,
+   well-maintained) vs. Junkrat (rickety, loose, vibrating) weapon-idle contrast (02:52–04:26). Wrote
+   **`always_visible_prop_as_primary_character_canvas`**.
+2. Zenyatta is the one character in the roster given NO idle fidget at all, stated as deliberate and
+   contrasted directly against D.Va's fidget-heavy, tense idle in the same breath — stillness reads as
+   meditative serenity specifically BECAUSE the rest of the cast has trained the viewer to expect
+   constant idle micro-motion (05:03–05:28). The sharper, more novel claim here (vs. video 43's
+   per-character spring-tuning entry, which is about VARYING a parameter) is that the DELIBERATE
+   ABSENCE of any secondary motion is itself expressive, and that Cadence's own data has no way to
+   distinguish that deliberate absence from an idle nobody has authored yet. Wrote
+   **`withheld_idle_fidget_as_deliberate_character_trait`**.
+3. With feet/legs never shown, distinct per-character locomotion identity (heavy stomping, light
+   coasting, skating, footfall-less hovering) is conveyed entirely through hand/weapon secondary motion
+   and camera bob — Reinhardt's vertical stomp-punctuation via hammer sway, Lucio's horizontal
+   skate-sway via his free arm, Zenyatta's near-total absence of vertical punctuation even while moving
+   (with only a slight bob increase relative to his own stillness) (06:13–07:55). Wrote
+   **`locomotion_character_conveyed_via_hand_secondary_motion_alone`**.
+4. Winston's weapon's rotation axis during a camera-turn drag sits near the TOP of the weapon
+   specifically because that is where he grips it, not at the weapon's own geometric centre
+   (11:57–12:02) — a narrow but concrete claim distinct from the video's other (more numerous)
+   lead/lag-timing observations on the same general phenomenon. Wrote
+   **`swing_pivot_at_grip_not_geometric_center`**.
+
+**Cross-checks** (confirmations/refinements of existing cards, not new entries): the broader
+weapon-drag-scales-with-grip/weight-and-skill finding — McCree's revolver LEADS the turn (light,
+skilled marksman), Hanzo's bow LAGS (heavier, drawn), Sombra's SMG wobbles more (one-handed,
+top-heavy) — directly confirms and adds named, roster-wide evidence to `lever_arm_dependent_drag` and
+`held_object_drag_frame_count` (both W02) rather than adding new mechanism (11:19–11:57). Tracer's
+combat-roll camera doing a small dip instead of a full 360° rotation to suggest rolling without
+disorienting the player (12:24–12:53) is a real, concrete finding but has no clean Cadence analogue
+(no camera-comfort/disorientation model exists in this build at all) and is closely related in spirit
+to `procedural_movement_precedes_cosmetic_animation` (video 41)'s responsiveness-protection reasoning
+without adding a new mechanism — noted here rather than written as its own entry.
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — entirely in-game character-roster analysis, no filmed reference.
+
+**Checks for the queue:** none new this video — the four written entries' measurable angles
+(near-zero-amplitude idle detection, vertical/horizontal displacement decomposition on a hand track,
+rotation-centre-vs-geometry comparison) are already captured inside their own
+`detection_and_measurement_methods` fields rather than as separate queued checks, since each depends
+on a declaration (a grip point, an intentional-stillness annotation) this build does not yet have
+anywhere to store — recorded as blocked-on-a-declaration in the entries themselves rather than queued
+as if merely unbuilt.
+
+**Entries written:** `W05-44-always-visible-prop-as-primary-character-canvas.json`,
+`W05-44-withheld-idle-fidget-as-deliberate-character-trait.json`,
+`W05-44-locomotion-character-conveyed-via-hand-secondary-motion-alone.json`,
+`W05-44-swing-pivot-at-grip-not-geometric-center.json` — all four pass `validateProposedEntry` and
+`validateEvidenceSource`; no concept-name collisions against the full corpus.

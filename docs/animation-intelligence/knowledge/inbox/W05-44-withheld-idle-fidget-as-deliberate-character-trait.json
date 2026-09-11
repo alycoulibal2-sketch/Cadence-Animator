@@ -1,0 +1,37 @@
+{
+  "concept": "withheld_idle_fidget_as_deliberate_character_trait",
+  "category": "advanced",
+  "definition": "Deliberately give a character NO idle fidget at all — zero secondary/self-directed motion during stillness — as its own specific character choice, in explicit contrast to a cast where every other character has one, rather than treating a fidget as a default all characters should receive.",
+  "purpose": "Communicate a trait (serenity, control, emotionlessness, non-human nature) precisely BECAUSE the audience has been conditioned by the rest of the cast to expect constant idle micro-motion, so its total absence reads as meaningful rather than as an unfinished or default state.",
+  "visible_effect": "Total stillness during idle — no breathing drift, no self-touching or shifting fidget, no weapon sway beyond the absolute minimum any other character also has — held for the same duration other characters spend visibly fidgeting.",
+  "psychological_or_gameplay_effect": "Reads as meditative calm or inhuman control specifically because it contrasts against an established norm; the same absence in a cast where fidgets are NOT the norm would likely read as merely unfinished or lifeless rather than as a deliberate trait.",
+  "physical_interpretation": "None directly — the physical claim is an absence of motion, notable only relative to what a viewer has been trained to expect from the rest of the cast.",
+  "use_cases": [
+    "a character whose defining trait IS stillness, serenity, or inhuman/mechanical control, within a cast where every other character visibly fidgets",
+    "signalling a character is fundamentally different in KIND (a machine, a spirit, a meditative figure) from an otherwise-human cast, using absence rather than an added visual marker"
+  ],
+  "non_use_cases": [
+    "a cast or context with no established fidget norm to contrast against — the technique depends entirely on the audience's built-up expectation from other characters; used in isolation it reads as unfinished, not deliberate",
+    "any character whose idle SHOULD read as attentive/alert rather than serene — stillness reads as calm specifically, not as readiness (contrast with the same video's own D.Va example, whose idle is full of sharp tense micro-adjustments to signal alertness instead)"
+  ],
+  "interactions": [
+    "per_character_spring_tuning_as_personality_control (video 43) — the zero-amplitude extreme of that entry's same parameter space: this is what 'tuning the spring' looks like taken to its lower limit, used deliberately rather than as an oversight",
+    "layered_independent_look_targets_read_as_awareness (video 42) — a related but opposite case: that entry adds motion to signal awareness, this one withholds all motion to signal its opposite (serene detachment)"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence cannot distinguish this entry's deliberate case from an unauthored idle at all: a project with zero keys on an idle clip's secondary tracks looks IDENTICAL, in the data, to a project where no one has gotten around to authoring idle secondary motion yet. Nothing in this build records authorial INTENT ('this stillness is deliberate') separately from the absence of keys itself — the same class of gap `ai/certainty.js`'s 'nothing claims a check it did not run' discipline is built to avoid for measurements, but here applied to authored content rather than a measurement.",
+  "control_surface": "None. An empty or near-empty track is authorable today (simply don't add keys), but nothing marks it as an intentional absence versus an incomplete one.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion` would measure a near-zero velocity/amplitude across an idle clip's duration, which is the correct SIGNAL for this technique — but the measurement alone cannot distinguish 'deliberately serene' from 'not yet animated', so a review tool surfacing a low-amplitude idle would need a human-authored annotation (closest existing precedent: `ai/memory.js project_conventions`) to tell the two apart.",
+  "generation_or_modification_methods": "None — achieved by NOT authoring secondary motion, which is not a generation operation at all.",
+  "failure_modes": [
+    "using this technique without an established fidget norm elsewhere in the same cast/context to contrast against, so the stillness reads as incomplete rather than deliberate",
+    "a review or QA process flagging a deliberately-still idle as a missing-content bug, precisely because nothing distinguishes the two cases in the data (see cadence_representation)"
+  ],
+  "roblox_considerations": "None specific — the technique is entirely about what is NOT authored, independent of target engine.",
+  "performance_implications": "Strictly cheaper than any other character's idle (fewer or no keys to evaluate), though this is incidental to the technique's purpose, not its motivation.",
+  "examples": [
+    "Zenyatta described as gently hovering with clasped hands, and explicitly as the one character in the roster with NO fidget at all: 'the best part is... unlike almost all of the other characters he doesn't even have a fidget, he is meditative and completely serene' (video @ 05:15–05:28)",
+    "contrasted directly against D.Va's idle in the same breath of the video: 'constantly adjusts her grip... lots of sharp tiny nudges... little twitches like her arms are tensed with focus', establishing the fidget-heavy norm Zenyatta's absence reads against (video @ 05:03–05:15)"
+  ],
+  "evidence_status": "video: https://youtu.be/7Dga-UqdBR8 @ 05:03–05:28 — Dan (New Frame Plus) states the deliberate no-fidget characterization directly, immediately contrasted against D.Va's fidget-heavy idle in the same cast; no frames extracted (transcript-only); experimental until validated"
+}

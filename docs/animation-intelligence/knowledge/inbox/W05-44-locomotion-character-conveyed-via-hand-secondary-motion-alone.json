@@ -1,0 +1,38 @@
+{
+  "concept": "locomotion_character_conveyed_via_hand_secondary_motion_alone",
+  "category": "advanced",
+  "definition": "With no feet, legs or body ever in frame (a first-person view), convey a distinct per-character locomotion identity — gait weight, rhythm, mobility type — ENTIRELY through the secondary motion of the hands/held item and camera bob, calibrated so each character's invisible lower-body action is still inferable from the visible upper-body's reaction to it.",
+  "purpose": "Preserve locomotion-based characterization (heavy vs. light, running vs. skating vs. coasting) even in a view that structurally cannot show the motion's actual source (the legs/feet), by encoding it into what the view CAN show.",
+  "visible_effect": "Distinctly different hand/weapon bob patterns per character during movement — large vertical punctuation for a heavy stomping gait, minimal vertical movement with a horizontal skating sway for a character on skates, a slight bobbing increase with no vertical punctuation at all for a character with no footfalls whatsoever.",
+  "psychological_or_gameplay_effect": "Lets a player 'feel how they run by watching the movement of their gun and hands' even though the actual mechanism producing that motion (footfalls, or their absence) is never shown — the presenter states this relationship directly.",
+  "physical_interpretation": "The hands/camera act as an indirect sensor of the body's true locomotion dynamics — vertical punctuation frequency and amplitude proxy for footfall impact and gait height, horizontal sway phase proxies for a skating or swinging gait, and a poverty of either proxies for a gait with no ground-impact events at all (a hover/coast).",
+  "use_cases": [
+    "any first-person or similarly foot-invisible view where per-character locomotion identity still needs to read",
+    "a character with a non-standard locomotion mode (skating, hovering, quadrupedal/using a hand to run) whose mechanism cannot be shown directly in the chosen view and must be inferred instead"
+  ],
+  "non_use_cases": [
+    "a view where the body/feet ARE visible, where indirect hand-secondary-motion encoding would be redundant with (or could even contradict) the directly-visible locomotion",
+    "a locomotion mode with no natural secondary-motion signal to carry the read (perfectly rigid, teleporting, or otherwise inertia-less movement) — the technique depends on there being real physical secondary motion to translate"
+  ],
+  "interactions": [
+    "cycle_phase_driven_root_translation (video 41) — both concern how a character's true locomotion state propagates into what is actually rendered, from two different directions: that entry computes root position FROM gait phase, this one infers gait CHARACTER from what the hands do in response to it",
+    "chain_depth_proportional_secondary_delay (W02) — the underlying mechanism (a distal part's motion reflecting a proximal driver's dynamics) is the same chain-lag relationship, applied here across the whole (invisible) body-to-hands relationship rather than within one visible chain"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Partially representable: `analyseChain`'s lead/lag measurement could in principle characterize an EXISTING hand/camera-bob track's relationship to a declared root-motion cycle, but nothing in `ai/plan.js`/`ai/pose.js` GENERATES hand secondary motion FROM an invisible lower-body gait — a Cadence user authoring a first-person locomotion set would need to hand-key the hand bob's amplitude/rhythm/phase to match an intended (unseen) gait entirely by eye, with no tool computing the correspondence.",
+  "control_surface": "None generative. `analyseChain` (read-only) could measure a resulting hand-bob track's relationship to a reference cycle if one were declared.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s vertical vs. horizontal displacement decomposition on a hand/camera track would directly capture the distinguishing signature this entry describes (vertical-punctuated vs. horizontal-swaying vs. near-flat) — a real, buildable classification no code in this build currently runs.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "giving every character's hands the same generic bob regardless of their actual (invisible) locomotion type, collapsing a potential characterization channel into visual noise",
+    "over-indexing on vertical punctuation for a gait that should read as smooth (a hover, a skate), muddying the very distinction the technique exists to convey"
+  ],
+  "roblox_considerations": "None specific — an authoring/animation-design technique independent of target engine, though a Roblox `Humanoid`'s own camera bob (if enabled) would need to be disabled or accounted for to avoid conflicting with a hand-authored version.",
+  "performance_implications": "None beyond ordinary keyframe cost.",
+  "examples": [
+    "Reinhardt's heavy armored gait read through 'large vertical movement punctuating each stride and the wide horizontal sway on his hammer' selling shoulder rotation and torso twist never directly shown (video @ 06:30–06:41)",
+    "Zenyatta's completely footfall-less hover conveyed by a SLIGHT increase in hand bobbing relative to his stillness idle, described as 'just a hint of increased effort for motion, not to mention a dash of contrast just to make moving feel different from stillness' — the smallest possible signal, deliberately chosen over a stronger one that would misrepresent his actual (footfall-less) movement (video @ 06:53–07:07)",
+    "Lucio's skating conveyed through his free arm swinging 'back and forth like a skater' with the punctuated movement 'much more horizontal than vertical', directly contrasted with a running character's vertical punctuation (video @ 07:07–07:25)"
+  ],
+  "evidence_status": "video: https://youtu.be/7Dga-UqdBR8 @ 06:13–07:55 — Dan (New Frame Plus) states the feet-never-shown, hands-carry-the-read relationship directly, comparing Reinhardt, Genji, Zenyatta, Lucio, D.Va and Junkrat's distinct locomotion signatures; no frames extracted (transcript-only); experimental until validated"
+}
