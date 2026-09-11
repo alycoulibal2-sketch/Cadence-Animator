@@ -1,0 +1,37 @@
+{
+  "concept": "procedural_movement_precedes_cosmetic_animation",
+  "category": "advanced",
+  "definition": "A layering discipline for game character motion, not a curve shape: build and ship the character's core, physics-driven MOVEMENT — what player input actually controls (acceleration, collision response, where the character's root ends up) — completely first and with no animation attached at all, then add every keyframed or procedural animation strictly as a layer ON TOP that reacts to the already-decided movement and never substitutes for or delays it.",
+  "purpose": "Guarantee that gameplay-critical responsiveness and predictability can never regress because of an animation-side decision — a control input produces the same physical outcome whether or not any animation layer is even attached, so animation can be added, reworked, or entirely removed without ever touching what the game IS.",
+  "visible_effect": "With the animation layer disabled, the character's root motion, collision response and stopping points look identical to the finished game; only the visual pose, tilt and surface detail change once animation is layered on.",
+  "psychological_or_gameplay_effect": "Presented directly by the speaker as the reason players call the result \"intuitive\" and \"responsive\" instead of \"awkward, sluggish or floaty\" — falling off a ledge reads as the player's own mistake rather than a mistimed animation eating an input, because the movement was never animation's to mistime.",
+  "physical_interpretation": "The character's centre of mass follows ordinary rigid-body movement (a constant downward acceleration in the air, tilt driven by lateral acceleration, momentum conserved through a jump) independent of any animation; animation only redistributes how the limbs visually reach a trajectory the movement system already decided.",
+  "use_cases": [
+    "a player-controlled character whose core traversal (walk, run, jump, fall, climb) must stay perfectly consistent under player input regardless of what animation ships later or how many passes it goes through",
+    "a small team that cannot afford to hand-author animation for every movement-system edge case and needs the movement itself to already work, and read as intentional, with zero animation attached"
+  ],
+  "non_use_cases": [
+    "a cinematic or non-interactive shot with no player input to protect, where animation-authored (even baked) root motion is the more direct default",
+    "a scripted, non-physical action a design intentionally wants animation to drive outright (e.g. a fixed takedown), where subordinating the animation to a physics layer would fight the intended staging rather than protect anything"
+  ],
+  "interactions": [
+    "pose_workflow — this sits one level below any pose-to-pose/straight-ahead authoring choice: it decides what the animation layer is even allowed to move before any posing method is chosen",
+    "vibe_timing_anti_pattern — shares the same protective motive: both refuse to let an animation-side decision silently cost the player control or predictability"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and structurally cannot be from inside this codebase alone: Cadence has no runtime movement/physics layer at all — `renderer/js/ai/**` operates entirely on authored keys and poses within a project file (CLAUDE.md's own 'pure at load' rule), with nothing standing in for a player-controlled rigid body a Roblox `Humanoid` would separately own at runtime. The discipline this entry names is a property of the GAME'S code (which Cadence does not write or own), not of the clip Cadence authors; the honest statement is that Cadence produces exactly the cosmetic layer this principle describes, and the responsibility for keeping it subordinate to movement lives entirely outside this tool, in the Roblox script that plays the clip.",
+  "control_surface": "None — outside Cadence's own scope; the closest existing fact is that nothing Cadence produces writes to a part's world position/CFrame outside the rig's own joint hierarchy, so nothing it exports is even capable of overriding a Humanoid's movement.",
+  "detection_and_measurement_methods": "None. Whether an animation layer is kept subordinate to movement is a property of how the PLAYING game calls Cadence's output, not of the clip itself — nothing in a `.cadence` project file or its exported keys records that relationship, so `ai/motion.js` has nothing to sample.",
+  "generation_or_modification_methods": "None — an integration discipline for the consuming game, not an authoring operation this build performs.",
+  "failure_modes": [
+    "authoring root motion INTO a clip for a player-controlled action, which re-couples movement to animation — exactly what this discipline exists to avoid — so the game ends up waiting on the clip to know where the character went",
+    "adding responsiveness-costing animation (long anticipation, a committed non-cancelable transition) to a traversal action without checking whether the underlying movement still behaves identically with the clip removed"
+  ],
+  "roblox_considerations": "Direct and central: Roblox's own `Humanoid` already IS the movement layer this principle asks for (walk/run/jump physics, independent of any animation), so the practical form of this discipline on Roblox specifically is 'never let an exported Cadence clip drive root CFrame for a Humanoid-controlled character' — the discipline the talk describes for a bespoke engine is closer to already-default behaviour on Roblox, provided a clip is never exported with baked root translation for such a character.",
+  "performance_implications": "None directly, though the described architecture (movement computed first, unconditionally, every frame) is also what keeps a game responsive under frame-rate variance — an animation-layer hitch cannot stall movement that was never waiting on it.",
+  "examples": [
+    "the presenter's own Overgrowth character: a physics-driven bumper/weightlifter sphere handles all collision and locomotion before any animation exists, described as 'a Hippocratic oath for game animation... at first, do no harm to the gameplay' (video @ 03:30–04:38)",
+    "cited contrast at the extremes: Mario-style direct acceleration-from-input (minimal animation, maximum responsiveness) versus Prince of Persia-style full animation-transition-driven movement (smooth but adds input latency) — framed as the tradeoff this discipline is meant to avoid having to choose between (video @ 00:56–01:32)"
+  ],
+  "evidence_status": "video: https://youtu.be/LNidsMesxSE @ 03:30–04:38 — David Rosen (Wolfire Games) states the ordering directly ('the first step was just to drape an idle pose onto our physics sphere... by making sure we have the movement in first and we do the animation on top of that') and frames it explicitly as a discipline ('a Hippocratic oath for game animation'); no frames extracted (transcript-only per the batch's detail setting for this talk); experimental until validated"
+}

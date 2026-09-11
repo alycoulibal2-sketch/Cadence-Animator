@@ -1,0 +1,37 @@
+{
+  "concept": "spring_damper_pose_transition_interpolation",
+  "category": "advanced",
+  "definition": "Interpolate between two arbitrary poses (not just neighbouring authored keys) by running a mass-spring-damper simulation on each channel toward the target pose's values, instead of linear or simple weighted-average blending — the transition's ease-in, ease-out, overshoot and settle all emerge from two tunable physical parameters (stiffness, damping) rather than being hand-shaped per transition.",
+  "purpose": "Get natural-looking, weighted transitions between ANY pair of poses (not one authored pair at a time) from a single small parameter set, so a system with only a handful of extreme keyframes can still produce smooth motion between every combination without hand-animating each one.",
+  "visible_effect": "A transition that eases in, may overshoot slightly past the target and settle back, with a continuous, organic-feeling velocity curve — visually similar to a hand-animated ease with follow-through, but generated identically for every pose pair the system is asked to blend between.",
+  "psychological_or_gameplay_effect": "Removes the \"sudden velocity jar\" of naive interpolation (arms visibly snapping from forward-reaching to backward-swinging at a blend boundary) that reads as a technical glitch rather than a character choice; a well-tuned spring instead reads as weight and elasticity.",
+  "physical_interpretation": "A literal damped-harmonic-oscillator simulation per channel — the same system that describes a mass on a spring settling to rest, reused here as an interpolation method rather than a physical object.",
+  "use_cases": [
+    "blending between a small number of extreme/key poses in a procedural or runtime-generated animation system, where authoring a hand-shaped transition for every possible pair is impractical",
+    "any transition that should stay interruptible at any time by new player input, since a running spring simulation can simply be redirected toward a new target rather than needing to finish or be cut"
+  ],
+  "non_use_cases": [
+    "an authored, non-interruptible cinematic transition where a specific hand-shaped curve is part of the intended performance — a generic spring cannot express a deliberately asymmetric or held-beat transition the way a hand-placed breakdown key can",
+    "a transition where the two poses are already CLOSE (e.g. a subtle idle sway), where a spring's overshoot behaviour risks reading as unwanted wobble rather than an invisible blend"
+  ],
+  "interactions": [
+    "shared_mechanism_anticipation_overshoot — a literal spring simulation is a fourth mechanism (alongside that entry's Back-easing edit-path route, `authorMotion`'s added-key settle route, and its duplicate-key-plus-tangent route) for producing the same visible overshoot-and-settle shape; none of the four currently cross-reference which one produced a given result",
+    "float_to_stop_settle — a spring-damper transition is one concrete mechanism that could produce a float-to-stop signature, since a heavily-damped spring's approach to rest is exactly a smooth decay to zero velocity"
+  ],
+  "style_variations": { "mechanical": "excluded, or damping set high enough to remove all overshoot — a rigid/robotic character should not spring", "realistic": "damping and stiffness tuned per body part rather than one global setting, since real limbs do not all have the same effective mass" },
+  "cadence_representation": "Not represented as a transition mechanism — Cadence has no runtime simulation step at all; every transition it produces is a compiled, static keyframe curve baked once (`ai/plan.js` strategies edit a value or easing style at an existing key). The nearest existing thing is the EDIT path's `overshoot` strategy, which reaches a visually similar overshoot-and-settle shape through a named `Back`/`Out` easing formula (`GAIN.overshoot = 1.7`, i.e. Roblox's own `Enum.EasingStyle.Back`) baked once at export — a curve-formula approximation of what this technique computes live, not a live simulation, and it cannot be redirected mid-flight the way a real spring can.",
+  "control_surface": "`overshoot` vocabulary dimension (edit path, Back-easing route) is the closest existing control, but it edits a pre-existing key's easing style rather than simulating a transition between two arbitrary target poses; nothing in this build accepts two poses and a stiffness/damping pair.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s velocity/acceleration/jerk series would show a damped-oscillator signature (exponentially-decaying oscillation) if this technique were used to produce a clip's keys — measurable in principle as a curve-shape classification, but no code in this build runs that classification; it would need to distinguish a true damped-spring curve from an authored Back-ease, which looks similar but is a fixed formula, not decaying at a rate tied to two named physical parameters.",
+  "generation_or_modification_methods": "None built. A hypothetical implementation would take two poses, a stiffness and a damping value, and integrate the spring per channel across the transition's frame range to produce keys — closer to `authorMotion`'s generation path (it already computes a full pose sequence from parameters) than to the edit path's per-key easing changes.",
+  "failure_modes": [
+    "under-damping the spring so it oscillates visibly more than once, which reads as the character being weirdly elastic or rubbery rather than weighted",
+    "using one global stiffness/damping pair for every body part, producing uniform motion that loses the differentiated-timing feel real limbs have (the video itself only shows this applied to a single joint's transition at a time)"
+  ],
+  "roblox_considerations": "Roblox has no built-in spring-damper animation primitive; a live implementation would need a `RunService`-driven per-frame integration (a `BodyPosition`/`AlignPosition`-style constraint uses this same math for physics parts, but Motor6D joint animation has no equivalent) or would need to be baked to keys offline the way Cadence's `overshoot` strategy already approximates it.",
+  "performance_implications": "A live per-frame spring integration (if ever implemented) costs a small fixed amount of math per animated channel per frame at runtime — trivial per-character, but scales with character count and channel count if run for a crowd, unlike Cadence's own baked-key approach which costs nothing at runtime.",
+  "examples": [
+    "a stand-to-crouch transition tuned with a stiffness and damping parameter, described as adding 'a lot of the nice easing in and follow-through that I would have animated... by hand' and reused for standing, crouching AND running-into-crouch states from the same two parameters (video @ 07:59–08:53)",
+    "the same mechanism reused to absorb a landing, by adding a downward force to the existing crouch spring rather than authoring a separate landing animation (video @ 08:42–08:58)"
+  ],
+  "evidence_status": "video: https://youtu.be/LNidsMesxSE @ 07:53–08:53 — David Rosen narrates switching from weighted-average and then cubic interpolation (both described as producing a 'sudden velocity jar') to a spring-damper system with a stiffness and damping parameter, demonstrated on a 3D character transitioning between stand/crouch/run states; no frames extracted (transcript-only); experimental until validated"
+}

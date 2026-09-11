@@ -1,0 +1,37 @@
+{
+  "concept": "cycle_phase_driven_root_translation",
+  "category": "advanced",
+  "definition": "Compute a locomoting character's root/world translation directly from its leg-cycle phase (a rolling-wheel-style integration of stride against ground contact) rather than from a fixed clip length or a hand-authored root-motion curve, so root displacement stays exactly synchronized to foot placement at ANY playback speed.",
+  "purpose": "Eliminate foot sliding/floating at arbitrary or continuously-varying movement speeds, and let a single locomotion system serve any speed between two authored extremes without needing a separately authored clip (or root curve) per speed.",
+  "visible_effect": "Feet contact and leave the ground at the same world position the pose implies, with no skate, at any blended speed between two authored cycles — described by the presenter as the character 'never floats' and footsteps stay synced to the ground regardless of how fast or slow he moves.",
+  "psychological_or_gameplay_effect": "Removes one of the most immediately noticeable locomotion defects (foot sliding) across an entire continuous speed range rather than only at the handful of speeds a clip was authored for, at the cost of the translation being fully computed rather than under an animator's direct key-by-key control.",
+  "physical_interpretation": "Models ground contact as a rolling-without-slipping constraint (the video's own 'surveyor wheel' analogy) — the same relationship between a wheel's angular position and the distance it has rolled, applied to a leg-cycle's phase instead of a wheel's rotation.",
+  "use_cases": [
+    "a procedural or runtime-blended locomotion system that must support a continuous range of speeds from a small number of authored pose extremes",
+    "any character whose movement speed is player-driven and therefore not known at authoring time, where a fixed-length clip's playback-rate scaling would otherwise desync footfalls from the ground"
+  ],
+  "non_use_cases": [
+    "a single, fixed-speed authored locomotion clip played at its own intended rate, where the clip's own hand-placed keys already guarantee correct foot placement and this machinery would be pure overhead",
+    "non-locomotive motion with no repeating ground-contact cycle to phase against (a jump, an idle, a gesture)"
+  ],
+  "interactions": [
+    "foot_lock_duration_scales_with_weight (W03) — both are ground-contact-synchronization techniques, but that entry describes AUTHORING a contact hold inside a fixed clip while this one describes COMPUTING translation FROM the contact cycle at runtime; a system using this technique would not need that entry's authored-hold technique at all",
+    "the same video's stride-blend finding: stride distance must be blended together WITH pose when crossfading speeds, not independently, or intermediate speeds mis-place the feet"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and outside what a keyframe-authoring tool like Cadence can express: `measureContactDrift` (MOT-008) MEASURES exactly the failure mode this technique prevents — how far a contact-capable effector drifts from its expected planted position — against an ALREADY-AUTHORED clip's keys, but nothing in `ai/plan.js` or `ai/pose.js` computes root translation FROM a cycle phase; every Cadence clip's root motion (if any) is itself a set of authored/edited keys — the OUTPUT this technique would produce, not an input Cadence could accept.",
+  "control_surface": "None directly. `measureContactDrift`'s output could in principle be used as the error signal a runtime system tunes its own cycle-to-translation mapping against, but no tool in this build performs that runtime computation.",
+  "detection_and_measurement_methods": "`measureContactDrift` (MOT-008) already measures the visible symptom (a planted effector's positional drift against its declared contact) on any finished clip, regardless of whether the clip's root motion came from this technique, a hand-key, or any other method — it cannot tell which METHOD produced a low-drift result, only whether drift is present.",
+  "generation_or_modification_methods": "None — this is a runtime/procedural technique for a game's own movement code, not a clip-authoring operation; nothing in `ai/plan.js` inserts or edits root-translation keys derived from a contact cycle.",
+  "failure_modes": [
+    "decoupling the stride-distance ('wheel radius') from the pose blend when transitioning between two authored speeds, producing correct root translation but foot poses that no longer match it — the presenter specifically blends both together to avoid this",
+    "applying it to non-cyclic ground contact (a single step, a stumble) where there is no stable cycle phase to integrate against"
+  ],
+  "roblox_considerations": "Roblox's own `Humanoid` already computes root translation from physics/`WalkSpeed`, independent of any animation — this technique's role on Roblox would be inside a CUSTOM movement controller replacing or supplementing the Humanoid, not inside an exported Cadence `AnimationClip`, which has no mechanism to compute its own root motion at playback time.",
+  "performance_implications": "A small, constant per-frame cost (integrating stride distance from cycle phase) at runtime; negligible per-character, and unrelated to Cadence's own (purely offline, export-time) cost model.",
+  "examples": [
+    "pass/reach leg keyframes driving a 'surveyor-wheel-like technique to figure out how much distance he's moved on the ground... so no matter how fast or how slow he's moving, he never floats and his footsteps stay in sync with the ground' (video @ 05:23–05:52)",
+    "walk and run cycles blended together with BOTH their poses and their stride sizes synchronized, so any intermediate speed still plants feet correctly rather than only the two authored extremes (video @ 05:54–06:19)"
+  ],
+  "evidence_status": "video: https://youtu.be/LNidsMesxSE @ 05:23–06:19 — David Rosen narrates and names the 'surveyor wheel' technique directly, and separately describes blending stride size together with pose across speeds; no frames extracted (transcript-only); experimental until validated"
+}

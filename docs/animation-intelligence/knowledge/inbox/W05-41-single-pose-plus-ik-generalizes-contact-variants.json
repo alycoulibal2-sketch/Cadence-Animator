@@ -1,0 +1,37 @@
+{
+  "concept": "single_pose_plus_ik_generalizes_contact_variants",
+  "category": "advanced",
+  "definition": "Author ONE extreme keyframe pose for a repeating environmental-contact action (e.g. gripping a ledge) and let inverse kinematics generate the full continuous range of variants (shimmying left/right by any distance, reaching any ledge height) from that one pose, rather than hand-authoring a discrete pose for each variant.",
+  "purpose": "Avoid a combinatorial explosion of hand-authored pose variants for actions whose only real variable is WHERE an effector contacts the environment, by moving that variation entirely into the IK solve instead of into additional keyframes.",
+  "visible_effect": "A single grabbing/climbing pose reused across an arbitrary, continuously-variable range of ledge positions and shimmy distances, with hands and feet always precisely on the contact surface regardless of exact position.",
+  "psychological_or_gameplay_effect": "Frees the animator from authoring \"a hundred different variations\" for something that is really one pose plus geometry, at the cost of losing hand-authored control over exactly how each specific variant looks.",
+  "physical_interpretation": "Two-bone inverse kinematics resolves a limb's joint angles from a fixed root and a target position — pure trigonometry on the two segment lengths and the target distance, not a physical simulation.",
+  "use_cases": [
+    "a repeating single-effector contact action (a ledge grab and shimmy, a single-hand-on-a-rail lean) where the environment varies continuously and one root pose already expresses the whole intent",
+    "generalizing an authored pose across many runtime-only-known contact points that could never be enumerated at authoring time"
+  ],
+  "non_use_cases": [
+    "posing a hand around a HELD OBJECT (the presenter's own stated counter-example, from this same talk's Q&A): he explicitly avoids IK there, preferring to author distinct extreme poses (holding a small ball vs. a large bar) and interpolate between them, because IK-driven hand placement around an object 'looks awkward' and authored extremes plus an animation layer keep 'animation control of the extremes'",
+    "any contact whose surface orientation or approach angle varies enough that a single root pose's limb geometry (shoulder/hip orientation, non-reaching limbs) would need to change too — IK alone only moves the targeted effector, not the rest of the pose"
+  ],
+  "interactions": [
+    "weapon_ik_decoupled_from_torso_overlap (W04) — a sibling case of using IK to decouple ONE part of a pose from the rest, though that entry is about preserving overlap rather than eliminating pose variants",
+    "`solveTwoBone` / `reach_range_studs` (this build) — the exact 'pretty simple trigonometry' the presenter describes is what this build's own two-bone solver already computes for any rig, evidence the technique maps directly onto Cadence's existing IK rather than needing new math"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly representable, and already the technique Cadence's own IK uses: `ai/pose.js boneGeometry` + `solveTwoBone` solve exactly this — one or two bones' joint angles from a fixed proximal root and a target position, reported with a `reach_range_studs` the caller can check the target against. What Cadence does NOT have is the higher-level authoring workflow this entry names (author one contact pose, then drive its IK target procedurally across a range at runtime) — that orchestration lives in the exported Luau/game code, not in a `.cadence` project, which stores one pose (or one clip) at a time rather than a parameterized family of them.",
+  "control_surface": "`solve_ik` / `compute_swing_twist` (MCP), backed by `ai/pose.js solveTwoBone` — usable today to solve ONE instance of this technique's pose against ONE target; nothing in this build sweeps a target across a range or exports the parameterized (rather than baked) version a runtime shimmy would need.",
+  "detection_and_measurement_methods": "`reach_range_studs` (already computed by `boneGeometry`/`solveTwoBone`) directly measures whether a given target is even reachable by the pose's chain, which is the exact quantity a runtime system sweeping this technique across many targets would need checked at each one; no code in this build runs that sweep or reports a coverage range.",
+  "generation_or_modification_methods": "`solve_ik` generates the joint angles for one target; nothing generates or exports the runtime parameterization (pose-plus-live-target) itself, since that requires the target to be supplied at PLAY time, not export time.",
+  "failure_modes": [
+    "using IK to place a hand on a held object instead of authoring extremes, which the presenter names directly as looking awkward — the same tool that generalizes contact-point variation well does a poor job of contact-orientation-around-an-object variation",
+    "sweeping the IK target beyond the chain's `reach_range_studs`, which this build already reports honestly (an out-of-range target does not silently produce a bad pose, it reports the shortfall) but a caller that ignores the report would place a limb at maximum stretch with no warning in the player-visible result"
+  ],
+  "roblox_considerations": "Roblox's own `IKControl` instance (or a custom two-bone solve exported the way Cadence's is) is the natural runtime home for the live-target half of this technique; Cadence's role stops at authoring and validating the single root pose the runtime IK then drives.",
+  "performance_implications": "A live two-bone IK solve per targeted limb per frame is cheap (closed-form trigonometry, not iterative), so this technique scales to many simultaneously-climbing characters far better than authoring and blending between discrete pose variants would.",
+  "examples": [
+    "one ledge-grab keyframe generating an entire shimmy range ('using inverse kinematics... you can shimmy along using big shimmies or small ones or whatever angle you can go up and down... seemed easier than making a hundred different variations in Blender') (video @ 11:38–12:06)",
+    "the presenter's own Q&A answer explicitly rejecting IK for held-object hand placement in favour of authored extremes plus interpolation, 'because then we have animation control of the extremes' (video @ 25:27–25:58)"
+  ],
+  "evidence_status": "video: https://youtu.be/LNidsMesxSE @ 11:38–12:06 and 25:02–25:58 — David Rosen demonstrates the ledge-shimmy IK generalization and, separately in the Q&A, states his own preference against IK for held-object posing with his reasoning; no frames extracted (transcript-only); experimental until validated"
+}
