@@ -1,10 +1,16 @@
-# Cadence Animator — next session master prompt (v2, written 2026-09-11)
+# Cadence Animator — next session master prompt (v3, written 2026-09-11)
 
 You are continuing the Cadence Animation Intelligence programme in a FRESH session. Everything
 you need is in the repo; this prompt tells you where, what the numbers are, the target, what to
 build next and in what order, the rules, and the traps. Read section 0, run its four commands,
 then start the first unfinished slice in section 3. Do not re-read the whole directive. Do not
 re-litigate decisions the notes say are settled.
+
+**Before this prompt, the learning loop should have been built** (`LEARNING_LOOP_PROMPT.md` in
+this folder: the cross-project library, the knowledge folder, the watch-and-learn skill, and
+`LESSONS.md`). If `docs/animation-intelligence/LESSONS.md` does not exist, that session has not
+run — tell the user, then continue with Slice A anyway; only Slice C depends on the library.
+Read `LESSONS.md` when it exists.
 
 ## 0. Read this first, in this order (about ten minutes)
 
@@ -268,11 +274,15 @@ and rolled back to an empty timeline."*
 
 ### Slice C — REFERENCE (matching experts without learning)
 
-Ingest EXTERNAL expert motion: a Roblox `KeyframeSequence` via the Studio bridge or the `.rbxm`
-importer (`src/main.js` parses `.rbxm`) as a second project object, so `ai/reference.js` profiles
-it (`REF-001` supports only in-project items today), `compare_to_reference` is rewired, and the
-director's loop can minimise profile distance to a reference the user chose. Video and mocap stay
-out until a rig-space importer exists; say so. Cites Parts 36, 33.
+The learning-loop session (`LEARNING_LOOP_PROMPT.md`) builds the cross-project library: real motion
+from Roblox Studio's Animation Capture (video → R15 keyframes, labelled estimated), Mixamo mocap
+through Studio's importer, and the user's own accepted shots, each with a Part 36 profile. This
+slice CONSUMES it: rewire `compare_to_reference` (the one unimplemented workflow with a named
+follow-up) to `search_library` + `store_reference_profile`, and let the director's loop (Slice D)
+minimise profile distance to a reference the user chose. If the library does not exist yet, build
+the minimum of it here (`import_from_studio`, `add_to_library`, `search_library`) rather than
+skipping the slice. Research pose models (GVHMR, WHAM, TRAM) are non-commercial and stay out of the
+product. Cites Parts 36, 33, 70.
 
 ## 4. Ground rules (non-negotiable — each has been got wrong here at least once)
 
