@@ -11,7 +11,7 @@
 - [x] 57. How 2D Fighter Games are Animated — Video Game Animation Study (7:13) — https://youtu.be/WYCjmVhiLaM
 - [x] 58. The Effects Animation of Hollow Knight — New Frame Plus (7:19) — https://youtu.be/SIJtfr-PO4Y
 - [x] 59. How to add IMPACT frames to your animation — Howard Wimshurst Animation (18:42) — https://youtu.be/6UaUi5fBmJc
-- [ ] 60. Animate action with SMEAR FRAMES — Kuzillon (6:37) — https://youtu.be/5v0IZSr9-j0
+- [x] 60. Animate action with SMEAR FRAMES — Kuzillon (6:37) — https://youtu.be/5v0IZSr9-j0
 
 ## Per-video notes
 
@@ -626,3 +626,132 @@ of narration (a rendering/compositing-level effect, not a pose or motion propert
 **Entries written:** `W06-59-high-contrast-monochrome-burst-as-named-impact-frame-technique.json` —
 checked directly against `validateProposedEntry`/`validateEvidenceSource`; passes. A full-corpus
 concept-name sweep (162 JSON files: 161 prior + this video's 1) found zero collisions.
+
+### 60. Animate action with SMEAR FRAMES — Kuzillon
+
+2026-09-11. Watched at `balanced` detail per W06.md's own instruction (SHOWS motion). This video had
+BOTH a full, clean transcript (179 caption segments) AND 53 directly-confirming frames — the richest
+dual-evidence base of the whole batch, with diagrams and screen-recorded software directly illustrating
+nearly every spoken claim rather than needing to choose one evidence channel over the other.
+
+**What it teaches, specifically:**
+1. Every squiggle/speed-line drawn on a smear must run PARALLEL to the object's true direction of
+   motion and to each other — even a slight inconsistency breaks both the speed illusion and the
+   action's clarity, demonstrated directly with an on-screen side-by-side labeled "CLEAR DIRECTION"
+   vs. "NOT CLEAR DIRECTION" comparison (00:50–01:22, confirmed at frame t=00:45). Wrote
+   **`parallel_squiggle_direction_determines_smear_readability`**.
+2. **The flagship finding**: a named three-phase structure — PREP (tight spacing, little distortion,
+   a wind-up) → SMEAR (a deliberate 1-3 frame jarring jump, heavy distortion, ideally just ONE frame
+   for a beginner) → SLOW DOWN (loose, gradual easing out) — explicitly replacing standard slow-in/
+   slow-out, with a direct before/after proving the standard approach reads weaker (01:16–03:47,
+   diagrammed on screen at t=03:59, the comparison shown at t=00:45/03:23). The source's own account of
+   fixing an unconvincing result by WIDENING the spacing gap around an already-correct smear (not
+   redrawing it) is fresh, concrete evidence directly extending `deliberate_frame_removal_with_
+   followthrough_fill_communicates_move_strength` (video 57, this batch). Wrote
+   **`prep_smear_slowdown_three_phase_smear_structure`**.
+3. A drawn path/arc boundary (straight, C-curve, or S-curve, matching the true motion) authored on a
+   separate reference layer BEFORE the smear itself, to keep freeform distortion linework from drifting
+   off the object's real trajectory regardless of how wild the distortion looks — confirmed directly on
+   screen as colored guide curves traced under the character artwork (03:59–04:53, frames at
+   t=04:39/04:44). A clean proactive-constraint counterpart to `onion_skin_arc_verification` (W02)'s
+   after-the-fact verification. Wrote **`arc_boundary_layer_constrains_freeform_smear_distortion`**.
+4. The extreme low end of the same spectrum, explicitly licensed rather than treated as a compromise: a
+   flat single-color blob following the motion's arc, with the WHOLE action reduced to three frames
+   total (start/smear/end), recommended specifically for comedic or non-serious action — confirmed
+   directly at frame t=05:59 (a simplified character before/after a flat-colored arc swipe). Wrote
+   **`three_frame_flat_color_blob_as_minimum_viable_smear`**.
+
+**Cross-checks** (real content, confirming existing cards from a fresh angle, not new mechanism): the
+"duplication" technique (giving a fast-moving object multiple overlapping copies of small details along
+its arc, e.g. a cat gaining several sets of eyes/ears, 05:01–05:24, confirmed at frame t=04:33) is
+closely related to `multiples_vs_smear_for_differently_weighted_fast_motion` (video 57, this batch) but
+is offered here as one OPTIONAL way to add internal detail to a single smear frame rather than as a
+competing whole technique with its own distinct weight signature — close enough to that existing
+entry's own territory that a fourth full card was judged not additive; noted here for a future session
+to weigh differently if it disagrees. Randomizing squiggle/line size and spacing (01:22–01:34) restates
+`asymmetric_spacing_preference` (W01) with a fresh, smear-specific example.
+
+**Not written as entries:** the opening framing (smears mimic camera/eye motion blur, 00:02–00:31)
+restates ground `motion_smear_readability` (W01) already covers.
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — a 2D-drawing tutorial with software screen recordings and a hand-drawn
+Pokémon animation study, no independent filmed reference performance (the demonstration hand-wave at
+frame t=00:23 is the presenter's own illustrative gesture, not a capturable reference).
+
+**Checks for the queue:**
+- `check: smear_phase_spacing_contrast — for a declared smear-structured action, compare the spacing
+  (via ai/motion.js sampleMotion) of the smear phase against its neighboring prep/slow-down phases,
+  flagging insufficient contrast as a candidate for exactly the weak-result problem this video's own
+  source describes fixing — buildable today from existing measurements — video 60 @ 03:16–03:33`
+- `check: declared_arc_shape_vs_measured_path — compare a clip's actual measured path curvature
+  (MOT-005) against a declared intended arc shape (straight/C-curve/S-curve), flagging deviation as a
+  candidate for the 'breaks out of the path' failure this video names directly — buildable today from
+  an existing measurement, contingent on a declared-arc-shape field this build does not yet store —
+  video 60 @ 03:59–04:53`
+
+**Entries written:** `W06-60-parallel-squiggle-direction-determines-smear-readability.json`,
+`W06-60-prep-smear-slowdown-three-phase-smear-structure.json`,
+`W06-60-arc-boundary-layer-constrains-freeform-smear-distortion.json`,
+`W06-60-three-frame-flat-color-blob-as-minimum-viable-smear.json` — all four checked directly against
+`validateProposedEntry`/`validateEvidenceSource`; all pass. A full-corpus concept-name sweep (166 JSON
+files: 162 prior + this video's 4) found zero collisions.
+
+---
+
+## Closing summary — W06 complete (videos 51–60, all ten watched)
+
+All ten videos in this batch were watched and written up in one session on 2026-09-11, at effort
+level `max`, with the session handed `W06.md`'s path directly (the same invocation pattern noted for
+W05). Counts below are recomputed directly from the files on disk, not from a running tally kept while
+writing this summary, per this programme's own standing discipline (learned the hard way in W03 and
+W04, and followed cleanly by W05):
+
+**27 knowledge entries** across `knowledge/inbox/W06-*.json` (4+2+2+2+4+3+3+2+1+4 across videos 51–60
+in order), all 27 passing both `validateProposedEntry` and `validateEvidenceSource` (checked by
+importing and running the real gate functions from `renderer/js/ai/knowledge.js` directly, both
+per-video while writing and once more in a final sweep across all 27 at once — no drift found). A
+full-corpus concept-name sweep (166 JSON files: 50 compiled/merged from W01+W02, 23 from W03's
+still-unmerged inbox, 24 from W04's, 42 from W05's, and this batch's 27 — zero collisions anywhere).
+**Zero capture candidates across all ten videos** — the section (C. Game animation talks and analysis ·
+D. Anime and stylised action) produced no independent filmed reference performance anywhere, the same
+honest null result W02 and W05 already established for talk-heavy and shipped-footage-heavy sections;
+the one closest candidate (real arc-welding footage in video 59) is a physical-process reference, not a
+performance, and was treated accordingly. **Zero existing cards contradicted** — three videos (54, 58,
+60) SHARPENED the scope of this build's own existing systems (the Part 14 quality hierarchy, twice, and
+the arc/spacing measurement vocabulary) by naming boundary conditions and gaps those systems do not
+currently express, without anything in the knowledge corpus itself being wrong.
+
+**Two videos in this batch had real, honestly-recorded evidentiary limits, handled differently:**
+video 51's DNS drop and video 52's HTTP 429 subtitle failures were both bare retries per the desktop's
+own standing note; video 59 had NO transcript available at all (no captions, no Whisper key configured
+— a deliberate prior setup choice this session correctly did not re-litigate mid-batch), and rather
+than either skipping the video or fabricating narration, the single entry written from it was scoped
+strictly to what its 100 sampled frames could support, with every field that would need audio marked
+honestly as unconfirmed. This is the first video in the whole programme to be watched entirely
+frames-only with a fully honest account of why, and is worth a future session's attention: a
+Whisper-enabled re-watch, or a focused `--start/--end` pass on the specific clips this session
+timestamped, could responsibly extract the timing/duration claims W06.md's own line for that video
+promised ("when, how long, what they replace") which this session could not responsibly claim without
+audio.
+
+**The batch's own throughline**: two DIFFERENT videos (51, from the Guilty Gear Xrd developer, and 55,
+on Metroid Dread) each independently produced a mechanism this build ALREADY SHIPS or measures, checked
+directly against the real source rather than assumed — `Constant` easing / the "Stop motion" command /
+`VARIATION_KINDS.stepped` (video 51) and `ai/motion.js`'s existing spacing/velocity/key-density
+measurements (video 60's whole smear-structure entry is fully buildable today with zero new capability)
+— a reminder that not every valuable finding from this programme is blocked on new capability; some are
+blocked only on nobody having pointed the existing measurement at the right question yet. Three
+separate videos (54, 58, and 55 via its Cuphead cross-check) each independently produced fresh,
+build-relevant evidence about this project's OWN Part 14 quality hierarchy specifically — two boundary
+conditions the hierarchy's current ordering does not express (over-animation as indiscriminate technique
+application regardless of competing defects; effects promoted to primary readability channel for a
+small/fast character) — a genuinely productive pattern: reading a video against this build's actual
+source, not just against the general animation-knowledge corpus, keeps finding real, specific gaps
+rather than only restating already-known principles.
+
+**How to apply:** `node tools/merge-knowledge-inbox.mjs --batch W06` is the next step for whichever
+session runs the merge, following the same `--batch` discipline as every prior batch (never merge a
+batch that is still being written — this one is fully finished, all ten videos watched, nothing left
+to do). All ten videos are watched; there is no more of this batch left to do.

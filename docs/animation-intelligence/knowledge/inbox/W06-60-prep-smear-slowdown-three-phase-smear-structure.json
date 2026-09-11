@@ -1,0 +1,43 @@
+{
+  "concept": "prep_smear_slowdown_three_phase_smear_structure",
+  "category": "advanced",
+  "definition": "A smear-based fast action is structured in three named phases, not treated as one continuous ease: PREP (closely-spaced poses, little to no distortion, moving in the same or opposite direction as the coming action, like a wind-up), then one to three frames of intense SMEAR (a deliberately large, jarring positional jump from the prep frames, with heavy wobble/distortion — for a beginner, just ONE such frame is recommended), then SLOW DOWN (loosely, gradually spaced poses easing out, with only subtle-to-no distortion) — explicitly replacing standard slow-in/slow-out with a structure that intentionally breaks continuity at the smear itself.",
+  "purpose": "Give a fast action maximum 'punchiness' by deliberately violating normal easing continuity at exactly one point (the smear), rather than smoothing the whole action, which the source states directly produces a measurably weaker result by comparison.",
+  "visible_effect": "Tightly-clustered poses barely advancing, followed by a sudden, much-larger positional jump lasting only one to three frames with heavy directional wobble, followed by widely and unevenly spaced poses gradually closing the gap to a rest pose.",
+  "psychological_or_gameplay_effect": "The sudden departure at the smear reads as wrong in isolation but produces a distinctly stronger, punchier feeling than a fully continuous ease — the source demonstrates this directly with a labeled before/after: the same action with a gradual, eased entry into the big action 'doesn't have quite the same impact' as the abrupt prep-to-smear jump. The source also reports iteratively tuning their own case: the initial spacing contrast between the smear and its surrounding prep/slow-down frames was not large enough for how dramatic the smear itself was, and widening that spacing gap (not changing the smear's own drawing) was what fixed it.",
+  "physical_interpretation": "A deliberate stylistic exaggeration of real anticipation/release timing, not a literal physical claim.",
+  "use_cases": [
+    "any fast, powerful action (a punch, a pounce, a sudden lunge) wanting maximum punchiness from a hand-drawn or frame-based pipeline",
+    "diagnosing a smear-based action that 'doesn't look quite right yet' — the source's own account is that the fix was widening the SPACING gap around the smear, not redrawing the smear itself"
+  ],
+  "non_use_cases": [
+    "an action wanting a smooth, continuous, realistic feel, where standard slow-in/slow-out remains the right choice and this structure's deliberate discontinuity would read as an error",
+    "a beginner attempting more than one intense smear frame at once — the source directly recommends staying at one frame for beginners specifically because it is 'much easier to pull off'"
+  ],
+  "interactions": [
+    "layered_anticipation, startup_frame_budget, implied_zero_frame_anticipation (W01) — this entry is a specific, named three-phase template combining several of that existing anticipation-ladder's ideas (a wind-up, a compressed high-energy beat, a release) into one structure specifically keyed to a smear-based action, with an exact stated smear duration (1-3 frames) those cards do not themselves give",
+    "spacing_curve_asymmetry and multi_segment_pacing_signature (LESSONS.md checks #13, #14) — this structure is a concrete, named instance of exactly the deliberate spacing asymmetry those already-queued checks describe",
+    "deliberate_frame_removal_with_followthrough_fill_communicates_move_strength (video 57, this batch) — a sibling case of deliberately sparse coverage being the right choice; this entry's own account of WIDENING the gap around an already-drawn smear to fix a weak result is a concrete, evidenced example of exactly that principle in practice"
+  ],
+  "style_variations": {
+    "anime": "a native technique per the source's own worked example (a Pokémon animation study)",
+    "realistic": "contraindicated — the deliberate discontinuity at the smear is explicitly non-physical"
+  },
+  "cadence_representation": "Directly and fully measurable today: `ai/motion.js`'s existing spacing/velocity measurement (`sampleMotion`) already captures exactly the tight-then-sudden-then-loose spacing pattern this structure describes, and `keyDensity` already reports the frame count of each phase — a 1-3 key smear phase bracketed by tighter prep spacing and looser slow-down spacing is a concrete, checkable signature using measurements this build already has, no new capability required.",
+  "control_surface": "Ordinary keyframe authoring already reaches this exact spacing pattern; no tool currently offers it as a named preset or template.",
+  "detection_and_measurement_methods": "Fully buildable today: `ai/motion.js sampleMotion`'s velocity/spacing data plus `keyDensity` already measure everything this structure needs — the number of frames in a sudden high-velocity span (the smear), and the spacing contrast between it and its neighboring prep/slow-down phases.",
+  "generation_or_modification_methods": "Ordinary keyframe authoring already reaches every phase of this structure.",
+  "failure_modes": [
+    "using standard slow-in/slow-out across the whole action instead of this structure, producing a demonstrably weaker, less punchy result per the source's own direct before/after comparison",
+    "using more than one or two intense smear frames as a beginner, described as harder to pull off convincingly than a single frame",
+    "insufficient spacing CONTRAST between the smear and its surrounding phases relative to how dramatic the smear's own drawing is — the source's own account of exactly this problem and its fix (widen the gap, don't redraw the smear)"
+  ],
+  "roblox_considerations": "Directly reachable with ordinary `AnimationTrack` keyframe spacing — no bespoke engine feature required, the same as any other spacing/timing decision.",
+  "performance_implications": "None.",
+  "examples": [
+    "'these first frames we can call the prep frames... these frames are all pretty close together and have little to no distortion on them. Then comes the big action... this frame can seem like a big jump forward... creating this sudden departure from your previous frame might seem wrong, but it'll give your action a really strong punchiness. Usually these intense smears only last about 1 to 3 frames, and if you're a beginner I think just having one of these frames is best' (video @ 01:16–02:59), directly diagrammed on screen with labeled 'PREP' → 'SPACE' → smear → 'SLOW DOWN' circles (frame at t=03:59)",
+    "the direct before/after comparison: 'by comparison, if you do use normal slow-in at the start, it doesn't have quite the same impact' (video @ 03:35–03:47)",
+    "the source's own iterative fix, stated directly: 'the difference in speed of the smear frame versus the beginning and end of the animation wasn't different enough for how dramatic I made the smear frame — to fix this I pretty much just needed to make the spacing gaps around this smear frame bigger' (video @ 03:16–03:33)"
+  ],
+  "evidence_status": "video: https://youtu.be/5v0IZSr9-j0 (Kuzillon) @ 01:16–03:47 — the presenter states the full three-phase structure, its exact smear-duration guidance, and a direct before/after comparison; confirmed directly in this session's frames at t=03:59 (a labeled PREP/SPACE/SLOW DOWN diagram) and t=00:45/03:23 (a side-by-side normal-speed vs. 0.25x-speed comparison and a color-coded action-intensity timeline on the source's own worked Pokémon example); experimental until validated"
+}

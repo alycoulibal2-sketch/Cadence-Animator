@@ -1,0 +1,39 @@
+{
+  "concept": "parallel_squiggle_direction_determines_smear_readability",
+  "category": "advanced",
+  "definition": "When drawing a smear as wobbled/squiggled distortion lines plus speed lines, every line must run PARALLEL to the object's own direction of motion and to each other — the direction the squiggles are drawn in is itself what tells the viewer which way the object is moving, and even a slight inconsistency in that parallel direction breaks both the illusion of speed and the clarity of the action, independent of how intense or well-drawn the individual squiggles are.",
+  "purpose": "Make a smear communicate a single, unambiguous direction of motion, since the squiggle/line direction IS the mechanism the viewer reads that direction from, not just a texture.",
+  "visible_effect": "A smeared shape's surface is covered in short wobbled lines and speed lines that all run in the same direction, at varying size and spacing (deliberately irregular, not evenly spaced) — demonstrated directly on screen with a side-by-side comparison labeled 'CLEAR DIRECTION' (all squiggles parallel) against 'NOT CLEAR DIRECTION' (squiggles pointing inconsistently), on an otherwise identical circular smear shape.",
+  "psychological_or_gameplay_effect": "A viewer reads directional intent directly from line orientation; even a small deviation from parallel is stated to break the illusion of speed and the clarity of the action, not merely to look slightly worse — this is framed as a hard requirement, not a matter of degree.",
+  "physical_interpretation": "An imitation of real motion blur's directional streaking, not a literal physical claim.",
+  "use_cases": [
+    "any hand-drawn smear or distortion effect on a fast-moving object, where every added squiggle/speed-line must be checked against the object's own true direction of travel",
+    "increasing a smear's apparent speed by increasing squiggle-line intensity/density while keeping direction strictly consistent"
+  ],
+  "non_use_cases": [
+    "a slow or static object, where no directional squiggle vocabulary is needed at all",
+    "an object changing direction WITHIN the smeared span (e.g. a bounce or a sharp turn), where a single uniform squiggle direction would misrepresent the actual path — this case needs the smear broken into direction-consistent segments rather than one uniform pass"
+  ],
+  "interactions": [
+    "motion_smear_readability (W01) — the general existing card for the technique; this entry adds a specific, hard, visually-demonstrated failure condition (line-direction inconsistency) that card does not itself state",
+    "prep_smear_slowdown_three_phase_smear_structure (this same video) — this entry's rule applies specifically to the SMEAR phase of that broader three-phase structure"
+  ],
+  "style_variations": {
+    "anime": "a standard, expected convention for hand-drawn action",
+    "realistic": "not applicable — smears are explicitly non-physical readability aids regardless of style"
+  },
+  "cadence_representation": "Not representable: Cadence has no mesh deformation at all (the existing `motion_smear_readability` card's own stated limitation), so no drawn squiggle/line vocabulary is reachable in this build regardless of direction-consistency rules. If a future VFX-trail approximation were built (per `arc_trail_vfx_readability`, W01), this entry's rule would translate directly: any trail/streak geometry generated would need to align with the object's own instantaneous velocity direction, which `ai/motion.js sampleMotion`'s existing `linear_velocity` measurement already provides.",
+  "control_surface": "None — no drawing/VFX tool in this build reaches this technique.",
+  "detection_and_measurement_methods": "Not measurable in this build directly (no mesh deformation or drawn-line data exists), but the underlying velocity-direction data a future implementation would need to check against IS already measured: `ai/motion.js sampleMotion`'s `linear_velocity` gives the exact direction any generated smear/trail geometry would need to stay parallel to.",
+  "generation_or_modification_methods": "None currently reaches this in this build.",
+  "failure_modes": [
+    "squiggle/speed lines drawn at even slightly inconsistent angles, breaking both the speed illusion and the action's clarity — demonstrated directly, not merely described, in the source's own side-by-side comparison",
+    "evenly-spaced, evenly-sized squiggles — the source separately notes this looks unnatural and that deliberate randomness in size/spacing is also required alongside direction consistency"
+  ],
+  "roblox_considerations": "Would apply identically to any custom line/streak VFX built for Roblox (e.g. a shader-drawn or texture-based streak effect) — direction consistency against the object's own velocity would be exactly as load-bearing there.",
+  "performance_implications": "None.",
+  "examples": [
+    "'the direction you draw these squiggles indicates the direction that the object is moving... everything should be parallel — if your squiggles and lines are going in different directions, even just a little, the illusion of speed and clearness of the action won't get across' (video @ 00:50–01:22), directly illustrated on screen with a labeled 'CLEAR DIRECTION' vs 'NOT CLEAR DIRECTION' side-by-side comparison (frame at t=00:45)"
+  ],
+  "evidence_status": "video: https://youtu.be/5v0IZSr9-j0 (Kuzillon) @ 00:50–01:22, confirmed directly in this session's frame at t=00:45 (a labeled 'CLEAR DIRECTION'/'NOT CLEAR DIRECTION' comparison image); experimental until validated"
+}

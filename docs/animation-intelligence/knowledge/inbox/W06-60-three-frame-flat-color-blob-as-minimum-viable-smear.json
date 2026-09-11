@@ -1,0 +1,39 @@
+{
+  "concept": "three_frame_flat_color_blob_as_minimum_viable_smear",
+  "category": "optional",
+  "definition": "A smear-based action can be reduced to its most extreme minimum — a single flat-colored blob (stripped to the character's single most prevalent color, with no internal detail at all) following the arc of the motion, across just THREE total frames (a starting pose, the blob smear, an ending pose) — presented as a deliberately embraced shortcut for comedic or non-serious action, not as a failure state or a compromise to be avoided.",
+  "purpose": "Cover a fast action's full readable arc at the lowest possible authoring cost, when the tone (comedy, non-seriousness) makes maximal simplicity a legitimate stylistic choice rather than a corner cut.",
+  "visible_effect": "A character's normal silhouette and detail disappear entirely for one frame, replaced by a single-color, roughly-arced blob shape tracing the motion path, bracketed by only a start and end pose — three frames total for the whole action.",
+  "psychological_or_gameplay_effect": "Demonstrates directly that 'a simple curving shape' is 'all that's really necessary to make something move from one spot to another,' explicitly framed as proof of concept for how much can be stripped away while the action still reads, rather than as the recommended default.",
+  "physical_interpretation": "None — an extreme, deliberately non-representational shorthand.",
+  "use_cases": [
+    "comedic or intentionally-not-serious action, where the source states this shortcut is appropriate",
+    "rapid prototyping/blocking of a fast action's timing before committing to full smear detail, since the three-frame count and arc shape can be validated cheaply first"
+  ],
+  "non_use_cases": [
+    "any action wanting to read as serious, weighty, or detailed, where a flat-color blob would undercut the intended tone entirely",
+    "an action whose specific silhouette/identity needs to remain legible mid-smear (a recognizable weapon or character shape), which this technique deliberately discards"
+  ],
+  "interactions": [
+    "dps_floor_for_short_actions and startup_frame_budget (W01/W02) — this entry names the extreme LOW end of that same frame-budget spectrum as a deliberately embraced choice for a specific tone, rather than a floor to avoid crossing",
+    "prep_smear_slowdown_three_phase_smear_structure (this same video) — this entry is the maximally-compressed limit case of that structure, collapsing prep and slow-down to a single pose each and the smear to one flat blob"
+  ],
+  "style_variations": {
+    "cartoon": "a natural fit for this style's own tolerance for extreme simplification, per the source's own framing",
+    "realistic": "directly contraindicated — a flat-color blob is about as far from realistic rendering as a smear technique can get"
+  },
+  "cadence_representation": "Not representable: Cadence has no mesh deformation, so a literal flat-color blob shape is unreachable the same way any smear is (per the existing `motion_smear_readability` card); the closest Cadence-native analogue would be an extremely sparse three-key pose sequence (start/extreme/end) with no smear geometry at all, which is already fully reachable via ordinary keyframe authoring and matches `dps_floor_for_short_actions`'s own existing territory.",
+  "control_surface": "Ordinary keyframe authoring already reaches a three-key pose sequence; nothing currently offers a blob/silhouette-collapse VFX layer.",
+  "detection_and_measurement_methods": "Partially measurable: `ai/motion.js keyDensity` already reports a three-key action directly; nothing measures the SILHOUETTE-collapse (blob/flat-color) half, since no scale/mesh signal exists in this build at all.",
+  "generation_or_modification_methods": "Ordinary keyframe authoring already reaches the three-key structure; the blob/flat-color rendering half is outside this build's scope.",
+  "failure_modes": [
+    "applying this extreme simplification to an action wanting to read as serious or weighty, undermining that tone entirely",
+    "using it where the mid-smear silhouette/identity of the object needs to stay legible, which this technique deliberately sacrifices"
+  ],
+  "roblox_considerations": "A flat-color blob silhouette has no direct Motor6D/rig analogue; the closest reachable equivalent would be a three-key pose sequence, or briefly swapping the character's rendering to a flat-colored decal/highlight for one frame — a rendering-level trick outside ordinary rig animation.",
+  "performance_implications": "A real authoring-cost saving — the source's own framing is explicitly about minimizing effort for a specific tone, not about visual payoff.",
+  "examples": [
+    "'here's the most extreme simplification that you can possibly do in a smear frame... it's just a simple blob following the arc of the motion... even the color is stripped down to just the single most prevalent color on the character... all it is is three frames: the starting pose, the smear, and the ending pose. Although pretty crude, you can get away with this sometimes as a shortcut... especially when animating comedy that isn't meant to be taken too seriously' (video @ 05:32–06:20), directly confirmed in this session's frame at t=05:59 (a simplified teal character shown before and after a single flat-colored arced swipe shape)"
+  ],
+  "evidence_status": "video: https://youtu.be/5v0IZSr9-j0 (Kuzillon) @ 05:32–06:20, confirmed directly in this session's frame at t=05:59 (the flat-color arc-blob example); experimental until validated"
+}

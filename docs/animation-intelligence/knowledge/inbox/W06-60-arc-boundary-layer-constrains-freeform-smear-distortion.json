@@ -1,0 +1,35 @@
+{
+  "concept": "arc_boundary_layer_constrains_freeform_smear_distortion",
+  "category": "advanced",
+  "definition": "Before drawing a smear, first draw the object's true motion path (a straight line, a C-curve, an S-curve, whichever matches the actual action) as a boundary on a separate reference layer, then confine all smear/distortion drawing within that boundary — no matter how wild or wobbly the smear's own internal linework is, if it breaks out of the object's true path it reads as wrong ('janky'), independent of the smear's own internal quality.",
+  "purpose": "Keep an intensely distorted, freeform-looking smear anchored to the object's actual, physically-sensible trajectory, so improvisational-looking distortion never accidentally misrepresents the true motion path.",
+  "visible_effect": "A drawn path/arc guide (a straight line, or a C- or S-shaped curve) sits on its own layer beneath the visible artwork, visually confirmed in this source's own software recording as colored guide curves (green, purple/magenta) traced directly under the character sketch before the smear linework is added on top.",
+  "psychological_or_gameplay_effect": "Not stated as a viewer-facing effect directly — this is an AUTHORING discipline whose payoff is avoiding a specific, named failure (a smear that 'breaks out of the path' and looks 'janky'), rather than adding a new perceptual quality of its own.",
+  "physical_interpretation": "Ensures the smear stays consistent with the object's own true physical arc, even though the smear's own internal distortion is itself non-physical.",
+  "use_cases": [
+    "any smear whose action follows a clear, identifiable path shape (straight, C-curve, S-curve) — the source states this covers 'any sort of action with or without smear frames'",
+    "an intensely distorted or wobbly smear specifically, where the freedom of the distortion linework makes it easy to accidentally drift off the object's true path without a boundary reference"
+  ],
+  "non_use_cases": [
+    "an action with no clear, identifiable path (fully chaotic or physics-simulated motion), where a single boundary curve would not usefully constrain anything"
+  ],
+  "interactions": [
+    "onion_skin_arc_verification (W02) — a sibling arc-discipline technique with an opposite timing: that card verifies an arc AFTER the fact by stacking frames; this entry constrains the arc proactively, DURING drawing, via a boundary layer authored before the smear itself",
+    "arcs (compiled principle) — this entry is a specific, concrete authoring workflow serving that general principle, specific to the smear-frame case where freeform distortion linework makes arc violations especially easy to introduce accidentally"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly and fully measurable today, for the verification half: `ai/motion.js`'s MOT-005 path-curvature/chord-deviation measurement already computes exactly the kind of arc this technique is meant to protect, so comparing a rig's actual motion path against a DECLARED intended arc shape (straight/C/S) is a real, buildable check — nothing currently stores a declared 'intended path shape' to compare against, but the underlying curvature measurement already exists. The authoring/drawing half (a reference boundary layer) is outside Cadence's own scope, since Cadence has no mesh deformation to draw a smear onto in the first place.",
+  "control_surface": "None directly authors a boundary-layer guide; `ai/motion.js`'s existing curvature measurement could verify a result against one if a declared intended arc existed to compare against.",
+  "detection_and_measurement_methods": "Partially buildable: MOT-005's path curvature/chord deviation already measures an actual motion path; comparing it against a DECLARED intended arc shape (straight/C-curve/S-curve) is a real, buildable check, contingent on a place to store that declaration, which this build does not yet have.",
+  "generation_or_modification_methods": "None currently authors a reference boundary layer; ordinary pose/path authoring could in principle be checked against one if declared.",
+  "failure_modes": [
+    "a smear whose internal distortion linework breaks outside the object's true motion path — stated to look 'janky' regardless of how well-drawn the distortion itself is",
+    "skipping the boundary-layer step specifically on an intensely wobbly/distorted smear, where the freedom of the linework makes an accidental path violation more likely than on a calmer action"
+  ],
+  "roblox_considerations": "The verification half maps directly onto a declared intended path compared against `ai/motion.js`'s existing curvature measurement, exactly as it would in Cadence; the authoring half (a drawn boundary layer) is 2D-drawing-specific and has no direct Roblox/3D-rig analogue.",
+  "performance_implications": "None.",
+  "examples": [
+    "'for your smear frames to look believable, you need to understand how arcs and paths work in animation... this path could be a straight line... it could also be a C-curve... any other path is going to be a more elaborate form of these, like an S-curve... it doesn't matter how distorted your smearing is, if it breaks out of the path it's going to look janky. I recommend drawing borders on a different layer that'll tell you the exact space that the object will occupy as it moves, then you can draw your smears within this boundary' (video @ 03:59–04:53), directly confirmed in this session's frames at t=04:39–04:44 (colored green/purple guide-curve layers visible beneath the character artwork in the source's own drawing software)"
+  ],
+  "evidence_status": "video: https://youtu.be/5v0IZSr9-j0 (Kuzillon) @ 03:59–04:53, confirmed directly in this session's frames at t=04:39 and t=04:44 (colored path-guide curves on a separate layer beneath the artwork); experimental until validated"
+}
