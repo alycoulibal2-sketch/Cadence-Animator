@@ -1,0 +1,37 @@
+{
+  "concept": "fixed_camera_licenses_invisible_pose_cheats",
+  "category": "advanced",
+  "definition": "Under a genuinely fixed, never-player-adjustable camera (a first-person view model, any locked shot), deliberately pose joints past their normal/realistic limits — including translating a bone into place directly rather than rotating it through its rig's intended chain — wherever doing so produces a better on-screen silhouette from that ONE angle, because no other angle will ever expose the resulting anatomically-invalid state.",
+  "purpose": "Trade correctness the audience can never observe for silhouette/readability quality the audience always observes, spending effort only where the camera guarantee makes it safe.",
+  "visible_effect": "A hand or finger pose that reads as a perfect, natural-looking grip from the fixed camera angle, while the actual joint transforms behind it (visible from any other angle) are invalid or anatomically absurd — e.g. fingers translated through the geometry of a held object rather than rotated around a realistic pivot.",
+  "psychological_or_gameplay_effect": "None negative, by construction — the entire technique depends on the audience never perceiving the invalid state, so its only effect is the positive readability of the pose actually shown.",
+  "physical_interpretation": "None — an explicit, deliberate departure from physical plausibility, licensed by a guarantee about what the camera will and will not show.",
+  "use_cases": [
+    "any genuinely fixed/locked camera angle (a first-person view model, a fixed cutscene camera) where a specific pose's on-screen read matters more than its correctness from an angle that will never be shown",
+    "a rig or grip pose that would otherwise require excessive rigging complexity (custom joint limits, extra corrective joints) to reach a correct-from-every-angle result, when only one angle is ever needed"
+  ],
+  "non_use_cases": [
+    "any camera that can move, be rotated by the player, or later be reused in a context (a replay, a third-person mode, a cutscene) where the invalid angle could become visible — the entire safety argument depends on the camera guarantee holding permanently",
+    "a rig or pose intended for reuse (a shared skeleton driving both first- and third-person views), where an invalid first-person-only cheat would corrupt the shared data other views also read"
+  ],
+  "interactions": [
+    "the R15-reach-limit pitfall documented in this build's own CLAUDE.md — a directly analogous real limitation: an R15 leg chain is already at its reach limit at rest, so a planted foot becomes unreachable the moment the hips turn; this entry's technique is exactly the kind of 'cheat past the physical limit because nothing will expose it' move Cadence's own solver instead refuses to do silently, reporting a shortfall honestly rather than faking a reach",
+    "single_pose_plus_ik_generalizes_contact_variants (video 41) — both concern how much a pose is allowed to deviate from strict physical correctness; that entry generalizes ONE pose across many valid targets via IK, while this one deliberately breaks correctness for ONE fixed, known target"
+  ],
+  "style_variations": {},
+  "cadence_representation": "In direct tension with this build's own stated values: `joint_limits: null` (CLAUDE.md) means Cadence stores NO limits to violate in the first place, so nothing would technically stop a user from posing exactly this way — but `ai/pose.js solveTwoBone` reports an honest `reach_range_studs` shortfall rather than silently faking an out-of-range reach, which is the opposite instinct from this entry's 'cheat it because no one will see' technique. The honest statement is that Cadence's solvers are built to never lie about reachability, while this entry describes a deliberate, informed human choice to accept an invalid intermediate state for a specific, guaranteed-safe camera — a choice Cadence can represent (nothing stops a user from directly setting rotation/position values past what a solve would produce) but never recommend or automate, since it cannot know a camera guarantee holds.",
+  "control_surface": "Direct keyframe authoring (`set_keyframe` on a rotation/position track) already allows posing past any solver's own result; no tool distinguishes a deliberate camera-safe cheat from an authoring mistake.",
+  "detection_and_measurement_methods": "`ai/pose.js`'s own reach/limit reporting (`reach_range_studs`, `poseLimitations`) would flag a resulting pose as physically anomalous if it were ever checked — which is exactly the tension this entry surfaces: a validator built to catch mistakes cannot distinguish one from a deliberate, informed camera-guaranteed cheat, so applying such a check here would produce a false positive rather than a real defect report.",
+  "generation_or_modification_methods": "None specific — ordinary keyframe authoring past a solved or realistic value; no tool assists or blocks this deliberately.",
+  "failure_modes": [
+    "the camera guarantee turning out to be false later (a sequel adds a spectator camera, a killcam, a third-person mode) — first-person-only assumptions frequently outlive the mode that justified them, and this technique has no recovery path built in",
+    "applying the same 'no one will see it' reasoning to a joint OTHER animations or systems also read (shared rig state), corrupting something beyond the one shot that justified the cheat"
+  ],
+  "roblox_considerations": "Roblox's R15 rig has no inherent `Motor6D` joint limits, but an IK/constraint system layered on top may enforce them — a cheat past a limit that only Cadence itself does not enforce could still be rejected or clamped by a downstream Roblox system, so the guarantee this technique depends on must be checked against the ACTUAL target pipeline, not assumed from Cadence's own permissiveness.",
+  "performance_implications": "None.",
+  "examples": [
+    "Mercy's staff-grip fingers translated directly into place (not rotated through a natural chain) to get a convincing grip silhouette, described by the presenter's lead animator as an explicit, deliberate technique ('just translate the fingers into place') rather than an accident (video @ 19:11–19:41)",
+    "the presenter's own framing: 'you'll never see that side of the staff in motion... hopefully you don't see that' — an explicit acknowledgment that the technique's safety is a camera guarantee, held with some uncertainty even by its author (video @ 19:37–19:52)"
+  ],
+  "evidence_status": "video: https://youtu.be/7t0hLZd_8Z4 @ 18:59–19:52 — Matt Bame narrates the Mercy staff-grip example directly, including his lead animator's original instruction to translate rather than rotate the finger bones; no frames extracted (transcript-only); experimental until validated"
+}

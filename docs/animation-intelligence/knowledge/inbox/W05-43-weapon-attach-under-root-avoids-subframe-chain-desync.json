@@ -1,0 +1,37 @@
+{
+  "concept": "weapon_attach_under_root_avoids_subframe_chain_desync",
+  "category": "advanced",
+  "definition": "Parent a weapon's attachment bone directly under the character's ROOT (not under the hand/arm chain), and drive the hand's position TO the weapon via IK, rather than the conventional reverse (parenting the weapon under a bone at the bottom of the hand chain) — because the conventional order breaks under in-engine subframe/variable-framerate interpolation even when it looks correct in the authoring tool at a fixed framerate.",
+  "purpose": "Eliminate a specific, hard-to-diagnose in-engine-only visual glitch where a weapon appears to fight its own parent bone between frames, and simultaneously enable clean hand-independence (the hand can be pulled away from the weapon for a reload) via a space-switch rather than a hand-authored constraint per shot.",
+  "visible_effect": "Without this fix, the weapon appears to jitter/wobble toward the hand's bone between authored keys at runtime (not visible in Maya at the authoring framerate) whenever the animator moves the hand chain away from the weapon's parent bone; with the fix, no such artifact exists at any framerate.",
+  "psychological_or_gameplay_effect": "An artifact invisible during authoring and review that only appears in the shipped, variable-framerate build is one of the more expensive defects to catch — this entry documents both the failure and its structural fix, not just the symptom.",
+  "physical_interpretation": "None — a rig-hierarchy/parenting decision, not a physical property of the motion.",
+  "use_cases": [
+    "any first-person or held-item rig where the held item must sometimes move independently of the hand that normally carries it (a reload, a two-handed regrip)",
+    "any rig exported to a runtime that interpolates between authored keys at a framerate different from the authoring framerate (true of essentially all real-time engines, Roblox included)"
+  ],
+  "non_use_cases": [
+    "an item that is truly rigid with the hand for its entire lifetime with no independent motion ever required — the conventional hand-child parenting is simpler and has no failure mode to avoid in that case",
+    "an offline-rendered (non-real-time) shot played back at its exact authored framerate, where the subframe-interpolation failure mode this entry describes cannot occur"
+  ],
+  "interactions": [
+    "single_pose_plus_ik_generalizes_contact_variants (video 41) — a sibling case of routing motion through an IK target rather than a direct parent/child relationship specifically to decouple two parts' motion",
+    "spring_damper_pose_transition_interpolation (video 41) — a different failure this same subframe-interpolation sensitivity could interact with, since a live spring's output would also need to be sampled at an arbitrary subframe time"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly actionable against this build's own attach mechanism: `attach_item`/`detach_item` let an item follow a named part, and the honest question this entry raises is which part a weapon-style attachment should target — if Cadence's attach model parents an item under an effector deep in a moving chain (analogous to 'under the hand') rather than a stable root-adjacent bone, an export through Roblox's own subframe interpolation could reproduce exactly this failure mode. No test in this build currently checks for it.",
+  "control_surface": "`attach_item` (which part an item is parented to) is the exact decision this entry is about; no validation currently flags an attachment to a deep-chain part as higher-risk than one closer to the root.",
+  "detection_and_measurement_methods": "Not measurable from a single sampled clip — the failure only appears from INTERPOLATING between two authored keys at a subframe time the authoring tool never samples, so `ai/motion.js sampleMotion`'s frame-aligned sampling would need to deliberately sample at non-key subframe times and compare against the parent chain's own subframe position to detect it; no code in this build does that comparison today.",
+  "generation_or_modification_methods": "None — a rig-authoring/attachment decision made once per item, not a per-clip generation step.",
+  "failure_modes": [
+    "parenting a held item under a fast-moving distal bone (a hand deep in an arm chain) and later animating that hand away from the item's rest position, reproducing this entry's exact named defect at runtime",
+    "assuming a clean result in the authoring tool at its fixed framerate proves the export will also be clean — the presenter's own account is that the Maya preview looked fine and the defect only appeared in-engine"
+  ],
+  "roblox_considerations": "Roblox's own animation playback interpolates `Motor6D` transforms between keyframes at the client's actual frame rate, which is exactly the 'variable frames per second' condition the presenter names as the trigger — this failure mode is not hypothetical for a Cadence-authored Roblox export, it is the same interpolation model.",
+  "performance_implications": "None — a hierarchy choice with no runtime cost difference between the two parenting options.",
+  "examples": [
+    "a prototype reload where the magazine bone is parented under the weapon's hand-chain attachment point; it looks fine in Maya but produces 'wacky weirdness' in-engine as the weapon bone tries to snap back toward the hand between frames, at 60fps authored AND exported (video @ 07:59–09:44)",
+    "the fix demonstrated on a later rig: a weapon-attachment bone parented under the root, with the hand's IK target following IT instead, switchable via a parent-space tool so the hand can be pulled away (e.g. to pull a bolt) with no constraint setup per shot (video @ 10:42–13:09)"
+  ],
+  "evidence_status": "video: https://youtu.be/7t0hLZd_8Z4 @ 07:59–13:09 — Matt Bame (Blizzard, Overwatch) demonstrates the failure with a real Maya-to-engine example and the structural fix with a real rig (Ana), narrating both directly; no frames extracted (transcript-only); experimental until validated"
+}

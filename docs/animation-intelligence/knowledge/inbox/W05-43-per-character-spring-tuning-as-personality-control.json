@@ -1,0 +1,37 @@
+{
+  "concept": "per_character_spring_tuning_as_personality_control",
+  "category": "advanced",
+  "definition": "Author one additive spring-based aim/lean overlay SYSTEM shared across every character, but tune its per-character spring parameters (effectively stiffness/damping/lag amount) individually so the SAME mechanical system produces a materially different feeling per character — tight and immediate for one, loose and swinging for another, alternating sharp snaps with soft flow for a third — making the tuning parameters themselves a characterization tool, not just a physicality fix.",
+  "purpose": "Get cheap, per-character personality out of a single shared technical system, rather than needing bespoke overlay logic (or hand-keyed secondary motion) per character.",
+  "visible_effect": "The same category of camera/weapon micro-motion (settling into an aim, leaning into a turn) visibly differs in speed, elasticity and snappiness from character to character, while using identical underlying code.",
+  "psychological_or_gameplay_effect": "The presenter states this directly: these overlays 'are not just there to do this and to like do this, they have purpose and they will give you character' — the tuning is explicitly framed as acting/characterization, not mere physicality polish.",
+  "physical_interpretation": "A spring's response shape (how much it overshoots, how quickly it settles) is a direct physical analogue for temperament — tight-and-controlled versus loose-and-swinging map onto stiffness/damping the way they would for a real spring's own material properties.",
+  "use_cases": [
+    "a roster of characters sharing one technical overlay/secondary-motion system, where distinct per-character feel is wanted without bespoke code or hand-keyed secondary animation per character",
+    "conveying personality through a system the player never directly sees keyed (an aim-sway, a lean, an idle drift) rather than through posed animation alone"
+  ],
+  "non_use_cases": [
+    "a single-character project, where there is no roster-wide system to differentiate and a bespoke hand-tuned feel is simpler to author directly",
+    "a mechanically identical parameter set applied uniformly across very different characters — the technique's entire value is in the PER-CHARACTER variation, not the shared system alone"
+  ],
+  "interactions": [
+    "spring_damper_pose_transition_interpolation (video 41) — the same physical mechanism (a tunable spring-damper response), here reused specifically as a characterization/acting control surface rather than as a fix for interpolation artefacts",
+    "`ai/style.js STYLE_MODIFIERS` (this build) — both are 'one parameter set, many characters/styles' architectures; this entry is evidence that per-entity (not just per-style) parameter variation is itself a valuable, distinct axis"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a systematic control: `ai/style.js STYLE_MODIFIERS` already varies vocabulary dimensions PER STYLE (realistic/anime/cartoon/mechanical), which is the closest existing mechanism, but nothing in this build varies a motion parameter PER CHARACTER/RIG the way this entry describes (per-hero spring tuning, independent of any declared style) — Cadence has no persistent per-item or per-rig 'personality parameter' concept at all, additive or otherwise, and no spring/lag simulation to tune in the first place (see `spring_damper_pose_transition_interpolation`, video 41).",
+  "control_surface": "None. `ai/style.js` is the nearest existing per-entity parameterization surface, but it is scoped to style, not to individual characters within one style, and has no spring/lag dimension to carry this entry's specific technique.",
+  "detection_and_measurement_methods": "If such an overlay were hand-keyed rather than simulated, `ai/motion.js sampleMotion`'s velocity/acceleration curves would show the resulting per-character signature (how quickly a lean settles, how much it overshoots) directly — the same curve-shape signal `spring_damper_pose_transition_interpolation`'s entry already names as measurable in principle, applied here to compare characters against each other rather than to detect the mechanism.",
+  "generation_or_modification_methods": "None built.",
+  "failure_modes": [
+    "tuning every character's overlay to feel similar 'for consistency', which discards exactly the characterization value this technique exists to provide",
+    "over-tuning an overlay so loose or snappy that it interferes with gameplay-critical readability (aiming precision) for the sake of personality — a real tension the talk does not resolve, only names per-character tuning as the design choice"
+  ],
+  "roblox_considerations": "No first-party Roblox spring/lag animation primitive exists (the same gap `spring_damper_pose_transition_interpolation` already names); a per-character-tuned version would need the same custom runtime simulation, parameterized per rig or per character id.",
+  "performance_implications": "A live per-frame spring evaluation per tracked bone per character, same order of cost as `spring_damper_pose_transition_interpolation` — trivial per player-controlled character, since only the local player's own view model needs it.",
+  "examples": [
+    "McCree (a tight, confident gunslinger) tuned tight and immediate; Zenyatta (a floating robot-monk) tuned to alternate 'flows and snaps'; Roadhog (a hulking brawler with a shotgun) tuned 'super loose' — three distinct feels from one shared spring-based aim/lean system (video @ 20:48–21:49)",
+    "the presenter's explicit framing that these overlays exist to 'give you character', not merely physicality, immediately before the three-character comparison above (video @ 20:26–20:38)"
+  ],
+  "evidence_status": "video: https://youtu.be/7t0hLZd_8Z4 @ 19:52–21:49 — Matt Bame states the shared-system-per-character-tuning technique and its characterization purpose directly, comparing McCree/Zenyatta/Roadhog/Bastion by name; no frames extracted (transcript-only); experimental until validated"
+}

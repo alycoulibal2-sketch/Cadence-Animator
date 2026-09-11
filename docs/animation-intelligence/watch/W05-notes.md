@@ -4,7 +4,7 @@
 
 - [x] 41. Animation Bootcamp: An Indie Approach to Procedural Animation — GDC (26:13) — https://youtu.be/LNidsMesxSE
 - [x] 42. Animation Bootcamp: 2018 Tricks of the Trade — GDC (31:10) — https://youtu.be/o1tti636Kag
-- [ ] 43. Animation Bootcamp: The First Person Animation of Overwatch — GDC (34:03) — https://youtu.be/7t0hLZd_8Z4
+- [x] 43. Animation Bootcamp: The First Person Animation of Overwatch — GDC (34:03) — https://youtu.be/7t0hLZd_8Z4
 - [ ] 44. How Overwatch Conveys Character in First Person — New Frame Plus (15:32) — https://youtu.be/7Dga-UqdBR8
 - [ ] 45. Animation Bootcamp: Animating Cameras for Games — GDC (26:26) — https://youtu.be/hP1Vz70WouE
 - [ ] 46. Animation Bootcamp: Script to Screen: The Development Diary of Marvel's Spider-Man — GDC (31:13) — https://youtu.be/r_rJJyIPrmM
@@ -162,3 +162,75 @@ slide/diagram, or (for the motion-capture segment) described but not shown on sc
 `W05-42-state-driven-frame-selection-instead-of-playback.json`,
 `W05-42-planted-foot-float-track-eliminates-transition-clips.json` — all four pass
 `validateProposedEntry` and `validateEvidenceSource`.
+
+### 43. Animation Bootcamp: The First Person Animation of Overwatch — GDC (Matt Bame, Blizzard)
+
+2026-09-11. Watched at `transcript` detail (728 caption segments, clean on first pull). One of the
+strongest videos so far for direct code-level relevance — several findings connect to a specific
+named function or documented pitfall already in this codebase rather than only to a general
+principle, which the entries below say explicitly rather than implying. Five entries written, above
+this batch's usual 1–4 guidance, because the density and directness of Cadence-relevant content
+justified it (precedent: W03 video 26 alone produced 5 in an earlier batch).
+
+**What it teaches, specifically:**
+1. A weapon bone parented under the hand chain (the "classic" way) looks correct in Maya at a fixed
+   framerate but produces visible "wacky weirdness" in-engine from ordinary subframe interpolation at
+   variable framerate — the fix is parenting the weapon attachment under the ROOT instead and IK-ing
+   the hand TO it, which also enables a clean parent-space hand-release for reloads (07:59–13:09).
+   This maps directly onto a real, open question about Cadence's own `attach_item`: which part an
+   attachment targets is exactly the choice this entry is about, and nothing in this build currently
+   flags a deep-chain attachment as higher-risk. Wrote
+   **`weapon_attach_under_root_avoids_subframe_chain_desync`**.
+2. Decoupling the first-person view-model camera's FOV from the player-adjustable world FOV, so a
+   player's comfort/preference setting can never stretch a hand-authored pose — demonstrated concretely
+   against Widowmaker's rifle silhouette (16:31–18:23). Wrote
+   **`decoupled_view_model_fov_protects_authored_pose`**.
+3. One shared additive spring-based aim/lean overlay system, re-tuned per character (tight for McCree,
+   "flows and snaps" for Zenyatta, "super loose" for Roadhog) so the SAME code gives each hero a
+   distinct feel — stated explicitly as a characterization tool, not just a physicality fix
+   (19:52–21:49). This is a genuinely different angle on video 41's spring-damper finding: there it was
+   a technical fix for an interpolation artifact, here the tunable parameters ARE the acting choice.
+   Wrote **`per_character_spring_tuning_as_personality_control`**.
+4. An extreme, past-realistic stretched pose authored as a real frame but deliberately excluded from
+   the exported/idle boundary, so it is only ever seen mid-transition, never held — McCree's fire and a
+   reload both use this exact "stretch, snap back, a little hole" structure (26:39–27:35, 31:01–31:56).
+   Maps directly onto this build's own `set_play_range`/`get_play_range`. Wrote
+   **`unexported_extreme_frame_smear_transient`**.
+5. Deliberately posing past anatomical plausibility (translating Mercy's finger bones into place rather
+   than rotating them through a natural chain) specifically BECAUSE the first-person camera is fixed
+   and guaranteed never to expose the invalid state from another angle — the presenter's own account
+   ("you'll never see that side... hopefully you don't see that") includes an honest note of
+   uncertainty about the guarantee (18:59–19:52). This stands in direct, worth-naming tension with this
+   build's own `joint_limits: null` / `reach_range_studs`-honesty design (CLAUDE.md's R15 reach-limit
+   pitfall is the same shape of problem from the opposite instinct: Cadence's solver refuses to lie
+   about a reach shortfall, where this technique deliberately exploits an audience that will never
+   check). Wrote **`fixed_camera_licenses_invisible_pose_cheats`**.
+
+**Not written as entries:** the Maya animation-layers organizational workflow (13:14–15:13) is a
+DCC-tool-specific technique with no clean Cadence analogue (Cadence has no layered-base-pose-cascade
+concept) and was judged not distinct enough from ordinary override-track authoring to earn its own
+card. The "avoid Frankenstein hands" reload tip and run-lean/directional-lean additive system were
+named but not demonstrated in enough concrete detail in this transcript to evidence separately (the
+presenter explicitly ran out of time and skipped material more than once).
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — every example is a rigged 3D character or a slide, no filmed reference.
+
+**Checks for the queue:**
+- `check: deep_chain_attachment_risk_flag — flag an attach_item target whose part sits more than N
+  joints from the rig root as higher subframe-interpolation risk for held items expected to move
+  independently — derivable from the rig's own joint graph, already walked by buildChain — video 43 @
+  07:59–09:44`
+- `check: extreme_frame_outside_boundary_range — flag an interior frame whose measured rotation/scale
+  amplitude exceeds both the clip's own play-range boundary frames by a wide margin, as a candidate
+  smear-transient (informational, not a defect) — buildable from sampleMotion plus get_play_range —
+  video 43 @ 26:39–27:35`
+
+**Entries written:** `W05-43-weapon-attach-under-root-avoids-subframe-chain-desync.json`,
+`W05-43-decoupled-view-model-fov-protects-authored-pose.json`,
+`W05-43-per-character-spring-tuning-as-personality-control.json`,
+`W05-43-unexported-extreme-frame-smear-transient.json`,
+`W05-43-fixed-camera-licenses-invisible-pose-cheats.json` — all five pass `validateProposedEntry`
+and `validateEvidenceSource`; re-swept for concept-name collisions against the full corpus (12
+compiled + W01–W04 inbox/merged + this batch so far) with none found.

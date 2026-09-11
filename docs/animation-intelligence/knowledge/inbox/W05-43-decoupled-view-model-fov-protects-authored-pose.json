@@ -1,0 +1,36 @@
+{
+  "concept": "decoupled_view_model_fov_protects_authored_pose",
+  "category": "advanced",
+  "definition": "Render the first-person weapon/hands (\"view model\") through a SEPARATE, fixed camera FOV from the world/environment FOV a player can adjust, so a player's FOV preference (for comfort, motion sickness, or peripheral awareness) never stretches or distorts a hand-authored first-person pose.",
+  "purpose": "Let an animator author a pose against one known, fixed FOV and trust it will look exactly as authored for every player, rather than needing to design every pose to survive an unknown, player-controlled range of FOV values.",
+  "visible_effect": "A first-person weapon/hand pose looks identical regardless of the player's chosen world FOV; without this decoupling, the same pose visibly stretches or compresses as world FOV changes.",
+  "psychological_or_gameplay_effect": "Removes an entire category of player-facing visual inconsistency (an animator's exact posing intent surviving every player's settings) at the cost of the view model not scaling with the world the way a fully unified camera would.",
+  "physical_interpretation": "None — a rendering/camera architecture decision, not a property of the motion.",
+  "use_cases": [
+    "any first-person game that offers a player-adjustable FOV slider for the world/environment",
+    "a game whose view-model poses were hand-tuned against a specific camera FOV in the authoring tool, where that exact FOV value needs to be reproducible at runtime"
+  ],
+  "non_use_cases": [
+    "a game with a single fixed, non-adjustable FOV for the whole game, where there is nothing to decouple from",
+    "a third-person game, where there is no view model to protect from a world-FOV change in the first place"
+  ],
+  "interactions": [
+    "procedural_movement_precedes_cosmetic_animation (video 41) — a structurally similar protective decoupling: both isolate an animator's/designer's authored intent from a downstream variable (player input there, player settings here) that would otherwise be free to corrupt it"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as an export concern: Cadence's `add_camera`/camera tools author a camera's own FOV as project data, but nothing in this build's export path declares or preserves the RELATIONSHIP between an authored pose and the specific FOV it was posed against, nor separates a 'view model camera' from a 'world camera' concept — a Roblox game consuming a Cadence-exported first-person pose would need to build and maintain that separation itself, matching the FOV a Cadence project's camera item happened to be set to at authoring time by convention, not by any enforced link.",
+  "control_surface": "`add_camera`/`set_project_props` can declare and store a camera's FOV as project data; nothing marks a camera as canonically the FOV a specific pose was authored against, so there is no way to export that fact alongside the pose for a downstream game to read reliably.",
+  "detection_and_measurement_methods": "None. Whether an exported pose's target FOV is documented and honoured by the consuming game is entirely outside any single project file `ai/motion.js` could measure.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "authoring or reviewing a first-person pose at the wrong camera FOV, so it looks correct in the authoring tool but wrong at the FOV the game actually renders the view model with",
+    "coupling world and view-model FOV (skipping this decoupling) and later adding a player FOV slider, which retroactively stretches every already-authored first-person pose"
+  ],
+  "roblox_considerations": "Roblox's `Camera.FieldOfView` is a single scalar per camera; implementing this technique on Roblox requires either a second `ViewportFrame`/camera specifically for the view model (a common approach for exactly this reason) or accepting that the world camera's FOV also governs the view model — the decoupling is not automatic and must be deliberately built.",
+  "performance_implications": "A separate view-model camera/viewport (the common Roblox implementation route) costs an additional render pass per frame, a real, non-trivial performance tradeoff the talk does not quantify but which any implementer should account for.",
+  "examples": [
+    "Widowmaker's rifle model, originally not designed with first-person framing in mind, iterated with the weapon modeler specifically by adjusting camera FOV until the silhouette 'actually reads as a rifle' (video @ 16:31–17:07)",
+    "the presenter stating directly that decoupling world FOV from view-model FOV means 'I don't have to worry about... the player's fov needs' and that the posing 'is going to stay where it's at' regardless of a player's chosen FOV (video @ 17:29–18:23)"
+  ],
+  "evidence_status": "video: https://youtu.be/7t0hLZd_8Z4 @ 17:07–18:23 — Matt Bame states the world/view-model FOV separation and its purpose directly, with the Widowmaker rifle as a concrete worked example; no frames extracted (transcript-only); experimental until validated"
+}

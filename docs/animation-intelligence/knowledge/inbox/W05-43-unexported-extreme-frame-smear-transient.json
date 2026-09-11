@@ -1,0 +1,37 @@
+{
+  "concept": "unexported_extreme_frame_smear_transient",
+  "category": "advanced",
+  "definition": "Author an extreme, exaggerated-past-realistic pose (e.g. a weapon stretched and scaled far beyond its rest geometry) as a real frame in the working timeline, but deliberately EXCLUDE that frame from the exported/looping range so it is only ever seen in transit between two other frames — never as a held starting or resting pose — producing a smear-like perceptual transient without ever displaying the extreme shape long enough to read as broken.",
+  "purpose": "Get the exaggerated punch of a held extreme pose's silhouette-breaking distortion without paying its usual cost (looking obviously wrong if a player ever sees it held), by construction rather than by tuning the distortion down.",
+  "visible_effect": "A weapon appears to violently stretch forward and snap back on a fire/reload action, but the same stretched pose is never visible as a resting or idle frame — only as a blur-like transient between two normal-looking poses.",
+  "psychological_or_gameplay_effect": "Reads as impact and force ('Push It Forward snap it back') precisely because the extreme shape is never scrutinized — the same reasoning `motion_smear_readability` already gives for a drawn smear frame, achieved here with an ordinary keyframe and an export-range decision instead of a drawn in-between.",
+  "physical_interpretation": "An extreme, non-physical deformation (well past what the object's actual material would allow) used exactly like a smear frame — the shape itself is not meant to be individually legible, only its contribution to the perceived motion blur across the transition.",
+  "use_cases": [
+    "a fast, snappy first-person weapon action (a fire recoil, a reload snap) wanting maximal perceived force with minimal frame count",
+    "any looping or state-triggered animation where the loop/trigger BOUNDARY can be deliberately chosen to fall on a normal-looking frame, leaving room for an extreme frame to exist only mid-transition"
+  ],
+  "non_use_cases": [
+    "any context where a player COULD pause on, rewind to, or otherwise hold on the extreme frame (a replay system, a screenshot mode, slow-motion) — the technique depends entirely on the frame never being held long enough to scrutinize",
+    "a deliberately realistic or restrained style, where an extreme past-realistic pose contradicts the style regardless of whether it is ever held (see `squash_stretch`'s own `realistic` style_variations entry)"
+  ],
+  "interactions": [
+    "motion_smear_readability (W01) — the same underlying readability mechanism (an extreme, individually-illegible shape read only as part of a transition), achieved here by an export-range decision on an ordinary keyframe rather than a drawn smear shape",
+    "squash_stretch (compiled) — this is squash/stretch taken to a held-nowhere extreme specifically because the pose is guaranteed never to be seen at rest"
+  ],
+  "style_variations": { "realistic": "excluded — depends on an exaggeration realism would not permit even briefly", "anime": "a natural fit — matches genre convention for extreme in-between/smear frames" },
+  "cadence_representation": "Directly actionable against this build's own play-range tool: `set_play_range` / `get_play_range` already let a project declare which frames are the exported/looping range versus which exist only in the authoring timeline, which is exactly the mechanism this entry depends on (author the extreme frame, then set the play/export range to exclude it as a boundary while still passing through it in transit). Nothing currently validates or flags this pattern — a project using it today would look, to any automated check, like an ordinary keyframe sequence.",
+  "control_surface": "`set_play_range` is the direct control surface — usable today to implement this technique, though no tool names or documents the technique itself.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s own measured values (rotation/scale amplitude) at the excluded extreme frame would show a magnitude well outside the range of any HELD (start/end) pose in the same clip — a real, buildable signature (an interior frame whose measured values exceed both boundary frames by a wide margin) that no code in this build currently checks for.",
+  "generation_or_modification_methods": "None built — authoring the extreme frame and setting the play range around it is a manual two-step process today.",
+  "failure_modes": [
+    "setting the play/export range incorrectly so the extreme frame IS included at a loop boundary, which produces exactly the broken-looking held pose the technique exists to avoid",
+    "using this technique on an action whose timing might be interrupted or held by the player (an input-cancelable window landing exactly on the extreme frame), exposing it despite the export-range exclusion"
+  ],
+  "roblox_considerations": "An exported Roblox `AnimationClip`'s own play range/priority does not inherently protect against a script starting playback mid-clip or pausing it — preserving this technique's guarantee through export requires the consuming Luau code to respect the same boundary Cadence's play range declares, which is a convention, not an enforced constraint.",
+  "performance_implications": "None beyond one additional authored keyframe.",
+  "examples": [
+    "McCree's revolver fire: the very first frame (a hyper-stretched, barrel-scaled-up extreme) is deliberately never exported as the idle/rest frame — it exists only as the frame snapped THROUGH immediately after firing, then rocked back (video @ 26:39–27:35)",
+    "a reload's extreme stretch on the weapon and leading hand, held for effectively zero perceptible duration between two normal-looking frames, described directly as 'stretch snap and then a little hole' (video @ 31:17–31:56)"
+  ],
+  "evidence_status": "video: https://youtu.be/7t0hLZd_8Z4 @ 26:39–27:35 and 31:01–31:56 — Matt Bame demonstrates and narrates the technique on both a fire and a reload action, stating directly that the extreme first frame is not exported/shown at rest; no frames extracted (transcript-only); experimental until validated"
+}
