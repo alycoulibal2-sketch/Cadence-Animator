@@ -5,7 +5,7 @@
 - [x] 1. 12 Principles of Animation (Official Full Series) — AlanBeckerTutorials (24:03) — https://youtu.be/uDqjIdI4bF4
 - [x] 2. TIMING - The 12 Principles of Animation in Games — New Frame Plus (9:38) — https://youtu.be/rHEJZXvFc5I
 - [x] 3. ANTICIPATION - The 12 Principles of Animation in Games — New Frame Plus (7:52) — https://youtu.be/28s1Hv3Zqlo
-- [ ] 4. SQUASH & STRETCH - The 12 Principles of Animation in Games — New Frame Plus (8:19) — https://youtu.be/1kFRU_xBZnE
+- [x] 4. SQUASH & STRETCH - The 12 Principles of Animation in Games — New Frame Plus (8:19) — https://youtu.be/1kFRU_xBZnE
 - [ ] 5. SLOW IN & SLOW OUT - The 12 Principles of Animation in Games — New Frame Plus (7:24) — https://youtu.be/3jNiNctcQ4c
 - [ ] 6. ARCS - The 12 Principles of Animation in Games — New Frame Plus (7:47) — https://youtu.be/lOzgxMgAnxQ
 - [ ] 7. FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games — New Frame Plus (16:53) — https://youtu.be/rYtrV1lChsA
@@ -88,4 +88,24 @@ Both new entries interact directly with video 2's `startup_frame_budget` (they a
 
 **Entries written:** 2 (`W01-3-recovery-weight-substitution.json`, `W01-3-implied-zero-frame-anticipation.json`), both passed `validateProposedEntry` cleanly.
 
-**Next video: 4** (SQUASH & STRETCH - The 12 Principles of Animation in Games, `balanced` detail).
+### 4. SQUASH & STRETCH - The 12 Principles of Animation in Games — 2026-09-11
+
+Watched at `balanced` detail (100 scene-aware frames over 8:19, ~75 read directly — a thorough spread across every named example, with the repetitive tail of one long single-action montage, Jak's beach run cycle, sampled rather than read exhaustively once the pattern it showed was already confirmed several times over) plus the full 227-segment caption transcript.
+
+**Cross-check:** strongly confirms the existing `squash_stretch` card, almost to the point of restating its `cadence_representation` field's own reasoning: the video independently arrives at "3D game rigs can't easily deform, so the SAME principle gets applied through pose-based compression/extension instead" — exactly the distinction that card already draws between literal mesh deformation (absent in Cadence) and the pose-based equivalent (`motion_amplitude`/`weight_transfer`). Named, viewed examples of the pose-based route: Marvel's Spider-Man's zip-to-point swing (a coiled launch pose stretching into extended limbs mid-air, then bunching up against the landing wall — directly confirmed on screen at video @ 5:00–5:22, frames captured at t=4:52–5:34) and Anthem's javelin jump launch (compress then sharply extend, with the animators explicitly NOT touching the javelin suit's actual proportions). Jak & Daxter's torso visibly compressing and extending each running step is real mesh deformation, not the pose-based substitute — confirmed directly on screen across dozens of frames (video @ 5:55–6:49) — and the video's own aside that Daxter's head "stays perfectly round throughout" while his body stretches is a concrete, visible tell of exactly the rig-deformation-coverage limit the existing card's `roblox_considerations` gestures at generally.
+
+**One new entry — a technique squash & stretch's own vocabulary gets borrowed for, but for a different purpose than the card already covers:**
+- **Motion smear for readability** (`W01-4-motion-smear-readability.json`) — stretching a limb or weapon along its motion path to bridge large per-frame spacing gaps on a fast action, so the eye can track it — named directly for Overwatch and League of Legends (video @ 3:04–3:20), and independently confirmed visually in this same video's own closing 2D-game montage (a streaked, swirl-shaped silhouette during a fast spin move, t≈7:44–7:49). This is the SAME technique video 1 of this batch flagged as an uncredited GDC-talk citation with no narration to go on — three independent sources now point at the same real, named technique, which is why it earns an entry this time rather than staying a notes-only observation.
+
+**Other observations, no new entry:** the point that realistic characters still benefit from subtle squash & stretch (facial expressions, landing absorption) is already fully covered by the existing card's `style_variations.realistic`. The specific recipe "compress then sharply extend at a jump launch" is a concrete, well-evidenced illustration of the existing card's general pose-based guidance, not a structurally new concept.
+
+**Capture candidates:**
+- `capture: pose-based compress-then-extend on a jump launch — video 4 @ 5:24–5:46 — Anthem's javelin: crouch/compress then sharp extend at the moment of launch, no mesh deformation — directly capturable as a pure-pose reference, nothing about it depends on the rig deforming`
+- `capture: full-body run-cycle squash/stretch rhythm — video 4 @ 5:55–6:08 — Jak's torso compressing and extending each stride — capturable as a POSE reference for the rhythm/timing only; the source itself uses real mesh deformation Cadence's rigid rig cannot reproduce, so a captured version would need to express the same rhythm through rotation alone`
+
+**Checks for a later session to implement:**
+- `check: pose_based_squash_stretch_present_on_launch — whether a jump/launch/coil-and-release phase shows a compress-then-extend rotation pattern at all (any amplitude), independent of mesh scale — video 4 @ 5:24–5:46`
+
+**Entries written:** 1 (`W01-4-motion-smear-readability.json`), passed `validateProposedEntry` cleanly.
+
+**Next video: 5** (SLOW IN & SLOW OUT - The 12 Principles of Animation in Games, `balanced` detail).

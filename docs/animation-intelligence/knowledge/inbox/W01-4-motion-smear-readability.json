@@ -1,0 +1,44 @@
+{
+  "concept": "motion_smear_readability",
+  "category": "advanced",
+  "definition": "Stretching part of a fast-moving character or object in the direction of travel — independent of squash & stretch's weight/force purpose — specifically to bridge large per-frame spacing gaps so the eye can track motion that would otherwise read as a hard jump between positions.",
+  "purpose": "Keep a very fast action visually trackable and legible at low frame density, borrowing squash & stretch's deformation vocabulary for a readability purpose rather than an emotional/force one.",
+  "visible_effect": "A limb, weapon, or whole silhouette elongated along the motion path for one or two frames during a fast action, similar in appearance to motion blur but achieved as a drawn/posed deformation rather than a rendered blur.",
+  "psychological_or_gameplay_effect": "Without it, a fast action sampled at large spacing gaps can read as a discontinuous jump or a skipped frame; with it, the same sparse spacing reads as one continuous fast motion, independent of whether the action itself communicates weight or power.",
+  "physical_interpretation": "An imitation of real motion blur (the way a fast-moving object blurs across an exposure), not a claim about the object's own elasticity the way squash & stretch's deformation normally is.",
+  "use_cases": [
+    "a very fast attack or ability animation sampled at large spacing gaps, where the pose-to-pose jump would otherwise be hard to track",
+    "a stylized 2D or sprite-based game already using squash & stretch as part of its visual language, where a smear reads as consistent with the rest of the style",
+    "bridging a gap for a weapon or effect trail specifically, independent of whether the wielding character deforms at all"
+  ],
+  "non_use_cases": [
+    "a realistic 3D character where the effect would call attention to itself as a drawing convention rather than reading as natural",
+    "an action already sampled densely enough (or moving slowly enough) that the spacing gap it exists to bridge is not actually present",
+    "confusing this with squash & stretch's core force/weight purpose — a smear can exist on an object the animator explicitly does NOT want to look elastic or soft"
+  ],
+  "interactions": [
+    "Squash & stretch — borrows its deformation vocabulary for a different purpose (readability, not weight); the existing `squash_stretch` entry's volume-preservation convention does not necessarily apply here, since a smear is read as a motion trail rather than the object's own body",
+    "Slow in/slow out — the spacing-gap problem this technique solves is exactly what unevenly-spaced fast motion produces in the first place",
+    "Arcs — video 1's independent, uncredited b-roll citation of a 2013 GDC talk on \"smears\" for hand-drawn animation describes the same technique from a different source, for the same underlying spacing problem"
+  ],
+  "style_variations": {
+    "anime": "a smear is close to a default idiom for a fast strike, consistent with the style's general willingness to break literal continuity for clarity",
+    "realistic": "rendered motion blur (a camera/shader effect) is the expected tool instead; a drawn/posed smear would read as a stylistic anomaly"
+  },
+  "cadence_representation": "Not represented, and not straightforwardly representable: like squash & stretch generally, Cadence has no mesh deformation, so a literal smeared silhouette is not achievable on a rigid Motor6D rig; a pose-based approximation (extending a limb's reach at the smeared frame) is conceivable but would not produce a comparable visual effect the way the pose-based squash/stretch equivalent does for weight, since a smear's whole effect depends on an elongated SILHOUETTE, which Cadence cannot generate without mesh scale.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "Indirectly: `ai/motion.js` already measures per-frame spacing (the acceleration/velocity curve slow_in_slow_out relies on), so a phase with unusually large positional gaps between consecutive keys — a candidate for needing this technique — is identifiable from existing data; nothing currently flags \"this gap is large enough that a smear would help,\" since Cadence has no way to add one anyway.",
+  "generation_or_modification_methods": "None — no mesh deformation exists to generate a smear with, per `cadence_representation` above.",
+  "failure_modes": [
+    "applying a smear to a character or style where it reads as a technical artifact rather than an intentional convention",
+    "using a smear to paper over spacing that should instead be fixed with more/better-placed keys or a slow_in_slow_out adjustment",
+    "smearing an object whose whole point is to look rigid or heavy, undermining that read"
+  ],
+  "roblox_considerations": "No mesh deformation exists in Roblox's standard avatar/Motor6D pipeline either, so this technique is no more reachable there than in Cadence directly; a VFX trail effect (a particle or beam trailing the fast-moving part) is the closer Roblox-native substitute, which is a `ai/vfxspec.js` concern, not a rig-pose one.",
+  "performance_implications": "None beyond whatever a VFX-trail substitute would cost, which is outside this entry's scope.",
+  "examples": [
+    "stretched weapon and limb trails on fast attacks in Overwatch and League of Legends, named directly as the reason those games' fast actions stay readable despite large spacing gaps (video 4 @ 3:04–3:20)",
+    "an elongated, streaked, swirl-shaped silhouette during a fast spin move in a 2D animated cutscene shown later in the same video, visually confirming the same technique from a third example beyond the two named games (video 4 @ ~7:44–7:49)"
+  ],
+  "evidence_status": "video: https://youtu.be/1kFRU_xBZnE @ 3:04–3:20 — Dan names the technique and both games directly; a matching visual example (not explicitly narrated as the same technique) appears later in the video's closing 2D-game montage at ~7:44–7:49; independently corroborated by an uncredited GDC-talk citation observed in video 1 of this same batch (see W01-notes.md, video 1 section); experimental until validated"
+}
