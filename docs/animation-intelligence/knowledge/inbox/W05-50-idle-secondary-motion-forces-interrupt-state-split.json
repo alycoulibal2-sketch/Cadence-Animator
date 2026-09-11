@@ -1,0 +1,36 @@
+{
+  "concept": "idle_secondary_motion_forces_interrupt_state_split",
+  "category": "specialized",
+  "definition": "Excessive secondary/jiggle motion authored into a return-to-idle transition can force a costly downstream engineering fix — splitting what would otherwise be one simple idle state into a separate, specifically-interruptible transitional state — purely so a player's next input isn't forced to wait for the secondary motion to finish playing out.",
+  "purpose": "Name a concrete, non-obvious production cost of over-animating a specific transition (return-to-idle): the cost is not only aesthetic (does it look good) but can be systemic (does the game engine now need new state-machine complexity to keep the animation from blocking player input).",
+  "visible_effect": "Without the fix, a player's input during a return-to-idle would be delayed until the authored secondary motion (e.g. jiggle) finished settling; with the fix, the engine can interrupt out of that transitional state immediately.",
+  "psychological_or_gameplay_effect": "A purely visual authoring choice (how much secondary motion to put on one transition) had a direct, unplanned cost in engineering/state-machine complexity — the presenter frames this explicitly as a lesson learned ('we learned not to do that anymore'), not a one-off inconvenience.",
+  "physical_interpretation": "None — a production/engineering consequence of an authoring choice, not a property of the motion itself.",
+  "use_cases": [
+    "any return-to-idle or similar transitional animation carrying secondary/follow-through motion (jiggle, cloth, hair) on a player-controlled character where input must never be blocked",
+    "recognizing, during animation review, that a transition's secondary-motion DURATION is itself a gameplay-relevant quantity, not just an aesthetic one"
+  ],
+  "non_use_cases": [
+    "a non-interactive or cinematic transition with no player input to protect — the systemic cost this entry describes only exists because a player might need to act during the transition",
+    "secondary motion brief enough that it never risks becoming the bottleneck on an interruptible state — the presenter's own account implies this was specifically an EXCESS of jiggle, not any jiggle at all"
+  ],
+  "interactions": [
+    "zero_joint_velocity_must_match_visual_locomotion_state (video 48) — both are cases from this batch where a seemingly-cosmetic animation authoring choice turned out to have a hidden, real cost in downstream game-engine state logic",
+    "idle_exit_needs_larger_not_smaller_initial_spacing (this batch, video 50) — both concern the return-to-idle transition specifically as a place where responsiveness costs hide inside animation choices that look purely aesthetic"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: Cadence has no state-machine or interrupt-state model at all — it authors clips, not the runtime logic that decides whether one can be interrupted. The clip-authoring HALF is in scope (secondary/follow-through motion is ordinary posing work `ai/plan.js`/`ai/pose.js` already support), but nothing in this build could predict or flag that a given secondary-motion duration will force a state-machine change in the consuming game, since that consequence depends entirely on engine-side logic outside any `.cadence` project.",
+  "control_surface": "Ordinary pose/motion authoring covers the content; nothing evaluates its downstream engineering implications.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s duration/settle-time measurement on a return-to-idle transition's secondary-motion tracks would at least quantify HOW LONG the effect this entry describes lasts, which is the raw number a designer would need to judge whether it risks blocking input — measurable today, though the judgment of 'is this too long' has no threshold in this build.",
+  "generation_or_modification_methods": "None specific.",
+  "failure_modes": [
+    "authoring secondary motion on a return-to-idle without considering its total duration against how quickly a player might want to act again",
+    "treating the resulting engineering fix (a split interruptible state) as a one-off patch rather than a lesson that changes how future secondary motion on transitions gets reviewed"
+  ],
+  "roblox_considerations": "Directly relevant to any Roblox character rig with jiggle/cloth physics or secondary-motion animation layered on a return-to-idle — the same interrupt-state consideration applies to a Roblox `Animator`'s track-priority/interrupt logic.",
+  "performance_implications": "None beyond the described one-time state-machine engineering cost.",
+  "examples": [
+    "a weak-punch return-to-idle authored with 'too much boob jiggle,' requiring the designer to split the return-to-idle into 'a separate state so you could interrupt it to go to a different animation' — closed with the direct lesson 'we learned not to do that anymore' (video @ 18:42–18:57)"
+  ],
+  "evidence_status": "video: https://youtu.be/Mw0h9WmBlsw @ 18:42–18:57 — Mariel Cartwright states the specific incident and its engineering consequence directly, framed explicitly as a lesson learned; no frames extracted (transcript-only); experimental until validated"
+}

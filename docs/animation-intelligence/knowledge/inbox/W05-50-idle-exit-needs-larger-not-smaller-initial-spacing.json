@@ -1,0 +1,37 @@
+{
+  "concept": "idle_exit_needs_larger_not_smaller_initial_spacing",
+  "category": "advanced",
+  "definition": "When transitioning OUT of an idle/rest pose into another motion, use LARGER spacing (a bigger positional jump, effectively less ease) on the very first frames leaving idle, rather than easing gently out of it the way a departure from a held pose is conventionally eased — because an idle animation is itself a continuous motion (a loop), not a static rest state, so easing gently out of it reads as one motion slowing down rather than a new motion beginning.",
+  "purpose": "Preserve a player character's felt responsiveness at the exact moment control input is expected to matter most (the instant an idle is interrupted), by avoiding an easing choice that — though conventionally correct for leaving a truly static pose — actively slows the read of a transition out of an already-moving idle loop.",
+  "visible_effect": "The first few frames after an idle interrupt show a noticeably bigger jump in position/pose than an evenly-eased transition would, rather than a gentle ramp-up.",
+  "psychological_or_gameplay_effect": "The presenter's own account is a direct reversal of her initial assumption: she started by easing into transitions the conventional way, found herself repeatedly deleting the frames she had drawn around the idle because they 'just slowed down the animation,' and traced the fix to spacing, not frame count — a responsiveness cost hiding inside a technically-correct-looking easing curve.",
+  "physical_interpretation": "An idle pose already carries the small continuous motion of a loop (breathing, a weight shift, a weapon sway); treating the moment of departure as a fresh start FROM STILLNESS (with its own ease-out) double-applies an ease that the idle's own ongoing motion has already partially spent.",
+  "use_cases": [
+    "any player-controlled character's idle-to-action transition, where perceived input responsiveness is gameplay-critical",
+    "a fighting game or other twitch-response genre specifically, where the presenter notes idle responsiveness has an outsized effect on overall game feel"
+  ],
+  "non_use_cases": [
+    "a non-interactive or cinematic idle with no responsiveness requirement, where a conventional gentle ease out of stillness is unproblematic",
+    "an enemy/AI character's idle, where the same player-facing responsiveness argument does not apply the way it does for `layered_anticipation`'s own player-vs-enemy anticipation-budget distinction (W01)"
+  ],
+  "interactions": [
+    "vibe_timing_anti_pattern (W01) — a related discipline about not trusting a default/conventional timing choice without checking it against actual felt responsiveness",
+    "recovery_weight_substitution / implied_zero_frame_anticipation (W01) — siblings in the same 'protect responsiveness at the cost of a normally-expected easing/anticipation beat' family, applied here specifically to the idle-exit moment rather than an attack's own start"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly measurable: `ai/motion.js sampleMotion`'s velocity/spacing data at an idle-to-action transition boundary is exactly the quantity this entry is about, and key spacing near a phase boundary is already measurable via existing position/key-time data — a check comparing spacing immediately after a declared idle-exit marker against the idle loop's own average spacing (flagging an eased-in transition as a responsiveness risk on player-controlled items specifically) is a real, buildable check no code in this build currently runs.",
+  "control_surface": "Ordinary keyframe/spacing authoring (`set_keyframe`, `set_easing`) already lets a user apply this technique by hand; nothing validates or recommends it specifically at an idle-exit boundary.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s spacing/velocity series at a marked idle-to-action boundary would directly show whether the transition eases in gently or snaps with large initial spacing — buildable today from existing measurements, with the open question of WHICH is correct depending on a declared player-controlled-vs-not distinction this build does not currently carry on an item.",
+  "generation_or_modification_methods": "None built specifically; `ai/plan.js`'s existing easing-dimension strategies could in principle be pointed at an idle-exit boundary specifically, but nothing currently treats that boundary as a special case distinct from an ordinary phase transition.",
+  "failure_modes": [
+    "applying conventional ease-out spacing to an idle-exit transition by default, reproducing the exact sluggishness the presenter describes discovering and fixing",
+    "applying this technique's larger-spacing snap to a NON-interactive or cinematic idle where it is not needed, potentially reading as an unmotivated jerk instead of responsiveness"
+  ],
+  "roblox_considerations": "Directly relevant to any Roblox game blending from an `Idle` animation state into an action on input — the same responsiveness argument applies regardless of engine, and Roblox's own `AnimationTrack` blend/fade timing at a state transition is exactly where this spacing choice would be implemented.",
+  "performance_implications": "None.",
+  "examples": [
+    "stated directly: 'transitioning to and from the idle... you should actually have bigger spacing around your idle pose. When I started I thought that just easing into it was the way to go, and we found ourselves removing the frames I was drawing around the idle because it just slowed down the animation... the idle animation is a motion, and you don't want to ease into another motion' (video @ 13:13–13:39)",
+    "the stated gameplay stakes: keeping idle spacing tight matters specifically 'for fighting games' because 'it impacts the responsiveness of the rest of the game if you just have people returning to their idle forever' (video @ 13:43–13:53)"
+  ],
+  "evidence_status": "video: https://youtu.be/Mw0h9WmBlsw @ 13:13–13:53 — Mariel Cartwright (lead animator, Skullgirls) states the idle-exit spacing finding directly, including her own initial incorrect assumption and how she diagnosed the fix; no frames extracted (transcript-only); experimental until validated"
+}

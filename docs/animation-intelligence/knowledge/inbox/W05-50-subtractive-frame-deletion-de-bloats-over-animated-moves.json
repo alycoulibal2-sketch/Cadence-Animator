@@ -1,0 +1,38 @@
+{
+  "concept": "subtractive_frame_deletion_de_bloats_over_animated_moves",
+  "category": "advanced",
+  "definition": "Fix an \"over-animated\" move (one with too many frames relative to what its motion actually needs) by DELETING existing frames outright — no redrawing, no re-timing from scratch — and accept the resulting shorter clip as reading snappier and more powerful than the original, down to a point past which further deletion reads as choppy rather than snappy.",
+  "purpose": "Provide a fast, cheap, purely-subtractive fix for a specific, common authoring mistake (pouring more frames into a move than its motion needs, especially before an animator has internalized how few frames read as complete) — measurably improving perceived impact and reducing production cost with no new art.",
+  "visible_effect": "The same underlying motion, with a subset of its original frames removed, reads as snappier and more impactful than the original despite carrying strictly less drawn information — up to a point, beyond which the presenter's own account shows it starts to look choppier instead.",
+  "psychological_or_gameplay_effect": "Directly contradicts the intuitive assumption that more frames (more smoothness) is more impressive — the presenter frames her own early-career instinct to 'pour frames' into every move as the exact mistake this technique corrects, with three separate quantified before/after examples.",
+  "physical_interpretation": "None directly — an editing operation on already-authored motion, not a property of the motion's physical content.",
+  "use_cases": [
+    "any existing clip suspected of being over-animated (more frames than its actual motion needs to read clearly), as a fast diagnostic-and-fix pass before considering a full redraw",
+    "a production wanting to reduce per-move memory/asset cost without new art, where the presenter's own data point (an 11MB move vs. a 4MB comparable move, 'three times as large... for no real reason') shows over-animation has a real, measurable cost beyond aesthetics"
+  ],
+  "non_use_cases": [
+    "a move that is already frame-tight, where further deletion would cross into the choppy failure mode the presenter's own account explicitly names as a real risk, not a hypothetical one",
+    "a move whose problem is not frame COUNT but frame CONTENT (bad poses, wrong spacing shape) — deletion only removes existing frames, it cannot fix what the remaining ones show"
+  ],
+  "interactions": [
+    "procedural_translation_scale_as_iteration_dial (video 47) — a sibling fast, non-redraw iteration technique for a related but distinct problem: that one rescales an existing clip's translation, this one removes frames outright; both let a specific dimension be tuned without full re-authoring",
+    "idle_exit_needs_larger_not_smaller_initial_spacing (this batch, video 50) — both are findings from the same talk about the same underlying lesson (frame count and spacing choices the presenter's own early instincts got wrong, corrected through production experience)"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly actionable today: `delete_keyframes` already performs exactly the subtractive operation this entry describes, and `ai/motion.js sampleMotion`'s key-density measurement (`keyDensity`) already exists as a way to characterize a clip's frame count relative to its content — this build could measure a candidate over-animated clip and apply this exact fix with tools that already exist; what is missing is only a declared THRESHOLD or comparison (this move's key density vs. a genre/weight-class norm) to flag a candidate automatically rather than requiring a human judgment call the way the presenter's own account describes making one.",
+  "control_surface": "`delete_keyframes` is the direct control surface for applying this technique; `keyDensity` (already measured) is the relevant diagnostic signal.",
+  "detection_and_measurement_methods": "`keyDensity` (already in `ai/motion.js MEASUREMENTS`) directly measures the quantity at issue; comparing it against `dps_floor_for_short_actions` (W02, an already-compiled card about key density vs. action duration) would let a review flag a candidate over-animated clip using two measurements this build already has.",
+  "generation_or_modification_methods": "`delete_keyframes` already performs the fix; nothing currently recommends WHICH frames to delete or how far to go before crossing into the choppy failure mode — that judgment remains entirely human in this build, matching the presenter's own account of doing it by eye and stopping when it started to look wrong.",
+  "failure_modes": [
+    "deleting frames past the point where the remaining spacing can no longer read as smooth motion, producing the explicitly-named choppy result rather than a snappier one",
+    "using this technique to paper over a clip whose real problem is pose/spacing quality rather than raw frame count, since deletion cannot improve what the surviving frames show"
+  ],
+  "roblox_considerations": "Directly applicable to any Roblox `AnimationClip` — removing keyframes is an ordinary editing operation with no engine-specific obstacle, and the resulting smaller keyframe count also reduces the clip's own asset size, mirroring the presenter's own memory-footprint argument.",
+  "performance_implications": "Strictly reduces both authoring cost (no redraw) and asset size (fewer keys/frames) — the presenter's own cited example shows an over-animated super move at roughly 3x the memory footprint of a comparable, better-judged one.",
+  "examples": [
+    "a hit-reaction fall-to-ground move (now a franchise-wide standard) reduced from 21 to 15 frames by deleting six 'redundant' frames with no redrawing, described as reading 'snappier' and 'definitely faster' with 'no unnecessary dawdling' (video @ 15:50–17:04)",
+    "a 45-frame super move (11MB, roughly 3x a comparable move's 4MB) reduced to 29 frames the same way — this time explicitly noted as reading 'a little bit choppier,' with the presenter stating she 'would want to redo more than this' given the time — an honest account of the technique's own limit (video @ 17:13–18:12)",
+    "a 7-frame weak punch reduced to 6 frames by deleting a single frame before the punch, described as making 'a huge difference' on its own (video @ 18:20–18:38)"
+  ],
+  "evidence_status": "video: https://youtu.be/Mw0h9WmBlsw @ 15:38–18:38 — Mariel Cartwright presents this as a retrospective 'what I'd change' section with three separate quantified before/after examples, including one explicit case where the technique's limit (choppiness) was reached; no frames extracted (transcript-only); experimental until validated"
+}

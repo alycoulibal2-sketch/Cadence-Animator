@@ -11,7 +11,7 @@
 - [x] 47. Evolving Combat in 'God of War' for a New Perspective — GDC (59:52) — https://youtu.be/hE5tWF-Ou2k
 - [x] 48. Keyframes and Cardboard Props: The Cinematic Process Behind 'God of War' — GDC (54:01) — https://youtu.be/MNinZWlhprE
 - [x] 49. Unsynced: The Last of Us Melee System — GDC (54:20) — https://youtu.be/Ox2H3kUQByo
-- [ ] 50. Making Fluid and Powerful Animations For 'Skullgirls' — GDC (21:06) — https://youtu.be/Mw0h9WmBlsw
+- [x] 50. Making Fluid and Powerful Animations For 'Skullgirls' — GDC (21:06) — https://youtu.be/Mw0h9WmBlsw
 
 ## Per-video notes
 
@@ -642,3 +642,124 @@ than duplicating it as a separate queued line.
 `W05-49-suppressed-rebound-reads-as-internalized-impact-trauma.json`,
 `W05-49-midpoint-framing-camera-with-side-auto-correction.json` — all five pass `validateProposedEntry`
 and `validateEvidenceSource`; no concept-name collisions.
+
+### 50. Making Fluid and Powerful Animations For 'Skullgirls' — GDC (Mariel Cartwright, Skullgirls)
+
+2026-09-11. Watched at `transcript` detail (468 caption segments — the shortest video in the batch,
+21:06, read in full). Matches W05.md's framing exactly ("power through smears, holds and spacing in a
+fighting game"). A tightly-focused talk from a hand-drawn 2D fighting game's lead animator, with an
+unusually candid retrospective "what I'd change" section carrying real, quantified before/after frame
+counts. Three new entries; much of the rest of the talk strongly RECONFIRMS existing cards rather than
+adding new mechanism — itself a real, worth-recording result per this programme's own W01 precedent.
+
+**What it teaches, specifically:**
+1. A genuinely counter-intuitive finding, presented as a direct reversal of the presenter's own early
+   assumption: a transition OUT of an idle pose needs LARGER initial spacing (less ease), not smaller,
+   because an idle loop is already a motion — easing gently out of it reads as one motion slowing down
+   rather than a new one starting, and this cost responsiveness specifically on a player-controlled
+   fighting-game character (13:13–13:53). Wrote **`idle_exit_needs_larger_not_smaller_initial_spacing`**.
+2. Three separate, quantified before/after examples of fixing an "over-animated" move by deleting
+   existing frames outright (no redrawing): 21→15 frames, 45→29 frames (with an honest admission the
+   second went a little too far and started reading choppy), 7→6 frames — plus a concrete production-
+   cost data point (an over-animated move at 11MB vs. 4MB for a comparable one, "three times as large...
+   for no real reason") (15:38–18:38). Wrote **`subtractive_frame_deletion_de_bloats_over_animated_moves`**.
+3. A small but sharp production lesson pairing with video 48's zero-joint finding: excessive secondary
+   jiggle motion authored on a return-to-idle transition forced the team to split idle into a separate,
+   specifically-interruptible state purely so player input wasn't blocked waiting for it to settle —
+   closed with the direct lesson "we learned not to do that anymore" (18:42–18:57). Wrote
+   **`idle_secondary_motion_forces_interrupt_state_split`**.
+
+**Cross-checks** (confirmations of existing cards, not new entries, several with strong new evidence):
+"favoring your keys" — holding key poses longer and smears/transitions shorter within a fixed frame
+budget, demonstrated with a real before/after re-timing that added zero frames — directly confirms
+`pose_hold_density` (W01) and `mixed_hold_pacing_within_phase` (W02) (11:33–12:30). Hit stop (freezing
+on impact before playing the rest of the animation, with the direct observation that impacts "look a
+little watery or weak without it") directly confirms `hitstop_freeze_on_confirmed_hit` (W04)
+(12:43–13:05). The four-part attack decomposition (anticipation → smear → key → return-to-idle) fitting
+a complete readable attack into as few as 5–6 frames extends `startup_frame_budget` (W01) and
+`dps_floor_for_short_actions` (W02) with a new concrete number from a shipped, hand-animated fighting
+game (14:27–15:02). The player-vs-enemy anticipation-budget asymmetry (a player character needs to feel
+"instantaneous," an enemy can afford a real wind-up so the player has time to react) is a clean, direct
+restatement of the exact ladder W01's own closing summary already names
+(`layered_anticipation`→`startup_frame_budget`→`recovery_weight_substitution`/
+`implied_zero_frame_anticipation`) (03:16–03:53). Overshoot placed before a hit frame, combined with
+smear, to sell impact directly confirms `shared_mechanism_anticipation_overshoot` (W02) and
+`motion_smear_readability` (W01) (06:35–07:20).
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — a hand-drawn 2D fighting game talk with sprite examples and software
+screenshots, no filmed or trackable independent performance.
+
+**Checks for the queue:** none new — this video's strongest findings (idle-exit spacing, subtractive
+frame deletion) are both already directly measurable today via `sampleMotion` and `keyDensity`
+respectively, stated inline in each entry's own `detection_and_measurement_methods` rather than queued
+as blocked.
+
+**Entries written:** `W05-50-idle-exit-needs-larger-not-smaller-initial-spacing.json`,
+`W05-50-subtractive-frame-deletion-de-bloats-over-animated-moves.json`,
+`W05-50-idle-secondary-motion-forces-interrupt-state-split.json` — all three pass
+`validateProposedEntry` and `validateEvidenceSource`; no concept-name collisions.
+
+---
+
+## Closing summary — W05 complete (videos 41–50, all ten watched)
+
+All ten videos in this batch were watched and written up in one session on 2026-09-11. Counts below
+are recomputed directly from the files on disk, not from a running tally kept while writing this
+summary (per this programme's own standing discipline, learned the hard way in W03 and W04):
+**42 knowledge entries** across `knowledge/inbox/W05-*.json` (4+4+5+4+4+5+4+4+5+3 across videos 41–50 in
+order), all 42 passing both `validateProposedEntry` and `validateEvidenceSource`, all 42 concept names
+unique against each other AND against the full existing corpus (139 JSON files swept across
+`knowledge/` + `knowledge/inbox/` — 50 compiled/merged from W01+W02, 23 from W03's still-unmerged
+inbox, 24 from W04's still-unmerged inbox, and this batch's 42 — zero collisions found). **Zero capture
+candidates across all ten videos** — every single one was a talk, a systems diagram, or shipped-game/
+software footage, with no independent filmed or trackable reference performance anywhere in the batch;
+worth recording as a real result of this section's content (talks and analysis, section C of the
+watchlist) rather than a gap in how it was watched. **Zero existing cards contradicted.** **10 `check:`
+lines queued** (2 from video 41, 2 from video 43, 1 from video 48, plus each other video's own
+already-buildable findings stated inline rather than queued separately) — collect these into
+`LESSONS.md`'s checks table at merge time.
+
+**The batch's own throughline, and it showed up from multiple independent directions**: professional
+game animation repeatedly trades a "physically correct" result for a "corrected-and-DELIBERATELY-HIDDEN"
+one, and this batch caught SIX distinct, named mechanisms for making a correction or a compromise
+invisible rather than merely smaller — `unexported_extreme_frame_smear_transient` and
+`fixed_camera_licenses_invisible_pose_cheats` (video 43), `causally_motivated_pose_pop_conceals_
+discontinuity` and `concurrent_driver_motion_camouflages_positional_snap` (video 49), plus
+`strike_assist_hit_reaction_camera_relative_correction` and `angle_scaled_reach_correction_for_lateral_
+targets` (video 47). No single video named this as a general principle — it emerged only from reading
+across five different studios' independent talks and noticing the same underlying move (borrow
+plausibility from something else the viewer is already looking at or already believes) recurring in
+five structurally different guises. A session building a review pass for "does this cut/correction
+read as intentional" should read these six together.
+
+**This build's own named `SHOT-003/004` gap** ("no active-camera model exists... nothing measures
+framing") came up directly and repeatedly — videos 45, 46, 47, 48 and 49 all produced at least one
+entry that names it explicitly, and between them they now sketch a genuine first spec for what filling
+it would need: world-to-screen projection (`deliberate_thirds_placement_as_story_variable`), projected
+silhouette/bounding-box comparison for tangent detection (`unintentional_tangent_hijacks_viewer_
+attention`), camera-relative motion correction (`strike_assist_hit_reaction_camera_relative_
+correction`), declared-operator-identity noise profiles (`operator_identity_implies_camera_noise_
+profile`), and two-participant midpoint framing (`midpoint_framing_camera_with_side_auto_correction`).
+This is now a load-bearing enough cluster that a future building session scoping SHOT-003/004 should
+read this batch's entries before designing the active-camera model from scratch.
+
+**The single most directly actionable finding in the whole batch** is video 48's
+`zero_joint_velocity_must_match_visual_locomotion_state`: unlike almost everything else in this batch
+(which is blocked on capabilities Cadence does not have — a runtime, a camera, a multi-item comparison),
+this one is checkable TODAY with two measurements this build already has (`sampleMotion`'s
+`linear_velocity` on a root part, `analyseChain`'s leg-cycle phase) and no new capability at all — the
+closest thing this batch produced to check #10 from W01/W02's own queue (the one already flagged as
+"next" and "the first test of whether this whole loop pays for itself").
+
+**How to apply:** this batch, like W02, produced zero capture candidates — nothing to add to the
+capture queue in `LESSONS.md`. Unlike every prior batch, a meaningful fraction of this batch's
+strongest material (the six concealment-technique entries, the SHOT-003/004 cluster) is about
+GAME-ENGINE-SIDE runtime behaviour Cadence structurally cannot build without becoming a runtime itself
+— a future building session should read each entry's own `cadence_representation` field carefully
+before assuming a finding is actionable; several are deliberately, honestly marked as out of scope
+rather than merely unbuilt. **W05 is NOT yet merged.** All ten videos are watched; there is no more of
+this batch left to do. `node tools/merge-knowledge-inbox.mjs --batch W05` is the next step for whichever
+session runs the merge, following the same `--batch` discipline as every prior batch (never merge a
+batch that is still being written).
