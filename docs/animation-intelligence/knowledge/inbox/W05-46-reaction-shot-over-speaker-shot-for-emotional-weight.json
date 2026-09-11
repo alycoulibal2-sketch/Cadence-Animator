@@ -1,0 +1,37 @@
+{
+  "concept": "reaction_shot_over_speaker_shot_for_emotional_weight",
+  "category": "advanced",
+  "definition": "In a dialogue scene, deliberately hold the camera on a LISTENING character's reaction rather than the speaking character's mouth — the audience's emotional understanding of a scene comes from watching how a character receives information, not from watching who is producing the words — with the choice of WHICH character to hold on being a specific, load-bearing directorial decision.",
+  "purpose": "Communicate a scene's actual emotional stakes (whose journey the moment belongs to) through camera holds, rather than defaulting to the technically-simplest choice (cut to whoever is talking).",
+  "visible_effect": "The camera stays on a character's face/reaction while another, off-screen or background character speaks, rather than cutting to match the audio source.",
+  "psychological_or_gameplay_effect": "A named, direct failure mode is given as the counterexample: always cutting to the speaker produces a 'tennis match' rhythm (cited from Walter Murch, describing old Dragnet episodes) that conveys factual information but no emotional understanding of the scene.",
+  "physical_interpretation": "None — a directorial choice about where to point the camera, not a property of the motion itself.",
+  "use_cases": [
+    "any dialogue scene where the emotional stakes belong more to the character RECEIVING information than the one delivering it",
+    "a scripted line delivered TO a character whose reaction is the actual narrative payload (a piece of bad news, a confession, a threat)"
+  ],
+  "non_use_cases": [
+    "a purely factual/expository dialogue exchange with no emotional stakes riding on either character's reaction, where cutting to the speaker is simpler and loses nothing",
+    "a scene where the speaking character's OWN performance (not a listener's reaction) is the actual narrative payload — reaction-shot bias applied indiscriminately would misplace emphasis there too"
+  ],
+  "interactions": [
+    "deliberate_thirds_placement_as_story_variable (video 45) and two_pass_shoot_comprehension_then_subtext (this batch, video 46) — all three are choices about where to point a camera and hold a frame specifically for emotional/narrative effect rather than technical default",
+    "layered_independent_look_targets_read_as_awareness (video 42) — a related principle from the opposite end: that entry is about what a CHARACTER's own attention communicates, this one is about what the CAMERA's attention communicates by choosing whose reaction to hold on"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: this is a shot-DIRECTION decision (which of several actors' performances the camera holds on at a given moment), which requires exactly the missing active-camera/framing model named by SHOT-003/004 to even express as project data, let alone reason about — Cadence has no concept of 'who this shot is emotionally about' at all.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "None — an authorial/directorial choice with no measurable trace in finished motion data; two functionally-identical camera cuts (one on the speaker, one on a listener) are indistinguishable to `ai/motion.js` without external knowledge of which character the scene's emotional weight belongs to.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "defaulting to cutting toward whichever character is currently speaking (the 'Dragnet'/tennis-match pattern named directly), losing the scene's emotional throughline",
+    "misapplying the technique to a scene where the SPEAKER's own performance is the payload, holding on a listener with nothing meaningful to react with"
+  ],
+  "roblox_considerations": "None specific — a directorial choice independent of target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "a specific, named production example on Marvel's Spider-Man: a scene where Aunt May speaks to Peter, held on Peter's reaction rather than on May, with the presenter concluding directly 'we understand Peter's journey, we feel with him, and if the camera was on Aunt May it wouldn't have had the same impact on the audience' (video @ 10:34–11:50)",
+    "the Dragnet counterexample cited from Walter Murch's writing: cutting to match whoever is speaking 'ultimately felt like a tennis match... you didn't really understand the emotion of the scene' (video @ 10:39–10:58)"
+  ],
+  "evidence_status": "video: https://youtu.be/r_rJJyIPrmM @ 10:11–11:50 — Brian Weiser states the reaction-shot principle directly with a specific named production example (the Aunt May scene) and cites Walter Murch's Dragnet counterexample; no frames extracted (transcript-only); experimental until validated"
+}

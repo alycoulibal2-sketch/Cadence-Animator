@@ -1,0 +1,36 @@
+{
+  "concept": "two_pass_shoot_comprehension_then_subtext",
+  "category": "advanced",
+  "definition": "Shoot/block a cinematic scene in two deliberate passes rather than one — the first pass solely for comprehension (correct screen geography, no accidental line-of-action crosses, clear spatial logic), the second pass to infuse subtext purely through composition changes (recentring a character, offsetting them into the frame's 'short side' for discomfort, using frames-within-frames) — treating clarity and meaning as two separate problems solved in sequence rather than one shot chosen to satisfy both at once.",
+  "purpose": "Avoid the common failure of a single compositional pass trying to serve both readability and meaning simultaneously, by deferring the meaning-loaded choices until basic comprehension is already locked and safe to build on.",
+  "visible_effect": "A scene's first blocking pass reads as clear and unremarkable; a later pass changes character placement/framing in ways that communicate subtext (unease, dominance, isolation) without altering the underlying staging's basic legibility.",
+  "psychological_or_gameplay_effect": "Lets a shot communicate emotional/narrative information through purely compositional choices layered onto an already-solid, unambiguous staging — the audience reads the subtext without it ever threatening their basic understanding of who is where and what is happening.",
+  "physical_interpretation": "None — a directorial/compositional workflow, not a property of motion.",
+  "use_cases": [
+    "any dialogue or character-driven scene where BOTH clear staging and deliberate emotional subtext matter",
+    "a production process with enough iteration time to revisit a scene's composition after its geography is already locked, rather than needing both right in one pass"
+  ],
+  "non_use_cases": [
+    "a scene simple enough, or produced under enough time pressure, that a single compositional pass can safely serve both goals at once",
+    "a purely functional/informational shot with no subtext to infuse (a pure gameplay-instructional cutscene)"
+  ],
+  "interactions": [
+    "deliberate_thirds_placement_as_story_variable (video 45) — the second (subtext) pass this entry describes is largely an application of that entry's principle, offsetting a subject specifically for its emotional reading rather than a default 'pleasing' placement",
+    "pose_workflow (compiled) — a structurally similar two-pass discipline (block first, refine second) applied here to shot composition instead of character posing"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: Cadence authors one rig's pose/motion at a time and has no concept of a 'compositional pass' over an already-blocked scene, nor any way to distinguish a 'comprehension' edit from a 'subtext' edit to camera/subject placement — both would just be ordinary keyframe edits to the same tracks. The distinction this entry names is entirely in the author's intent behind an edit, not in anything the resulting data would show.",
+  "control_surface": "None specific to this workflow; ordinary camera/rig keyframing tools (`add_camera`, `set_keyframe`) would carry out either pass with no distinction between them.",
+  "detection_and_measurement_methods": "None — a two-pass authoring discipline, not a property `ai/motion.js` could recover from a finished result; a shot arrived at in one pass versus two would look identical in the final data.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "attempting subtext-driven composition before geography/line-of-action is locked, so a later comprehension fix undoes or conflicts with the subtext work already done",
+    "never returning for the second pass under time pressure, leaving a scene comprehensible but emotionally flat"
+  ],
+  "roblox_considerations": "None specific — a directorial workflow independent of target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the general technique stated directly: shoot first 'to allow us to build something that makes sense... not crossing the line of action unintentionally', then a second pass to 'infuse subtext... altering compositions, moving the character to the center of the screen or offsetting and having them look into the short side of the screen to let the audience feel awkward' (video @ 09:29–09:58)"
+  ],
+  "evidence_status": "video: https://youtu.be/r_rJJyIPrmM @ 09:29–09:58 — Brian Weiser (lead animator, Insomniac Games, Marvel's Spider-Man) states the two-pass shooting discipline directly; no frames extracted (transcript-only); experimental until validated"
+}

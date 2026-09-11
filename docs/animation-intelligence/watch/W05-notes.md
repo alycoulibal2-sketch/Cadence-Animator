@@ -7,7 +7,7 @@
 - [x] 43. Animation Bootcamp: The First Person Animation of Overwatch — GDC (34:03) — https://youtu.be/7t0hLZd_8Z4
 - [x] 44. How Overwatch Conveys Character in First Person — New Frame Plus (15:32) — https://youtu.be/7Dga-UqdBR8
 - [x] 45. Animation Bootcamp: Animating Cameras for Games — GDC (26:26) — https://youtu.be/hP1Vz70WouE
-- [ ] 46. Animation Bootcamp: Script to Screen: The Development Diary of Marvel's Spider-Man — GDC (31:13) — https://youtu.be/r_rJJyIPrmM
+- [x] 46. Animation Bootcamp: Script to Screen: The Development Diary of Marvel's Spider-Man — GDC (31:13) — https://youtu.be/r_rJJyIPrmM
 - [ ] 47. Evolving Combat in 'God of War' for a New Perspective — GDC (59:52) — https://youtu.be/hE5tWF-Ou2k
 - [ ] 48. Keyframes and Cardboard Props: The Cinematic Process Behind 'God of War' — GDC (54:01) — https://youtu.be/MNinZWlhprE
 - [ ] 49. Unsynced: The Last of Us Melee System — GDC (54:20) — https://youtu.be/Ox2H3kUQByo
@@ -366,4 +366,70 @@ trackable performed motion.
 `W05-45-lens-focal-length-distorts-character-off-model.json`,
 `W05-45-deliberate-thirds-placement-as-story-variable.json`,
 `W05-45-unintentional-tangent-hijacks-viewer-attention.json` — all four pass `validateProposedEntry`
+and `validateEvidenceSource`; no concept-name collisions.
+
+### 46. Animation Bootcamp: Script to Screen: The Development Diary of Marvel's Spider-Man — GDC (Brian Weiser, Insomniac Games)
+
+2026-09-11. Watched at `transcript` detail (1043 caption segments, clean on first pull — the longest
+transcript in this batch so far). Matches W05.md's framing for this video exactly: "a shot from plan to
+polish in a AAA pipeline." Five entries written (above the usual 1–4, same discipline as video 43):
+this talk covers editing, camera, and cross-production-continuity ground none of the batch's other
+nine videos touch, each with a specific named production anecdote as evidence rather than general
+advice.
+
+**What it teaches, specifically:**
+1. Shoot a scene's blocking in two deliberate passes — first for pure comprehension (no accidental
+   line-of-action crosses, clear geography), second purely for subtext via composition (recentring,
+   offsetting into the frame's "short side" for discomfort) (09:29–09:58). Wrote
+   **`two_pass_shoot_comprehension_then_subtext`**.
+2. Hold the camera on a LISTENING character's reaction rather than the speaker's — a specific named
+   Spider-Man example (holding on Peter while Aunt May speaks) plus a Walter Murch-sourced counterexample
+   (old Dragnet episodes cutting to whoever is talking, producing a "tennis match" with no emotional
+   throughline) (10:11–11:50). Wrote **`reaction_shot_over_speaker_shot_for_emotional_weight`**.
+3. Across a cut between two angles on the same impact, overlap a few frames so the impact is shown
+   twice (once near the end of the first angle, again a few frames earlier in the second) — imperceptible
+   to the audience but measurably adds perceived force, attributed to John Woo and Jackie Chan films
+   (12:45–13:14). Wrote **`discontinuous_double_exposure_impact_replay`**.
+4. Camera procedural noise ("shake" vs. "wave") is parameterized by a DECLARED operator identity
+   (a vibrating mount vs. a handheld operator) rather than tuned ad hoc per shot, and the studio mirrors
+   a real Alexa Prime lens package's actual FOV/depth-of-field values into their tool (credited to an
+   animator who came from previz studio Third Floor) (03:42–05:23). Wrote
+   **`operator_identity_implies_camera_noise_profile`**.
+5. A named continuity failure (a spider prop meant to persist across several missions "simply vanished"
+   after an unrelated asset update) led directly to a lead animator (Gavin Goulden, credited by name)
+   building an explicit cross-scene costume/item continuity map — evidence that "trust the animator's
+   memory" breaks down at a specific, identifiable scale (19:11–19:53). Wrote
+   **`cross_cinematic_item_continuity_declaration`**.
+
+**Not written as entries** (real, well-evidenced content, kept to notes): unified single-take
+performance capture (voice + stunt actor on stage together, avoiding a stitching pass) is a real
+production-methodology finding (14:56–16:12) but is a capture-logistics technique with no clean
+Cadence-authoring analogue. "Scene rot" — the general phenomenon of unrelated production changes
+silently breaking an already-shot cinematic (a missing building, a chair through a villain's chest),
+and the weekly cross-department "assets meeting" introduced specifically to catch it (17:10–21:38) — is
+the broader pattern entry 5 is the sharpest SINGLE instance of; the general meeting-cadence solution
+itself has no Cadence angle beyond what entry 5 already states. The iterative facial-animation/lighting
+correction loop (25:11–26:25) depends on a FACS blend-shape face system and a lighting pipeline, neither
+of which exist in Cadence at all (no face, no lighting) — judged out of scope rather than force-fit.
+"Frankenstein" sets and single-frame camera-blocked teleports used to hide loading screens between
+disconnected open-world locations (23:00–25:10) is a real, clever technique but is almost entirely
+level-design/streaming-technical rather than animation-craft, and was judged not to clear the bar for
+a knowledge entry on its own.
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — an internal pipeline/production talk with game footage and slides, no
+trackable independent reference performance.
+
+**Checks for the queue:** none new this video — all five entries' `detection_and_measurement_methods`
+fields already state directly why each is either unmeasurable in principle (an authorial/editing/
+production-process choice, not a property of finished motion data) or blocked on a declaration this
+build has no home for yet (cross-project continuity state), rather than pointing at a buildable
+`ai/motion.js` measurement the way earlier videos' checks did.
+
+**Entries written:** `W05-46-two-pass-shoot-comprehension-then-subtext.json`,
+`W05-46-reaction-shot-over-speaker-shot-for-emotional-weight.json`,
+`W05-46-discontinuous-double-exposure-impact-replay.json`,
+`W05-46-operator-identity-implies-camera-noise-profile.json`,
+`W05-46-cross-cinematic-item-continuity-declaration.json` — all five pass `validateProposedEntry`
 and `validateEvidenceSource`; no concept-name collisions.

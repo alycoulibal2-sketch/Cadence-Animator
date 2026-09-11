@@ -1,0 +1,36 @@
+{
+  "concept": "discontinuous_double_exposure_impact_replay",
+  "category": "advanced",
+  "definition": "Across a cut between two camera angles on the same impact (e.g. a punch landing), deliberately overlap a few frames of the action so the impact is effectively shown TWICE — once near the end of the first angle, again a few frames earlier in the second angle's own timeline — rather than cutting at a single continuous timecode shared by both angles.",
+  "purpose": "Heighten the perceived importance and force of an impact using an edit-level trick the audience does not consciously register, rather than by changing the animation itself.",
+  "visible_effect": "An impact reads as more significant/forceful than the same animation cut with continuous, non-overlapping timing across the same two angles — imperceptible as a repeat to a casual viewer.",
+  "psychological_or_gameplay_effect": "The presenter states the audience does not consciously catch the repetition, but that it measurably 'adds importance... helps to sell what's happening in the scene' — an editing-level exaggeration technique, structurally similar in purpose to squash/stretch or a smear frame but operating on CUT TIMING instead of a single shot's own animation.",
+  "physical_interpretation": "None — a montage/editing technique, not a property of the physical motion itself.",
+  "use_cases": [
+    "a key impact moment (a decisive hit, a critical collision) in an action sequence cut across two or more camera angles, where extra perceived weight is wanted without altering the underlying animation",
+    "any action beat important enough to warrant a dedicated angle change specifically to carry this technique"
+  ],
+  "non_use_cases": [
+    "a single continuous shot with no cut across the impact — the technique depends entirely on there being two angles to overlap between",
+    "a minor or frequent impact where the extra perceived weight would be disproportionate, or where overusing the trick across many hits would make the pattern perceptible and lose its invisibility"
+  ],
+  "interactions": [
+    "unexported_extreme_frame_smear_transient (video 43) — a sibling 'invisible exaggeration' technique: that one hides an extreme pose inside a transition so it is never held, this one hides a time repeat across a cut so it is never consciously noticed; both trade a small authored trick for perceived force with no visible cost",
+    "layered_anticipation (W01) — both add perceived weight to an important action through an edit/timing-level device rather than a pose-level one"
+  ],
+  "style_variations": { "anime": "a natural fit — matches genre convention for repeated/overlapping impact frames across a cut, the same technique named here in John Woo and Jackie Chan films" },
+  "cadence_representation": "Not represented: Cadence authors and measures within a SINGLE clip/timeline; this technique is fundamentally a multi-shot EDITING operation (two overlapping ranges across a cut between two different camera angles/takes), which has no equivalent concept in a `.cadence` project — the closest existing idea, `ai/events.js`'s shared shot-event timeline, tracks named events across items within one project but has no notion of two overlapping takes or a cut point between them at all.",
+  "control_surface": "None. `set_play_range`/markers could in principle mark where such an overlap begins/ends WITHIN one clip, but nothing in this build represents a cut between two separate takes/angles or the overlap this technique needs across one.",
+  "detection_and_measurement_methods": "None — verifying this technique from finished data would require access to BOTH camera angles' full un-cut footage/keys and the exact cut point, none of which survives into a single exported/played result; nothing in this build could recover 'was this impact shown twice' after the fact.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "overlapping too many consecutive frames, past the point where the repeat becomes consciously perceptible and reads as a jarring skip rather than added weight",
+    "applying it to too many impacts within one sequence, making the pattern noticeable through repetition even if each individual instance stays imperceptible alone"
+  ],
+  "roblox_considerations": "None specific — a montage/editing technique for pre-rendered or scripted cinematic sequences; not applicable to live, non-cut gameplay footage.",
+  "performance_implications": "None beyond ordinary cut/edit authoring.",
+  "examples": [
+    "the technique stated directly, attributed to John Woo and Jackie Chan films: 'in one shot they will show an impact of a fist hitting the face and then on a cut the next shot will show three or four frames prior to that impact so you're seeing it twice... the audience doesn't catch that but it adds importance to that shot' (video @ 12:45–13:14)"
+  ],
+  "evidence_status": "video: https://youtu.be/r_rJJyIPrmM @ 12:45–13:14 — Brian Weiser states the discontinuity/double-exposure editing technique directly, attributing its use to John Woo and Jackie Chan films; no frames extracted (transcript-only); experimental until validated"
+}

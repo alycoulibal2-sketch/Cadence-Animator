@@ -1,0 +1,37 @@
+{
+  "concept": "operator_identity_implies_camera_noise_profile",
+  "category": "advanced",
+  "definition": "Before animating a camera, declare WHO or WHAT is notionally holding/operating it (a handheld operator, a mounted/vibrating platform, a static tripod, no operator at all) — that declared identity implies a specific procedural micro-motion profile (the studio's own example: 'shake' for a vibrating mount, 'wave' for handheld) applied to the camera's translation channels, rather than hand-tuning noise parameters per shot with no underlying physical justification.",
+  "purpose": "Make procedural camera noise physically motivated and consistent rather than an arbitrary per-shot dial, both speeding up authoring (fewer decisions per shot) and improving believability (the noise a viewer sees matches what its implied source would actually produce).",
+  "visible_effect": "A shot's camera carries a specific, consistent texture of small unintended motion appropriate to its implied operator — sharp, high-frequency jitter for a vibrating-platform shot, slower broader sway for a handheld one — rather than a generic, unmotivated wobble.",
+  "psychological_or_gameplay_effect": "A camera whose micro-motion has no plausible physical source reads as synthetic (the presenter's own framing: CG cameras fall into an 'uncanny valley' the same way characters can); tying noise to a declared operator identity is presented as the fix.",
+  "physical_interpretation": "Each named noise profile is a stand-in for a real physical source's actual motion signature — a vibrating mechanical platform's high-frequency low-amplitude jitter versus a human handheld operator's lower-frequency, higher-amplitude sway from breathing and stance shifts.",
+  "use_cases": [
+    "any camera shot wanting believable, physically-motivated micro-motion rather than a purely synthetic-feeling static or arbitrary-noise camera",
+    "a production wanting CONSISTENT camera texture across many shots and animators, by standardizing on a small set of named, declared operator profiles rather than each animator hand-tuning noise per shot"
+  ],
+  "non_use_cases": [
+    "a deliberately impossible/non-physical camera move (a bullet-time sequence, a camera passing through geometry) where no real operator identity would apply and imposing one would be inconsistent with the shot's own premise",
+    "a shot where perfect stability IS the intended read (a locked-off, no-operator camera) — applying any noise profile would contradict the intended stillness"
+  ],
+  "interactions": [
+    "horizon_stabilization_reduces_motion_sickness_independent_of_fov (video 45) — both concern a camera's small involuntary motion, one for gameplay comfort (stabilizing AGAINST unwanted rotation) and this one for cinematic believability (deliberately ADDING physically-motivated noise) — opposite operations serving different contexts (player-controlled vs. authored cinematic)",
+    "lens_focal_length_distorts_character_off_model (video 45) — this video's second half of the same idea: mirroring a real Alexa Prime lens package's actual FOV/depth-of-field values into the tool, so a chosen lens carries its real optical behaviour rather than an approximated one"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: Cadence's camera items (`add_camera`) author `@origin`/`@fov` as plain keyframed tracks with no noise-profile concept, no declared 'operator identity', and no procedural micro-motion generation at all — a Cadence user wanting this effect would need to hand-key every frame of jitter/sway manually, with nothing to name or standardize the result across shots. This sits squarely inside the same SHOT-003/004 gap ('no active-camera model exists') as the video 45 camera entries, extended here specifically to procedural noise rather than framing measurement.",
+  "control_surface": "None. `add_camera`/`set_keyframe` can author any resulting curve by hand; no tool generates or parameterizes noise by a declared operator identity.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s acceleration/jerk measurement on a camera's translation track would characterize an EXISTING noise curve's frequency/amplitude character (which is exactly what would need comparing against a declared operator identity to validate consistency), but no code in this build performs that classification or comparison.",
+  "generation_or_modification_methods": "None built — procedural noise generation from a declared identity is not something any tool in this build performs.",
+  "failure_modes": [
+    "hand-tuning camera noise per shot with no consistent physical justification, producing a roster of shots whose micro-motion textures do not cohere into a believable 'camera department' the way real film production naturally does",
+    "applying any noise profile to a shot whose premise requires a physically impossible camera (see non_use_cases) — the technique's own believability logic works against it there"
+  ],
+  "roblox_considerations": "A Roblox cinematic camera scripted with procedural noise (e.g. layered Perlin/simplex noise on translation) could implement named operator profiles directly; nothing built into Roblox's `Camera` class provides this, so it would be entirely custom runtime or baked-key work either way.",
+  "performance_implications": "A per-frame procedural noise evaluation (if generated at runtime rather than baked to keys) is cheap; Cadence's own baked-key export model would have zero runtime cost regardless.",
+  "examples": [
+    "the studio's own named parameters directly stated: 'shake is something that you'd often use if you were in a helicopter shot where the operator might be sitting there and something that's vibrating, and wave is something we use often when we're trying to do a little bit of handheld' (video @ 04:46–04:59)",
+    "real-world lens data mirrored directly into the tool from an Alexa Prime lens package used on physical film sets, credited to an animator (Josh Gridley) who came from a previz studio (Third Floor) — named as a direct improvement to the team's 'cinematic thinking' (video @ 05:00–05:23)"
+  ],
+  "evidence_status": "video: https://youtu.be/r_rJJyIPrmM @ 03:42–05:23 — Brian Weiser states the operator-implies-noise-profile design and the real-lens-mirroring feature directly, crediting both to specific named colleagues; no frames extracted (transcript-only); experimental until validated"
+}

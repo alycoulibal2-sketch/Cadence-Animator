@@ -1,0 +1,37 @@
+{
+  "concept": "cross_cinematic_item_continuity_declaration",
+  "category": "advanced",
+  "definition": "For an item that must persist, change, or disappear consistently across MULTIPLE independently-authored cinematics spanning a long in-game timeline (a costume, a stowed prop, a physical state change), maintain one explicit, shared continuity record (the production's own example: a lead animator's map of every costume every actor wears, across time) that every relevant scene is checked against — rather than trusting each scene's own animator to independently remember and maintain consistency.",
+  "purpose": "Prevent the specific, named failure mode of a state that should persist (or change on a schedule) silently reverting or vanishing because each cinematic referencing it was authored somewhat independently, often by different people, at different times.",
+  "visible_effect": "Without this discipline, an item that should be present, absent, or in a specific state in a given scene is found to be wrong only when someone happens to notice (the production's own named example: a prop that should have persisted across several missions had simply vanished from a later scene once an unrelated asset update landed).",
+  "psychological_or_gameplay_effect": "A silent continuity break is invisible until a player or reviewer catches it, at which point it reads as an embarrassing, avoidable inconsistency rather than a deliberate choice — the entire point of the discipline is to catch it before that happens.",
+  "physical_interpretation": "None — a production/continuity-tracking discipline, not a property of any single motion or scene.",
+  "use_cases": [
+    "any state (costume, held prop, injury, physical change) that must persist, evolve, or be removed consistently across many independently-authored scenes spanning a long narrative timeline",
+    "a production where different scenes referencing the same continuity state are assigned to different animators or authored at different times, removing any single person's ability to track it from memory"
+  ],
+  "non_use_cases": [
+    "a state fully local to one scene with no cross-scene persistence requirement at all, where a shared continuity record would be pure overhead",
+    "a small enough production/timeline that one person can reliably track every persistent state from memory without a dedicated record — the discipline scales specifically with the number of scenes and authors, not with complexity alone"
+  ],
+  "interactions": [
+    "action_end_pose_must_match_idle_for_automatic_blend (W04) — a related but narrower continuity concern (pose continuity across an automatic blend WITHIN one character's state machine) versus this entry's broader concern (a declared item/state's continuity across many independently-authored SCENES)",
+    "`ai/library.js`'s cross-project motion library (this build) — the closest existing Cadence mechanism for something persisting and being referenced across multiple otherwise-independent projects, though it stores reusable MOTION, not a continuity STATE record"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: Cadence's project model is per-`.cadence`-file (CLAUDE.md), with `ai/memory.js project_conventions` as the closest existing mechanism for a fact that should apply consistently across a project's own scenes — but nothing in this build extends that concept ACROSS separate project files the way this entry's continuity record spans many independently-authored cinematics. `ai/library.js` is explicitly the one cross-project store this build has, but it holds reusable motion clips, not a declared state-over-time record for an item like a costume.",
+  "control_surface": "None. `ai/memory.js project_conventions` could in principle hold a within-project note about item continuity; nothing extends that across separate `.cadence` files.",
+  "detection_and_measurement_methods": "None — whether an item's presence/state in one project is CONSISTENT with its state in another, separately-authored project is not a question any tool in this build could answer, since nothing links or compares state across separate project files at all.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "relying on individual animators' memory for a state that spans many scenes and enough time that no single person can reliably track it, the exact failure this entry's example describes",
+    "creating a continuity record but not re-checking it after a LATER, unrelated change (an asset update, a re-authored earlier scene) — the record itself does not prevent drift unless something actively re-validates against it, which is exactly why the same production also introduced a recurring cross-department meeting on top of the record itself"
+  ],
+  "roblox_considerations": "None specific — a production/continuity discipline independent of target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "a lead animator (Gavin Goulden) building an explicit map of every costume every actor wears across the game's timeline, described directly as a response to a costume/prop continuity break the team had already shipped in an earlier build (video @ 19:33–19:53)",
+    "the specific named incident that motivated it: a spider prop meant to persist across several missions and cinematics 'simply vanished' from a later scene once a different department's unrelated asset update landed (video @ 19:11–19:33)"
+  ],
+  "evidence_status": "video: https://youtu.be/r_rJJyIPrmM @ 19:11–19:53 — Brian Weiser describes the specific continuity failure and the resulting explicit tracking discipline, crediting lead animator Gavin Goulden by name; no frames extracted (transcript-only); experimental until validated"
+}
