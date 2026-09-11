@@ -1,0 +1,43 @@
+{
+  "concept": "indiscriminate_technique_application_is_overanimation_not_style",
+  "category": "advanced",
+  "definition": "\"Over-animation\": applying known animation principles (arcs, anticipation, exaggeration, overlap, squash & stretch) correctly and skillfully in isolation, but indiscriminately — at high intensity, on every single movement, regardless of whether that specific moment actually calls for it — is a describable defect distinguishable from a deliberate maximalist STYLE choice. A chosen exaggerated or cartoony style can still be executed WITH judgment about where to apply which technique and where to hold back; failing to exercise that judgment is the defect itself, independent of how exaggerated the chosen style is.",
+  "purpose": "Name a specific, checkable failure mode — 'more animation is not always the same thing as better animation' — that is otherwise easy to dismiss as mere subjective stylistic taste, by giving it concrete, recognizable instantiations rather than leaving it a vague aesthetic complaint.",
+  "visible_effect": "Constant motion at similarly high intensity and energy regardless of the narrative or gameplay context of the moment — big arcs, big anticipation, heavy overlap 'everywhere' — described directly as resembling animation-student work that has learned the vocabulary of technique but not yet the judgment of when to withhold it.",
+  "psychological_or_gameplay_effect": "Reads as visual noise competing with itself rather than directing the viewer's eye; a performance hitting every line at the same maximum energy reads as less sincere and more exhausting than the same techniques used with contrast, independent of how correctly any single technique was executed — described by the source (citing another animator) as 'the equivalent of jangling keys at a baby.'",
+  "physical_interpretation": "None — a directorial/judgment defect, not a physical property.",
+  "use_cases": [
+    "diagnosing a shot or project that looks technically accomplished — every named principle is present and correctly executed — but still reads as exhausting, insincere, or undifferentiated",
+    "auditing a whole project or cast for whether contrast (between characters, or between a single character's own different contexts) is being used deliberately, rather than checking any single clip in isolation"
+  ],
+  "non_use_cases": [
+    "a deliberately chosen, consistently high-intensity style applied WITH judgment about which specific moments most deserve the intensity — the defect is the ABSENCE of that judgment, not the intensity level itself",
+    "a genre or context (an all-out action combat sequence, in this source's own praised example) where near-constant high energy is itself the correct, judged choice for that specific context"
+  ],
+  "interactions": [
+    "ai/review.js HIERARCHY_ANTIPATTERNS (this build's own Part 14 anti-patterns) — a narrower, already-encoded special case of the same underlying judgment failure: those three named anti-patterns are specifically about a LOWER-layer polish action covering for an unaddressed HIGHER-layer defect; this entry's claim is broader and does not require any competing defect to exist — applying a technique with no judgment about whether THIS moment calls for it is the failure on its own",
+    "vibe_timing_anti_pattern (W01) — a narrower, single-technique instance of this same general principle (misapplying a specific stepped/snappy feel where it undercuts weight)",
+    "the already-queued check `global_timing_register_consistency` (LESSONS.md check #6, videos 2/this programme) — that check is scoped to PHASE-DURATION variance across a project's clips; this video's own cross-context character-consistency finding (see notes) extends the same idea to EXAGGERATION-AMPLITUDE variance, a related but distinct measured quantity"
+  ],
+  "style_variations": {
+    "cartoon": "even a maximalist cartoon style benefits from deliberate CONTRAST — moments of relative restraint make the big moments read as big, rather than every moment competing at the same volume",
+    "realistic": "the same principle applies at a much lower baseline intensity — indiscriminate subtlety can be just as much a failure of judgment as indiscriminate exaggeration"
+  },
+  "cadence_representation": "`ai/review.js`'s `HIERARCHY_ANTIPATTERNS` already encodes a narrower, specific version of this same judgment failure — 'do not add beautiful secondary motion to a weak pose', 'do not add camera shake to conceal absent weight', 'do not add VFX polish to an unclear impact' — but all three are about one layer's polish covering for ANOTHER layer's unaddressed defect. This video's broader claim — apply a technique only where the moment itself calls for it, independent of whether anything else is broken — has no equivalent check anywhere across the thirteen-layer hierarchy. The closest measurable proxy: `ai/motion.js` already measures per-phase velocity/acceleration/angular-velocity amplitude; comparing that amplitude's VARIANCE across a project's different clips, cross-referenced against each clip's own declared context, would be a real, buildable check once such a context declaration exists — nothing in this build currently stores a clip's narrative/gameplay context to compare against.",
+  "control_surface": "None — no tool currently judges whether a technique's application is warranted by the specific moment, only whether the technique itself was executed (e.g. `ai/motion.js`'s curve/contact measurements).",
+  "detection_and_measurement_methods": "Partially buildable: per-phase amplitude is already measured by `ai/motion.js`; its VARIANCE across a project's clips is a real, checkable proxy for indiscriminate application, contingent on a stored per-clip context declaration this build does not yet have. Without that declaration, this is not measurable today.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "the same character reading with wildly different energy across different production contexts within one project (a 'chill' hub-world character suddenly matching a maximalist cinematic's energy for a short span, then reverting) with no story-driven reason — described directly as feeling like 'a complete change of personality'",
+    "uniformly maximalist treatment applied to every character in a cast, flattening the cross-character contrast the same project's own OTHER, less-animated modes (this source's example: menus, hub-world exploration) already establish more successfully elsewhere",
+    "mistaking 'more/bigger execution of a technique' for 'better craft', when restraint and contrast are just as load-bearing as the technique itself"
+  ],
+  "roblox_considerations": "None specific — a judgment/craft-direction concern independent of target engine.",
+  "performance_implications": "None stated by the source; more animation at higher fidelity plausibly costs more to author, though the source's own complaint is about judgment, not budget.",
+  "examples": [
+    "'over animation is motion without purpose... sometimes it's just an animator using every single animation principle they know at all times on every movement, whether that principle is called for or not... they haven't yet developed the intuition for how or where to use those techniques most effectively' (video @ 01:23–02:34)",
+    "'the simple truth is more animation is not always the same thing as better animation... it's important for the animator to also know where they aren't needed, even when you are working within an exaggerated style' (video @ 02:44–10:50)",
+    "the cross-context consistency failure, stated directly: 'this guy's had a complete change of personality, it's happening all the time... the character looks the same, they sound the same, but their animated behavior just does not match' (video @ 15:29–15:53)"
+  ],
+  "evidence_status": "video: https://youtu.be/1yH4Qz23FqM @ 01:23–02:34, 02:44–10:50, 15:29–15:53 — Dan (New Frame Plus) states the general principle explicitly as the video's own thesis and evidences it with named, concrete in-game examples across multiple game modes; transcript-only, no frames extracted this session; experimental until validated"
+}

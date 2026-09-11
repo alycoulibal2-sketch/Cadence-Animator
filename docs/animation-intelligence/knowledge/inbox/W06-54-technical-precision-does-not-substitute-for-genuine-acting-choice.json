@@ -1,0 +1,36 @@
+{
+  "concept": "technical_precision_does_not_substitute_for_genuine_acting_choice",
+  "category": "advanced",
+  "definition": "Technically precise, correctly-executed animation technique (skillful exaggeration, arcs, anticipation, and overlap, all present and well-drawn) does not by itself produce 'the illusion of life' — an audience reading a character as expressing a genuinely-felt emotion rather than performing a recognizable pose or trope — because that illusion depends on the underlying ACTING CHOICE (what the character is specifically meant to be feeling, and whether the performance commits to depicting that rather than pantomiming a stock cliché associated with the character's archetype), a question that sits above, and is independent of, how well any individual technique is executed.",
+  "purpose": "Prevent mistaking abundant, well-executed technique for evidence that the underlying acting itself is landing emotionally — the two can move in opposite directions at once.",
+  "visible_effect": "A performance that hits many individually well-posed, recognizable trope beats in quick succession reads as a checklist of familiar gestures ('how many trope poses can you squeeze into 5 seconds') rather than as one character's specific, sincere emotional state, regardless of how precisely each individual pose was drawn or timed.",
+  "psychological_or_gameplay_effect": "The source's own direct framing: 'the illusion of life... isn't just about taking a non-living object and making it move around almost like living things do... the real illusion happens when you can make that object express an emotion that actually feels sincere... in that moment the people watching don't see a puppet or a moving drawing anymore, but an actual living character.' A performance leaning on tropes can only ever communicate WHICH archetype a character is derived from, not push past that first impression.",
+  "physical_interpretation": "None — a judgment about audience-perceived emotional sincerity, not a physical property.",
+  "use_cases": [
+    "judging whether a technically accomplished performance is actually landing emotionally, independent of a simple technique-presence checklist",
+    "deciding where a limited animation budget is best spent — the source's own explicit argument is that MORE technical polish spent on a clichéd, generic performance is a worse investment than the same budget spent on a specific, non-generic acting choice"
+  ],
+  "non_use_cases": [
+    "a character or moment that is intentionally archetypal or comedic, where leaning into a recognizable trope IS the correct choice — the source states directly that tropes themselves are not the problem, only leaning on the PERFORMANCE CLICHÉS associated with them at the expense of any specific, genuine feeling"
+  ],
+  "interactions": [
+    "deliberate_lead_choice_for_acting (W02) — that entry is about WHICH joint leads a motion as an acting choice; this entry is one level more abstract, about whether the underlying emotional content being depicted is generic or specific at all, regardless of which joint leads it",
+    "indiscriminate_technique_application_is_overanimation_not_style (this same video) — an orthogonal axis from the same source: that entry is about WHERE/WHEN a technique is applied; this entry is about WHAT the technique is being used to depict, and a performance can fail on either axis independent of the other"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Entirely outside this build's scope, and worth naming precisely why rather than leaving unstated: `ai/review.js`'s Part 14 hierarchy layer 1 ('intent and purpose') is the closest existing layer, but it is scoped to whether a shot serves its own declared `AcceptanceSpec` — a FUNCTIONAL goal — not to whether the underlying emotional/acting choice is a genuine, specific one versus a generic cliché. Cadence has no face system at all (an already-documented gap from prior batches) and no representation of 'emotional intent' as project data separate from the pose/motion that expresses it, so there is no existing or even missing-but-named layer this finding could attach to, even in principle. Recorded as real, well-evidenced craft knowledge with a clean, honest scope boundary rather than forced onto a capability this build does not have and structurally could not measure.",
+  "control_surface": "None — outside this build's scope entirely.",
+  "detection_and_measurement_methods": "Not measurable in this build, and not measurable by any motion-data analysis even in principle, per the source's own framing — this is a judgment about the AUDIENCE'S read of sincerity, not a property the motion curve itself carries.",
+  "generation_or_modification_methods": "None — outside this build's scope entirely.",
+  "failure_modes": [
+    "investing animation budget and polish into technically precise execution of a fundamentally clichéd, generic acting choice, mistaking progress on the former for progress on the latter",
+    "conflating 'the character is doing a lot' with 'the character is expressing something specific' — the source's own central distinction"
+  ],
+  "roblox_considerations": "None specific — a performance/acting-direction concern independent of target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "'some of these shots are like watching an acting cliche speedrun — like how many trope poses can you squeeze into 5 seconds' (video @ 09:34–09:40)",
+    "'the illusion of life... isn't just about taking a non-living object... and making them move around almost like living things do... the real illusion happens when you can make that object express an emotion that actually feels sincere... a living breathing character — that is the illusion, that's the magic animators are always striving to capture' (video @ 19:33–20:16)"
+  ],
+  "evidence_status": "video: https://youtu.be/1yH4Qz23FqM @ 09:34–09:40, 19:33–20:16 — Dan (New Frame Plus) states the distinction directly and at length as one of the video's central arguments; transcript-only, no frames extracted this session; experimental until validated"
+}

@@ -1,0 +1,40 @@
+{
+  "concept": "handedness_swap_for_camera_facing_pose_openness",
+  "category": "advanced",
+  "definition": "When adapting an existing attack animation for a new, fixed-camera-angle context, deliberately mirror which hand/side leads the move — even against the original source animation's own established handedness — specifically because the mirrored version opens the character's body more toward that particular camera, and check whether the swap also improves the setup for whatever comes next in the same sequence.",
+  "purpose": "Maximise pose clarity and appeal for a SPECIFIC camera angle a character did not necessarily originate under, treating handedness as a free parameter to re-check per context rather than a fixed trait to preserve unconditionally.",
+  "visible_effect": "The same underlying attack (a three-hit combo, in this source) leads with the opposite hand compared to its original appearance, opening the torso toward the camera for the first hit rather than turning away from it, and setting up a more powerful-reading torso twist on the follow-up hit as a direct consequence of the swapped starting orientation.",
+  "psychological_or_gameplay_effect": "A body left open and facing the camera on the first hit reads with more clarity and appeal than the same pose turned away, and the improved setup this creates for the SECOND hit in the sequence is a compounding benefit the source frames as directly caused by the handedness choice, not a separate decision.",
+  "physical_interpretation": "None — a staging/readability choice, not a claim about the character's own physical handedness.",
+  "use_cases": [
+    "adapting an existing attack/pose into a new fixed or heavily-constrained camera angle, where the original handedness was chosen for a different (or no particular) camera",
+    "a multi-hit sequence, where checking the FIRST hit's handedness against what it sets up for later hits can improve the whole sequence, not just the opening pose"
+  ],
+  "non_use_cases": [
+    "a character whose handedness is itself a defining, recognizable trait (a specific signature stance or handedness tied to their identity), where swapping it would work against `aesthetic_and_functional_fidelity_are_independent_adaptation_goals`'s own aesthetic-fidelity axis",
+    "a context with a fully free or player-controlled camera, where no single 'more open' orientation exists to design toward"
+  ],
+  "interactions": [
+    "aesthetic_and_functional_fidelity_are_independent_adaptation_goals (video 53, this same video) — this entry is a concrete technique serving that framework's FUNCTIONAL/clarity axis specifically",
+    "staging (compiled principle) — a specific, camera-driven application of staging's general clarity goal, at the level of a deliberate handedness swap rather than pose composition in general",
+    "mirror_item (this build's own MCP tool) — the exact operation this technique would use to test a swapped-handedness variant of an existing pose/clip"
+  ],
+  "style_variations": {
+    "game_combat": "directly applicable — this source's own native context, a fixed 2D-plane fighting-game camera",
+    "realistic": "not applicable — a stylized readability optimization, not a physical claim"
+  },
+  "cadence_representation": "Directly reachable today: `mirror_item` already exists in this build specifically to produce a mirrored variant of a pose or clip. What is missing is the JUDGMENT this entry names — deciding WHICH handedness opens a character more toward a given camera — since Cadence has no camera-relationship measurement (`ai/review.js QUALITY_LAYERS` layer 10, 'camera relationship', is explicitly `measured: false`, blocked on the same missing active-camera model this batch's own SHOT-003/004 references from W05 describe). The mechanical operation exists; the evaluation of which mirrored option is better for a given camera does not.",
+  "control_surface": "`mirror_item` (MCP) already produces a mirrored pose/clip variant; nothing currently evaluates or recommends between the original and mirrored options against a camera.",
+  "detection_and_measurement_methods": "Not measurable in this build: judging which of two mirrored options 'opens the body more' toward a camera needs a camera-relationship measurement this build does not have, per the same SHOT-003/004 gap this batch's other entries already document.",
+  "generation_or_modification_methods": "`mirror_item` already generates the swapped-handedness variant this technique needs; nothing automatically proposes trying it.",
+  "failure_modes": [
+    "swapping handedness on a character whose handedness is itself part of their recognizable identity, trading a camera-clarity win for an aesthetic-fidelity loss",
+    "optimising the first hit's handedness in isolation without checking, as this source did, whether it also improves or worsens the setup for subsequent hits in the same sequence"
+  ],
+  "roblox_considerations": "No different from any other pose-mirroring decision — directly reachable with ordinary rig mirroring tools; the judgment of which orientation reads better for a given camera is a directorial decision outside any engine's own scope.",
+  "performance_implications": "None.",
+  "examples": [
+    "'notice how Mario starts the combo with a left jab instead of the original right — this not only leaves his body open and facing us for the first hit, which is just great for pose clarity and appeal, but it also sets him up for an even more powerful-looking version of that second punch, where he gets this nice twist up the torso' (video @ 08:08–08:31)"
+  ],
+  "evidence_status": "video: https://youtu.be/NHwnTm5o1kc @ 08:08–08:31 — Dan (New Frame Plus) identifies the specific handedness swap directly against the original Mario 64 combo footage shown side-by-side in the same video; transcript-only, no frames extracted this session; experimental until validated"
+}

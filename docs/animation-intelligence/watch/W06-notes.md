@@ -4,8 +4,8 @@
 
 - [x] 51. GuiltyGearXrd's Art Style : The X Factor Between 2D and 3D — GDC (58:59) — https://youtu.be/yhGjCzxJV3E
 - [x] 52. The Animation of Guilty Gear Xrd & Dragon Ball FighterZ — New Frame Plus (17:21) — https://youtu.be/kZsboyfs-L4
-- [ ] 53. How to Animate a Smash Bros Character // MARIO — New Frame Plus (12:59) — https://youtu.be/NHwnTm5o1kc
-- [ ] 54. The Overanimation of Zenless Zone Zero — New Frame Plus (24:03) — https://youtu.be/1yH4Qz23FqM
+- [x] 53. How to Animate a Smash Bros Character // MARIO — New Frame Plus (12:59) — https://youtu.be/NHwnTm5o1kc
+- [x] 54. The Overanimation of Zenless Zone Zero — New Frame Plus (24:03) — https://youtu.be/1yH4Qz23FqM
 - [ ] 55. The Brilliant Animation in Metroid Dread — Video Game Animation Study (38:26) — https://youtu.be/1B1beXTnvEI
 - [ ] 56. The Animation of Cuphead — Video Game Animation Study (10:57) — https://youtu.be/pOBKGcehi8U
 - [ ] 57. How 2D Fighter Games are Animated — Video Game Animation Study (7:13) — https://youtu.be/WYCjmVhiLaM
@@ -168,3 +168,129 @@ buildable check in its own right, and entry 2 is honestly marked not measurable 
 `W06-52-frame-by-frame-remodeled-mesh-for-stepped-vfx.json` — both checked directly against
 `validateProposedEntry`/`validateEvidenceSource`; both pass; re-swept together with all four of
 video 51's entries for concept-name collisions, none found.
+
+### 53. How to Animate a Smash Bros Character // MARIO — New Frame Plus (Dan)
+
+2026-09-11. Watched at `transcript` detail (330 caption segments, clean on first pull, full 12:59
+read in full). Matches W06.md's framing ("designing a moveset: anticipation, active frames, recovery
+per move") closely, though the video's own most valuable content turned out to be a two-axis
+adaptation framework rather than frame-data specifics.
+
+**What it teaches, specifically:**
+1. The video's own explicit organizing thesis: judge any adaptation of an existing character into a
+   new game against TWO separate, independently-gradable goals — aesthetic fidelity (does it still
+   look/feel like the character) and functional fidelity (does it play right for the new genre) —
+   applied directly to Mario, judged a full success on BOTH, yet the source still identifies a real
+   THIRD gap: jumping, Mario's single most identity-defining trait, plays almost no role in his
+   moveset's actual CONTENT (04:22–04:37, 06:31–09:22, 09:58–10:23). Checked `ai/review.js`'s Part 14
+   quality hierarchy directly before writing this entry: all thirteen existing layers judge a single
+   shot's own internal consistency, and none references fidelity against a pre-existing EXTERNAL
+   character's identity at all — a genuinely different, adaptation-specific axis this build's
+   hierarchy does not cover. Wrote
+   **`aesthetic_and_functional_fidelity_are_independent_adaptation_goals`**.
+2. A concrete staging technique found by direct side-by-side comparison against the original source
+   footage: Mario's Smash three-hit combo deliberately swaps to lead with the LEFT hand (the original
+   Mario 64 combo leads right) specifically because it opens his body toward the fixed 2D-plane
+   camera for the first hit, and sets up a stronger-reading torso twist on the second hit as a direct
+   consequence (08:08–08:31). Wrote **`handedness_swap_for_camera_facing_pose_openness`**.
+
+**Cross-checks** (strong new quantified evidence for existing cards, not new entries): the most
+concrete number in the whole video is a direct frame-count comparison — Mario's first combo punch
+takes "about 10 frames to land" in its original Mario 64 appearance versus "maybe two" in Smash, so
+fast that "there's not even time for Mario to do a wind-up anticipation pose, so they've had to try
+to build the feeling of a wind-up into the FIRST FRAME of the attack" (07:41–08:02). This is the same
+mechanism W01's own closing summary already names as a ladder
+(`layered_anticipation`→`startup_frame_budget`→`implied_zero_frame_anticipation`), now with a
+concrete ~5x (10→2-3 frame) cross-game compression ratio attached as fresh evidence — logged here
+for that ladder rather than restated as a new entry. The exaggerated fist/foot size and the layered
+hit-effects (hit pause, screen shake, a stated six-frame hit-pause specifically on the OPPONENT)
+selling every connected hit (08:39–09:03) directly confirms `hitstop_freeze_on_confirmed_hit` (W04)
+with a new concrete frame count, and the fist/foot size effect is the same exaggeration vocabulary
+`exaggeration`/`squash_stretch` already cover — not written as new entries.
+
+**Not written as entries** (real content, kept to notes): the video's opening scene-setting about
+Smash's general functional requirements (fast, clear, silhouette-readable against a chaotic screen,
+03:01–03:11) restates `staging` and general genre-speed requirements with no new mechanism specific
+enough to add. The critique that Mario's jump doesn't use his single most iconic pose, and that his
+up-special missed an obvious reference opportunity (09:28–09:57), is real but is a moveset-CONTENT
+design critique already folded into entry 1 above rather than split into its own entry.
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — entirely side-by-side in-game footage comparisons, no independent
+filmed reference performance.
+
+**Checks for the queue:** none new — entry 2's own `detection_and_measurement_methods` already states
+the real blocker (no camera-relationship model, the same SHOT-003/004 gap this batch's other entries
+document) rather than a fully buildable check in its own right.
+
+**Entries written:** `W06-53-aesthetic-and-functional-fidelity-are-independent-adaptation-goals.json`,
+`W06-53-handedness-swap-for-camera-facing-pose-openness.json` — both checked directly against
+`validateProposedEntry`/`validateEvidenceSource`; both pass; re-swept against the full batch so far
+(six prior entries) for concept-name collisions, none found.
+
+### 54. The Overanimation of Zenless Zone Zero — New Frame Plus (Dan)
+
+2026-09-11. Watched at `transcript` detail (628 caption segments, clean on first pull, full 24:02
+read in full). Matches W06.md's framing exactly ("when more animation hurts readability, Part 14's
+hierarchy") — and this is the densest, most directly build-relevant video in the batch so far,
+engaging this build's OWN `ai/review.js` Part 14 hierarchy and anti-patterns closely enough that I
+re-read that module's actual `QUALITY_LAYERS`/`HIERARCHY_ANTIPATTERNS` source directly before writing
+either entry, rather than working from memory of what it covers.
+
+**What it teaches, specifically:**
+1. The video's own central, extensively-argued thesis: "over-animation" — correctly executing known
+   principles (arcs, anticipation, exaggeration, overlap) but applying them INDISCRIMINATELY, at high
+   intensity, on every movement regardless of whether that specific moment calls for it — is a
+   describable defect distinct from a deliberate maximalist STYLE choice; a chosen exaggerated style
+   can still be executed with judgment about where to hold back (01:23–10:50). Three concrete,
+   evidenced instantiations are folded into this one entry rather than split further: (a) the SAME
+   character reading with wildly different energy across different production contexts within one
+   project with no story reason ("this guy's had a complete change of personality... it's happening
+   all the time", 15:29–15:53); (b) uniform maximalist treatment flattening cross-CHARACTER contrast
+   the same game's own other, less-animated modes already establish better (16:54–18:24); (c)
+   mistaking more/bigger execution for better craft. Checked `ai/review.js` directly: its
+   `HIERARCHY_ANTIPATTERNS` already encode a NARROWER special case (one layer's polish covering for
+   another layer's defect); this video's broader claim — a technique needs no COMPETING defect to be
+   misapplied, indiscriminate use is itself the failure — has no equivalent anywhere in the thirteen
+   layers. Also connects directly to the already-queued check #6
+   (`global_timing_register_consistency`, LESSONS.md, "now partly unblocked") — finding (a) above
+   extends that queued check from pure TIMING variance to EXAGGERATION-AMPLITUDE variance across a
+   project's clips, a related but distinct quantity worth noting at merge time. Wrote
+   **`indiscriminate_technique_application_is_overanimation_not_style`**.
+2. A second, orthogonal claim, argued separately and at length: technically precise execution of
+   known techniques does not by itself produce "the illusion of life" — that depends on whether the
+   underlying ACTING CHOICE is genuine and specific rather than a recognizable performance cliché tied
+   to a character's archetype, a question sitting entirely above how well any individual pose is
+   drawn (09:34–09:40, 19:33–20:16). Checked this against Cadence's own Part 14 layer 1 ("intent and
+   purpose") directly: even that layer is scoped to a shot's own declared `AcceptanceSpec` — a
+   functional goal — never to whether the depicted emotion itself is genuine versus clichéd, and
+   Cadence has no face system and no representation of emotional intent as project data at all, so
+   this is honestly out of scope rather than a wiring gap. Wrote
+   **`technical_precision_does_not_substitute_for_genuine_acting_choice`**.
+
+**Not written as entries** (real content, kept to notes): the opening praise for the game's combat
+animation, exploration hub touches, and menu-navigation poses (00:04–06:06) is scene-setting rather
+than a technique; the "floaty keep-alive" idle motion and heavy real-time secondary physics critique
+(06:08–07:24) is a specific instance of finding 1's general principle (too much secondary motion
+applied uniformly) rather than a separately distinct mechanism.
+
+**Contradicted an existing card:** none — this video SHARPENS how this build's own existing Part 14
+hierarchy is scoped (naming what it does and does not cover) rather than contradicting anything in
+the knowledge corpus itself.
+
+**Capture candidate:** none — entirely shipped game footage analysis, no independent filmed
+reference performance.
+
+**Checks for the queue:**
+- `check: cross_context_amplitude_consistency — extends the already-queued
+  global_timing_register_consistency (LESSONS.md #6) from phase-DURATION variance to per-phase
+  velocity/acceleration AMPLITUDE variance across a project's clips, cross-referenced against each
+  clip's own declared narrative/gameplay context — blocked on the same missing per-clip context
+  declaration check #6 already needs, plus the cross-project comparison `search_library` now partly
+  unblocks — video 54 @ 15:29–15:53`
+
+**Entries written:** `W06-54-indiscriminate-technique-application-is-overanimation-not-style.json`,
+`W06-54-technical-precision-does-not-substitute-for-genuine-acting-choice.json` — both checked
+directly against `validateProposedEntry`/`validateEvidenceSource`; both pass; re-swept against the
+full batch so far (eight prior entries) for concept-name collisions, none found.
