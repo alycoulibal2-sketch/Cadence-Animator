@@ -20,20 +20,24 @@ F → VFX timing, camera and curve craft (`VFX`, `SHOT`, easing); G → workflow
 critique — how a professional plans, blocks, splines and polishes, which is the shape of the
 director's loop.
 
+**Progress: 10 of 100 watched** (batch W01, 2026-09-11 — 19 knowledge entries merged into
+`knowledge/`, 7 capture candidates and 13 `check:` lines in [`LESSONS.md`](LESSONS.md)). W02 is
+in flight. A ticked line records the date, the batch, and what that video produced.
+
 Legend: `- [ ] n. Title — Channel (mm:ss) — url — what it should teach`
 
 ## A. Fundamentals — the twelve principles (16)
 
-- [ ] 1. 12 Principles of Animation (Official Full Series) — AlanBeckerTutorials (24:03) — https://youtu.be/uDqjIdI4bF4 — the canonical statement of all twelve; check every `ai/knowledge.js` card against it
-- [ ] 2. TIMING - The 12 Principles of Animation in Games — New Frame Plus (9:38) — https://youtu.be/rHEJZXvFc5I — timing as meaning; what changes when a player is waiting on the frame
-- [ ] 3. ANTICIPATION - The 12 Principles of Animation in Games — New Frame Plus (7:52) — https://youtu.be/28s1Hv3Zqlo — anticipation versus responsiveness; when it must be short or hidden
-- [ ] 4. SQUASH & STRETCH - The 12 Principles of Animation in Games — New Frame Plus (8:19) — https://youtu.be/1kFRU_xBZnE — deformation as force on rigid game characters; pose-based equivalents
-- [ ] 5. SLOW IN & SLOW OUT - The 12 Principles of Animation in Games — New Frame Plus (7:24) — https://youtu.be/3jNiNctcQ4c — easing as spacing, and when a sharp stop is right
-- [ ] 6. ARCS - The 12 Principles of Animation in Games — New Frame Plus (7:47) — https://youtu.be/lOzgxMgAnxQ — arcs on hands, weapons and cameras; when a straight path is intended
-- [ ] 7. FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games — New Frame Plus (16:53) — https://youtu.be/rYtrV1lChsA — stop-time offsets across a chain; the `lead_lag` strategy's reference
-- [ ] 8. The most important animation principle: An introduction on animation spacing and timing — Dong Chang (11:04) — https://youtu.be/vSJ5lT_ma-E — spacing charts; the `spacing_contrast` strategy's reference
-- [ ] 9. 3 Easy Ways to Master Animation Timing — Dong Chang (13:58) — https://youtu.be/13QIh7vsCpQ — practical timing rules a planner can encode as phase durations
-- [ ] 10. Animation basics: The art of timing and spacing - TED-Ed — TED-Ed (6:42) — https://youtu.be/KRVhtMxQWRs — the shortest correct explanation, for the knowledge card's definition
+- [x] 1. 12 Principles of Animation (Official Full Series) — AlanBeckerTutorials (24:03) — https://youtu.be/uDqjIdI4bF4 — the canonical statement of all twelve; check every `ai/knowledge.js` card against it — **watched 2026-09-11 (W01)**: layered_anticipation, pose_hold_density, twinning
+- [x] 2. TIMING - The 12 Principles of Animation in Games — New Frame Plus (9:38) — https://youtu.be/rHEJZXvFc5I — timing as meaning; what changes when a player is waiting on the frame — **watched 2026-09-11 (W01)**: startup_frame_budget, global_timing_register; 3 capture candidates
+- [x] 3. ANTICIPATION - The 12 Principles of Animation in Games — New Frame Plus (7:52) — https://youtu.be/28s1Hv3Zqlo — anticipation versus responsiveness; when it must be short or hidden — **watched 2026-09-11 (W01)**: recovery_weight_substitution, implied_zero_frame_anticipation
+- [x] 4. SQUASH & STRETCH - The 12 Principles of Animation in Games — New Frame Plus (8:19) — https://youtu.be/1kFRU_xBZnE — deformation as force on rigid game characters; pose-based equivalents — **watched 2026-09-11 (W01)**: motion_smear_readability; 2 capture candidates
+- [x] 5. SLOW IN & SLOW OUT - The 12 Principles of Animation in Games — New Frame Plus (7:24) — https://youtu.be/3jNiNctcQ4c — easing as spacing, and when a sharp stop is right — **watched 2026-09-11 (W01)**: external_force_easing_override
+- [x] 6. ARCS - The 12 Principles of Animation in Games — New Frame Plus (7:47) — https://youtu.be/lOzgxMgAnxQ — arcs on hands, weapons and cameras; when a straight path is intended — **watched 2026-09-11 (W01)**: arc_camera_angle_robustness, arc_trail_vfx_readability, cross_clip_arc_continuity; 1 capture candidate
+- [x] 7. FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games — New Frame Plus (16:53) — https://youtu.be/rYtrV1lChsA — stop-time offsets across a chain; the `lead_lag` strategy's reference — **watched 2026-09-11 (W01)**: follow_through_backfill_hold, physics_sim_blend_seam_mitigation; 1 capture candidate
+- [x] 8. The most important animation principle: An introduction on animation spacing and timing — Dong Chang (11:04) — https://youtu.be/vSJ5lT_ma-E — spacing charts; the `spacing_contrast` strategy's reference — **watched 2026-09-11 (W01)**: asymmetric_spacing_preference, mixed_hold_pacing_within_phase
+- [x] 9. 3 Easy Ways to Master Animation Timing — Dong Chang (13:58) — https://youtu.be/13QIh7vsCpQ — practical timing rules a planner can encode as phase durations — **watched 2026-09-11 (W01)**: physical_reference_timing_method, vibe_timing_anti_pattern
+- [x] 10. Animation basics: The art of timing and spacing - TED-Ed — TED-Ed (6:42) — https://youtu.be/KRVhtMxQWRs — the shortest correct explanation, for the knowledge card's definition — **watched 2026-09-11 (W01)**: material_properties_via_spacing_alone
 - [ ] 11. The #1 Animation Principle (How To In-Between) — NobleFrugal Studio (12:41) — https://youtu.be/6UXjRCORV44 — breakdowns and in-betweens; where a breakdown key belongs
 - [ ] 12. Animation Principles / Everything Moves in Arcs / Animating Classic Motion — Russ Edmonds Animation (10:31) — https://youtu.be/thDT-4RjAeo — a Disney animator on arcs in practice
 - [ ] 13. Animating with Arcs — The Art of Aaron Blaise (6:03) — https://youtu.be/GHf8ie4Nq9Y — arc tracking on a real shot; the `bow_studs` measurement's meaning

@@ -1,0 +1,37 @@
+{
+  "concept": "structural_understanding",
+  "category": "essential",
+  "definition": "Body mechanics, volume, balance, and proportion — whether a pose is physically and structurally credible for the rig and style.",
+  "purpose": "Keep a pose readable and physically coherent rather than merely visually interesting.",
+  "visible_effect": "A pose with a clear silhouette, no confusingly merged limbs, and credible balance for the character's stance.",
+  "psychological_or_gameplay_effect": "A structurally broken pose reads as wrong even to a viewer who cannot say why.",
+  "physical_interpretation": "Balance (centre of mass over a base of support) and volume — Cadence models neither.",
+  "use_cases": [
+    "any pose intended to read as physically grounded"
+  ],
+  "non_use_cases": [
+    "abstract, magical, or nonhuman motion that deliberately breaks structural expectation (horror/fantasy styles)"
+  ],
+  "interactions": [
+    "Contacts — a structurally credible stance usually implies a consistent contact (MOT-008 measures the contact side, not the balance side)",
+    "Rig validation (`ai/riggraph.js`) checks STRUCTURE of the rig itself, not the pose applied to it — a different, adjacent concern"
+  ],
+  "style_variations": {
+    "horror": "altered biomechanics are an explicit, permitted exception"
+  },
+  "cadence_representation": "Rig-level structural validation exists and is real (`ai/riggraph.js validateRig` — root, cycles, duplicate motors, orphans, rest-pose consistency, mirror completeness). POSE-level structural judgement (does THIS pose have credible balance and volume) does not exist — `ai/index.js capabilities().cannot` already names \"balance and centre of mass (part mass is unknown)\" as absent.",
+  "control_surface": "`inspect_rig` for rig-structure validation; nothing for pose-level balance.",
+  "detection_and_measurement_methods": "Rig structure: real, in `validateRig`. Pose balance: none — part mass is unknown, so a centre-of-mass computation cannot be built honestly.",
+  "generation_or_modification_methods": "None for pose-level structural correction.",
+  "failure_modes": [
+    "a pose that violates the rig's own limb lengths or joint limits — partially caught by `ai/constraints.js` where `joint_limits` are declared, `null` otherwise (never assumed unlimited)",
+    "silhouette-merging limbs, not currently detected"
+  ],
+  "roblox_considerations": "None beyond the Motor6D rig model already shared across this codebase.",
+  "performance_implications": "None.",
+  "examples": [
+    "a stance whose weight visibly sits over the planted foot",
+    "a pose where the off-hand silhouette merges confusingly with the torso"
+  ],
+  "evidence_status": "directive text (Part 26.11) plus real rig-structure validation; pose-level structural judgement is a named, unaddressed gap"
+}

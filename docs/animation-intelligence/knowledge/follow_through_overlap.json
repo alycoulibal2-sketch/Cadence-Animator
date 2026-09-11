@@ -1,0 +1,41 @@
+{
+  "concept": "follow_through_overlap",
+  "category": "essential",
+  "definition": "Follow-through: parts continue moving after the main action stops rather than halting uniformly. Overlap: linked parts (limbs, cloth, hair, weapon, VFX) trail the primary motion by different amounts.",
+  "purpose": "Communicate inertia and prevent an unnaturally uniform stop across a whole body or chain.",
+  "visible_effect": "Trailing parts arrive and settle later than the part that led them, with their own decay.",
+  "psychological_or_gameplay_effect": "Its absence reads as robotic or weightless; excess reads as loose or unintentional.",
+  "physical_interpretation": "An approximation of inertia propagating down a chain, without a physics solve behind it.",
+  "use_cases": [
+    "a heavy attack with cloth, hair, or a weapon that should lag",
+    "any multi-joint chain stopping after a fast motion"
+  ],
+  "non_use_cases": [
+    "a mechanical or robotic style — Part 26 groups \"purposeful lack of organic overlap\" as a deliberate style choice, not an oversight",
+    "an item whose `timing` aspect is locked, since this compiles to key-time OFFSETS"
+  ],
+  "interactions": [
+    "Momentum (Part 71's own graph names this pair explicitly)",
+    "Contacts — a trailing effector must not be allowed to drift through a declared contact (MOT-008 measures exactly this)"
+  ],
+  "style_variations": {
+    "mechanical": "near-zero — see ai/style.js `secondary_delay: 0.1`",
+    "cartoon": "may exaggerate into a held wobble"
+  },
+  "cadence_representation": "Directly represented: `ai/vocabulary.js`'s `secondary_delay` dimension (MOVES keys, one of the few dimensions that does) and `ai/motion.js analyseChain` (lead/lag measurement per chain, with inversion reported rather than judged wrong).",
+  "control_surface": "`secondary_delay` vocabulary dimension via `plan_motion`; `analyze_motion` / `analyze_contacts` for measurement.",
+  "detection_and_measurement_methods": "`ai/motion.js analyseChain` measures onset and peak per joint along a declared chain and reports lead/lag directly — this is one of the two principles in this table (with slow-in/slow-out) backed by a REAL per-frame measurement, not only a compile-time dimension.",
+  "generation_or_modification_methods": "`secondary_delay` offsets keys on parts with no contact role; this MOVES keys, which is why it needs the contact model (Phase 5) before it could touch anything with a declared plant.",
+  "failure_modes": [
+    "excessive delay reading as looseness rather than weight",
+    "delaying a part that has a declared contact, breaking the plant it should not touch",
+    "a chain inversion mistaken for an error — Part 22 explicitly permits it for whip cracks and isolated gestures, and `ai/motion.js` reports rather than judges it"
+  ],
+  "roblox_considerations": "None beyond the general Motor6D chain structure already modelled.",
+  "performance_implications": "None.",
+  "examples": [
+    "a cloak settling three frames after the torso stops",
+    "a weapon's tip arriving after the wrist that swung it"
+  ],
+  "evidence_status": "directive text (Part 26.5) plus real per-frame chain measurement (MOT-009/010, `partial`)"
+}

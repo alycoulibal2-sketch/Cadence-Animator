@@ -105,6 +105,15 @@ async function boot() {
     if (!restored) S.newProject();
     if (!settings.onboarded) showOnboarding();
 
+    // The user's own knowledge corpus (Part 72), loaded once at startup through the shape and
+    // evidence gates. Best-effort on purpose: a malformed file must not stop the app opening,
+    // and what was refused is reported by animation_knowledge rather than being lost here.
+    try {
+      const k = await reloadUserKnowledge();
+      if (k.refused.length) console.warn(`[knowledge] ${k.refused.length} entr(y/ies) refused by the Part 72 gate:`, k.refused);
+      if (k.loaded) console.log(`[knowledge] ${k.loaded} user entr(y/ies) loaded alongside the twelve classical principles`);
+    } catch (e) { console.warn('[knowledge] could not load the user corpus:', e && e.message); }
+
     requestAnimationFrame(loop);
 
     // Internal QA hook — drives the app from the main process for automated smoke tests/screenshots.
@@ -3387,6 +3396,79 @@ function resolveIntent({ request, intent, itemId, constrain, timeRange, terms, m
   };
 }
 
+// ================================================================ the cross-project library (Part 70)
+//
+// `renderer/js/ai/library.js` is the whole of the logic and reads nothing; `src/main.js` owns the
+// folder; these helpers are the seam between them. They are module functions rather than entries
+// in MCP_HANDLERS so the two import tools, the two search tools and `accept_shot` all reach the
+// index through ONE read-validate-write path — two paths would be two chances to write an index
+// the pure validator would have refused.
+
+/** Read and validate the index. A refused entry is carried through as `rejected` rather than
+ *  thrown away, so a caller sees "you have 11 entries and this 12th one is malformed". */
+async function readLibrary() {
+  if (!window.cadence?.libraryReadIndex) throw new Error('the library needs the app shell (src/main.js owns the folder) — no library IPC is available here');
+  const raw = await window.cadence.libraryReadIndex();
+  if (raw.error) throw new Error(`${raw.error} — fix or delete ${raw.path}; nothing here will overwrite it silently`);
+  const index = raw.index ?? AI.library.emptyIndex();
+  const v = AI.library.validateIndex(index);
+  return { index: { index_version: AI.library.INDEX_VERSION, entries: v.entries }, rejected: v.rejected, problems: v.problems, existed: raw.existed, path: raw.path };
+}
+
+/** Everything needed to store one item as a library clip: a minimal project holding just that
+ *  item, packed the same way a save is, so a library clip and a `.cadence` file are ONE format
+ *  and `load_from_library` needs no second reader. */
+function clipFromItem(item) {
+  const p = S.state.project;
+  const mini = {
+    id: `libclip-${item.id}`, name: item.name, version: p.version, fps: p.fps,
+    length: p.length, loop: false, priority: p.priority,
+    items: [JSON.parse(JSON.stringify(item))],
+    tracks: { [item.id]: JSON.parse(JSON.stringify(S.getTracks(item.id))) },
+    groups: [], markers: { [item.id]: JSON.parse(JSON.stringify(S.getMarkers(item.id) || [])) },
+    playRange: null, onionSkin: { enabledItemIds: [], range: 3 }, audio: null,
+  };
+  return JSON.stringify(S.packProject(mini));
+}
+
+/**
+ * Bring a clip in as a REFERENCE beside the user's work, never onto their working rig.
+ *
+ * "Reference" is not a semantic role — `ai/roles.js ROLE` says what a thing IS (a character, a
+ * weapon), not why it is in the project — so the marker is the mechanism Part 36 already has: the
+ * item gets its own id and name, and a Part 36 profile is built from it and stored in
+ * `project.semantics.references`, which is held out of undo and out of the saved animation
+ * (`ai/snapshot.js NOT_STATE`). That is what makes an imported clip comparable the moment it
+ * lands, rather than a second rig nothing knows anything about.
+ */
+async function importAsReference(rigType, name, anim, { label = null, sourceNote = null } = {}) {
+  const item = await addBuiltinRig(rigType);
+  if (!item) throw new Error(`Unknown rig type "${rigType}" — try r6, r15, rthro or rthroSlender`);
+  S.renameItem(item.id, name);
+  const applied = IO.applyAnimationToItem(item, anim);
+  const profile = AI.reference.buildReferenceProfile(S.state.project, { itemId: item.id, label: label ?? name });
+  AI.reference.storeReferenceProfile(S.state.project, profile);
+  AI.provenance.record(S.state.project, {
+    type: 'analysis', author: 'ai',
+    summary: `reference clip imported: "${name}"${sourceNote ? ` (${sourceNote})` : ''}`,
+    detail: { item_id: item.id, keys: applied.added, profile_id: profile.id },
+    timestamp: new Date().toISOString(),
+  });
+  S.markDirty();
+  return { item, applied, profile };
+}
+
+/** Load every knowledge file on disk through Part 72's gate, and report what was refused.
+ *  Called at startup and again after `propose_knowledge_entry` writes one. */
+async function reloadUserKnowledge() {
+  if (!window.cadence?.libraryReadKnowledge) return { accepted: [], refused: [], already_builtin: [], loaded: 0, unavailable: 'no library IPC (running outside the app shell)' };
+  const files = await window.cadence.libraryReadKnowledge();
+  const unreadable = files.filter((f) => f.error).map((f) => ({ file: `${f.source}/${f.name}`, problems: [f.error] }));
+  const res = AI.knowledge.registerUserEntries(files.filter((f) => !f.error).map((f) => ({ name: `${f.source}/${f.name}`, entry: f.entry })));
+  return { ...res, refused: [...res.refused, ...unreadable] };
+}
+
+
 const MCP_HANDLERS = {
   // Unpacked, so callers still see each part's real customTexture rather than the `@texlib:` refs
   // serialize() now writes to disk — this tool's output shape is unchanged by that optimization.
@@ -5208,11 +5290,20 @@ const MCP_HANDLERS = {
 
   // ---------------------------------------------------------------- Phase 8: knowledge, memory, style, reference
 
-  animation_knowledge: ({ concept = null, category = null } = {}) => {
+  // Extended by the learning loop rather than joined by a second tool that answers the same
+  // question (directive 4.6): the twelve compiled principles AND whatever the user has on disk,
+  // reloaded through Part 72's gate on every call so a session sees what a watch batch wrote
+  // without restarting the app. Still READ-ONLY — it reads two folders and writes nothing.
+  animation_knowledge: async ({ concept = null, category = null } = {}) => {
+    const reload = await reloadUserKnowledge();
     if (concept) {
       const entry = AI.knowledge.getKnowledge(concept);
-      if (!entry) throw new Error(`animation_knowledge: "${concept}" is not one of the twelve classical principles — call with no arguments to list them`);
-      return { entry, interactions: AI.knowledge.interactionsFor(concept) };
+      if (!entry) throw new Error(`animation_knowledge: "${concept}" is not a known entry — call with no arguments to list the twelve classical principles and every user entry currently loaded (${reload.loaded})`);
+      return {
+        entry,
+        interactions: AI.knowledge.interactionsFor(concept),
+        checks: AI.knowledge.knowledgeChecks(AI.motion.MEASUREMENTS, { concepts: [concept] }),
+      };
     }
     return {
       entries: AI.knowledge.listKnowledge({ category }),
@@ -5221,6 +5312,10 @@ const MCP_HANDLERS = {
       expansion_procedure: AI.knowledge.EXPANSION_PROCEDURE,
       premium_standard: AI.knowledge.evaluatePremiumCoverage(),
       field_list: AI.knowledge.knowledgeFieldList(),
+      // What is loaded from disk, and what was refused on the way in. A refusal names the field
+      // that failed, so a malformed entry is a fixable file rather than a silent absence.
+      on_disk: { loaded: reload.loaded, accepted: reload.accepted, refused: reload.refused, already_builtin: reload.already_builtin, unavailable: reload.unavailable ?? null },
+      checks: AI.knowledge.knowledgeChecks(AI.motion.MEASUREMENTS),
       limitations: AI.knowledge.knowledgeLimitations(),
     };
   },
@@ -5316,6 +5411,293 @@ const MCP_HANDLERS = {
   },
 
   list_reference_profiles: () => ({ profiles: AI.reference.listReferenceProfiles(S.state.project), limitations: AI.reference.referenceLimitations() }),
+
+  // ---------------------------------------------------------------- the cross-project library (Part 70)
+  //
+  // The store that everything before this shipped without: `ai/memory.js`, `ai/style.js` and
+  // `ai/reference.js` each said "there is no cross-project store", and that is what stopped a
+  // clip measured on one project from informing the next. The folder lives under the app's
+  // user-data directory (src/main.js owns it, gated by IPC exactly like autosaves), NEVER in a
+  // project file and never in the repo — Mixamo forbids redistributing its clips as files, and
+  // the user's own captures are the user's.
+  //
+  // Two import paths, because Roblox gives two: Studio's own Animation Capture and its Animation
+  // Importer both land a KeyframeSequence in a rig's `AnimSaves` folder (which `import_from_studio`
+  // reads over the bridge), and both can also be exported as a file (`import_animation_file`).
+  // Neither invents a pose estimator: the estimation is Roblox's, and an entry made from it is
+  // labelled `captured` and `estimated` all the way through.
+
+  import_from_studio: async ({ rigName = null, animName = null, assetId = null, rigType = 'r15', name = null, label = null } = {}) => {
+    if (!window.cadence?.bridgeSend) throw new Error('import_from_studio needs the Studio bridge — the app must be running and the Cadence plugin installed (port 35747)');
+    if (!animName && !assetId) {
+      // No name and no id is a LISTING, not a failure: a caller cannot name an AnimSave it has
+      // not seen, and guessing which one was meant would import the wrong clip silently.
+      const res = await window.cadence.bridgeSend('listAnimSaves', {}, 30000);
+      return {
+        imported: false,
+        rigs: res.rigs,
+        next: 'call again with rigName + animName (or an assetId) to import one as a reference clip',
+        note: 'Roblox Studio\'s Animation Editor → Capture → Body writes its result into the rig\'s AnimSaves folder, which is what this lists. A captured clip is a pose ESTIMATE from video.',
+      };
+    }
+    const res = assetId
+      ? await window.cadence.bridgeSend('getAnimationById', { assetId }, 60000)
+      : await window.cadence.bridgeSend('getAnimSave', { rigName, animName }, 60000);
+    const clipName = name || animName || `Animation ${assetId}`;
+    const out = await importAsReference(rigType, `Reference — ${clipName}`, res.anim, {
+      label: label || clipName,
+      sourceNote: assetId ? `asset ${assetId}` : `AnimSaves ${rigName}/${animName}`,
+    });
+    return {
+      imported: true,
+      itemId: out.item.id, name: out.item.name, keys: out.applied.added, skipped: out.applied.skipped ?? null,
+      profile_id: out.profile.id,
+      source: assetId ? { kind: 'asset', assetId } : { kind: 'animsaves', rigName, animName },
+      provenance_hint: 'if this came from Roblox\'s Animation Capture, add_to_library it with provenance kind "captured", estimated true, and the source video URL — nothing here can tell a captured clip from a hand-authored one once it is a KeyframeSequence',
+      note: 'imported as a REFERENCE item beside your work, with a Part 36 profile stored. Nothing was applied to any existing rig.',
+    };
+  },
+
+  import_animation_file: async ({ path: filePath = null, rigType = 'r15', name = null, label = null, index = 0 } = {}) => {
+    if (!window.cadence?.readFileBinary) throw new Error('import_animation_file needs the app shell to read a file');
+    let chosen = filePath;
+    if (!chosen) {
+      const paths = await window.cadence.openDialog({ title: 'Import an animation as a reference', filters: [{ name: 'Roblox files', extensions: ['rbxm', 'rbxmx'] }], properties: ['openFile'] });
+      if (!paths || !paths.length) return { imported: false, cancelled: true };
+      chosen = paths[0];
+    }
+    const data = await window.cadence.readFileBinary(chosen);
+    const arr = data instanceof ArrayBuffer ? data : new Uint8Array(data.data || data).buffer;
+    const parsed = await window.cadence.parseRbx(arr, chosen);
+    const roots = treeRootsFromParse(parsed);
+    const sequences = IO.findByClass(roots, 'KeyframeSequence');
+    if (!sequences.length) throw new Error(`No KeyframeSequence in ${chosen} — that file holds a rig, not an animation (add_rig imports rigs)`);
+    if (index >= sequences.length) throw new Error(`index ${index} is out of range: the file holds ${sequences.length} KeyframeSequence(s)`);
+    const anim = IO.neutralAnimFromTree(sequences[index]);
+    const clipName = name || anim.name || chosen.split(/[\\/]/).pop();
+    const out = await importAsReference(rigType, `Reference — ${clipName}`, anim, { label: label || clipName, sourceNote: chosen });
+    return {
+      imported: true,
+      itemId: out.item.id, name: out.item.name, keys: out.applied.added,
+      profile_id: out.profile.id,
+      sequences_in_file: sequences.length, used_index: index,
+      source_file: chosen,
+      note: 'imported as a REFERENCE item with a Part 36 profile stored. The LICENCE of this file is yours to declare when you add_to_library it — nothing here infers one.',
+    };
+  },
+
+  add_to_library: async ({
+    itemId, semanticDescription, actionType, provenance,
+    licenseOrOwnership, intentTags = [], styleTags = [], frameRange = null,
+    parameters = [], dependencies = [], performanceCost = null, previewMedia = [],
+    acceptanceTests = [], baselineExamples = [], knownFailureCases = [], version = '1.0.0',
+  } = {}) => {
+    const item = S.getItem(itemId);
+    if (!item) throw new Error(`No item with id ${itemId}`);
+    if (item.kind !== 'rig') throw new Error(`add_to_library stores rig motion; "${item.name}" is a ${item.kind} item (LIB-001's effect half is pnx_add_recipe)`);
+    if (!provenance?.kind) throw new Error('add_to_library needs `provenance.kind`: captured (Roblox Animation Capture — an estimate), mocap (a retargeted library clip), authored (your own accepted shot) or imported (a file). Nothing infers it.');
+    if (!licenseOrOwnership?.terms) throw new Error('add_to_library needs `licenseOrOwnership.terms` and an explicit `redistributable` boolean. Nothing in this build infers a licence — Mixamo clips may be used in a project and not redistributed as files, and that distinction has to be recorded by whoever knows it.');
+
+    const profile = AI.reference.buildReferenceProfile(S.state.project, { itemId, frameRange, label: semanticDescription });
+    const entry = AI.library.makeEntry({
+      profile, semanticDescription, actionType, intentTags, styleTags,
+      compatibleRigs: [item.rig?.name || 'unknown'],
+      technicalImplementation: {
+        kind: 'keyframe_animation',
+        // Filled in below, once makeEntry has derived the id the file is named after. Doing it in
+        // two steps rather than hashing twice keeps ONE definition of what an entry's id is.
+        file: null,
+        tracks: Object.keys(S.getTracks(itemId)).length,
+        frame_range: profile.source.frame_range,
+        fps: S.state.project.fps,
+      },
+      parameters, dependencies, performanceCost, previewMedia, acceptanceTests,
+      baselineExamples, knownFailureCases, version,
+      provenance: { ...provenance, added_at: provenance.added_at || new Date().toISOString() },
+      licenseOrOwnership,
+    });
+    entry.technical_implementation.file = `entries/${entry.library_id.replace(/^lib:/, '')}.cadence`;
+    const v = AI.library.validateEntry(entry);
+    if (!v.ok) throw new Error(`library entry refused (${v.problems.length}): ${v.problems.join('; ')}`);
+
+    const lib = await readLibrary();
+    const next = AI.library.upsertEntry(lib.index, entry);
+    const written = await window.cadence.libraryWriteEntry({
+      id: entry.library_id, cadenceText: clipFromItem(item), profile, index: next.index,
+    });
+    AI.provenance.record(S.state.project, {
+      type: 'note', author: 'ai',
+      summary: `added to the cross-project library: "${semanticDescription}" (${entry.action_type}, ${provenance.kind})`,
+      detail: { library_id: entry.library_id, estimated: entry.provenance.estimated === true, redistributable: licenseOrOwnership.redistributable },
+      timestamp: new Date().toISOString(),
+    });
+    return {
+      entry, replaced: next.replaced, files: written,
+      library: AI.library.librarySummary(next.index),
+      rejected_existing_entries: lib.rejected,
+      note: entry.provenance.estimated
+        ? 'stored and labelled ESTIMATED — every number measured from this clip is a measurement of Roblox\'s pose estimate, not of the performer in the video'
+        : 'stored. The clip itself never enters a project file; load_from_library brings a copy in as a reference item.',
+    };
+  },
+
+  search_library: async ({ actionType = null, intentTags = [], styleTags = [], rig = null, provenanceKinds = null, nearItemId = null, limit = 10 } = {}) => {
+    const lib = await readLibrary();
+    let profile = null;
+    if (nearItemId) {
+      if (!S.getItem(nearItemId)) throw new Error(`No item with id ${nearItemId} to be near`);
+      profile = AI.reference.buildReferenceProfile(S.state.project, { itemId: nearItemId });
+    }
+    const found = AI.library.searchLibrary(lib.index, { actionType, intentTags, styleTags, rig, provenanceKinds, profile, limit });
+    return {
+      ...found,
+      nearest_by_measurement: profile ? AI.library.nearest(lib.index, profile, { actionType, limit: 5 }) : null,
+      summary: AI.library.librarySummary(lib.index),
+      unreadable_entries: lib.rejected,
+      library_path: lib.path,
+    };
+  },
+
+  load_from_library: async ({ libraryId, name = null } = {}) => {
+    if (!libraryId) throw new Error('load_from_library needs a `libraryId` — search_library returns them');
+    const lib = await readLibrary();
+    const entry = AI.library.getEntry(lib.index, libraryId);
+    if (!entry) throw new Error(`No library entry ${libraryId} — search_library lists what is there`);
+    const file = await window.cadence.libraryReadEntry(libraryId);
+    if (file.error) throw new Error(file.error);
+
+    const clip = S.unpackProject(JSON.parse(file.cadenceText));
+    const source = clip.items[0];
+    if (!source) throw new Error(`library clip ${libraryId} holds no item — the file is corrupt`);
+    // A fresh id: the clip may already be loaded, and two items sharing an id would make every
+    // track lookup ambiguous. Everything else about the item is carried over verbatim.
+    const newId = crypto.randomUUID();
+    const item = { ...source, id: newId, name: name || `Reference — ${entry.semantic_description}` };
+    S.pushUndo();
+    S.addItem(item);
+    const tracks = clip.tracks?.[source.id] || {};
+    S.state.project.tracks[newId] = JSON.parse(JSON.stringify(tracks));
+    if ((clip.markers?.[source.id] || []).length) S.state.project.markers[newId] = JSON.parse(JSON.stringify(clip.markers[source.id]));
+    S.emit('project');
+    S.markDirty();
+
+    // The stored profile is carried across rather than rebuilt, so the numbers a caller compares
+    // against are the ones the entry was indexed on — rebuilding here would silently measure a
+    // slightly different range and make search results disagree with what got loaded.
+    if (file.profile) AI.reference.storeReferenceProfile(S.state.project, { ...file.profile, label: `${entry.semantic_description} (from the library)` });
+    AI.provenance.record(S.state.project, {
+      type: 'analysis', author: 'ai',
+      summary: `loaded library clip "${entry.semantic_description}" as a reference`,
+      detail: { library_id: libraryId, item_id: newId, provenance_kind: entry.provenance?.kind, estimated: entry.provenance?.estimated === true },
+      timestamp: new Date().toISOString(),
+    });
+    return {
+      itemId: newId, name: item.name, tracks: Object.keys(tracks).length,
+      entry, profile_stored: !!file.profile,
+      note: entry.provenance?.estimated
+        ? 'loaded as a REFERENCE item. Its poses are estimated by Roblox Animation Capture — advisory, not ground truth.'
+        : 'loaded as a REFERENCE item beside your work. Nothing was applied to your rig; compare against it with analyze_motion / store_reference_profile.',
+      licence_reminder: entry.license_or_ownership?.redistributable === false
+        ? `this clip is NOT redistributable (${entry.license_or_ownership.terms}) — it may be used in your project, and the file must not be shipped`
+        : null,
+    };
+  },
+
+  accept_shot: async ({
+    itemId, statement, decision = 'accepted', evidence = [],
+    retainedFeatures = [], selectedExperiments = [], matteredConstraints = [], correlatedSignals = [],
+    attempted = null, observedResult = null, failureKind = 'objective', correctedBy = null, generalized = null,
+    whyItSeemedReasonable = null, styleOrProjectContext = null, offerLibraryEntry = true,
+  } = {}) => {
+    if (!['accepted', 'rejected'].includes(decision)) throw new Error('accept_shot: decision must be "accepted" or "rejected" — Part 58 keeps both, because a failed approach is evidence too');
+    if (!statement) throw new Error('accept_shot needs a `statement`: what was learned, in one sentence. A memory entry with no claim in it is a timestamp.');
+    if (!Array.isArray(evidence) || !evidence.length) throw new Error('accept_shot needs `evidence`: what was observed that makes this a lesson rather than an opinion (Part 57/58 require it, and record_user_correction already enforces the same bar)');
+    const item = itemId ? S.getItem(itemId) : null;
+    if (itemId && !item) throw new Error(`No item with id ${itemId}`);
+
+    S.pushUndo();
+    const stamp = new Date().toISOString();
+    const recorded = decision === 'accepted'
+      ? AI.memory.recordAcceptedWork(S.state.project, {
+        statement, retainedFeatures, selectedExperiments, matteredConstraints, correlatedSignals,
+        styleOrProjectContext, evidenceSource: evidence.map((e) => (typeof e === 'string' ? e : JSON.stringify(e))), createdAt: stamp,
+      })
+      : AI.memory.recordFailedApproach(S.state.project, {
+        statement, attempted: attempted || statement, whyItSeemedReasonable,
+        observedResult: observedResult || 'not stated', failureKind, correctedBy, generalized,
+        evidenceSource: evidence.map((e) => (typeof e === 'string' ? e : JSON.stringify(e))), createdAt: stamp,
+      });
+
+    // Part 58 as a TOOL, and Part 62's "nothing is applied automatically" in the same breath: an
+    // accepted shot is OFFERED to the library, never written into it. Adding it needs a
+    // description, a licence and an action type nobody here can supply.
+    let offer = null;
+    if (decision === 'accepted' && offerLibraryEntry && item) {
+      offer = {
+        tool: 'add_to_library',
+        itemId,
+        suggested: {
+          provenance: { kind: 'authored', added_at: stamp },
+          licenseOrOwnership: { terms: 'the user\'s own work', redistributable: true },
+        },
+        still_needed: ['semanticDescription', 'actionType', 'intentTags'],
+        why_not_automatic: 'a library entry carries a description, an action type and a licence. None is derivable from motion data, and a guessed one would be recorded as fact (Part 70, Part 62).',
+      };
+    }
+
+    const paragraph = `**${stamp.slice(0, 10)} — ${decision} — ${item ? item.name : 'no item'}**: ${statement} `
+      + `Evidence: ${evidence.map((e) => (typeof e === 'string' ? e : JSON.stringify(e))).join('; ')}. `
+      + (decision === 'accepted'
+        ? `Retained: ${retainedFeatures.join(', ') || 'not stated'}. Constraints that mattered: ${matteredConstraints.join(', ') || 'not stated'}.`
+        : `Attempted: ${attempted || statement}. Observed: ${observedResult || 'not stated'} (${failureKind}). Corrected by: ${correctedBy || 'not stated'}.`);
+    let lesson = null;
+    try { lesson = await window.cadence.libraryAppendLesson(paragraph); } catch (_) { lesson = null; }
+
+    AI.provenance.record(S.state.project, {
+      type: 'lesson', author: 'user',
+      summary: `shot ${decision}: ${statement}`,
+      detail: { memory_id: recorded.id, scope: recorded.scope, item_id: itemId ?? null },
+      timestamp: stamp,
+    });
+    S.markDirty();
+    return {
+      decision, memory: recorded, library_offer: offer,
+      lesson_paragraph: paragraph,
+      lesson_file: lesson?.path ?? null,
+      lesson_note: 'the same paragraph belongs in the repo\'s docs/animation-intelligence/LESSONS.md, which the app cannot reach — paste it there so the next session reads it',
+      note: 'recorded in this project\'s memory (Part 58). Nothing was applied and nothing was added to the library; both are separate, deliberate calls.',
+    };
+  },
+
+  propose_knowledge_entry: async ({ entry, apply = true } = {}) => {
+    if (!entry?.concept) throw new Error('propose_knowledge_entry needs an `entry` carrying at least a `concept` — animation_knowledge returns the full Part 25 field list to fill in');
+    const shape = AI.knowledge.validateProposedEntry(entry);
+    const ev = AI.knowledge.validateEvidenceSource(entry);
+    const problems = [...shape.problems, ...(ev.ok ? [] : [ev.problem])];
+    if (problems.length) {
+      return {
+        written: false, problems,
+        field_list: AI.knowledge.knowledgeFieldList(),
+        expansion_procedure: AI.knowledge.EXPANSION_PROCEDURE,
+        note: 'refused by Part 72\'s gate. Nothing partial is stored — fix the named fields and call again.',
+      };
+    }
+    if (AI.knowledge.getKnowledge(entry.concept)?.source === 'builtin') {
+      return { written: false, problems: [`"${entry.concept}" is one of the twelve compiled classical principles and may not be shadowed. A project-specific exception belongs in record_user_correction / ai/memory.js project_conventions, scoped and evidenced.`] };
+    }
+    if (!apply) return { written: false, dry_run: true, would_write: `${entry.concept}.json`, evidence_sources: ev.sources };
+    const written = await window.cadence.libraryWriteKnowledge({ concept: entry.concept, entry });
+    const reload = await reloadUserKnowledge();
+    return {
+      written: true, path: written.path, replaced: written.replaced,
+      evidence_sources: ev.sources,
+      loaded_entries: reload.loaded, refused_on_reload: reload.refused,
+      checks: AI.knowledge.knowledgeChecks(AI.motion.MEASUREMENTS, { concepts: [entry.concept] }),
+      note: 'stored with evidence_status as given. Nothing applies a knowledge entry to an animation — it is cited by a planner or a review, and it becomes a runnable check only if it names ai/motion.js measurement_keys that already exist.',
+    };
+  },
+
+
 
   // ---------------------------------------------------------------- Phase 9: benchmarks and the improvement loop
   //

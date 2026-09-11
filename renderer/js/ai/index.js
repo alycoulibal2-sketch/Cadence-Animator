@@ -51,6 +51,7 @@
 //   knowledge     Parts 25, 26, 71, 73 — the twelve classical principles, the relevance gate, the premium standard
 //   memory        Part 57 — scoped project/preference memory; Part 58 — learning from accepted and failed work
 //   reference     Part 36 — reference profiles built from an in-project source, never blindly copied
+//   library       Part 70 — the cross-project motion library: entries, search, nearest by measurement
 //   benchmark     Part 59 — the benchmark library: permanent fixtures, measured dimensions, run comparison
 //   benchmarkBaseline  the committed production run every fresh run is compared against (generated)
 //   improve       Part 60 — the architecture-improvement loop: detect, propose, benchmark, review, decide
@@ -74,8 +75,14 @@
 // because a declared style or a captured correction IS an edit a project can make and undo.
 // `reference.js` profiles live in `project.semantics.references`, held out of snapshots and undo
 // exactly like `baselines` and `provenance` — a reference profile is a record ABOUT a source, not a
-// change to this project's own animation. None of the three learn across projects: there is no
-// cross-project store, and each module says so rather than implying otherwise.
+// change to this project's own animation.
+//
+// Part 70 note on what DOES cross a project boundary now: `ai/library.js` (motion clips and their
+// profiles) and the on-disk half of `ai/knowledge.js` (Part 25 entries a session wrote). Both live
+// in the app's user-data folder, both are passed in as plain data like everything else here, and
+// neither is project state. `memory.js` and `style.js` still do NOT cross — a captured correction
+// and a declared style are edits one project made, and generalising them is a person's decision
+// (Part 57), not a folder's.
 //
 // Phase 9 note on what a benchmark is: `benchmark.js` runs the SAME pure pipeline `apply_motion_plan`
 // drives, on permanent fixtures, against an INJECTED implementation — production by default, or a
@@ -127,6 +134,7 @@ export * as style from './style.js';
 export * as knowledge from './knowledge.js';
 export * as memory from './memory.js';
 export * as reference from './reference.js';
+export * as library from './library.js';
 export * as benchmark from './benchmark.js';
 export * as benchmarkBaseline from './benchmarkBaseline.js';
 export * as improve from './improve.js';
@@ -156,6 +164,7 @@ export { MEASUREMENTS, sampleMotion, measureContactDrift, analyseChain, classify
 export { DIAGNOSTICS, diagnose as diagnoseMotion } from './diagnose.js';
 export { runSuite as runBenchmarkSuite, compareRuns as compareBenchmarkRuns, makeImplementation as makeBenchmarkImplementation, listBenchmarks } from './benchmark.js';
 export { detectRecurringProblems, proposeImprovement, evaluateAdoption, decideProposal } from './improve.js';
+export { searchLibrary, nearest as nearestLibraryEntry, makeEntry as makeLibraryEntry, validateEntry as validateLibraryEntry, libraryLimitations } from './library.js';
 
 /** The version of the semantic layer itself, separate from the app version. Bumped when a graph's
  *  shape changes in a way a consumer would notice. 1.11.0 adds GENERATION: `ai/pose.js` compiles a
@@ -163,8 +172,16 @@ export { detectRecurringProblems, proposeImprovement, evaluateAdoption, decidePr
  *  turns an IntentSpec plus declared phase frames into key poses with breakdowns, holds and a
  *  settle. Every strategy in this layer still only EDITS; authoring is a separate entry point with
  *  a separate acceptance spec, because "nothing else changed" and "what I promised exists" are
- *  different claims. */
-export const SEMANTIC_LAYER_VERSION = '1.11.0';
+ *  different claims.
+ *
+ *  1.12.0 adds the CROSS-PROJECT LIBRARY (`ai/library.js`, Part 70) and puts the knowledge base
+ *  on disk (Part 72). Until now every learned thing — a reference profile, a captured
+ *  correction, a declared style — lived inside one `.cadence` file, and three modules said so
+ *  in their own limitations. A library entry now carries Part 70's sixteen fields plus a Part
+ *  36 profile, and is searched by action, tags, rig and measured distance; a knowledge entry
+ *  can be written by a session and loaded by the next one through Part 72's gate. Neither
+ *  store is project state and neither is ever applied automatically. */
+export const SEMANTIC_LAYER_VERSION = '1.12.0';
 
 /** One place to ask what this layer can and cannot currently answer. Returned by
  *  `inspect_scene` so a model never has to infer capability from silence.
@@ -219,6 +236,10 @@ export function capabilities() {
       'answer Part 71\'s nine-question relevance gate for any of the twelve classical principles, honestly marking which questions this build can compute and which it cannot',
       'record scoped project/preference memory with evidence, and surface a preference candidate only once the same correction has been observed enough times — never applying one automatically (Part 57)',
       'build a reference profile from an existing in-project animation and separate what the caller wants to emulate from what is deliberately not copied (Part 36)',
+      'carry motion ACROSS projects: a clip plus its Part 36 profile, Part 70 sixteen fields, a declared provenance and a declared licence, stored outside every project file and searched by action type, tags, rig compatibility and measured distance (ai/library.js)',
+      'import a Roblox animation as a REFERENCE, from a rig AnimSaves folder over the Studio bridge or from an .rbxm/.rbxmx file. That is also how a video reaches this build: Roblox Studio Animation Capture estimates the poses, Cadence imports the keyframes, and the entry stays labelled captured and estimated for as long as it exists',
+      'grow its own knowledge base: a Part 25 entry written by one session is loaded by the next through Part 72 shape AND evidence gates, may not shadow a classical principle, and becomes a runnable check in review_shot only where it names an ai/motion.js measurement that already exists',
+      'record that a shot was accepted or rejected as Part 58 memory, offer (never force) the accepted one into the library, and return a dated lesson paragraph',
       'run Part 59\'s benchmark library — permanent fixtures through the real pipeline, measuring 11 of the 21 evaluation dimensions — and compare two runs per dimension, per benchmark, with no overall score',
       'compare production against a prototype (a declared option or an injected function) on the same benchmarks, and say which measured outcomes improved or regressed — Part 62\'s Phase 9 success condition',
       'detect a recurring problem from durable evidence (repeated corrections, rollback frequency, a reproducibly failing benchmark), record a Part 60 proposal with its category and adoption rule, evaluate the rule mechanically, and record a human decision with a version and a rollback path — never applying anything itself (Part 4.8)',
@@ -240,9 +261,9 @@ export function capabilities() {
       'model an active camera or camera framing at all (Parts 40-41) — shot EVENTS and VFX timing relationships are covered (Phase 6), framing and staging readability are not',
       'author a multi-layer PNX VFX graph from a spec — a VFXSpec compiles to exactly one emitter item, by deliberate choice (see vfxspec.js header)',
       'infer which mode is active, or let a tool force its way out of a read-only mode — Part 11 makes both the user\'s decision, never the tool\'s',
-      'ingest video, an external Roblox animation used as a motion source, a pose sequence, a reference render or a style board — reference profiles are built from an in-project animation item only (Part 36, see reference.referenceLimitations())',
+      'ingest video ITSELF, a pose sequence, a reference render or a style board. 4 of Part 36\'s 7 reference kinds are now supported (an in-project item; a Roblox animation file or AnimSave used as a MOTION source; an approved prior shot, via accept_shot into the library; and video only INDIRECTLY — Roblox Studio\'s Animation Capture estimates the poses and Cadence imports its result, labelled estimated). Nothing in this build looks at a video frame',
       'infer a learned preference from project data alone, or apply one automatically once accepted — a candidate is surfaced only from an explicitly-tagged repeated correction, and acceptance changes only its own status field (Part 57, see memory.memoryLimitations())',
-      'carry knowledge, memory or a declared style across projects — there is no cross-project store; everything Phase 8 adds lives inside one .cadence file',
+      'carry a captured correction or a declared style across projects — ai/memory.js and ai/style.js remain per-project by design (Part 57: generalising a preference is a decision a person makes). Motion clips and knowledge entries DO cross now, through ai/library.js and the on-disk knowledge folder',
       'measure readability, visual noise, or the technical/performance cost of a technique — Part 71\'s relevance gate reports these as unanswerable rather than guessing (see knowledge.evaluateRelevance)',
       'measure 10 of Part 59\'s 21 evaluation dimensions — time to result, corrections, iterations, tool calls, rollback frequency and approval rate are session or human facts; render cost, visual continuity and camera readability need the renderer; export success needs the impure validator (see benchmark.EVALUATION_DIMENSIONS)',
       'benchmark 9 of Part 59\'s 25 categories — idle, run, start/stop, jump, turn, dodge, layered upper-body, camera follow and the complex shot each name what blocks them (see benchmark.listBenchmarks().categories)',

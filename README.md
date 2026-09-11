@@ -86,6 +86,31 @@ for. Where a target is out of reach the shortfall comes back in studs rather tha
 approximated pose. Design, status per requirement, and the defects this work uncovered are in
 [`docs/animation-intelligence/`](docs/animation-intelligence/).
 
+And most recently it learned to **keep what it learns**. Everything above lived inside one
+`.cadence` file: a reference profile, a captured correction, a declared style all died with the
+project. A cross-project **motion library** now sits in the app's user-data folder — a clip plus
+the Part 36 profile measured from it, carrying Part 70's full field list, a declared provenance
+and a declared licence — searchable by action, tags, rig compatibility and measured distance from
+a motion you already have open. Roblox animations reach it two ways: from a rig's `AnimSaves`
+folder over the Studio bridge, or from an `.rbxm` file. That is also how **video** reaches
+Cadence at all: Roblox Studio's own Animation Capture tracks the footage and generates the
+keyframes, Cadence imports them, and the entry is labelled an estimate for as long as it exists —
+`add_to_library` refuses one that claims otherwise, and refuses a licence it was not told.
+
+The knowledge base grows the same way. The twelve classical principles stay compiled into the
+code, but a session can now write a new Part 25 entry to disk and the next session loads it,
+through two gates that refuse rather than store something partial — every field answered, and an
+`evidence_status` that actually names a source. Where an entry names a measurement
+`ai/motion.js` already makes, it becomes a real check in `review_shot`, reported with the number
+it measured and a deliberately empty verdict. Nothing learned is ever applied on its own.
+
+`.claude/skills/cadence-learn/` is the procedure a session follows to turn one video into that
+data: watch it, write what it teaches as entries, write the exact Studio click path for any
+motion worth capturing, and append a dated lesson. The hundred-video queue is
+[`WATCHLIST.md`](docs/animation-intelligence/WATCHLIST.md), split into ten self-contained batches
+under [`watch/`](docs/animation-intelligence/watch/); what has been learned so far is in
+[`LESSONS.md`](docs/animation-intelligence/LESSONS.md).
+
 ## Keyboard
 
 `Ctrl+K` opens the command palette — type what you want to do. `?` shows the full shortcut sheet, or click **⌘ Shortcuts** in the title bar. The essentials: `Space` play/pause, `W`/`E` move/rotate, `S` key the current pose, `A` toggle auto-key, `C` rotation-grid snap, `F` focus selected.

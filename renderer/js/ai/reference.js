@@ -2,11 +2,16 @@
 //
 // Part 36 lists seven kinds of reference a user might supply: existing Cadence animations, Roblox
 // animations, video, pose sequences, reference renders, approved prior shots, style boards, effect
-// references. This build handles exactly ONE of the seven honestly: an existing animation item,
-// either elsewhere in the same project or in a second already-loaded Cadence project object. The
-// other six need capabilities this codebase does not have — video ingestion, a Roblox-animation-
-// file importer used as a MOTION source rather than a rig source, and a render/style-board reader —
-// and are named absent in `referenceLimitations()` rather than stubbed.
+// references. This file builds a profile from ONE of them: an existing animation item, either
+// elsewhere in the same project or in a second already-loaded Cadence project object.
+//
+// Three more arrive through `ai/library.js` and the two import tools, and they arrive AS an
+// in-project item, which is why this file needed no new code path for them: a Roblox animation
+// file or AnimSave used as a MOTION source, an approved prior shot (accept_shot → add_to_library,
+// provenance `authored`), and video — indirectly, because Roblox Studio's Animation Capture does
+// the estimating and Cadence imports its keyframes, labelled `estimated` at every step. Nothing
+// here looks at a video frame. Pose sequences, reference renders and style boards are still
+// unsupported and named absent in `referenceLimitations()` rather than stubbed.
 //
 // The one thing this file does NOT do is re-derive motion measurement. `buildReferenceProfile`
 // calls `ai/motion.js sampleMotion` for the raw per-frame numbers and only maps its OUTPUT onto
@@ -187,6 +192,55 @@ export function buildReferenceProfile(sourceProject, {
   };
 }
 
+// ---------------------------------------------------------------- comparing two profiles
+//
+// Part 36 asks for a comparison, not a score. These two functions are the ONE place a numeric
+// distance between two profiles is computed in this build: `ai/benchmark.js`'s
+// `reference_adaptation` benchmark and `ai/library.js`'s nearest-entry search both import them
+// rather than carrying a second copy that could disagree — the same "one interpolation primitive"
+// discipline `plan.scaleAbout` already holds.
+//
+// Only 3 of the 15 profile dimensions are numeric enough to subtract: spacing variability, peak
+// speed, and peak angular speed, each per subject part. That is a SAMPLE of the profile and never
+// the profile, which is why `profileDistance` reports how many values it compared — a distance
+// over two keys and a distance over twenty are not the same claim.
+
+/** The numeric slice of a Part 36 profile, flattened to `metric:part` keys. */
+export function numericProfile(profile) {
+  const out = {};
+  for (const s of profile?.dimensions?.spacing?.per_subject || []) if (s.variability !== null) out[`spacing_variability:${s.part}`] = s.variability;
+  for (const s of profile?.dimensions?.energy?.per_subject || []) {
+    if (s.peak_speed !== null) out[`peak_speed:${s.part}`] = s.peak_speed;
+    if (s.peak_angular_speed_deg !== null) out[`peak_angular_speed_deg:${s.part}`] = s.peak_angular_speed_deg;
+  }
+  return out;
+}
+
+/**
+ * Mean relative difference over the numeric values the two profiles SHARE.
+ *
+ * Returns `null` — never 0, never Infinity — when nothing is comparable: two profiles of different
+ * rigs share no part names, and a caller that read a 0 there would conclude "identical". Every
+ * consumer has to handle the null rather than have it sorted silently.
+ */
+export function profileDistance(ref, target) {
+  return relativeDistance(numericProfile(ref), numericProfile(target));
+}
+
+/**
+ * The same distance over two already-flattened numeric slices.
+ *
+ * `ai/library.js` stores the flattened slice on a library entry rather than the whole profile (an
+ * index of a hundred entries would otherwise carry a hundred full profiles just to be searchable),
+ * and it must get the SAME number a full-profile comparison would give, so both go through here.
+ */
+export function relativeDistance(a, b) {
+  const keys = Object.keys(a).filter((k) => k in b && Math.abs(a[k]) > 1e-9);
+  if (!keys.length) return null;
+  const rel = keys.map((k) => Math.abs(b[k] - a[k]) / Math.abs(a[k]));
+  return { value: Math.round((rel.reduce((x, y) => x + y, 0) / rel.length) * 1e6) / 1e6, keys: keys.length };
+}
+
 // ---------------------------------------------------------------- storage
 
 function store(project, { create = false } = {}) {
@@ -224,7 +278,7 @@ export function getReferenceProfile(project, id) {
 
 export function referenceLimitations() {
   return [
-    'Only ONE of Part 36\'s seven reference kinds is supported: an existing animation item, in this project or a second already-loaded Cadence project. Roblox animation files used as a MOTION source (not a rig source), video, pose sequences, reference renders and style boards are all unsupported.',
+    'This module profiles an in-project animation item and nothing else. Three further Part 36 reference kinds reach it by first BECOMING one, through import_from_studio / import_animation_file / add_to_library: a Roblox animation file or AnimSave, an approved prior shot, and video by way of Roblox Studio\'s own Animation Capture (whose poses are an estimate, carried as provenance `captured` and `estimated: true`). Pose sequences, reference renders and style boards remain unsupported — 4 of 7.',
     'weight, overshoot, silhouette_behavior, camera_behavior, vfx_rhythm and lighting_and_color_tendencies are never measured — each names the specific missing model (contact/mass, target position, a renderer, an active-camera model, ai/events.js not being called here, and no lighting existing at all, respectively).',
     'anticipation and impact_contrast are measured ONLY when the source range carries a marker literally named for them — nothing infers a phase boundary that was not declared.',
     'emulate / not_copied / adaptation_needed are the caller\'s own declarations or a structural comparison against a supplied target; nothing here decides WHICH measured characteristics are worth keeping.',

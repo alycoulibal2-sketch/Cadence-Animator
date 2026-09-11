@@ -1,0 +1,38 @@
+{
+  "concept": "timing",
+  "category": "essential",
+  "definition": "The placement and duration of every phase, hold, and pause — controls meaning, not merely speed: mass, intention, emotion, surprise, hesitation, confidence, impact, rhythm, responsiveness.",
+  "purpose": "Carry meaning through WHEN things happen, independent of how far they move.",
+  "visible_effect": "Phase durations, held frames, pauses, and the relative timing between body regions, camera, VFX, and audio.",
+  "psychological_or_gameplay_effect": "The most semantically loaded of the twelve principles — the same pose sequence reads completely differently at different timings.",
+  "physical_interpretation": "Directly measurable as frame counts and durations; the MEANING attached to a given duration is not physical at all.",
+  "use_cases": [
+    "every motion — Part 26.9 treats timing as universal, like staging"
+  ],
+  "non_use_cases": [
+    "none stated — like staging, this is treated as always relevant, only its EXPRESSION varies by style"
+  ],
+  "interactions": [
+    "Spacing — Part 26.9 explicitly separates timing (WHEN) from spacing (curve shape), which slow-in/slow-out covers",
+    "Camera, VFX, and audio relative timing are named in Part 26.9's list and are exactly what `ai/events.js`'s shared shot-event timeline (Phase 6) exists to check for co-timing and overlap"
+  ],
+  "style_variations": {
+    "game_combat": "timing is bounded by input responsiveness before anything else",
+    "anime": "holds and freezes are legitimate timing choices, not gaps"
+  },
+  "cadence_representation": "The most thoroughly represented principle in this table: `ai/cal.js PHASE_NAMES` and `ai/plan.js segmentPhases` structure a motion into phases; `body_lead` and `secondary_delay` vocabulary dimensions edit relative timing; `ai/events.js` measures co-timing and overlap across items; `ai/motion.js` measures onset/peak per joint.",
+  "control_surface": "`body_lead`, `secondary_delay` vocabulary dimensions; `list_shot_events` / `describe_shot` for cross-item timing; `analyze_motion` for per-joint onset/peak.",
+  "detection_and_measurement_methods": "Real, in several places: phase segmentation from key/marker evidence, per-joint onset/peak timing, and shot-event overlap/concurrency.",
+  "generation_or_modification_methods": "`body_lead` orders per-joint key offsets by chain depth (a MOVES-keys dimension); `secondary_delay` likewise.",
+  "failure_modes": [
+    "uniform timing across a chain that should show lead/lag",
+    "timing decisions made without reference to the declared action type or emotional intent"
+  ],
+  "roblox_considerations": "None beyond the fps/frame model already shared with the rest of Cadence.",
+  "performance_implications": "None.",
+  "examples": [
+    "a held beat before a reveal",
+    "staggered per-joint onset down a whip-crack chain"
+  ],
+  "evidence_status": "directive text (Part 26.9) plus multiple real measurements across Phases 3, 5 and 6"
+}

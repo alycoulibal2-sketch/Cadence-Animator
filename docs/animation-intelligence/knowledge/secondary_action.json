@@ -1,0 +1,37 @@
+{
+  "concept": "secondary_action",
+  "category": "essential",
+  "definition": "Motion that supports the primary action without competing with it — head movement, breathing, cloth, facial reaction, hand adjustment, dust, ambient particles, camera response.",
+  "purpose": "Add richness and storytelling without distracting from what the shot is actually about.",
+  "visible_effect": "A subordinate motion running alongside the primary one, timed so it reinforces rather than draws focus.",
+  "psychological_or_gameplay_effect": "Done well, deepens the read of the primary action; done badly, becomes visual noise or a performance budget cost.",
+  "physical_interpretation": "Whatever the secondary element itself represents — cloth, breath, a VFX puff — no single physical model applies.",
+  "use_cases": [
+    "a character reacting with a head-turn while the body performs the primary action",
+    "ambient dust or particle response to a heavy footstep"
+  ],
+  "non_use_cases": [
+    "adding secondary motion that competes with or obscures the primary action — precisely Part 26.8's central question",
+    "a performance-budget-constrained shot where the secondary element is not essential storytelling"
+  ],
+  "interactions": [
+    "Staging — secondary action is staging's most common failure point when it grows too large",
+    "Timing — must not run at a moment that competes with the primary action's own key beats"
+  ],
+  "style_variations": {},
+  "cadence_representation": "No dedicated representation. `ai/vfxspec.js`'s `role: secondary` (Part 38 hierarchy) is the nearest existing mechanism, and it only covers VFX items, not character-side secondary motion (breathing, head reaction) — Cadence has no facial or breathing rig concept at all (see Part 34, out of scope for this Roblox-body-rig build).",
+  "control_surface": "VFX `role` field via `compile_effect`; nothing for character-side secondary motion.",
+  "detection_and_measurement_methods": "None — \"does this reinforce or distract\" is a judgement this build does not attempt to measure.",
+  "generation_or_modification_methods": "None beyond the VFX hierarchy budget share already covered under staging.",
+  "failure_modes": [
+    "secondary motion growing large enough to compete with the primary action",
+    "VFX clutter from too many simultaneous secondary effects"
+  ],
+  "roblox_considerations": "None specific.",
+  "performance_implications": "A secondary VFX layer does carry a real particle budget cost, which `ai/vfxspec.js` accounts for via its hierarchy share.",
+  "examples": [
+    "dust kicked up by a heavy landing, timed just after the primary impact",
+    "a character's off-hand adjusting a grip while the main arm swings"
+  ],
+  "evidence_status": "directive text (Part 26.8) only; no measurement exists for character-side secondary motion"
+}

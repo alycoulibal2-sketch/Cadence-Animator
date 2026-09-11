@@ -89,7 +89,7 @@ export const MEASUREMENTS = Object.freeze({
   },
   relation_to_reference_motion: {
     implemented: false,
-    unblocked_by: 'REF-001 — no reference motion is ingested (Part 36, Phase 8)',
+    unblocked_by: 'not the reference itself — ai/reference.js builds a Part 36 profile and ai/library.js compares two of them (relativeDistance, 3 numeric dimensions). What is missing is here: sampleMotion measures ONE item and never subtracts a second one\'s samples, so a per-frame "how far is this from the reference at frame 12" does not exist. Use store_reference_profile + search_library nearItemId for the profile-level answer',
   },
 });
 

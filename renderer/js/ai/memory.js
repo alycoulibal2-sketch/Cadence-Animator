@@ -319,7 +319,7 @@ export function recordFailedApproach(project, {
 
 export function memoryLimitations() {
   return [
-    'There is no cross-project store. Every scope lives in project.semantics.memory, which travels with one .cadence file — a preference learned here cannot inform a different project without an explicit export/import step that does not exist.',
+    'Memory itself is per-project, by design rather than by omission: every scope lives in project.semantics.memory and travels with one .cadence file, because generalising a captured correction into a rule for every project is a decision Part 57 gives a person, not a folder. What DOES cross a project now is motion (ai/library.js, Part 70 — accept_shot offers an accepted shot to it) and knowledge (the on-disk half of ai/knowledge.js, Part 72). A preference still cannot: there is no export/import step for one, and adding a silent one would be the unapproved global assumption Part 62 forbids.',
     '"Similar correction" is never inferred. recordCorrection requires an explicit patternKey from the caller; nothing in this build clusters two corrections as the same kind of thing from project data alone.',
     'Accepting a preference candidate changes only its own status field. It never writes to ai/vocabulary.js or any track — promoting an accepted preference into actual behaviour is a separate, explicit step a caller must take.',
     'recordAcceptedWork / recordFailedApproach capture Part 58\'s fields exactly as stated, but extracting WHICH features, experiments or constraints mattered is the caller\'s judgement, not something derived from project data here.',

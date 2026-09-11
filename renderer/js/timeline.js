@@ -286,6 +286,13 @@ function drawLoop() {
 
 export function requestDraw() { tl.needsDraw = true; }
 
+// Canvas cannot inherit CSS vars, so every painted colour reads the theme here. Module-level
+// rather than local to draw(): drawMarkerLane() below is a sibling function and calls it too,
+// and when this was a const inside draw() a named event marker threw ReferenceError mid-frame.
+function themeVar(name, fallback) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
 function draw() {
   const ctx = tl.ctx;
   const w = tl.canvas.clientWidth, h = tl.canvas.clientHeight;
@@ -295,8 +302,6 @@ function draw() {
 
   // Canvas can't inherit CSS vars — read the theme's palette per draw (cheap: draws only happen
   // on needsDraw, and getComputedStyle here was already the established pattern for --accent).
-  const styles = getComputedStyle(document.documentElement);
-  const themeVar = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
   const cAccent = themeVar('--accent', '#7c8cff');
   const cKey = themeVar('--text-1', '#c9cbe0');
   const cKeySel = cAccent;

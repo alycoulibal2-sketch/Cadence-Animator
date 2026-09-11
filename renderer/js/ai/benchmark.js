@@ -63,6 +63,7 @@ import * as DIAG from './diagnose.js';
 import * as VS from './vfxspec.js';
 import * as EVENTS from './events.js';
 import * as REF from './reference.js';
+import * as LIB from './library.js';
 import { contentHash, shortHash } from './hash.js';
 import { CERTAINTY, coverage, evidence, finding } from './certainty.js';
 
@@ -188,6 +189,8 @@ const PRODUCTION_FUNCTIONS = Object.freeze({
   diagnose: DIAG.diagnose,
   sampleMotion: MOTION.sampleMotion,
   buildReferenceProfile: REF.buildReferenceProfile,
+  searchLibrary: LIB.searchLibrary,
+  nearestLibraryEntry: LIB.nearest,
 });
 
 export const OVERRIDABLE_FUNCTIONS = Object.freeze(Object.keys(PRODUCTION_FUNCTIONS));
@@ -1253,23 +1256,10 @@ const VFX_BENCHMARKS = {
 
 // ---- reference adaptation (Part 36)
 
-function numericProfile(profile) {
-  const out = {};
-  for (const s of profile.dimensions.spacing.per_subject || []) if (s.variability !== null) out[`spacing_variability:${s.part}`] = s.variability;
-  for (const s of profile.dimensions.energy.per_subject || []) {
-    if (s.peak_speed !== null) out[`peak_speed:${s.part}`] = s.peak_speed;
-    if (s.peak_angular_speed_deg !== null) out[`peak_angular_speed_deg:${s.part}`] = s.peak_angular_speed_deg;
-  }
-  return out;
-}
-
-function profileDistance(ref, target) {
-  const a = numericProfile(ref), b = numericProfile(target);
-  const keys = Object.keys(a).filter((k) => k in b && Math.abs(a[k]) > 1e-9);
-  if (!keys.length) return null;
-  const rel = keys.map((k) => Math.abs(b[k] - a[k]) / Math.abs(a[k]));
-  return { value: round6(rel.reduce((x, y) => x + y, 0) / rel.length), keys: keys.length };
-}
+// The distance itself lives in `ai/reference.js` beside the profile it measures, because
+// `ai/library.js` needs the same number to find the nearest library entry, and two copies of a
+// distance function is exactly how two callers end up disagreeing about what "close" means.
+const profileDistance = REF.profileDistance;
 
 const REFERENCE_BENCHMARK = {
   benchmark_id: 'reference_adaptation', category: 'reference adaptation',
@@ -1318,6 +1308,157 @@ const REFERENCE_BENCHMARK = {
   },
 };
 
+// ---- library search (Part 70)
+//
+// The question a motion library has to answer before it is worth having: given a motion, is the
+// closest thing already in the library the RIGHT closest thing. A library that returns a walk
+// when asked for the nearest heavy attack is worse than no library, because it is confidently
+// wrong and Part 70's own rule — "prefer adapting validated assets, but do not force a reused
+// asset into an incompatible context" — depends on the retrieval being right.
+//
+// The index is SEEDED from these fixtures and exists only inside this run. That is deliberate and
+// load-bearing twice over: the numbers are reproducible on any machine, and the suite never reads
+// the user's own library (which is licensed material and their private captures).
+//
+// On dimensions: the retrieval hit rate is reported as a CHECK, not as a dimension. Part 59's
+// twenty-one are pinned verbatim and `correct_causal_diagnosis_rate` is defined as contact-drift
+// attribution — reusing it for search retrieval would make that dimension's own stated method a
+// lie. A check with `detail: { hits, of }` carries the same number honestly.
+
+/** Four distinguishable motions in one project, plus a slower performance of one of them — the
+ *  hard case, because "the same poses, performed differently" is exactly what a library has to
+ *  tell apart from "a different motion entirely". */
+function librarySearchFixture(rigs) {
+  const slash = slashFixture(rigs, { cleanRoot: true }).tracks.hero;
+  const flinch = flinchFixture(rigs).tracks.hero;
+  const walk = walkFixture(rigs).tracks.hero;
+  const retime = (tracks, factor) => Object.fromEntries(Object.entries(tracks).map(([n, tr]) => [n, { keys: tr.keys.map((kf) => ({ ...kf, v: kf.v.slice(), t: kf.t * factor })) }]));
+  const items = ['slash', 'slow_slash', 'flinch', 'walk'].map((id) => rigItem(rigs, 'r15', id, id));
+  return baseProject('bench-library', 'Library search', items, {
+    slash, slow_slash: retime(slash, 2), flinch, walk,
+  }, {
+    slash: [{ t: 16, width: 2, name: 'impact' }], slow_slash: [{ t: 32, width: 2, name: 'impact' }],
+    flinch: [{ t: 4, width: 1, name: 'hit' }], walk: [],
+  }, 120);
+}
+
+/** What each fixture item is, and the query that should find it: a 10% slower performance of the
+ *  same poses — a real "I have something like this, what do we already own" query, not the item
+ *  itself, which would make every retrieval trivially exact. */
+const LIBRARY_SEEDS = Object.freeze([
+  { id: 'slash', action: 'heavy attack', description: 'a body-driven overhead slash on a planted left foot', intent: ['telegraphed', 'committed'], style: ['anime'] },
+  { id: 'slow_slash', action: 'heavy attack', description: 'the same slash performed at half speed', intent: ['telegraphed', 'majestic'], style: ['realistic'] },
+  { id: 'flinch', action: 'reaction animation', description: 'a full-body flinch, hit at frame 4, recovered by 20', intent: ['reactive'], style: ['game_combat'] },
+  { id: 'walk', action: 'walk cycle', description: 'two steps on a static origin with a yawing pelvis', intent: ['locomotion'], style: ['realistic'] },
+]);
+
+const LIBRARY_BENCHMARK = {
+  benchmark_id: 'library_search', category: 'reference adaptation',
+  goal: 'the nearest library entry to a motion is the entry built from that same motion, not from a different action or a different performance of it — and an incompatible entry is EXCLUDED with a reason rather than ranked low',
+  scene_and_rig_prerequisites: 'four R15 items in one project: a slash, the same slash at half speed, a flinch, and a walk; a library index seeded from all four',
+  input_request: 'for each motion, a 10% slower performance of it — "what do we already have that is closest to this?"',
+  reference_or_baseline: 'the seeded index itself; every entry carries the Part 36 profile ai/reference.js built from its item',
+  required_constraints: 'none — search reads and changes nothing',
+  allowed_variation: 'none: the same index and the same queries must return the same order every run',
+  forbidden_variation: 'reading the user\'s real library; changing the project',
+  technical_metrics: ['reference_alignment', 'reproducibility'],
+  visual_metrics: ['none'],
+  review_rubric: ['style_fit'],
+  expected_artifacts: ['the seeded index, each query\'s ranked matches, and the distance of the correct entry'],
+  performance_budget: { max_operations: 0 },
+  known_failure_cases: [
+    'only 3 of Part 36\'s 15 profile dimensions are numeric, so two motions that differ in weight, overshoot or silhouette and agree on spacing and peak speed are indistinguishable here',
+    'the slash and its half-speed twin share every pose; they are told apart by speed alone, which is exactly the case where a profile built on three numbers is weakest',
+    'the retrieval hit rate is a check rather than a dimension — Part 59\'s twenty-one are pinned and none of them means "search found the right row"',
+  ],
+  human_acceptance_procedure: 'a reviewer plays the query motion and the returned entry side by side and says whether it is the closest thing in the library',
+  dimensions: ['reference_alignment', 'reproducibility'],
+  exercises_tools: ['search_library', 'load_from_library', 'store_reference_profile'],
+  run(ctx) {
+    const project = librarySearchFixture(ctx.rigs);
+    const profileOf = (id, factor) => {
+      if (!factor) return ctx.impl.fn.buildReferenceProfile(project, { itemId: id });
+      const retimed = {
+        ...project,
+        tracks: { ...project.tracks, [id]: Object.fromEntries(Object.entries(project.tracks[id]).map(([n, tr]) => [n, { keys: tr.keys.map((kf) => ({ ...kf, v: kf.v.slice(), t: kf.t * factor })) }])) },
+      };
+      return ctx.impl.fn.buildReferenceProfile(retimed, { itemId: id });
+    };
+
+    // Seed the index. Every entry goes through the real gate, because an index the product would
+    // have refused is not a library this benchmark is entitled to measure.
+    let index = LIB.emptyIndex();
+    const invalid = [];
+    for (const s of LIBRARY_SEEDS) {
+      const entry = LIB.makeEntry({
+        profile: profileOf(s.id), semanticDescription: s.description, actionType: s.action,
+        intentTags: s.intent, styleTags: s.style, compatibleRigs: ['r15'],
+        technicalImplementation: { kind: 'keyframe_animation', file: `entries/${s.id}.cadence` },
+        provenance: { kind: 'authored', added_at: '2026-01-01T00:00:00Z' },
+        licenseOrOwnership: { terms: 'benchmark fixture', redistributable: true },
+      });
+      const v = LIB.validateEntry(entry);
+      if (!v.ok) invalid.push({ id: s.id, problems: v.problems });
+      index = LIB.upsertEntry(index, entry).index;
+    }
+    // One entry deliberately built for another rig, to prove the filter EXCLUDES rather than
+    // quietly ranking it last where a caller might still take it.
+    const r6 = LIB.makeEntry({
+      profile: profileOf('slash'), semanticDescription: 'an R6 swing', actionType: 'heavy attack',
+      intentTags: ['telegraphed'], styleTags: ['anime'], compatibleRigs: ['r6'],
+      technicalImplementation: { kind: 'keyframe_animation', file: 'entries/r6.cadence' },
+      provenance: { kind: 'authored', added_at: '2026-01-01T00:00:00Z' },
+      licenseOrOwnership: { terms: 'benchmark fixture', redistributable: true },
+    });
+    index = LIB.upsertEntry(index, r6).index;
+    const byId = Object.fromEntries(index.entries.map((e) => [e.semantic_description, e.library_id]));
+
+    const queries = LIBRARY_SEEDS.map((s) => {
+      const want = byId[s.description];
+      // `rig: 'r15'` is not decoration: the index deliberately holds an R6 entry profiled from
+      // the SAME slash, which measures exactly equidistant. Without the filter the tie-break (the
+      // id) decides, and "the nearest thing" comes back as a clip that cannot be used on this rig.
+      const near = ctx.impl.fn.nearestLibraryEntry(index, profileOf(s.id, 1.1), { rig: 'r15' });
+      const top = near.nearest[0] ?? null;
+      return {
+        query: s.id, expected: want, got: top?.library_id ?? null, hit: top?.library_id === want,
+        distance: top?.distance ?? null,
+        distance_to_expected: near.nearest.find((n) => n.library_id === want)?.distance ?? null,
+        runner_up: near.nearest[1] ? { id: near.nearest[1].library_id, distance: near.nearest[1].distance } : null,
+      };
+    });
+    const hits = queries.filter((q) => q.hit).length;
+    const correctDistances = queries.map((q) => q.distance_to_expected).filter((d) => d !== null);
+
+    const filtered = ctx.impl.fn.searchLibrary(index, { actionType: 'heavy attack', rig: 'r15' });
+    const excludedR6 = filtered.excluded.find((x) => x.library_id === r6.library_id);
+
+    const measured = {};
+    if (correctDistances.length) {
+      measured.reference_alignment = {
+        value: round6(correctDistances.reduce((a, b) => a + b, 0) / correctDistances.length),
+        detail: { queries: queries.length, note: 'mean distance from each query to the entry that SHOULD be its nearest; lower means the library really is near what it claims to be near' },
+      };
+    }
+
+    const checks = [
+      { name: 'the nearest entry for each action is the right one', ok: hits === queries.length, detail: { hits, of: queries.length, misses: queries.filter((q) => !q.hit).map((q) => ({ query: q.query, expected: q.expected, got: q.got })) } },
+      { name: 'every seeded entry passes the Part 70 gate', ok: invalid.length === 0, detail: invalid },
+      { name: 'an entry built for another rig is EXCLUDED with a reason, not ranked low', ok: !!excludedR6 && !filtered.matches.some((m) => m.library_id === r6.library_id), detail: excludedR6?.reason ?? 'the r6 entry was not excluded' },
+      { name: 'search changed nothing', ok: contentHash(SNAP.withoutHistory(project)) === contentHash(SNAP.withoutHistory(librarySearchFixture(ctx.rigs))), detail: null },
+      { name: 'the ranking rule is stated rather than implied', ok: /never a weighted score/.test(filtered.ranking), detail: filtered.ranking },
+      { name: 'a measured tie is reported, not hidden by the tie-break', ok: LIB.nearest(index, profileOf('slash')).tied_for_first.length === 2, detail: 'the r6 decoy is profiled from the same slash and must measure exactly equidistant with it' },
+    ];
+
+    return {
+      measured, checks,
+      after_hash: contentHash({ queries: queries.map((q) => ({ q: q.query, got: q.got, d: q.distance })), entries: index.entries.length }),
+      detail: { entries: index.entries.length, queries, excluded_by_rig: !!excludedR6, coverage: LIB.coverageAgainst(index, BENCHMARK_CATEGORIES) },
+    };
+  },
+};
+
+
 export const BENCHMARKS = Object.freeze({
   ...PLAN_BENCHMARKS,
   authored_attack: AUTHORING_BENCHMARK,
@@ -1325,6 +1466,7 @@ export const BENCHMARKS = Object.freeze({
   contact_diagnosis: CONTACT_BENCHMARK,
   ...VFX_BENCHMARKS,
   reference_adaptation: REFERENCE_BENCHMARK,
+  library_search: LIBRARY_BENCHMARK,
 });
 
 export const BENCHMARK_IDS = Object.freeze(Object.keys(BENCHMARKS));

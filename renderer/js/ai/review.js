@@ -61,6 +61,7 @@ import * as vfxspec from './vfxspec.js';
 import * as constraints from './constraints.js';
 import * as cal from './cal.js';
 import * as modes from './modes.js';
+import * as knowledge from './knowledge.js';
 
 /**
  * Consequence, as distinct from confidence.
@@ -412,6 +413,19 @@ export function reviewShot(project, { itemId = null, acceptance = null, constrai
     recommended_corrections: recommend(orderedDefects, first),
     protected_elements: protectedElements,
     user_judgment_required: suggestions.length > 0 || orderedDefects.some((d) => d.certainty === CERTAINTY.USER_INTENT_REQUIRED || d.certainty === CERTAINTY.SUBJECTIVE),
+
+    // KNW-003 wired to a real measurement rather than left as prose. Every knowledge entry —
+    // the twelve compiled principles and whatever the user has loaded from disk — declares a
+    // detection method; this reports the ones ai/motion.js can actually compute on THIS shot,
+    // with the value, and names the rest as not measured with the reason. It grows as the
+    // knowledge corpus grows, which is the whole point of the corpus being loadable.
+    //
+    // Deliberately NOT findings: a measurement a principle points at is not a defect and not a
+    // suggestion. Each runnable check carries `verdict: null`, because there is no threshold in
+    // this build for "enough anticipation" and each entry's own style_variations is why.
+    knowledge_checks: sampled
+      ? knowledge.knowledgeChecks(motion.MEASUREMENTS, { sampled })
+      : { runnable: [], not_measured: [], counts: { runnable: 0, not_measured: 0, total: 0 }, note: 'nothing was sampled (the item has no keyframes), so no principle-backed measurement could run' },
 
     quality_layers: QUALITY_LAYERS,
     layers_reviewed: QUALITY_LAYERS.filter((l) => l.measured === true || l.measured === 'partly').map((l) => l.layer),

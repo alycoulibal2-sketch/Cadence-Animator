@@ -1,0 +1,39 @@
+{
+  "concept": "exaggeration",
+  "category": "essential",
+  "definition": "Selecting and amplifying the important visual facts of an action — never \"increase every value.\"",
+  "purpose": "Make the significant part of an action read clearly by amplifying it while keeping something else restrained for contrast.",
+  "visible_effect": "One or a few dimensions (pose, timing, spacing, arc, silhouette, camera, VFX, or sound) amplified while others stay controlled.",
+  "psychological_or_gameplay_effect": "Done selectively, increases clarity and impact; done uniformly, flattens the hierarchy and reads as generic \"more animated.\"",
+  "physical_interpretation": "Not physical — a selection-and-amplification discipline.",
+  "use_cases": [
+    "a heavy or powerful action wanting a clearly readable peak",
+    "a stylized shot (anime, cartoon) where exaggeration is the dominant idiom"
+  ],
+  "non_use_cases": [
+    "amplifying every dimension at once, which the directive explicitly calls the failure mode (Part 26.10) — \"power is not 'make everything bigger'\" is stated almost verbatim in `ai/vocabulary.js`'s \"powerful\" term",
+    "a realistic or mechanical style, where restraint is closer to the point"
+  ],
+  "interactions": [
+    "Directly opposed to uniform amplitude scaling — the same warning appears independently in `ai/vocabulary.js`'s \"powerful\" and \"subtle\" term cards, which is evidence this principle was already being informally applied before this entry existed to name it"
+  ],
+  "style_variations": {
+    "anime": "exaggeration is close to the default idiom",
+    "realistic": "restrained to near-zero outside a deliberately dramatic beat"
+  },
+  "cadence_representation": "Indirect: `ai/vocabulary.js`'s `motion_amplitude` dimension is the literal lever, and several terms' `pinned_zero` fields (\"powerful\" pins `amplitude_alone` with the exact Part 26.10 warning) already encode the non-use case — but nothing decides WHICH dimension to exaggerate versus hold restrained; that selection is left to the vocabulary's pre-authored term cards, not a general reasoning step.",
+  "control_surface": "`motion_amplitude` vocabulary dimension.",
+  "detection_and_measurement_methods": "None dedicated — `ai/motion.js` measures amplitude-adjacent quantities (peak speed, acceleration) but nothing judges whether amplification was SELECTIVE versus uniform.",
+  "generation_or_modification_methods": "`motion_amplitude` scales every keyed rotation delta about the phase-entry pose uniformly across the whole target — which is itself a limitation worth naming: the compiler cannot yet exaggerate one joint while restraining another within a single request.",
+  "failure_modes": [
+    "raising every amplitude at once, discarding the contrast that makes the exaggerated part legible (the exact failure `ai/vocabulary.js` \"powerful\" already warns about)",
+    "exaggerating a dimension the declared style restrains"
+  ],
+  "roblox_considerations": "None specific.",
+  "performance_implications": "None.",
+  "examples": [
+    "a wide wind-up with a restrained follow-through, so the wind-up reads as the exaggerated beat",
+    "a single dramatic pose held while everything around it stays subdued"
+  ],
+  "evidence_status": "directive text (Part 26.10); consistent with pre-existing `pinned_zero` warnings in `ai/vocabulary.js`, but no automated selectivity check exists"
+}

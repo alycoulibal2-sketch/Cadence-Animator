@@ -26,8 +26,9 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 | `renderer/js/ai/style.js` | Part 35. Per-style multipliers on vocabulary dimensions — makes a declared style change a numeric pull, not just a label. No default; `project.semantics.style` is undoable state. |
 | `renderer/js/ai/knowledge.js` | Parts 25, 26, 71, 73. The twelve classical principles (full 20-field structure), the relevance gate, the premium-animation standard. Compiled reference data, like `vocabulary.js TERMS` — not project state. |
 | `renderer/js/ai/memory.js` | Parts 57, 58. Scoped project/preference memory in `project.semantics.memory`, undoable. A correction is only surfaced as a candidate once observed enough times; accepting one changes only its own status field. |
-| `renderer/js/ai/reference.js` | Part 36. A motion profile built from an in-project item via `ai/motion.js`, stored in `project.semantics.references` (NOT_STATE, like baselines). `emulate`/`not_copied` are the caller's own declaration. |
-| `renderer/js/ai/benchmark.js` | Part 59. The benchmark library: 25 categories (16 defined), 17 fixtures through the REAL pipeline, 21 dimensions (11 measured), `runSuite`, `compareRuns` (per cell, no score), human evaluation as a separate block. The implementation under test is injected (`makeImplementation`). Two pipelines, not one: `runPlanPipeline` (edit) and `runAuthorPipeline` (generate). |
+| `renderer/js/ai/reference.js` | Part 36. A motion profile built from an in-project item via `ai/motion.js`, stored in `project.semantics.references` (NOT_STATE, like baselines). `emulate`/`not_copied` are the caller's own declaration. Also the ONE place a numeric distance between two profiles lives (`numericProfile`, `profileDistance`, `relativeDistance`) — `ai/benchmark.js` and `ai/library.js` both import it rather than carrying a copy. |
+| `renderer/js/ai/library.js` | Part 70. The CROSS-PROJECT motion library: Part 70's sixteen fields plus an action type, a Part 36 profile and the numeric characteristics search subtracts. Validates, searches, ranks and reports coverage. **Reads no files** — `src/main.js` owns the folder under `app.getPath('userData')`, gated by IPC exactly like autosave. |
+| `renderer/js/ai/benchmark.js` | Part 59. The benchmark library: 25 categories (16 defined), 18 fixtures through the REAL pipeline, 21 dimensions (11 measured), `runSuite`, `compareRuns` (per cell, no score), human evaluation as a separate block. The implementation under test is injected (`makeImplementation`). Two pipelines, not one: `runPlanPipeline` (edit) and `runAuthorPipeline` (generate). |
 | `renderer/js/ai/benchmarkBaseline.js` | **GENERATED** by `node tools/benchmark.mjs --write-baseline`. The committed production run every fresh run is compared against. Never hand-edit; re-generate and commit the diff with the change that moved a number. |
 | `renderer/js/ai/improve.js` | Part 60. Detect recurring problems from durable evidence, record a proposal (category REQUIRED), evaluate its adoption rule against two runs, record a human decision with a version and a rollback path. Applies nothing (Part 4.8). |
 | `tools/benchmark.mjs` | The suite from the command line: run, `--compare` (exit 1 on any deterministic difference), `--write-baseline`, `--options '{…}'` / `--prototype file.mjs` for prototypes, `--json` to hand a run to `review_architecture_experiment`. |
@@ -41,10 +42,14 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 `npm` is broken under Git Bash here. Use PowerShell, and invoke binaries directly.
 
 ```
-node test/aitest.mjs                # semantic layer — 373 checks
+node test/aitest.mjs                # semantic layer — 390 checks
 node test/coretest.mjs              # core           —  41
 node test/pnxtest.mjs               # PNX engine     — 298
 node tools/benchmark.mjs --compare  # Part 59 suite vs the committed baseline (deterministic only)
+
+node tools/export-knowledge.mjs           # regenerate the knowledge seed on disk from the module
+node tools/export-knowledge.mjs --check    # …and the check aitest runs, so the two cannot drift
+node tools/merge-knowledge-inbox.mjs --batch W03 [--dry-run]   # merge ONE finished watch batch
 ```
 
 `--compare` exits 1 on a difference in EITHER direction. Intended: `node tools/benchmark.mjs
@@ -206,6 +211,44 @@ work.
   silent step is exactly the "unapproved global assumption" Part 62 forbids. A caller that wants an
   accepted preference to take effect must separately call `set_vocabulary_term`, citing the
   candidate as evidence.
+
+- **The library is OUTSIDE the repo and outside every project file**, in the app's user-data
+  folder. Mixamo forbids redistributing its clips as files and the user's captures are theirs, so
+  nothing may write a library entry into a `.cadence` file, a fixture, or the tree. `ai/library.js`
+  reads no files at all and a test greps it to keep that true; `src/main.js` owns the folder.
+  `--user-data-dir` moves the whole thing, which is why the smoketest can exercise a real library.
+- **Two library entries profiled from the SAME motion measure exactly equidistant**, so a tie-break
+  silently decides which is "nearest" — and if one of them was built for a different rig, the
+  answer is a clip that cannot be used. `nearest()` takes a `rig` filter and reports
+  `tied_for_first`. Found by the `library_search` benchmark, not by reading the code.
+- **An incomparable profile distance is `null`, never 0 and never Infinity.** Two entries on
+  different rigs share no part names. A caller reading a 0 there concludes "identical"; the sort
+  puts nulls last and every row says why it could not be compared.
+- **A `captured` library entry must declare `estimated: true`** and carry its source video URL.
+  Roblox Studio's Animation Capture estimates poses from video — an entry claiming otherwise turns
+  every later measurement into a false measurement of the performer, and `validateEntry` refuses
+  it. Nothing infers a licence either: `redistributable` must be an explicit boolean.
+- **A user knowledge entry may not shadow one of the twelve compiled principles.** The compiled
+  card wins and the loader reports the file it skipped (`already_builtin`, not `refused` — the
+  shipped seed re-presents all twelve at every launch). A project-specific exception belongs in
+  `ai/memory.js project_conventions`, scoped and evidenced.
+- **A knowledge entry only becomes a runnable check where `ai/motion.js` already measures it.**
+  `DETECTION_MEASUREMENTS` maps the twelve; a user entry wires itself with `measurement_keys`.
+  `implemented` is READ from `MEASUREMENTS`, never asserted in the registry, so a measurement that
+  lands later flips it automatically. Every check carries `verdict: null` — the measurement is
+  reported and nothing here decides whether the principle is satisfied.
+- **The knowledge seed on disk is GENERATED** by `tools/export-knowledge.mjs` and checked by
+  `aitest`, the same discipline `benchmarkBaseline.js` holds. Change a card in the module and the
+  export is part of the same commit.
+- **Merging a watch inbox needs `--batch Wnn`.** Several watch sessions run at once, on both
+  machines; merging everything takes files out from under a session still writing them.
+- **`animation_knowledge` is async** (it reloads the on-disk corpus through the gate on every
+  call) and so are all seven library tools. A smoketest step calling one without `await` gets a
+  Promise and fails on `.length` of undefined — which is exactly how that was found.
+- **A function two top-level functions share must not be a `const` inside one of them.**
+  `timeline.js`'s `themeVar` was local to `draw()` and `drawMarkerLane()` called it, so painting a
+  NAMED event marker threw `ReferenceError` mid-frame and the lane stopped drawing. Pre-existing
+  and invisible until a test put a named marker on a rig the timeline draws.
 
 ## Style
 

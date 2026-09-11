@@ -346,12 +346,19 @@ export const KNOWLEDGE_ENTRIES = Object.freeze(
 
 export const KNOWLEDGE_BY_CONCEPT = Object.freeze(Object.fromEntries(KNOWLEDGE_ENTRIES.map((e) => [e.concept, e])));
 
-export function listKnowledge({ category = null } = {}) {
-  return KNOWLEDGE_ENTRIES.filter((e) => !category || e.category === category);
+/** The twelve, plus whatever the user has loaded from disk (see registerUserEntries below). Every
+ *  entry carries `source`, because "this is one of the classical twelve" and "this is something a
+ *  session wrote down after watching a video" are different claims about the same shape. */
+export function listKnowledge({ category = null, includeUser = true } = {}) {
+  const builtin = KNOWLEDGE_ENTRIES.map((e) => ({ ...e, source: 'builtin' }));
+  const all = includeUser ? [...builtin, ...USER_ENTRIES] : builtin;
+  return all.filter((e) => !category || e.category === category);
 }
 
 export function getKnowledge(concept) {
-  return KNOWLEDGE_BY_CONCEPT[concept] || null;
+  if (KNOWLEDGE_BY_CONCEPT[concept]) return { ...KNOWLEDGE_BY_CONCEPT[concept], source: 'builtin' };
+  const u = USER_ENTRIES.find((e) => e.concept === concept);
+  return u ? { ...u } : null;
 }
 
 export function knowledgeFieldList() {
@@ -548,6 +555,183 @@ export function validateProposedEntry(entry) {
   return { ok: problems.length === 0, problems, checked_fields: FIELDS.length };
 }
 
+// ---------------------------------------------------------------- the user's own entries (on disk)
+//
+// The twelve above are compiled reference data and stay that way. What was missing is everywhere
+// else knowledge comes from — a video a session watched, a technique the user proved on a shot —
+// and it had nowhere to live: `ai/memory.js` is per-project, and a knowledge entry is not project
+// data. These entries live in the app's user-data folder (`library/knowledge/*.json`), beside the
+// motion library and outside any `.cadence` file, and `src/main.js` reads them at startup. They
+// arrive here through `registerUserEntries`, which is the ONLY door: every file goes through Part
+// 72's shape gate on the way in, and a refused file is named with the field that failed rather
+// than loaded with a hole in it.
+//
+// Two rules that are enforced rather than documented:
+//
+//   * **A user entry may not shadow a classical principle.** The same concept name as one of the
+//     twelve is refused, not overridden. A project-specific exception to "arcs" belongs in
+//     `ai/memory.js`'s `project_conventions`, where it carries evidence and is scoped to the
+//     project that earned it; silently replacing a compiled card would change what every other
+//     session, in every other project, is told.
+//   * **Nothing here is applied to any animation.** A knowledge entry is cited, never executed —
+//     the same standing as the twelve. `knowledgeChecks` below is the only path from an entry to a
+//     number, and it can only reach measurements `ai/motion.js` already makes.
+
+let USER_ENTRIES = [];
+
+/**
+ * Load entries from disk through the Part 72 gate.
+ *
+ * @param files `[{ name, entry }]` — the filename is carried so a refusal can name the file.
+ * @param opts.replace  true (the default) reloads the whole set, which is what startup does;
+ *                      false appends, which is what `propose_knowledge_entry` does.
+ */
+export function registerUserEntries(files, { replace = true } = {}) {
+  const accepted = [], refused = [], alreadyBuiltin = [];
+  const next = replace ? [] : [...USER_ENTRIES];
+  for (const f of files || []) {
+    const entry = f?.entry ?? f;
+    const name = f?.name ?? entry?.concept ?? '(unnamed)';
+    const v = validateProposedEntry(entry);
+    if (!v.ok) { refused.push({ file: name, concept: entry?.concept ?? null, problems: v.problems }); continue; }
+    if (KNOWLEDGE_BY_CONCEPT[entry.concept]) {
+      // The repo seed (docs/animation-intelligence/knowledge/*.json) carries the twelve as data,
+      // so a startup load legitimately meets each of them again. That is a no-op, not a refusal:
+      // reporting twelve "refused" files every launch would bury a real one. A user entry that
+      // genuinely tried to REPLACE a principle lands in the same bucket — which is the point: the
+      // compiled card wins, and the loader says which files it ignored rather than going quiet.
+      alreadyBuiltin.push({ file: name, concept: entry.concept, note: 'already one of the twelve compiled classical principles — the compiled card wins; a project-specific exception belongs in ai/memory.js project_conventions, scoped and evidenced' });
+      continue;
+    }
+    const clash = next.find((e) => e.concept === entry.concept);
+    if (clash) { refused.push({ file: name, concept: entry.concept, problems: [`"${entry.concept}" was already loaded from ${clash.source_file ?? 'another file'}`] }); continue; }
+    next.push({ ...entry, source: 'user', source_file: name });
+    accepted.push({ file: name, concept: entry.concept, category: entry.category, evidence_status: entry.evidence_status });
+  }
+  USER_ENTRIES = next;
+  return { accepted, refused, already_builtin: alreadyBuiltin, loaded: USER_ENTRIES.length };
+}
+
+export function userKnowledgeEntries() { return USER_ENTRIES.map((e) => ({ ...e })); }
+
+export function clearUserKnowledge() { const n = USER_ENTRIES.length; USER_ENTRIES = []; return n; }
+
+/**
+ * Part 72's own closing requirement, applied to the CONTENT of the evidence rather than only its
+ * presence: a new entry's `evidence_status` must name where the claim came from — a video URL with
+ * a timestamp, a directive part, or a measurement this build made. "experimental" alone is a
+ * status, not evidence, and Part 72 forbids permanently adding unverified claims.
+ *
+ * Separate from `validateProposedEntry` on purpose: the shape gate is what every entry must pass
+ * to be LOADED, and this is the extra bar a NEW entry must clear to be written. The twelve
+ * classical principles cite the directive and pass it too, which is the check that keeps this
+ * honest rather than merely strict.
+ */
+export function validateEvidenceSource(entry) {
+  const s = String(entry?.evidence_status ?? '');
+  const sources = [];
+  if (/https?:\/\/\S+/.test(s)) sources.push('a URL');
+  if (/\b\d{1,2}:\d{2}\b/.test(s)) sources.push('a timestamp');
+  if (/part\s*\d+/i.test(s)) sources.push('a directive part');
+  if (/\b(measured|measurement|benchmark|smoketest|aitest)\b/i.test(s)) sources.push('a measurement in this build');
+  const ok = sources.length > 0;
+  return {
+    ok,
+    sources,
+    problem: ok ? null : 'evidence_status names no source. Part 72 step 3 asks for authoritative sources or an inspected project example: cite a video URL with a timestamp, a directive part number, or a measurement this build made.',
+  };
+}
+
+// ---------------------------------------------------------------- KNW-003: from an entry to a real measurement
+//
+// Every entry's `detection_and_measurement_methods` field is prose. This is the machine-readable
+// half: which `ai/motion.js MEASUREMENTS` key, if any, actually backs it. A concept with no key is
+// reported `not_measured` with its own reason — never a check that returns a number nothing
+// computed. `implemented` is READ from `MEASUREMENTS` rather than asserted here, so a measurement
+// that lands in a later phase flips this registry without anybody remembering to.
+//
+// A user entry declares its own keys in an optional `measurement_keys` field (not one of Part 25's
+// twenty, so its absence never fails the shape gate) — an entry that names none is honest prose
+// with no check behind it, which is the normal case and is reported as such.
+
+export const DETECTION_MEASUREMENTS = Object.freeze({
+  timing: ['key_density', 'linear_velocity'],
+  anticipation: ['linear_velocity', 'angular_velocity'],
+  slow_in_slow_out: ['acceleration', 'interpolation_type'],
+  arcs: ['path_curvature'],
+  follow_through_overlap: ['relation_to_motion_graph_parent'],
+  secondary_action: ['relation_to_motion_graph_parent'],
+  exaggeration: ['angular_velocity'],
+  pose_workflow: ['key_density'],
+  // Named with an empty list rather than omitted: these four have no measurement in this build at
+  // all, and the empty array is the declaration that somebody checked.
+  squash_stretch: [],
+  staging: [],
+  appeal: [],
+  structural_understanding: [],
+});
+
+/**
+ * The checks a review can actually run for a set of concepts, and the ones it cannot.
+ *
+ * `measurements` is `ai/motion.js MEASUREMENTS`, passed in rather than imported so this stays a
+ * pure mapping a test can feed a hypothetical table. `sampled` is an optional `sampleMotion`
+ * result; with one, each runnable check carries the value it measured, and without one the result
+ * says what WOULD run.
+ */
+export function knowledgeChecks(measurements, { concepts = null, sampled = null } = {}) {
+  const all = [...KNOWLEDGE_ENTRIES, ...USER_ENTRIES];
+  const wanted = concepts ? all.filter((e) => concepts.includes(e.concept)) : all;
+  const runnable = [], notMeasured = [];
+  for (const e of wanted) {
+    const keys = e.source === 'user' ? (e.measurement_keys || []) : (DETECTION_MEASUREMENTS[e.concept] || []);
+    if (!keys.length) {
+      notMeasured.push({
+        concept: e.concept, source: e.source ?? 'builtin',
+        why: e.source === 'user'
+          ? 'the entry names no measurement_keys, so its detection method is prose only — add the ai/motion.js MEASUREMENTS keys that back it to make it runnable'
+          : `no measurement in this build detects it: ${e.detection_and_measurement_methods}`,
+      });
+      continue;
+    }
+    const missing = keys.filter((k) => !measurements?.[k]?.implemented);
+    if (missing.length) {
+      notMeasured.push({
+        concept: e.concept, source: e.source ?? 'builtin',
+        why: `needs ${missing.join(', ')}, which ai/motion.js does not measure yet`,
+        unblocked_by: missing.map((k) => measurements?.[k]?.unblocked_by ?? `${k} is not in MEASUREMENTS at all`),
+      });
+      continue;
+    }
+    const check = { concept: e.concept, source: e.source ?? 'builtin', measurements: keys, category: e.category };
+    if (sampled) {
+      // `key_density` describes the sampled RANGE, not a part, so it sits on the check rather
+      // than being repeated identically on every row — a per-part field that is the same for
+      // every part reads as a per-part measurement and is not one.
+      if (keys.includes('key_density')) check.measured_over_range = { keys_per_frame: sampled.key_density?.keys_per_frame ?? null, total_keys: sampled.key_density?.total_keys ?? null, frames: sampled.range ?? null };
+      check.measured = (sampled.subjects || []).map((s) => {
+        const row = { part_id: s.part_id };
+        if (keys.includes('linear_velocity')) row.peak_speed = s.summary?.peak_speed ?? null;
+        if (keys.includes('angular_velocity')) row.peak_angular_speed_deg = s.summary?.peak_angular_speed_deg ?? null;
+        if (keys.includes('path_curvature')) row.bow_studs = s.summary?.bow_studs ?? null;
+        if (keys.includes('acceleration')) row.onset_frame = s.summary?.onset_frame ?? null;
+        if (keys.includes('relation_to_motion_graph_parent')) row.peak_speed_frame = s.summary?.peak_speed_frame ?? null;
+        return row;
+      });
+      // Part 4.5 again: this is what the principle POINTS AT, never a verdict on it.
+      check.verdict = null;
+      check.why_no_verdict = 'the measurement is reported; whether it satisfies the principle is a judgement no threshold in this build can make (Part 4.5 — and the entry\'s own style_variations is why there is no single right value)';
+    }
+    runnable.push(check);
+  }
+  return {
+    runnable, not_measured: notMeasured,
+    counts: { runnable: runnable.length, not_measured: notMeasured.length, total: wanted.length },
+    note: 'a runnable check reports what the principle points at. Nothing here decides whether the principle is satisfied — there is no threshold for "enough anticipation", and each entry\'s style_variations is why.',
+  };
+}
+
+
 // ---------------------------------------------------------------- KNW-007: the premium standard (Part 73)
 
 /** Part 73's nineteen qualities, cross-referenced against what this build can actually check right
@@ -592,8 +776,11 @@ export function knowledgeLimitations() {
   return [
     'KNW-004 (Principle Interaction Graph) is a pair LIST with notes, not a traversal engine — the relevance gate answers a narrower, directly computable question instead of walking this graph.',
     'KNW-005\'s gate answers only what the caller supplies context for; readability, visual noise, and performance cost are never computed (no model exists for any of the three) and always report as unanswerable rather than guessed.',
-    'KNW-006\'s procedure is documented in full (EXPANSION_PROCEDURE); only its SHAPE gate (validateProposedEntry) is automated. Steps 1-4 — identify, categorise, research, compare — are judgement calls this file cannot perform.',
+    'KNW-006\'s procedure is documented in full (EXPANSION_PROCEDURE) and its shape gate (validateProposedEntry) plus its evidence gate (validateEvidenceSource) are automated and are what every entry written from disk must pass. Steps 1-4 — identify, categorise, research, compare — are still judgement calls a session makes; this file checks the result, never performs them.',
     'KNW-007\'s premium standard is a cross-reference against EXISTING tools, not a new measurement: 2 of 19 qualities are fully implemented, 9 partial, 8 have no measurement at all.',
-    'All twelve classical-principle entries are code-level reference data, not project state — they cannot be edited per-project the way ai/vocabulary.js terms can. A project-specific exception to a principle belongs in ai/memory.js\'s project_conventions or character_rules scope, evidenced, not in this table.',
+    'The twelve classical-principle entries are code-level reference data and stay that way: they cannot be edited per-project the way ai/vocabulary.js terms can, and a user entry may not shadow one. A project-specific exception to a principle belongs in ai/memory.js\'s project_conventions or character_rules scope, evidenced.',
+    'User entries live in the app\'s user-data folder and are loaded through registerUserEntries; this module never reads a file. An entry only exists for a session once something has handed it here, so a malformed file on disk is absent rather than half-present, and the load result names it.',
+    'A knowledge entry is cited, never executed. knowledgeChecks is the only path from an entry to a number, it can only reach measurements ai/motion.js already makes, and it returns a measured value with an explicit null verdict — nothing in this build decides whether a principle is satisfied, because each entry\'s own style_variations says the right value differs by style.',
+    '9 of the twelve concepts map to a real ai/motion.js measurement; squash_stretch, staging, appeal and structural_understanding map to none and say so (no scale signal, no camera model, no readability model, no balance-over-time model). A user entry maps to a measurement only if it declares measurement_keys — prose alone is prose.',
   ];
 }

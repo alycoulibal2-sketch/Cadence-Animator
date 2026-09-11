@@ -1,0 +1,39 @@
+{
+  "concept": "arcs",
+  "category": "essential",
+  "definition": "The path a moving part traces through space — hands, heads, weapons, feet, projectiles, camera moves, VFX trails.",
+  "purpose": "Make motion read as intentional and physically coherent, rather than mechanical or accidental, unless a broken path is the deliberate choice.",
+  "visible_effect": "A smooth, continuous curve versus an angular, cornered, or wobbling path.",
+  "psychological_or_gameplay_effect": "A clean arc reads as controlled and organic; corners and wobble read as unintentional, unless the style explicitly wants mechanical or broken paths.",
+  "physical_interpretation": "The trajectory a mass would plausibly follow under continuous force, though nothing in Cadence solves for one — see the measurement/generation gap below.",
+  "use_cases": [
+    "organic character motion, hand and weapon trajectories, projectile and camera paths"
+  ],
+  "non_use_cases": [
+    "a robotic arm, a linear projectile, a teleport, or any deliberately broken motion — Part 26.7's own list of exceptions",
+    "mechanical style, where the arc pull inverts toward geometric precision (see `ai/vocabulary.js` \"elegant\" term's `style_dependencies`)"
+  ],
+  "interactions": [
+    "Weight and timing both bear on whether an arc reads as intentional",
+    "Style is the dominant modifier here — an arc that is \"good\" in one style is wrong in another"
+  ],
+  "style_variations": {
+    "mechanical": "geometric, deliberately non-organic paths are correct",
+    "horror": "unusual or broken trajectories may be the intended effect (ai/style.js `arc_smoothness: 0.4`)"
+  },
+  "cadence_representation": "Split, and the split matters: MEASUREMENT exists (`ai/motion.js MOT-005` — per-frame path curvature and chord deviation) but GENERATION does not. `ai/vocabulary.js`'s `arc_smoothness` dimension is explicitly `implemented: false` — smoothing an arc means changing where a part IS at an intermediate frame, and every strategy in `ai/plan.js` edits a joint ROTATION at an existing key, never a position.",
+  "control_surface": "`analyze_motion` reports curvature; there is no dimension or tool that edits it.",
+  "detection_and_measurement_methods": "`ai/motion.js` computes path curvature and chord-deviation per frame from the FK solve — a genuine, working measurement.",
+  "generation_or_modification_methods": "None. This is one of the clearest cases in the whole knowledge system of a measured-but-not-actionable gap (see `ai/vocabulary.js DIMENSIONS.arc_smoothness.blocked_by`).",
+  "failure_modes": [
+    "an unintentional corner or wobble in what should be a clean arc, currently only detectable by measurement, not correctable by this build",
+    "applying a \"smooth the arc\" request to a style that wants a broken or mechanical path"
+  ],
+  "roblox_considerations": "None beyond the FK chain already modelled.",
+  "performance_implications": "None.",
+  "examples": [
+    "a hand tracing a clean sweep through a punch",
+    "a mechanical arm moving in straight, cornered segments by design"
+  ],
+  "evidence_status": "directive text (Part 26.7) plus real curvature measurement (MOT-005, `partial` — measured, not editable)"
+}

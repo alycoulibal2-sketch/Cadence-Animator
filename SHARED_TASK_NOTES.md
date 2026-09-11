@@ -96,7 +96,7 @@ Run from the repo root. `npm` is broken under Git Bash here — use PowerShell, 
 `.\node_modules\.bin\electron.cmd` directly rather than `npm run`.
 
 ```
-node test/aitest.mjs              # semantic layer   — currently 359/359, ~3s
+node test/aitest.mjs              # semantic layer   — currently 390/390, ~4s
 node test/coretest.mjs            # core             — currently  41/41
 node test/pnxtest.mjs             # PNX engine       — currently 298/298
 node tools/benchmark.mjs --compare  # Part 59 suite vs the committed baseline — exit 1 on ANY
@@ -1037,3 +1037,176 @@ of starting recipes (a parameter set per action whose every value opens editable
 in the next-session prompt's order is unchanged: Slice F (the skill, `next_best_actions`, MCP
 resources, operating profiles, `author_shot`) is now much more valuable than it was, because there
 is finally something for a one-call loop to compose.
+
+
+### The learning loop — the cross-project store, and knowledge on disk (2026-09-11, on the desktop)
+
+Run from `docs/animation-intelligence/LEARNING_LOOP_PROMPT.md`, which is a separate track from
+Part 62's phases and from the next-session prompt's slices. Its goal in one sentence: *Claude gets
+better at animation over time because everything it watches, captures, is corrected on and ships
+is kept as measured, evidence-backed data its tools consult — never a trained model.*
+
+**The thing that was actually blocking it.** Three modules closed with the same sentence —
+`ai/memory.js`, `ai/style.js` and `ai/reference.js` all said "there is no cross-project store" —
+and they were right. Everything the layer learned lived inside one `.cadence` file, so a reference
+profile measured on Monday could not reach Tuesday's project. Nineteen knowledge entries written
+by watch batch W01 the same day had nowhere to go. This session built the store.
+
+- **`renderer/js/ai/library.js`** (Part 70, 410 lines, pure at load and reads no files). An entry
+  carries ALL SIXTEEN of Part 70's fields plus three that make it findable: `action_type`, the
+  Part 36 profile, and `characteristics` (the numeric slice search subtracts). `searchLibrary`
+  filters and ranks; `nearest` answers "what is most like this"; `coverageAgainst` reports what a
+  supplied category list is missing. `src/main.js` owns the folder through IPC, exactly like
+  autosave — which is what lets `aitest` and the benchmark exercise the whole of the real logic
+  with no Electron app and no user library.
+- **Knowledge on disk** (Part 72). `registerUserEntries` behind two gates; the twelve compiled
+  principles exported to `docs/animation-intelligence/knowledge/*.json` by
+  `tools/export-knowledge.mjs` (with `--check`, run in `aitest`, so the seed cannot drift from the
+  module the way a hand-copied file would); `tools/merge-knowledge-inbox.mjs --batch Wnn` moves a
+  finished watch batch's entries into the corpus; the folder ships with the app.
+- **Seven MCP tools, both halves**: `import_from_studio`, `import_animation_file`,
+  `add_to_library`, `search_library`, `load_from_library`, `accept_shot`,
+  `propose_knowledge_entry`. 207 tools in the app. `SEMANTIC_LAYER_VERSION` → `1.12.0`.
+- **`library_search`**, an 18th benchmark, in the `reference adaptation` category.
+- **`.claude/skills/cadence-learn/SKILL.md`** — the per-video procedure, registered in the README.
+
+Matrix: `MEM-003`, `MEM-004`, `KNW-006` to `implemented`; `LIB-001` and `REF-001` rewritten;
+`KNW-001`, `MEM-001`, `MCP-010`, `REV-001`, `BCH-001` corrected in their Limits. 165 rows now
+*implemented 90 · benchmarked 9 · partial 30 · designed 7 · deferred 2 · blocked 1 · unplanned 26.*
+
+**The decisions worth not relitigating:**
+
+- **The library is OUTSIDE the repo and outside every project file**, in the app's user-data
+  folder beside `settings.json` and the autosaves. Two independent reasons, either sufficient:
+  Mixamo's licence permits use inside a project and forbids redistributing the clips as files, and
+  the user's own captures are theirs. A library committed to a product repo would ship both.
+  `--user-data-dir` moves the whole folder, which is why the smoketest can write a real library
+  into `test-output/` and never touch the user's.
+- **Nothing infers a licence, and `redistributable` must be an explicit boolean.** "Unknown" is
+  how a non-redistributable clip ends up in a build. `add_to_library` refuses without it.
+- **A `captured` entry cannot claim to be exact.** Roblox Studio's Animation Capture estimates
+  poses from video; `validateEntry` REFUSES `estimated: false` on a captured entry and refuses one
+  with no `source_video_url`. This is the only refusal in the store that is about honesty rather
+  than completeness, and it is deliberate: a pose estimate labelled exact turns every later
+  measurement into a false measurement of the performer.
+- **Video reaches this build INDIRECTLY or not at all.** Cadence never looks at a frame. Roblox
+  Studio does the estimating (`.mp4`/`.mov`, under 15 seconds, one well-lit person, a continuous
+  single shot from a stable camera, R15 — verified against
+  `create.roblox.com/docs/animation/capture` on 2026-09-11, which the previous session could not
+  reach) and Cadence imports the keyframes. That takes REF-001 from 1 of Part 36's 7 reference
+  kinds to 4. **No research pose model is used or wanted**: GVHMR/WHAM/TRAM are
+  research/non-commercial licensed and Cadence Pro is sold.
+- **ONE distance function, and it lives with the profile it measures.** `numericProfile`,
+  `profileDistance` and `relativeDistance` moved into `ai/reference.js`; `ai/benchmark.js` and
+  `ai/library.js` both import them. The refactor was verified behaviour-neutral before anything
+  was built on it — `--compare` clean at 64 cells. Two copies of a distance is how two callers end
+  up disagreeing about what "close" means.
+- **Search ranking is lexicographic and stated in the result, never a weighted score.** Matched
+  tags, then profile distance, then the id. A blend of "two tags matched" against "0.3 relative
+  distance" needs an exchange rate nothing in this build can justify — the same reason
+  `compareRuns` has no overall score. Filters EXCLUDE with a reason and are returned; "no results"
+  and "results you were not shown" are different answers.
+- **An incomparable distance is `null`, never 0 and never Infinity**, and sorts after every
+  comparable one. Two entries on different rigs share no part names; a caller reading a 0 there
+  would conclude "identical".
+- **A user knowledge entry may not shadow one of the twelve.** The compiled card wins, and the
+  loader reports the file it ignored. A project-specific exception belongs in `ai/memory.js`'s
+  `project_conventions`, scoped and evidenced — silently replacing a compiled card would change
+  what every other session in every other project is told. The shipped seed re-presents the twelve
+  at every launch, so that path is an `already_builtin` no-op rather than twelve refusals.
+- **Two gates on a new entry, not one.** `validateProposedEntry` is the SHAPE gate (every Part 25
+  field answered, a real category, no placeholder). `validateEvidenceSource` is Part 72's closing
+  line made mechanical: `evidence_status` must name a URL, a timestamp, a directive part or a
+  measurement this build made. All twelve compiled principles pass it too — which is the check
+  that keeps the bar honest rather than merely strict.
+- **A knowledge entry becomes a CHECK only where `ai/motion.js` already measures it.**
+  `DETECTION_MEASUREMENTS` maps 8 of the twelve to real `MEASUREMENTS` keys and names the other
+  four as measurable by nothing (no scale signal, no camera model, no readability model, no
+  balance-over-time model). `implemented` is READ from `MEASUREMENTS` rather than asserted, so a
+  measurement that lands later flips the registry without anyone remembering to. A user entry
+  wires itself with an optional `measurement_keys` field; one that names none is honest prose and
+  says so. **`review_shot` consumes this**, which is what makes a merged batch change the product:
+  the smoketest run after the W01 merge counted 32 entries and 9 runnable checks, with no code
+  change between 12 and 32.
+- **A knowledge check carries `verdict: null`, always.** The measurement is reported; whether it
+  satisfies the principle is a judgement no threshold here can make, and each entry's own
+  `style_variations` is why. It is a third array in the review, neither a defect nor a suggestion.
+- **`accept_shot` OFFERS the library and never writes it.** A library entry needs a description,
+  an action type and a licence, none derivable from motion data (Part 70, Part 62). It also
+  handles the rejection half — `recordFailedApproach` — because a failed approach is evidence too
+  and MEM-004 had no surface at all.
+- **Memory and style still do NOT cross projects, by design.** Generalising a captured correction
+  into a rule for every project is a decision Part 57 gives a person. Motion and knowledge cross;
+  a preference does not, and `memoryLimitations()` now says exactly that rather than implying
+  nothing does.
+
+**Two real bugs, both found by the new tests rather than by reading the code:**
+
+1. **Two entries profiled from the same motion measure EXACTLY equidistant, and a tie-break was
+   silently deciding which was "nearest".** The `library_search` benchmark seeds an R6 entry
+   profiled from the same slash as the R15 one; the retrieval check failed on 1 of 4 queries
+   because `library_id.localeCompare` picked the R6 clip — an answer that cannot be used on the
+   rig that asked. Fixed in the API, not the fixture: `nearest()` now takes a `rig` filter that
+   EXCLUDES with a reason (Part 70: a validated asset must not be forced into an incompatible
+   context) and reports `tied_for_first` rather than hiding a tie. Negative-tested by construction
+   — the check was red before the fix and green after, in the same run.
+2. **A named event marker crashed the timeline's marker lane.** `themeVar` was a `const` inside
+   `draw()` and `drawMarkerLane()` is a sibling top-level function that calls it, so painting a
+   marker LABEL threw `ReferenceError` mid-frame and the lane stopped drawing from there.
+   Pre-existing in `renderer/js/timeline.js` since commit `37c4307`; the new smoketest step is the
+   first thing in the suite to put a NAMED marker on a rig the timeline then draws. Hoisted to
+   module scope. **This is the third time a bug has been reachable only through the in-app
+   smoketest** — budget for that step, do not skip it.
+
+**Also fixed here, the stale-blocker class again** (the Phase 4 review pass named it; it fires
+every time a capability ships). Five strings became lies the moment the library landed and are
+corrected: `ai/index.js capabilities()` (the "cannot ingest video / cannot carry anything across
+projects" lines, and the module header note), `ai/reference.js` (the header and
+`referenceLimitations()` both said 1 of 7 reference kinds), `ai/memory.js memoryLimitations()`
+("there is no cross-project store" — true of memory, false of the system), `ai/motion.js
+MEASUREMENTS.relation_to_reference_motion` (`unblocked_by` said "no reference motion is ingested",
+which is now the wrong reason — the real gap is that `sampleMotion` measures one item and never
+subtracts a second one's samples), and `ai/knowledge.js knowledgeLimitations()`.
+
+**The W01 merge, which is the other half of this session's job.** `tools/merge-knowledge-inbox.mjs
+--batch W01` ran both gates over all 19 entries: **19 accepted, 0 refused, 0 collisions**, every
+one citing a video URL *and* a timestamp. They are in `docs/animation-intelligence/knowledge/`,
+the ten videos are ticked in `WATCHLIST.md` with what each produced, and the checks queue (15
+buildable measurements), the capture queue (7 motions with exact timestamps) and the batch's
+paragraphs are in the new `docs/animation-intelligence/LESSONS.md`. **Nothing in ten independent
+professional sources contradicted any of the twelve compiled cards** — worth recording as a
+positive result, since those cards were written from directive text alone.
+
+**`--batch` exists because a second session was mid-batch.** W02 was writing into the same inbox
+while this ran. Merging it would have taken its files out from under it, so the merge names the
+batch it merges and the default (everything) is only correct when nothing is running. W02's five
+in-flight files were left alone and are NOT in this commit.
+
+**Deliberately not done, and named rather than hidden:** no UI for the library at all — it is
+model-facing, and a panel is a product decision nobody has made. No retargeting or adaptation:
+`load_from_library` brings a clip in beside your work and every edit still goes through
+`apply_animation_patch`. No pose library, no effect entries (the `pnx/library.js` recipe half of
+LIB-001 still carries none of Part 70's fields). No delete tool — `library:deleteEntry` exists in
+main.js and no MCP tool calls it, because a destructive tool over the user's own captures wants a
+UI and a confirmation, not a model. The corpus itself is EMPTY: §3D says the clicks are the
+user's, so `docs/animation-intelligence/CORPUS.md` is the step-by-step (Mixamo download settings,
+the Studio importer, Animation Capture's verified limits) and the session stopped there rather
+than inventing a corpus.
+
+Verified: `aitest` **390/390** (up from 373 — 17 new checks: 9 library, 6 knowledge-on-disk, 1
+review wiring, 1 corpus integrity), `coretest` 41/41, `pnxtest` 298/298,
+`tools/benchmark.mjs --compare` clean (66 cells, up from 64; re-baselined because the layer
+version moved and a benchmark was added). Smoketest **102/104**, 0 console errors — the two
+failures are the two pre-documented environmental flakes and both were confirmed as such in the
+log rather than assumed: *classic clothing* logged `ENOTFOUND fts.rbxcdn.com`, and *observation:
+baseline → scoped edit* is the GPU pixel-comparison flake. Both execute BEFORE the new step. The
+new learning-loop step passed in 170 ms and proves the cross-project claim end to end: a clip
+stored from project A is found and loaded in project B with the user's rig byte-identical.
+
+**For whoever comes next:** the corpus is the bottleneck now, and it is the user's to unblock —
+`CORPUS.md` and the capture queue in `LESSONS.md` are what they need. On the code side the
+cheapest high-value row is check #10 in `LESSONS.md` (`external_force_easing_mismatch`): both
+halves are already measured, so it is a join rather than a new measurement, and an eased-in key on
+a declared impact is a defect `review_shot` could report today with `certain` certainty. Then
+Slice F from `NEXT_SESSION_PROMPT.md`. The two evaluated architecture proposals and the
+starting-recipe question are still the user's.

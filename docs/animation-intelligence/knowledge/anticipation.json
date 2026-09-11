@@ -1,0 +1,44 @@
+{
+  "concept": "anticipation",
+  "category": "essential",
+  "definition": "Preparatory motion, opposite or complementary to the coming action, that establishes direction, force, and balance before the action itself.",
+  "purpose": "Make the following action readable and clarify its direction before it happens.",
+  "visible_effect": "A wind-up phase: weight shift, rotation opposite the action's direction, or compression, before the main motion.",
+  "psychological_or_gameplay_effect": "Increases perceived force and readability; too much costs responsiveness in an input-driven context.",
+  "physical_interpretation": "Loading energy into the body before releasing it — analogous to a coiled spring, though Cadence models none of the physics, only the pose.",
+  "use_cases": [
+    "a heavy or powerful attack wanting clarity and force",
+    "any action whose direction would otherwise be ambiguous from its start pose"
+  ],
+  "non_use_cases": [
+    "a surprise reaction, which the directive says may have anticipation \"nearly absent\" by design",
+    "a fast game input where responsiveness cost is unacceptable — Part 26.2: \"expressed through pose more than by frames\"",
+    "an item whose `timing` aspect is locked, since anticipation with existing keys can only be a value/easing change, not a phase insertion"
+  ],
+  "interactions": [
+    "Timing — Part 26.2 asks whether it is readable \"relative to action duration\"",
+    "Camera — whether anticipation is readable from the active camera (Cadence has no active-camera model to check this)",
+    "Style — game_combat compresses anticipation depth (ai/style.js)"
+  ],
+  "style_variations": {
+    "realistic": "mechanical — weight transfer, counter-rotation, deceleration",
+    "anime": "can be a long, still hold before a violent release",
+    "game_combat": "compressed toward pose over frames, to protect responsiveness"
+  },
+  "cadence_representation": "This is the one technique the matrix already names as implicitly operationalized WITHOUT a knowledge entry behind it: `ai/cal.js PHASE_NAMES` declares an `anticipation` phase, `ai/plan.js` segments one from key/marker evidence, and `ai/vocabulary.js`'s `anticipation_depth` dimension edits its amplitude. This entry is what was missing — the planner moves the dimension; nothing until now stated when NOT to.",
+  "control_surface": "the `anticipation_depth` vocabulary dimension; `ai/plan.js segmentPhases` for locating an existing anticipation phase.",
+  "detection_and_measurement_methods": "`ai/motion.js` measures onset/peak timing per joint, which can locate a preparation phase's duration once segmented; it does not judge whether that duration is APPROPRIATE for the action — that judgement is not made anywhere in this build.",
+  "generation_or_modification_methods": "`anticipation_depth` scales the rotation amplitude across an already-segmented anticipation phase; it cannot insert a phase that does not exist (Phase 3's planner may not add or remove a key).",
+  "failure_modes": [
+    "telegraphing an action so far in advance it reads as sluggish",
+    "applying uniform anticipation depth regardless of action type — a surprise reaction gets the same treatment as a heavy attack",
+    "lengthening anticipation on a gameplay-critical action past what responsiveness allows"
+  ],
+  "roblox_considerations": "None specific — this is a pure keyframe-timing concept independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "a sword pulled back and torso rotated before a slash",
+    "a nearly-absent anticipation on a startled flinch"
+  ],
+  "evidence_status": "directive text (Part 26.2) plus in-app measurement of phase duration; the appropriateness judgement itself is not validated by any test"
+}

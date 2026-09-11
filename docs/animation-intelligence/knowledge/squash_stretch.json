@@ -1,0 +1,46 @@
+{
+  "concept": "squash_stretch",
+  "category": "essential",
+  "definition": "Deformation, pose compression/extension, trajectory change, or silhouette change that communicates elasticity, force, and material response.",
+  "purpose": "Sell the force and material of an impact or motion without needing physically simulated deformation.",
+  "visible_effect": "A compressed pose before or at contact, an extended pose leaving it, or — where mesh scale is unavailable — an equivalent shift in silhouette and trajectory.",
+  "psychological_or_gameplay_effect": "Reads as energy and material response; its absence on a hard impact reads as stiffness or a missed hit.",
+  "physical_interpretation": "An approximation of real deformation under force, volume-preserving by convention (wider becomes shorter) unless the style deliberately breaks that.",
+  "use_cases": [
+    "a cartoon or anime impact wanting exaggerated force",
+    "a soft or organic character landing or colliding",
+    "a VFX emitter item wanting a pose-based equivalent via scale"
+  ],
+  "non_use_cases": [
+    "a rigid, mechanical, or explicitly protected object (Part 26.1 names this directly)",
+    "realistic style, where it should be restrained to near-zero or omitted",
+    "any joint or item under a locked constraint on `value`"
+  ],
+  "interactions": [
+    "Timing — compression usually lands ON the contact frame, not before it",
+    "Weight — see MEM/vocabulary `weight_transfer`, `contact_firmness`",
+    "Style — realistic and mechanical profiles dampen or forbid it (see ai/style.js STYLE_MODIFIERS)"
+  ],
+  "style_variations": {
+    "realistic": "near-zero, or expressed as barely-visible weight shift",
+    "anime": "can be extreme and held (impact freeze)",
+    "cartoon": "the primary vocabulary of the style, may break volume",
+    "mechanical": "excluded entirely — Part 26.1"
+  },
+  "cadence_representation": "No mesh deformation exists in Cadence at all — rigs are rigid Motor6D hierarchies. The pose-based equivalent is `ai/vocabulary.js`'s `motion_amplitude` and `weight_transfer` dimensions, which is the \"subtle pose-based equivalent when mesh scale is unavailable\" Part 26.1 explicitly asks for.",
+  "control_surface": "the `motion_amplitude` / `weight_transfer` vocabulary dimensions via `interpret_intent` / `plan_motion`; no direct squash/stretch control exists.",
+  "detection_and_measurement_methods": "None. `ai/motion.js` measures no scale or volume signal because no track in Cadence stores mesh scale over time — this is a genuine capability gap, not an unmeasured-but-present quantity.",
+  "generation_or_modification_methods": "Indirect only, through the pose-based dimensions above compiling to rotation amplitude, never a literal scale key.",
+  "failure_modes": [
+    "using it to make a motion \"more animated\" rather than to communicate force (Part 26.1's own warning)",
+    "applying it to a locked or protected item, which a constraint should refuse",
+    "applying it under a realistic or mechanical style, which contradicts the style's own definition"
+  ],
+  "roblox_considerations": "A literal scale key IS representable in Roblox (Motor6D parts can be scaled), so a future compiler could target it directly rather than only the pose-based approximation — named as a real, not merely theoretical, extension.",
+  "performance_implications": "None beyond any other keyframe — no simulation cost.",
+  "examples": [
+    "a heavy sword impact compressing the torso before recoiling outward",
+    "a cartoon character landing with a flattened pose held two frames"
+  ],
+  "evidence_status": "directive text (Part 26.1); no in-app measurement exists to validate an applied instance"
+}

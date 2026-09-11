@@ -1879,6 +1879,132 @@ server.tool(
   async () => { try { return textResult(await call('list_reference_profiles', {})); } catch (e) { return errorResult(e); } },
 );
 
+// ---------------------------------------------------------------- the cross-project library (Part 70)
+
+server.tool(
+  'import_from_studio',
+  'MUTATING (undoable). Pull an animation out of Roblox Studio into this project as a REFERENCE item beside your work — never onto your working rig. Call with nothing to LIST every rig\'s AnimSaves over the bridge; call with rigName + animName, or an assetId, to import one. This is the route for Roblox\'s own Animation Capture (Animation Editor → Capture → Body tracks a video and saves keyframes into AnimSaves) and for its Animation Importer (a Mixamo FBX retargeted onto R15). A Part 36 profile is built and stored for the imported item, so it is comparable immediately. Nothing here estimates a pose — the estimation is Studio\'s, and a clip that came from Capture must be recorded as provenance kind "captured", estimated true, when you add_to_library it.',
+  {
+    rigName: z.string().optional().describe('The rig in the open place whose AnimSaves folder holds the animation. Omit with animName to list.'),
+    animName: z.string().optional().describe('The KeyframeSequence inside that rig\'s AnimSaves.'),
+    assetId: z.string().optional().describe('Alternatively, a published animation asset id to fetch via KeyframeSequenceProvider.'),
+    rigType: z.string().optional().describe('Which rig to build for the reference item: r15 (default), r6, rthro, rthroSlender. Animation Capture produces R15.'),
+    name: z.string().optional(),
+    label: z.string().optional().describe('Label for the stored Part 36 profile.'),
+  },
+  async (a) => { try { return textResult(await call('import_from_studio', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'import_animation_file',
+  'MUTATING (undoable). Import a KeyframeSequence / AnimSaves .rbxm or .rbxmx from disk as a REFERENCE item, with a Part 36 profile stored. Same result as import_from_studio, for an animation that was exported to a file rather than left in the open place. Omit `path` to open a file picker. The LICENCE of whatever you import is yours to declare when you add_to_library it — nothing here infers one from a filename or a folder.',
+  {
+    path: z.string().optional().describe('Absolute path to the .rbxm/.rbxmx. Omit to open a picker.'),
+    rigType: z.string().optional().describe('r15 (default), r6, rthro, rthroSlender.'),
+    index: z.number().optional().describe('Which KeyframeSequence in the file, when it holds more than one (default 0).'),
+    name: z.string().optional(),
+    label: z.string().optional(),
+  },
+  async (a) => { try { return textResult(await call('import_animation_file', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'add_to_library',
+  'MUTATING (writes to the user\'s library folder — NOT undoable, and outside every project). Store one rig item\'s motion in the cross-project library with Part 70\'s full field list: a Part 36 profile is measured from it, and the description, action type, tags, provenance and licence come from you. `provenance.kind` is captured (Roblox Animation Capture — a pose ESTIMATE, so `estimated` must be true and a source_video_url is required), mocap (a retargeted library clip such as Mixamo — a `source` is required), authored (your own accepted shot) or imported (a file). `licenseOrOwnership` needs `terms` and an explicit `redistributable` boolean: nothing in this build infers a licence, and Mixamo clips may be used inside a project but not redistributed as files. The library lives in the app\'s user-data folder and never enters a project file or the repo.',
+  {
+    itemId: z.string().describe('The rig item whose motion to store.'),
+    semanticDescription: z.string().describe('What this motion IS, in a sentence — "a heavy two-handed overhead slash with a long recovery".'),
+    actionType: z.string().describe('The shelf it goes on, normalised to lowercase_underscores. Part 59\'s benchmark categories are the vocabulary the first corpus uses ("heavy attack", "walk cycle", "jump and landing"); anything else is allowed and simply searched by its own name.'),
+    provenance: z.object({
+      kind: z.enum(['captured', 'mocap', 'authored', 'imported']),
+      estimated: z.boolean().optional().describe('Required true for "captured": Animation Capture estimates poses from video.'),
+      source_video_url: z.string().optional().describe('Required for "captured".'),
+      source_timestamps: z.string().optional().describe('Which part of the video, e.g. "8:09–8:24".'),
+      estimated_by: z.string().optional().describe('Required for "captured" — normally "Roblox Studio Animation Capture (Body)".'),
+      source: z.string().optional().describe('Required for "mocap" — e.g. "Mixamo".'),
+      source_file: z.string().optional().describe('Required for "imported".'),
+      added_at: z.string().optional(),
+    }).describe('Where the motion came from. Never inferred.'),
+    licenseOrOwnership: z.object({
+      terms: z.string().describe('The actual terms, in your words — e.g. "Mixamo: free to use within a project, redistribution of the clip file is not permitted".'),
+      redistributable: z.boolean().describe('Stated explicitly. "Unknown" is how a non-redistributable clip ends up in a product build.'),
+      holder: z.string().optional(),
+    }),
+    intentTags: z.array(z.string()).optional().describe('What it is FOR — "telegraphed", "punishable", "finisher".'),
+    styleTags: z.array(z.string()).optional().describe('How it reads — "anime", "realistic", "game_combat".'),
+    frameRange: z.object({ start: z.number(), end: z.number() }).optional(),
+    parameters: z.array(z.any()).optional(),
+    dependencies: z.array(z.any()).optional(),
+    performanceCost: z.any().optional(),
+    previewMedia: z.array(z.any()).optional(),
+    acceptanceTests: z.array(z.any()).optional(),
+    baselineExamples: z.array(z.any()).optional(),
+    knownFailureCases: z.array(z.string()).optional(),
+    version: z.string().optional(),
+  },
+  async (a) => { try { return textResult(await call('add_to_library', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'search_library',
+  'READ-ONLY. Find motion in the cross-project library by action type, intent or style tags, rig compatibility and provenance kind — and, with `nearItemId`, by measured distance from an item in this project. Filters EXCLUDE and say why rather than dropping silently. The ranking is stated and lexicographic (matched tags, then profile distance, then id): there is no weighted score, because no exchange rate between "two tags matched" and "0.3 relative distance" exists to justify one. The distance compares 3 of Part 36\'s 15 dimensions (spacing variability, peak speed, peak angular speed, per part); a null distance means nothing was comparable, usually a different rig, and never that two clips are identical.',
+  {
+    actionType: z.string().optional(),
+    intentTags: z.array(z.string()).optional(),
+    styleTags: z.array(z.string()).optional(),
+    rig: z.string().optional().describe('Only entries compatible with this rig name.'),
+    provenanceKinds: z.array(z.enum(['captured', 'mocap', 'authored', 'imported'])).optional().describe('e.g. ["authored","mocap"] to exclude estimated captures.'),
+    nearItemId: z.string().optional().describe('Measure every entry\'s distance from THIS item\'s motion, and return a nearest-by-measurement list beside the search.'),
+    limit: z.number().optional(),
+  },
+  async (a) => { try { return textResult(await call('search_library', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'load_from_library',
+  'MUTATING (undoable). Bring a library entry into this project as a REFERENCE item beside your work, with its stored Part 36 profile. Nothing is applied to your rig and nothing is retargeted — Part 36 comparison is advisory, and adapting a reference is a separate, deliberate edit through plan_motion / author_motion. A non-redistributable entry says so in the result.',
+  {
+    libraryId: z.string().describe('From search_library.'),
+    name: z.string().optional(),
+  },
+  async (a) => { try { return textResult(await call('load_from_library', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'accept_shot',
+  'MUTATING (undoable). Part 58 as a tool: record that a shot was accepted or rejected, with what made it work or fail. `decision: "accepted"` records validated_solutions (retained features, selected experiments, constraints that mattered, correlated signals); `"rejected"` records failed_approaches (what was attempted, what happened, what corrected it) — a failed approach is evidence too and is kept. `evidence` is required, the same bar record_user_correction sets. An accepted shot is OFFERED to the cross-project library, never added to it: an entry needs a description, an action type and a licence that nothing can derive from motion data. Returns a dated lesson paragraph and appends it to the library folder\'s lessons.md.',
+  {
+    itemId: z.string().optional().describe('The item the shot is on. Needed for the library offer.'),
+    statement: z.string().describe('What was learned, in one sentence.'),
+    decision: z.enum(['accepted', 'rejected']).optional().describe('Default "accepted".'),
+    evidence: z.array(z.any()).describe('Required. What was observed that makes this a lesson rather than an opinion.'),
+    retainedFeatures: z.array(z.string()).optional().describe('accepted: which features of the result were kept.'),
+    selectedExperiments: z.array(z.string()).optional().describe('accepted: which alternatives won.'),
+    matteredConstraints: z.array(z.string()).optional().describe('accepted: which constraints turned out to matter.'),
+    correlatedSignals: z.array(z.string()).optional(),
+    attempted: z.string().optional().describe('rejected: what was tried.'),
+    whyItSeemedReasonable: z.string().optional(),
+    observedResult: z.string().optional().describe('rejected: what actually happened.'),
+    failureKind: z.enum(['objective', 'likely', 'subjective']).optional(),
+    correctedBy: z.string().optional(),
+    generalized: z.string().optional().describe('rejected: the general lesson, if there is one.'),
+    styleOrProjectContext: z.string().optional(),
+    offerLibraryEntry: z.boolean().optional(),
+  },
+  async (a) => { try { return textResult(await call('accept_shot', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'propose_knowledge_entry',
+  'MUTATING (writes to the user\'s knowledge folder — NOT undoable, and outside every project). Part 72\'s controlled expansion: add a knowledge entry carrying all twenty Part 25 fields. Two gates, both refusing rather than storing something partial — the SHAPE gate (every field answered, a real category, no placeholder) and the EVIDENCE gate (evidence_status must name a video URL with a timestamp, a directive part, or a measurement this build made). An entry stays `experimental` until a benchmark or the user validates it. It may not shadow one of the twelve classical principles. Nothing here is applied to any animation: an entry is cited, and it becomes a runnable check only if it names `measurement_keys` that already exist in ai/motion.js MEASUREMENTS.',
+  {
+    entry: z.any().describe('The full entry. Call animation_knowledge with no arguments for the field list and an existing entry to copy the shape from.'),
+    apply: z.boolean().optional().describe('false to validate without writing.'),
+  },
+  async (a) => { try { return textResult(await call('propose_knowledge_entry', a)); } catch (e) { return errorResult(e); } },
+);
+
+
 server.tool(
   'benchmark_library',
   'READ-ONLY. Part 59\'s benchmark library: all 25 baseline categories (each defined with benchmark ids, or blocked with the reason), every defined benchmark with its 15 Part 59 fields, the 21 evaluation dimensions with which 11 this build measures and why the other 10 cannot be measured headless, the human-review rubric (kept apart from everything measured), and the implementation options a prototype can flip without code. Read this before run_benchmark_suite or propose_architecture_improvement.',

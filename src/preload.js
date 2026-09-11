@@ -35,6 +35,19 @@ contextBridge.exposeInMainWorld('cadence', {
   // rigs
   builtinRigs: () => ipcRenderer.invoke('rig:builtins'),
 
+  // the cross-project library (Part 70) — src/main.js owns the folder under userData,
+  // exactly as it owns autosaves; renderer/js/ai/library.js validates and searches what
+  // comes back and never touches a file itself.
+  libraryPaths: () => ipcRenderer.invoke('library:paths'),
+  libraryReadIndex: () => ipcRenderer.invoke('library:readIndex'),
+  libraryWriteIndex: (index) => ipcRenderer.invoke('library:writeIndex', index),
+  libraryWriteEntry: (payload) => ipcRenderer.invoke('library:writeEntry', payload),
+  libraryReadEntry: (id) => ipcRenderer.invoke('library:readEntry', id),
+  libraryDeleteEntry: (payload) => ipcRenderer.invoke('library:deleteEntry', payload),
+  libraryReadKnowledge: () => ipcRenderer.invoke('library:readKnowledge'),
+  libraryWriteKnowledge: (payload) => ipcRenderer.invoke('library:writeKnowledge', payload),
+  libraryAppendLesson: (paragraph) => ipcRenderer.invoke('library:appendLesson', paragraph),
+
   // audio + plugin
   storeAudio: (name, arrayBuffer) => ipcRenderer.invoke('audio:store', name, arrayBuffer),
   installPlugin: () => ipcRenderer.invoke('plugin:install'),

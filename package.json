@@ -46,6 +46,7 @@
       "renderer-vfx/**/*",
       "rigs/**/*",
       "plugin/**/*",
+      "docs/animation-intelligence/knowledge/*.json",
       "mcp-server/**/*",
       "bin/**/*",
       "node_modules/**/*",

@@ -1,0 +1,38 @@
+{
+  "concept": "staging",
+  "category": "essential",
+  "definition": "Control of what the viewer sees first and what stays secondary — pose readability, camera framing, contrast, depth, silhouette, timing, VFX hierarchy, and environmental context.",
+  "purpose": "Direct attention to the action that matters and keep everything else from competing with it.",
+  "visible_effect": "A clear silhouette for the primary action; a VFX or secondary element that does not obscure it; a readable action direction.",
+  "psychological_or_gameplay_effect": "Determines whether the audience understands what just happened at all, independent of how well the motion itself was executed.",
+  "physical_interpretation": "Not physical — a composition and attention concept.",
+  "use_cases": [
+    "any shot with a clear primary action",
+    "a VFX-heavy moment at risk of visually competing with the character"
+  ],
+  "non_use_cases": [
+    "nothing — Part 26.3 treats this as universally applicable, unlike several other principles this build can name a non-use case for"
+  ],
+  "interactions": [
+    "VFX — Part 38's hierarchy budget share (ai/vfxspec.js) is a real, if partial, staging mechanism: a secondary effect gets a smaller budget than the primary one",
+    "Camera — most of Part 26.3's questions (\"is the action readable in the active camera\") require a camera model Cadence does not have"
+  ],
+  "style_variations": {
+    "cinematic": "staging is close to the whole discipline of the style, not one dimension among several"
+  },
+  "cadence_representation": "Partial and indirect. `ai/vfxspec.js`'s Part 38 hierarchy (`primary`/`secondary` roles with a budget share) is the one real staging mechanism in this build. Silhouette itself IS measurable (`ai/observe.js` / `ai/raster.js` silhouette passes from Phase 4) but nothing connects a silhouette measurement to a staging judgement — Phase 4 measures pixels, not \"is this readable\".",
+  "control_surface": "VFX hierarchy role via `compile_effect`; silhouette rendering via `create_baseline` / `explain_change`, read manually rather than judged automatically.",
+  "detection_and_measurement_methods": "Silhouette pixel coverage exists (Phase 4). Screen-space region-of-interest, contrast, and occlusion-by-VFX (Part 26.3's own list) do not — no active-camera model, no compositing.",
+  "generation_or_modification_methods": "None directly; a VFXSpec's `role` field is the only lever.",
+  "failure_modes": [
+    "a VFX layer at full budget share obscuring the character it should support",
+    "no primary/secondary declaration at all on a multi-effect shot, leaving hierarchy to chance"
+  ],
+  "roblox_considerations": "Roblox has no built-in compositing or attention system; staging is entirely an authoring discipline here.",
+  "performance_implications": "None beyond the VFX budget mechanism, which already exists for a different reason (Part 38).",
+  "examples": [
+    "a boss telegraph effect kept secondary so the boss's own wind-up reads first",
+    "a cluttered shot where three simultaneous effects compete for attention"
+  ],
+  "evidence_status": "directive text (Part 26.3); partial measurement via existing silhouette passes, not connected to a staging verdict"
+}

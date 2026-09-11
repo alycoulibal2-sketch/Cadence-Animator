@@ -1,0 +1,41 @@
+{
+  "concept": "slow_in_slow_out",
+  "category": "essential",
+  "definition": "Spacing and curve behaviour — gradual acceleration/deceleration versus sharp, even, or abrupt spacing — treated as a deliberate choice, not a default smoothness setting.",
+  "purpose": "Control perceived mass, impact sharpness, and whether a motion feels alive or merely smoothed.",
+  "visible_effect": "Frame-to-frame spacing that clusters near the ends of a transition (ease) versus even spacing (linear) versus abrupt stops (stepped/sharp easing).",
+  "psychological_or_gameplay_effect": "Smoothness applied everywhere reads as vague and can make combat weak — Part 26.6's own warning.",
+  "physical_interpretation": "An approximation of acceleration under force; Cadence keys carry an easing style and direction, never literal tangent vectors (a repeated fact across this codebase — see `ai/timelinegraph.js`).",
+  "use_cases": [
+    "most transitions benefit from SOME slow-in/slow-out",
+    "a sharp impact wants abrupt spacing at the contact, not an ease into it"
+  ],
+  "non_use_cases": [
+    "using a smooth ease as a default \"fix\" for every timing complaint — the directive is explicit that this can make animation lifeless",
+    "an easing style already off the contrast ladder (a custom bezier), where a rate change would be a shape decision, not a spacing one — `ai/plan.js` already refuses this case explicitly"
+  ],
+  "interactions": [
+    "Timing — this is the curve-level expression of a timing decision",
+    "Style — anime permits near-instant snaps with holds either side; realistic bounds snap by what a body can plausibly accelerate"
+  ],
+  "style_variations": {
+    "anime": "snap can be near-instant",
+    "realistic": "bounded by plausible acceleration",
+    "mechanical": "very even spacing preferred (ai/style.js `spacing_evenness: 1.4`)"
+  },
+  "cadence_representation": "Directly represented: `ai/vocabulary.js`'s `acceleration_contrast` and `spacing_evenness` dimensions compile to real easing-style/direction changes on the keys bounding a phase (`ai/plan.js`), and `ai/motion.js` measures the actual resulting velocity/acceleration curve.",
+  "control_surface": "`acceleration_contrast` / `spacing_evenness` vocabulary dimensions; `set_easing` for direct control.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion` measures per-frame velocity and acceleration directly from the FK solve — the other of the two principles in this table backed by a real per-frame measurement rather than only a compile-time dimension.",
+  "generation_or_modification_methods": "`acceleration_contrast` and `spacing_evenness` pick an easing style/direction on the keys bounding the affected phase(s); nothing inserts a new key to change spacing mid-phase.",
+  "failure_modes": [
+    "applying a smooth ease as a generic fix, which Part 26.6 names as a real risk to combat weight and stylized life",
+    "an unintentional float where an abrupt stop was intended"
+  ],
+  "roblox_considerations": "Roblox's own Animation Editor easing options map closely to what Cadence keys already store, so nothing here is Roblox-specific beyond ordinary export fidelity.",
+  "performance_implications": "None.",
+  "examples": [
+    "a punch accelerating sharply into contact and stopping dead",
+    "a slow, even drift with no acceleration contrast at all"
+  ],
+  "evidence_status": "directive text (Part 26.6) plus real per-frame measurement (Part 23, MOT-003/004, `implemented`)"
+}

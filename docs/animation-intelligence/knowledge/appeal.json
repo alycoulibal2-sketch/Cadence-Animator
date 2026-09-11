@@ -1,0 +1,34 @@
+{
+  "concept": "appeal",
+  "category": "essential",
+  "definition": "Clarity, personality, intentional design, rhythm, and a coherent relationship between pose and character — not a generic beauty score.",
+  "purpose": "Make a character or action feel deliberately designed and expressive of who or what it is, rather than merely technically correct.",
+  "visible_effect": "A pose with a readable line of action, purposeful asymmetry, and a clear relationship to the character's established personality.",
+  "psychological_or_gameplay_effect": "Distinguishes animation that feels authored from animation that is merely mechanically valid.",
+  "physical_interpretation": "None — a design and character-specific judgement, explicitly not physical.",
+  "use_cases": [
+    "any character-driven pose or action"
+  ],
+  "non_use_cases": [
+    "reducing this to a generic, character-independent \"looks nice\" metric — Part 26.11's own warning: \"It is character- and style-specific\""
+  ],
+  "interactions": [
+    "Structural understanding — the two halves of Part 26.11 are related but distinct: one is mechanical credibility, the other is design intent",
+    "Character-level memory (MEM-001's `character_rules` scope) is the natural place a specific character's appeal conventions would live, once observed and evidenced"
+  ],
+  "style_variations": {},
+  "cadence_representation": "None. This is the single most subjective principle in the table and this build states that plainly rather than approximating it — there is no line-of-action measurement, no personality model, and no character-specific appeal record (MEM-001's `character_rules` scope exists structurally but nothing has populated one yet).",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "None, and none is claimed. Part 13's certainty taxonomy would label any attempted appeal judgement `subjective`, and Part 13 forbids automatically acting on a subjective finding — so this entry's honest position is that appeal should reach a human, not a verdict.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "treating appeal as generically maximisable, rather than specific to the character being animated"
+  ],
+  "roblox_considerations": "None.",
+  "performance_implications": "None.",
+  "examples": [
+    "a villain whose silhouette is deliberately asymmetric to read as unsettling",
+    "a mascot character whose poses stay rounded and open to read as friendly"
+  ],
+  "evidence_status": "directive text only (Part 26.11); this build claims no measurement and none is planned without a character-specific evidence trail (see ai/memory.js character_rules)"
+}

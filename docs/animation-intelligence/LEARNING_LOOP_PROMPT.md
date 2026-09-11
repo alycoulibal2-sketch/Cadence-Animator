@@ -1,4 +1,21 @@
-# Cadence Animator — the learning loop (v1, written 2026-09-11)
+# Cadence Animator — the learning loop (v2, written 2026-09-11, updated the same day)
+
+> **v1 is BUILT.** Sections 3A, 3B, 3C and 3E landed on `animation-intelligence` on 2026-09-11:
+> the cross-project library (`renderer/js/ai/library.js`, seven MCP tools, the IPC half in
+> `src/main.js`), knowledge on disk behind both Part 72 gates, the `cadence-learn` skill, the
+> `library_search` benchmark, and the W01 merge (19 entries). Read the log entry at the bottom of
+> `SHARED_TASK_NOTES.md` before touching any of it.
+>
+> **What is left in this prompt is §3D — the first corpus — and it is the USER's, not a
+> session's.** `docs/animation-intelligence/CORPUS.md` is the step-by-step (Mixamo download
+> settings, the Studio importer, Animation Capture's verified limits, and the three decisions
+> that are theirs). The library is empty until somebody does those clicks; a session that invents
+> a corpus instead has invented data.
+>
+> **The other standing job is the merge**, every time a watch batch finishes:
+> `node tools/merge-knowledge-inbox.mjs --batch Wnn` — name the batch, because several watch
+> sessions run at once and merging a live inbox takes files out from under the session still
+> writing them. Then tick `WATCHLIST.md` and append to `LESSONS.md`.
 
 **Run this BEFORE `NEXT_SESSION_PROMPT.md`.** It builds the part of Cadence that makes Claude better
 at animation OVER TIME while the user works: a library of real motion Claude can measure against, a
@@ -16,13 +33,16 @@ directive; read only the parts a step cites.
    unless the user asks.
 2. `SHARED_TASK_NOTES.md` in full, then `docs/animation-intelligence/requirements-matrix.md`, then
    `CLAUDE.md`. Their rules and "decisions worth not relitigating" apply to you.
+   Then **`docs/animation-intelligence/LESSONS.md`** — what the watch batches have taught so far,
+   the queue of measurements worth building, and the queue of motions worth capturing. It is the
+   shortest path to "what does this system already know".
 3. Prove the tree is green before touching it:
 
    ```
-   node test/aitest.mjs                # 359/359
+   node test/aitest.mjs                # 390/390
    node test/coretest.mjs              #  41/41
    node test/pnxtest.mjs               # 298/298
-   node tools/benchmark.mjs --compare  # clean
+   node tools/benchmark.mjs --compare  # clean (66 cells)
    ```
 
 ## 1. The goal in one sentence, and its honest boundary
@@ -50,8 +70,12 @@ a possible LATER step once the library exists; it is not this session.
 - **Video becomes R15 keyframes without any research model: Roblox Studio's own Animation
   Capture (Body, and Face).** Upload a video in the Animation Editor and Studio tracks the body and
   generates keyframes on the R15 rig; the editor saves them to the rig's `AnimSaves` folder.
-  Read `https://create.roblox.com/docs/animation/capture` for the exact input limits (the page
-  could not be fetched when this prompt was written — DNS was flaky).
+  The limits, **verified against that page on 2026-09-11** (the v1 prompt could not reach it):
+  body capture takes an `.mp4` or `.mov` **under 15 seconds**, "just one person who is well-lit
+  and visible throughout", "a continuous single shot… from a stable camera", onto **R15 rigs**,
+  with keyframes appearing "after about a minute"; face capture takes up to 60 seconds onto
+  "animation compatible heads". Roblox states no accuracy figure, which is exactly why every entry
+  made this way is stored as an estimate. The full click path is in `CORPUS.md`.
 - **Cadence already pulls animations out of Studio.** The bridge plugin (`plugin/CadenceBridge.lua`,
   port 35747) has `HANDLERS.listAnimSaves` and `HANDLERS.getAnimSave(rigName, animName)`, and can
   fetch a published animation by asset id (`KeyframeSequenceProvider:GetKeyframeSequenceAsync`);

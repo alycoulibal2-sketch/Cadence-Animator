@@ -7,20 +7,20 @@
 // Wall-clock numbers are stripped, because a busy machine is not a regression. This module is
 // data only, and is pure at load like the rest of ai/.
 //
-// semantic layer 1.11.0 · commit 3753418 · written 2026-09-11T11:43:31.809Z
+// semantic layer 1.12.0 · commit 0af355c · written 2026-09-11T13:04:16.443Z
 
 export const BASELINE_META = Object.freeze({
-  "semantic_layer_version": "1.11.0",
-  "commit": "3753418",
-  "written_at": "2026-09-11T11:43:31.809Z",
-  "benchmarks": 17
+  "semantic_layer_version": "1.12.0",
+  "commit": "0af355c",
+  "written_at": "2026-09-11T13:04:16.443Z",
+  "benchmarks": 18
 });
 
 export const BASELINE_RUN = Object.freeze({
   "kind": "benchmark_run",
-  "id": "run:358d41e9",
+  "id": "run:b6bc2b56",
   "label": "production",
-  "created_at": "2026-09-11T11:43:31.809Z",
+  "created_at": "2026-09-11T13:04:16.443Z",
   "implementation": {
     "label": "production",
     "production": true,
@@ -48,7 +48,8 @@ export const BASELINE_RUN = Object.freeze({
     "magic_effect",
     "effect_dissolve",
     "impact_event",
-    "reference_adaptation"
+    "reference_adaptation",
+    "library_search"
   ],
   "results": [
     {
@@ -4435,13 +4436,293 @@ export const BASELINE_RUN = Object.freeze({
           "human evaluation: the rubric is attached, nobody has rated it"
         ]
       }
+    },
+    {
+      "benchmark_id": "library_search",
+      "category": "reference adaptation",
+      "goal": "the nearest library entry to a motion is the entry built from that same motion, not from a different action or a different performance of it — and an incompatible entry is EXCLUDED with a reason rather than ranked low",
+      "implementation": {
+        "label": "production",
+        "production": true,
+        "options_on": [],
+        "overrides": []
+      },
+      "human_evaluation": {
+        "rubric": [
+          "style_fit"
+        ],
+        "full_rubric": [
+          "intent_clarity",
+          "pose_readability",
+          "timing",
+          "weight",
+          "camera_readability",
+          "vfx_integration",
+          "style_fit",
+          "absence_of_distracting_artifacts"
+        ],
+        "procedure": "a reviewer plays the query motion and the returned entry side by side and says whether it is the closest thing in the library",
+        "ratings": null,
+        "separate_from_measured": true,
+        "note": "Part 59: human evaluation is structured, subjective, and kept apart from the deterministic outcomes. recordHumanRating writes here and only here; compareRuns never reads this block."
+      },
+      "status": "ran",
+      "measured": {
+        "reference_alignment": {
+          "value": 0.066047,
+          "unit": "relative distance",
+          "direction": "lower",
+          "method": "mean relative difference between the target item's Part 36 profile and the reference item's, over the dimensions ai/reference.js measures numerically (spacing variability, peak speed, peak angular speed), after the edit",
+          "detail": {
+            "queries": 4,
+            "note": "mean distance from each query to the entry that SHOULD be its nearest; lower means the library really is near what it claims to be near"
+          }
+        },
+        "reproducibility": {
+          "value": 1,
+          "unit": "boolean",
+          "direction": "higher",
+          "method": "the benchmark is run twice in one process and the two result hashes compared: 1 when identical, 0 when not",
+          "detail": {
+            "runs": 2,
+            "hashes": [
+              "f42e8a5b",
+              "f42e8a5b"
+            ]
+          }
+        }
+      },
+      "not_measured": [
+        {
+          "dimension": "time_to_acceptable_result",
+          "reason": "a human decides when a result is acceptable; a headless run has no acceptance event to time. Part 59 lists this for a production session, which the provenance graph can carry once a decision node marks acceptance"
+        },
+        {
+          "dimension": "number_of_user_corrections",
+          "reason": "a correction is an edit a HUMAN makes to the AI's work (Part 57) — none happens inside a benchmark. `record_user_correction` captures them in a real session"
+        },
+        {
+          "dimension": "number_of_iterations",
+          "reason": "iterations are round trips between the model and the user; a benchmark makes one pass by construction"
+        },
+        {
+          "dimension": "unintended_change_rate",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "constraint_violation_rate",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "regression_detection_recall",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "regression_detection_false_positive_rate",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "correct_causal_diagnosis_rate",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "animation_intent_alignment",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "contact_stability",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "curve_continuity",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "visual_temporal_continuity",
+          "reason": "flicker and one-frame pops need consecutive rendered frames; nothing in ai/ renders, and the observation policy targets suspect frames rather than sequences (OBS-*)"
+        },
+        {
+          "dimension": "vfx_timing_alignment",
+          "reason": "this benchmark does not exercise it (not in its declared set)"
+        },
+        {
+          "dimension": "camera_readability",
+          "reason": "no active-camera model exists (SHOT-003/004); readability from a camera needs framing, which nothing here computes"
+        },
+        {
+          "dimension": "export_success",
+          "reason": "the export validator (renderer/js/validate.js) imports state.js and cannot run in the pure layer — the same gap that keeps export_valid unrunnable in ai/cal.js"
+        },
+        {
+          "dimension": "render_cost",
+          "reason": "nothing renders in a headless run. The Electron smoketest can time a render; a number from it would belong in that run's report, not in a run that drew nothing"
+        },
+        {
+          "dimension": "tool_call_efficiency",
+          "reason": "the count of MCP calls a MODEL needs to reach a result is a fact about the model's session, not about the pipeline; a benchmark makes a fixed number of calls by construction"
+        },
+        {
+          "dimension": "rollback_frequency",
+          "reason": "how often a human rolls a result back is session data; the transaction ledger and provenance carry it in a real session (ai/improve.js detectRecurringProblems reads it)"
+        },
+        {
+          "dimension": "user_approval_rate",
+          "reason": "approval is a human decision. It is recorded per proposal by ai/improve.js and per difference by approve_difference, never inferred"
+        }
+      ],
+      "checks": [
+        {
+          "name": "the nearest entry for each action is the right one",
+          "ok": true,
+          "detail": {
+            "hits": 4,
+            "of": 4,
+            "misses": []
+          }
+        },
+        {
+          "name": "every seeded entry passes the Part 70 gate",
+          "ok": true,
+          "detail": []
+        },
+        {
+          "name": "an entry built for another rig is EXCLUDED with a reason, not ranked low",
+          "ok": true,
+          "detail": "built for r6, not r15 — Part 70: a validated asset must not be forced into an incompatible context"
+        },
+        {
+          "name": "search changed nothing",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "name": "the ranking rule is stated rather than implied",
+          "ok": true,
+          "detail": "lexicographic, never a weighted score: matched tags descending, then profile distance ascending (null last), then library_id. No exchange rate between a tag and a distance exists, so none is invented."
+        },
+        {
+          "name": "a measured tie is reported, not hidden by the tie-break",
+          "ok": true,
+          "detail": "the r6 decoy is profiled from the same slash and must measure exactly equidistant with it"
+        }
+      ],
+      "result_hash": "f42e8a5bce3d76afbb82d606a40be386",
+      "reproducible": true,
+      "elapsed_ms": null,
+      "detail": {
+        "entries": 5,
+        "queries": [
+          {
+            "query": "slash",
+            "expected": "lib:c16caeaa",
+            "got": "lib:c16caeaa",
+            "hit": true,
+            "distance": 0.074417,
+            "distance_to_expected": 0.074417,
+            "runner_up": {
+              "id": "lib:8581ac6b",
+              "distance": 0.30563
+            }
+          },
+          {
+            "query": "slow_slash",
+            "expected": "lib:8581ac6b",
+            "got": "lib:8581ac6b",
+            "hit": true,
+            "distance": 0.069668,
+            "distance_to_expected": 0.069668,
+            "runner_up": {
+              "id": "lib:0d98eb0c",
+              "distance": 0.364619
+            }
+          },
+          {
+            "query": "flinch",
+            "expected": "lib:157c74fc",
+            "got": "lib:157c74fc",
+            "hit": true,
+            "distance": 0.053624,
+            "distance_to_expected": 0.053624,
+            "runner_up": {
+              "id": "lib:8581ac6b",
+              "distance": 0.277036
+            }
+          },
+          {
+            "query": "walk",
+            "expected": "lib:0d98eb0c",
+            "got": "lib:0d98eb0c",
+            "hit": true,
+            "distance": 0.066477,
+            "distance_to_expected": 0.066477,
+            "runner_up": {
+              "id": "lib:8581ac6b",
+              "distance": 0.818689
+            }
+          }
+        ],
+        "excluded_by_rig": true,
+        "coverage": {
+          "covered": [
+            "walk cycle",
+            "heavy attack",
+            "reaction animation"
+          ],
+          "missing": [
+            "idle breathing and subtle weight shift",
+            "run cycle",
+            "start and stop",
+            "jump and landing",
+            "turn and pivot",
+            "light attack",
+            "dodge",
+            "weapon swing",
+            "layered upper-body action",
+            "character-to-environment contact",
+            "camera follow",
+            "impact event",
+            "smoke",
+            "sparks",
+            "dust impact",
+            "explosion",
+            "magic effect",
+            "effect dissolve",
+            "complex character, VFX, and camera shot",
+            "reference adaptation",
+            "constrained correction",
+            "regression detection"
+          ],
+          "outside_the_list": [],
+          "entries": 5
+        }
+      },
+      "findings": [],
+      "coverage": {
+        "scope": "benchmark library_search (reference adaptation), 2 runs",
+        "frames": null,
+        "loop": "full",
+        "notRun": [
+          "time_to_acceptable_result: a human decides when a result is acceptable; a headless run has no acceptance event to time. Part 59 lists this for a production session, which the provenance graph can carry once a decision node marks acceptance",
+          "number_of_user_corrections: a correction is an edit a HUMAN makes to the AI's work (Part 57) — none happens inside a benchmark. `record_user_correction` captures them in a real session",
+          "number_of_iterations: iterations are round trips between the model and the user; a benchmark makes one pass by construction",
+          "visual_temporal_continuity: flicker and one-frame pops need consecutive rendered frames; nothing in ai/ renders, and the observation policy targets suspect frames rather than sequences (OBS-*)",
+          "camera_readability: no active-camera model exists (SHOT-003/004); readability from a camera needs framing, which nothing here computes",
+          "export_success: the export validator (renderer/js/validate.js) imports state.js and cannot run in the pure layer — the same gap that keeps export_valid unrunnable in ai/cal.js",
+          "render_cost: nothing renders in a headless run. The Electron smoketest can time a render; a number from it would belong in that run's report, not in a run that drew nothing",
+          "tool_call_efficiency: the count of MCP calls a MODEL needs to reach a result is a fact about the model's session, not about the pipeline; a benchmark makes a fixed number of calls by construction",
+          "rollback_frequency: how often a human rolls a result back is session data; the transaction ledger and provenance carry it in a real session (ai/improve.js detectRecurringProblems reads it)",
+          "user_approval_rate: approval is a human decision. It is recorded per proposal by ai/improve.js and per difference by approve_difference, never inferred",
+          "no pixel was rendered: the visual metrics are the Electron smoketest's (OBS-002/003), not this run's",
+          "human evaluation: the rubric is attached, nobody has rated it"
+        ]
+      }
     }
   ],
   "summary": {
-    "ran": 17,
+    "ran": 18,
     "not_run": 0,
     "failed": 0,
-    "reproducible": 17,
+    "reproducible": 18,
     "checks_failed": 1,
     "checks_not_applicable": 2
   },
@@ -4547,7 +4828,7 @@ export const BASELINE_RUN = Object.freeze({
   "elapsed_ms": null,
   "no_overall_score": "Part 59: \"Do not optimize a metric in isolation. A faster system that damages user work is not better.\" One number would average a contact drift in studs against a recall rate, and a comparison that improved it could still have broken a planted foot. Verdicts are per dimension, per benchmark, and the counts are counts — not a score.",
   "coverage": {
-    "scope": "17 benchmark(s) against implementation \"production\"",
+    "scope": "18 benchmark(s) against implementation \"production\"",
     "frames": null,
     "loop": "full",
     "notRun": [
@@ -4557,7 +4838,7 @@ export const BASELINE_RUN = Object.freeze({
     ]
   },
   "limitations": [
-    "17 benchmarks cover 16 of Part 59's 25 categories; the rest are listed with what blocks each (listBenchmarks().categories). No benchmark is a shell: each runs the real pipeline and measures at least two dimensions.",
+    "18 benchmarks cover 16 of Part 59's 25 categories; the rest are listed with what blocks each (listBenchmarks().categories). No benchmark is a shell: each runs the real pipeline and measures at least two dimensions.",
     "11 of Part 59's 21 evaluation dimensions are measured. The other 10 are session facts (corrections, iterations, approval, rollback frequency, tool calls) or need a renderer (render cost, visual continuity, camera readability) or the impure validator (export), and each says so in EVALUATION_DIMENSIONS.",
     "A headless run renders nothing. The visual metrics of every benchmark are \"none\", and the silhouette/object-ID comparison belongs to the Electron smoketest (OBS-002/003).",
     "animation_intent_alignment is a PROXY: it counts the plan's own acceptance checks that passed. Amplitude rising is a fact; whether the motion reads as asked is not measured by any dimension here.",

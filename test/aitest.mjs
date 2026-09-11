@@ -56,6 +56,7 @@ const STYLE = await import('../renderer/js/ai/style.js');
 const KNOW = await import('../renderer/js/ai/knowledge.js');
 const MEM = await import('../renderer/js/ai/memory.js');
 const REF = await import('../renderer/js/ai/reference.js');
+const LIB = await import('../renderer/js/ai/library.js');
 const BENCH = await import('../renderer/js/ai/benchmark.js');
 const BASELINE = await import('../renderer/js/ai/benchmarkBaseline.js');
 const IMP = await import('../renderer/js/ai/improve.js');
@@ -134,7 +135,7 @@ console.log('\n— purity —');
 check('purity: every ai/ module imports in plain Node with no renderer globals', () => {
   // Reaching this line at all means all 12 imports at the top of this file succeeded. Asserting a
   // symbol from each one keeps a future tree-shaking or re-export mistake from making that vacuous.
-  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN, POSE, RAS, OBS, BASE, EXP, MOT, DIAG, EV, VS, MODES, EXPT, REVIEW, SIM, WF, STYLE, KNOW, MEM, REF, BENCH, BASELINE, IMP })) {
+  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN, POSE, RAS, OBS, BASE, EXP, MOT, DIAG, EV, VS, MODES, EXPT, REVIEW, SIM, WF, STYLE, KNOW, MEM, REF, LIB, BENCH, BASELINE, IMP })) {
     assert.ok(Object.keys(mod).length > 0, `${name} exported nothing`);
   }
   assert.equal(typeof AI.SEMANTIC_LAYER_VERSION, 'string');
@@ -145,7 +146,7 @@ check('purity: every ai/ module on disk is imported by this file', () => {
   // could reach for `window` freely, and the check below that greps the sources would catch the
   // obvious cases but not a lazy `await import('three')`.
   const onDisk = fs.readdirSync(path.join(ROOT, 'renderer/js/ai')).filter((n) => n.endsWith('.js') && n !== 'index.js').sort();
-  const imported = ['baseline.js', 'benchmark.js', 'benchmarkBaseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'experiment.js', 'explain.js', 'hash.js', 'ids.js', 'improve.js', 'intent.js', 'kinematics.js', 'knowledge.js', 'memory.js', 'modes.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'pose.js', 'provenance.js', 'raster.js', 'reference.js', 'review.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'simulate.js', 'snapshot.js', 'style.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js', 'workflows.js'];
+  const imported = ['baseline.js', 'benchmark.js', 'benchmarkBaseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'experiment.js', 'explain.js', 'hash.js', 'ids.js', 'improve.js', 'intent.js', 'kinematics.js', 'knowledge.js', 'library.js', 'memory.js', 'modes.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'pose.js', 'provenance.js', 'raster.js', 'reference.js', 'review.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'simulate.js', 'snapshot.js', 'style.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js', 'workflows.js'];
   assert.deepEqual(onDisk, imported, 'a module was added to renderer/js/ai without being imported at the top of test/aitest.mjs');
 });
 
@@ -181,6 +182,9 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     'propose_architecture_improvement', 'review_architecture_experiment',
     // Slice A — generation
     'pose_conventions', 'compile_pose', 'author_motion',
+    // The learning loop — Part 70 library, Part 72 knowledge expansion, Part 58 accept/reject
+    'import_from_studio', 'import_animation_file', 'add_to_library', 'search_library',
+    'load_from_library', 'accept_shot', 'propose_knowledge_entry',
   ];
   const src = fs.readFileSync(path.join(ROOT, 'mcp-server/index.js'), 'utf8');
   const found = new Map();
@@ -225,7 +229,9 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     'benchmark_library', 'run_benchmark_suite', 'detect_recurring_problems',
     'propose_architecture_improvement', 'review_architecture_experiment',
     // Slice A: pose_conventions returns tables, compile_pose returns operations it does not apply.
-    'pose_conventions', 'compile_pose']) {
+    'pose_conventions', 'compile_pose',
+    // The learning loop: search_library reads two folders and writes nothing at all.
+    'search_library']) {
     assert.ok(found.get(t).startsWith('READ-ONLY'), `${t} must be declared READ-ONLY`);
   }
   for (const t of ['apply_animation_patch', 'rollback_transaction', 'lock_constraint', 'unlock_constraint',
@@ -238,7 +244,12 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     'set_project_style', 'record_user_correction', 'review_preference_candidate', 'store_reference_profile',
     // Slice A: author_motion generates keys and goes through apply_animation_patch like every
     // other mutating semantic tool.
-    'author_motion']) {
+    'author_motion',
+    // The learning loop. The two imports and load_from_library add an item to the project and
+    // are undoable; add_to_library and propose_knowledge_entry write OUTSIDE every project, to
+    // the user-data folder, and are not undoable — their descriptions say which.
+    'import_from_studio', 'import_animation_file', 'add_to_library', 'load_from_library',
+    'accept_shot', 'propose_knowledge_entry']) {
     assert.ok(found.get(t).startsWith('MUTATING'), `${t} changes the project and must say MUTATING`);
   }
   // Part 50 also wants rollback capability declared. For the mutating patch tools that is the
@@ -5555,6 +5566,350 @@ check('benchmark: the committed baseline is a production run of this layer versi
   assert.deepEqual(drift, [], 'a fresh production run differs from the committed baseline. If the change that caused this was MEANT to move a measured outcome, re-run `node tools/benchmark.mjs --write-baseline` and commit the new baseline with it; otherwise this is a regression');
   assert.ok(!c.benchmarks.some((b) => (b.check_flips || []).some((f) => f.before === true && f.after === false)), 'a benchmark check that held in the baseline fails now');
 });
+
+console.log('\n— library (Part 70) —');
+
+// Two profiles from the same fixture, made deliberately different: `hero` swings, and a slowed
+// copy of it swings the same poses over twice as long. That is the whole point of the distance —
+// "the same shape, performed differently" must measure as near but not equal.
+function libFixtures() {
+  const p = fixture();
+  const slow = JSON.parse(JSON.stringify(p.tracks.hero));
+  for (const t of Object.values(slow)) for (const k of t.keys) k.t *= 2;
+  const p2 = { ...JSON.parse(JSON.stringify(p)), tracks: { ...JSON.parse(JSON.stringify(p.tracks)), hero: slow } };
+  return {
+    fast: REF.buildReferenceProfile(p, { itemId: 'hero' }),
+    slow: REF.buildReferenceProfile(p2, { itemId: 'hero' }),
+  };
+}
+
+const LIC = { terms: 'the user\'s own work', redistributable: true };
+function libEntry(over = {}) {
+  const { fast } = libFixtures();
+  const e = LIB.makeEntry({
+    profile: over.profile ?? fast,
+    semanticDescription: over.semanticDescription ?? 'a heavy overhead slash with a long recovery',
+    actionType: over.actionType ?? 'heavy attack',
+    intentTags: over.intentTags ?? ['telegraphed', 'punishable'],
+    styleTags: over.styleTags ?? ['anime'],
+    compatibleRigs: over.compatibleRigs ?? ['r15'],
+    technicalImplementation: { kind: 'keyframe_animation', file: 'entries/x.cadence', tracks: 4 },
+    provenance: over.provenance ?? { kind: 'authored', added_at: '2026-09-11T00:00:00Z' },
+    licenseOrOwnership: over.licenseOrOwnership ?? LIC,
+  });
+  if (over.after) over.after(e);
+  return e;
+}
+
+check('library: an entry carries all sixteen Part 70 fields plus the three that make it findable, and the gate names any that are missing', () => {
+  const e = libEntry();
+  for (const f of LIB.LIBRARY_FIELDS) assert.ok(f in e, `Part 70 field missing from a built entry: ${f}`);
+  for (const f of LIB.SEARCH_FIELDS) assert.ok(f in e, `search field missing: ${f}`);
+  assert.equal(LIB.LIBRARY_FIELDS.length, 16, 'Part 70 names sixteen fields');
+  assert.deepEqual(LIB.validateEntry(e).problems, []);
+
+  // the negative half: an absent key and an empty-but-required one are different messages
+  const noVersion = { ...e }; delete noVersion.version;
+  assert.match(LIB.validateEntry(noVersion).problems.join(' '), /missing field: version/);
+  assert.match(LIB.validateEntry({ ...e, semantic_description: '' }).problems.join(' '), /empty field: semantic_description/);
+  // …and a field Part 70 names that may legitimately be empty must NOT be a problem
+  assert.deepEqual(LIB.validateEntry({ ...e, dependencies: [], parameters: [], preview_media: [] }).problems, []);
+});
+
+check('library: a captured clip cannot claim to be exact, and a licence is never inferred', () => {
+  // The one refusal in the whole store that is about honesty rather than completeness.
+  const claimsExact = libEntry({ provenance: { kind: 'captured', estimated: false, source_video_url: 'https://youtu.be/x', estimated_by: 'Roblox Animation Capture', added_at: 't' } });
+  assert.match(LIB.validateEntry(claimsExact).problems.join(' '), /must be true for a "captured" entry/);
+  const honest = libEntry({ provenance: { kind: 'captured', estimated: true, source_video_url: 'https://youtu.be/x', source_timestamps: '8:09-8:24', estimated_by: 'Roblox Animation Capture (Body)', added_at: 't' } });
+  assert.deepEqual(LIB.validateEntry(honest).problems, []);
+  // a captured entry with no source video is unverifiable against the thing it estimates
+  const noSource = libEntry({ provenance: { kind: 'captured', estimated: true, estimated_by: 'x', added_at: 't' } });
+  assert.match(LIB.validateEntry(noSource).problems.join(' '), /provenance.source_video_url is required/);
+  // mocap must name where it came from, because that is what its licence attaches to
+  assert.match(LIB.validateEntry(libEntry({ provenance: { kind: 'mocap', added_at: 't' } })).problems.join(' '), /provenance.source is required/);
+  // and "redistributable" must be SAID, not left to be guessed from a kind or a URL
+  assert.match(LIB.validateEntry(libEntry({ licenseOrOwnership: { terms: 'Mixamo' } })).problems.join(' '), /redistributable must be stated/);
+  assert.match(LIB.validateEntry(libEntry({ licenseOrOwnership: { redistributable: false } })).problems.join(' '), /terms is required/);
+});
+
+check('library: the id is DERIVED, so the same clip added twice replaces rather than duplicating', () => {
+  const a = libEntry(), b = libEntry();
+  assert.equal(a.library_id, b.library_id);
+  const different = libEntry({ semanticDescription: 'a light jab' });
+  assert.notEqual(a.library_id, different.library_id);
+  let idx = LIB.emptyIndex();
+  idx = LIB.upsertEntry(idx, a).index;
+  const second = LIB.upsertEntry(idx, b);
+  assert.equal(second.replaced, true);
+  assert.equal(second.index.entries.length, 1);
+  assert.equal(LIB.upsertEntry(second.index, different).index.entries.length, 2);
+  assert.equal(LIB.removeEntry(second.index, a.library_id).index.entries.length, 0);
+});
+
+check('library: validateIndex refuses a malformed entry BY NAME and keeps the rest of the library', () => {
+  const good = libEntry();
+  const bad = { ...libEntry({ semanticDescription: 'broken' }) }; delete bad.provenance;
+  const v = LIB.validateIndex({ index_version: LIB.INDEX_VERSION, entries: [good, bad] });
+  assert.equal(v.ok, false);
+  assert.equal(v.entries.length, 1, 'one bad entry must not cost the user the good ones');
+  assert.equal(v.entries[0].library_id, good.library_id);
+  assert.equal(v.rejected.length, 1);
+  assert.match(v.rejected[0].problems.join(' '), /missing field: provenance/);
+  // a future index version is refused rather than half-read
+  assert.match(LIB.validateIndex({ index_version: 99, entries: [] }).problems.join(' '), /is not 1/);
+});
+
+check('library: search filters EXCLUDE with a reason, and ranks lexicographically', () => {
+  const { fast, slow } = libFixtures();
+  const heavy = libEntry({ profile: fast });
+  const light = libEntry({ profile: slow, semanticDescription: 'a fast jab', actionType: 'light attack', intentTags: ['fast'], styleTags: ['game_combat'] });
+  const otherRig = libEntry({ profile: fast, semanticDescription: 'an r6 swing', compatibleRigs: ['r6'] });
+  let idx = LIB.emptyIndex();
+  for (const e of [heavy, light, otherRig]) idx = LIB.upsertEntry(idx, e).index;
+
+  // action type normalises: "Heavy Attack" and "heavy_attack" are the same shelf
+  assert.equal(LIB.normaliseActionType('Heavy Attack'), 'heavy_attack');
+  const byAction = LIB.searchLibrary(idx, { actionType: 'Heavy Attack' });
+  assert.equal(byAction.matches.length, 2);
+  assert.equal(byAction.excluded.length, 1);
+  assert.match(byAction.excluded[0].reason, /action_type is "light_attack"/);
+
+  // an incompatible rig is excluded with Part 70's own reason, not silently ranked low
+  const byRig = LIB.searchLibrary(idx, { actionType: 'heavy attack', rig: 'r15' });
+  assert.equal(byRig.matches.length, 1);
+  assert.match(byRig.excluded.find((x) => x.library_id === otherRig.library_id).reason, /not be forced into an incompatible context/);
+
+  // tags outrank distance; the ranking rule is stated rather than implied
+  const tagged = LIB.searchLibrary(idx, { intentTags: ['telegraphed'], profile: slow });
+  assert.equal(tagged.matches[0].library_id, heavy.library_id);
+  assert.equal(tagged.matches[0].tag_overlap, 1);
+  assert.match(tagged.ranking, /never a weighted score/);
+});
+
+check('library: an incomparable distance is null and sorts LAST, never zero', () => {
+  const { fast } = libFixtures();
+  const comparable = libEntry({ profile: fast });
+  // a clip measured on a rig whose part names do not correspond — the real-world cross-rig case
+  const strange = libEntry({ profile: fast, semanticDescription: 'a clip measured on another rig', after: (e) => { e.characteristics = { 'peak_speed:SomeOtherRigPart': 3 }; } });
+  let idx = LIB.emptyIndex();
+  for (const e of [strange, comparable]) idx = LIB.upsertEntry(idx, e).index;
+  const out = LIB.searchLibrary(idx, { profile: fast });
+  assert.equal(out.matches[0].library_id, comparable.library_id, 'a comparable entry must rank above an incomparable one');
+  assert.equal(out.matches[0].profile_distance, 0, 'the same profile against itself is distance 0');
+  assert.equal(out.matches[1].profile_distance, null, 'incomparable must be null, never a number');
+  assert.match(out.matches[1].distance_unavailable_because, /share no numeric profile value/);
+
+  const near = LIB.nearest(idx, fast);
+  assert.equal(near.nearest.length, 1);
+  assert.equal(near.not_comparable.length, 1);
+  assert.match(near.caveat, /three numeric dimensions/i);
+});
+
+check('library: nearest filters by rig and reports an exact tie rather than letting the tie-break decide silently', () => {
+  // Found by the library_search benchmark, not by reading the code: two entries profiled from the
+  // SAME motion measure exactly equidistant, so whichever id sorts first wins — and if one of them
+  // is built for another rig, "the nearest thing" comes back unusable.
+  const { fast } = libFixtures();
+  const mine = libEntry({ profile: fast });
+  const theirs = libEntry({ profile: fast, semanticDescription: 'the same motion, profiled on an r6', compatibleRigs: ['r6'] });
+  let idx = LIB.emptyIndex();
+  for (const e of [mine, theirs]) idx = LIB.upsertEntry(idx, e).index;
+
+  const unfiltered = LIB.nearest(idx, fast);
+  assert.equal(unfiltered.nearest.length, 2);
+  assert.equal(unfiltered.nearest[0].distance, unfiltered.nearest[1].distance, 'the fixture is only a test of the tie if the two really are equidistant');
+  assert.deepEqual(unfiltered.tied_for_first.sort(), [mine.library_id, theirs.library_id].sort());
+
+  const filtered = LIB.nearest(idx, fast, { rig: 'r15' });
+  assert.deepEqual(filtered.nearest.map((n) => n.library_id), [mine.library_id]);
+  assert.equal(filtered.excluded.length, 1);
+  assert.match(filtered.excluded[0].reason, /built for r6, not r15/);
+  assert.deepEqual(filtered.tied_for_first, [], 'one survivor cannot be tied with anything');
+});
+
+check('library: nearest uses the SAME distance the reference_adaptation benchmark reports', () => {
+  // One distance function, not two that could disagree — the reason it lives in ai/reference.js.
+  const { fast, slow } = libFixtures();
+  const direct = REF.profileDistance(fast, slow);
+  assert.ok(direct && direct.value > 0, 'a slowed performance of the same poses must measure as different');
+  const e = libEntry({ profile: slow });
+  const idx = LIB.upsertEntry(LIB.emptyIndex(), e).index;
+  assert.equal(LIB.nearest(idx, fast).nearest[0].distance, direct.value);
+  // and the flattened-slice form agrees with the whole-profile form
+  assert.deepEqual(REF.relativeDistance(REF.numericProfile(fast), REF.numericProfile(slow)), direct);
+});
+
+check('library: coverage is reported against a list the CALLER supplies, so no second copy of Part 59 can drift', () => {
+  const idx = LIB.upsertEntry(LIB.emptyIndex(), libEntry()).index;
+  const cov = LIB.coverageAgainst(idx, BENCH.BENCHMARK_CATEGORIES);
+  assert.deepEqual(cov.covered, ['heavy attack']);
+  assert.equal(cov.missing.length, BENCH.BENCHMARK_CATEGORIES.length - 1);
+  assert.deepEqual(cov.outside_the_list, []);
+  const summary = LIB.librarySummary(idx);
+  assert.equal(summary.entries, 1);
+  assert.deepEqual(summary.by_provenance_kind, { authored: 1 });
+  assert.deepEqual(summary.by_licence, { redistributable: 1, not_redistributable: 0, unstated: 0 });
+});
+
+check('library: the module reads no files and names that as its first limitation', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'renderer/js/ai/library.js'), 'utf8');
+  assert.ok(!/require\(|from ['"]node:fs|from ['"]fs['"]/.test(src), 'ai/library.js must not touch the filesystem — src/main.js owns the folder');
+  assert.match(LIB.libraryLimitations()[0], /reads and writes nothing/);
+});
+
+console.log('\n— knowledge on disk (Part 72) —');
+
+const W01_ENTRY = () => ({
+  concept: 'test_only_entry', category: 'advanced',
+  definition: 'd', purpose: 'p', visible_effect: 'v', psychological_or_gameplay_effect: 'e',
+  physical_interpretation: 'i', use_cases: ['u'], non_use_cases: ['n'], interactions: ['x'],
+  style_variations: {}, cadence_representation: 'c', control_surface: 's',
+  detection_and_measurement_methods: 'peak speed per subject',
+  generation_or_modification_methods: 'g', failure_modes: ['f'], roblox_considerations: 'r',
+  performance_implications: 'none', examples: ['ex'],
+  evidence_status: 'video: https://youtu.be/uDqjIdI4bF4 @ 21:19 — experimental until validated',
+});
+
+check('knowledge: an entry loaded from disk must pass the shape gate AND name its evidence source', () => {
+  KNOW.clearUserKnowledge();
+  const ok = KNOW.registerUserEntries([{ name: 'user/test.json', entry: W01_ENTRY() }]);
+  assert.equal(ok.loaded, 1);
+  assert.equal(ok.accepted.length, 1);
+  assert.equal(KNOW.getKnowledge('test_only_entry').source, 'user');
+  assert.equal(KNOW.listKnowledge().length, 13);
+  assert.equal(KNOW.listKnowledge({ includeUser: false }).length, 12);
+
+  // the shape gate, on the way in from disk
+  const broken = { ...W01_ENTRY(), failure_modes: [] };
+  const bad = KNOW.registerUserEntries([{ name: 'user/broken.json', entry: broken }]);
+  assert.equal(bad.loaded, 0);
+  assert.equal(bad.refused.length, 1);
+  assert.match(bad.refused[0].problems.join(' '), /failure_modes/);
+  assert.equal(bad.refused[0].file, 'user/broken.json', 'a refusal must name the FILE, or it cannot be fixed');
+
+  // the evidence gate, which the shape gate deliberately does not cover
+  assert.equal(KNOW.validateEvidenceSource(W01_ENTRY()).ok, true);
+  assert.deepEqual(KNOW.validateEvidenceSource(W01_ENTRY()).sources, ['a URL', 'a timestamp']);
+  const vague = KNOW.validateEvidenceSource({ evidence_status: 'experimental' });
+  assert.equal(vague.ok, false);
+  assert.match(vague.problem, /names no source/);
+  // every one of the twelve passes it too — the check that keeps the bar honest rather than strict
+  for (const e of KNOW.KNOWLEDGE_ENTRIES) assert.equal(KNOW.validateEvidenceSource(e).ok, true, `${e.concept} cites no source`);
+  KNOW.clearUserKnowledge();
+});
+
+check('knowledge: a user entry may not shadow one of the twelve, and a duplicate concept is refused', () => {
+  KNOW.clearUserKnowledge();
+  const shadow = { ...KNOW.KNOWLEDGE_ENTRIES.find((e) => e.concept === 'arcs') };
+  const r = KNOW.registerUserEntries([{ name: 'packaged/arcs.json', entry: shadow }]);
+  assert.equal(r.loaded, 0);
+  assert.equal(r.already_builtin.length, 1, 'the shipped seed re-presents the twelve every launch: a no-op, not twelve refusals');
+  assert.equal(r.refused.length, 0);
+  assert.equal(KNOW.getKnowledge('arcs').source, 'builtin', 'the compiled card must win');
+
+  const twice = KNOW.registerUserEntries([
+    { name: 'user/a.json', entry: W01_ENTRY() },
+    { name: 'user/b.json', entry: W01_ENTRY() },
+  ]);
+  assert.equal(twice.loaded, 1);
+  assert.match(twice.refused[0].problems.join(' '), /already loaded from user\/a.json/);
+  KNOW.clearUserKnowledge();
+});
+
+check('knowledge: a detection method becomes a runnable check only where ai/motion.js already measures it', () => {
+  KNOW.clearUserKnowledge();
+  const checks = KNOW.knowledgeChecks(MOT.MEASUREMENTS);
+  assert.equal(checks.counts.total, 12);
+  // the four with no measurement anywhere in this build are named, never counted as satisfied
+  const none = checks.not_measured.map((c) => c.concept).sort();
+  assert.deepEqual(none, ['appeal', 'squash_stretch', 'staging', 'structural_understanding']);
+  assert.equal(checks.counts.runnable, 8);
+  for (const c of checks.not_measured) assert.ok(c.why, 'a not-measured concept must say why');
+
+  // a user entry with no declared keys is prose, and says so rather than pretending to a check
+  KNOW.registerUserEntries([{ name: 'user/test.json', entry: W01_ENTRY() }]);
+  const withProse = KNOW.knowledgeChecks(MOT.MEASUREMENTS, { concepts: ['test_only_entry'] });
+  assert.equal(withProse.counts.runnable, 0);
+  assert.match(withProse.not_measured[0].why, /names no measurement_keys/);
+
+  // declaring keys that exist makes it runnable; declaring one that does not names the blocker
+  KNOW.clearUserKnowledge();
+  KNOW.registerUserEntries([
+    { name: 'user/wired.json', entry: { ...W01_ENTRY(), concept: 'wired_entry', measurement_keys: ['linear_velocity'] } },
+    { name: 'user/blocked.json', entry: { ...W01_ENTRY(), concept: 'blocked_entry', measurement_keys: ['screen_space_velocity'] } },
+  ]);
+  const wired = KNOW.knowledgeChecks(MOT.MEASUREMENTS, { concepts: ['wired_entry', 'blocked_entry'] });
+  assert.deepEqual(wired.runnable.map((c) => c.concept), ['wired_entry']);
+  assert.equal(wired.not_measured[0].concept, 'blocked_entry');
+  assert.match(wired.not_measured[0].unblocked_by.join(' '), /MOT-006/, 'the blocker must come from MEASUREMENTS, not be re-asserted here');
+  KNOW.clearUserKnowledge();
+});
+
+check('knowledge: a runnable check reports a measured value and withholds a verdict', () => {
+  KNOW.clearUserKnowledge();
+  const p = fixture();
+  const sampled = MOT.sampleMotion(p, { itemId: 'hero' });
+  const out = KNOW.knowledgeChecks(MOT.MEASUREMENTS, { concepts: ['arcs', 'timing'], sampled });
+  assert.equal(out.runnable.length, 2);
+  for (const c of out.runnable) {
+    assert.equal(c.verdict, null, 'nothing in this build decides whether a principle is satisfied');
+    assert.ok(c.why_no_verdict);
+    assert.ok(c.measured.length > 0);
+  }
+  const arcs = out.runnable.find((c) => c.concept === 'arcs');
+  assert.ok(typeof arcs.measured[0].bow_studs === 'number', 'arcs must carry the real chord-deviation number');
+  const timing = out.runnable.find((c) => c.concept === 'timing');
+  // key density belongs to the sampled range, not to a part, and is reported there
+  assert.ok(typeof timing.measured_over_range.keys_per_frame === 'number');
+  assert.ok(timing.measured.every((r) => !('key_density' in r)), 'a range-level number must not be repeated identically on every part row');
+});
+
+check('knowledge: review_shot consumes the checks, so a growing corpus makes the review grow', () => {
+  KNOW.clearUserKnowledge();
+  const before = REVIEW.reviewShot(plantFixture(), { itemId: 'hero' }).knowledge_checks;
+  assert.equal(before.counts.total, 12);
+  KNOW.registerUserEntries([{ name: 'user/wired.json', entry: { ...W01_ENTRY(), concept: 'wired_entry', measurement_keys: ['linear_velocity'] } }]);
+  const r = REVIEW.reviewShot(plantFixture(), { itemId: 'hero' });
+  assert.equal(r.knowledge_checks.counts.total, 13, 'one more loaded entry must reach the review without a code change');
+  assert.ok(r.knowledge_checks.runnable.some((c) => c.concept === 'wired_entry' && c.source === 'user'));
+  // and it is NOT a finding: a measurement a principle points at is neither a defect nor a suggestion
+  assert.ok(!r.deterministic_defects.some((d) => /wired_entry/.test(JSON.stringify(d))));
+  assert.ok(!r.artistic_suggestions.some((d) => /wired_entry/.test(JSON.stringify(d))));
+  KNOW.clearUserKnowledge();
+});
+
+check('knowledge: the seed on disk matches the module, entry for entry', () => {
+  // The same discipline benchmarkBaseline.js holds: a generated artefact is committed, and the
+  // check that it still matches its generator runs in this suite. Regenerate with
+  // `node tools/export-knowledge.mjs`.
+  const dir = path.join(ROOT, 'docs/animation-intelligence/knowledge');
+  for (const e of KNOW.KNOWLEDGE_ENTRIES) {
+    const file = path.join(dir, `${e.concept}.json`);
+    assert.ok(fs.existsSync(file), `${e.concept}.json is missing — run node tools/export-knowledge.mjs`);
+    const onDisk = JSON.parse(fs.readFileSync(file, 'utf8'));
+    for (const f of KNOW.knowledgeFieldList()) {
+      assert.deepEqual(onDisk[f], e[f], `${e.concept}.json disagrees with the module on "${f}" — run node tools/export-knowledge.mjs`);
+    }
+  }
+});
+
+check('knowledge: every merged corpus entry on disk still passes both gates', () => {
+  // The corpus grows by watch batches merging into it. If a later edit breaks one, this is where
+  // it is caught — before the app tries to load it and reports it absent at startup instead.
+  const dir = path.join(ROOT, 'docs/animation-intelligence/knowledge');
+  const files = fs.readdirSync(dir).filter((n) => n.endsWith('.json'));
+  assert.ok(files.length >= 12, `the corpus should hold at least the twelve seeds, found ${files.length}`);
+  const problems = [];
+  for (const f of files) {
+    const entry = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+    const shape = KNOW.validateProposedEntry(entry);
+    const ev = KNOW.validateEvidenceSource(entry);
+    if (!shape.ok) problems.push(`${f}: ${shape.problems.join('; ')}`);
+    if (!ev.ok) problems.push(`${f}: ${ev.problem}`);
+  }
+  assert.deepEqual(problems, []);
+});
+
 
 console.log('\n— improve (Part 60) —');
 

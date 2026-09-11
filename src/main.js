@@ -626,6 +626,153 @@ ipcMain.handle('autosave:delete', (_e, projectId) => {
   return true;
 });
 
+// ---------------------------------------------------------------- IPC: the cross-project library
+//
+// Directive Part 70, and the one thing `ai/memory.js`, `ai/style.js` and `ai/reference.js` each
+// close by saying they do not have: a store that outlives one `.cadence` file. It sits in the
+// user-data folder beside `settings.json` and the autosaves, and it is deliberately NOT in the
+// repo and NOT in a project file — Mixamo's licence forbids redistributing its clips as files, and
+// the user's own captures are the user's. A library committed to the product repo would ship both.
+//
+//   library/
+//     index.json                  the searchable index — ai/library.js validates and searches it
+//     entries/<id>.cadence        one clip per entry, the same format a project save uses
+//     entries/<id>.profile.json   the Part 36 profile ai/reference.js built from that clip
+//     knowledge/*.json            the user's own Part 25 knowledge entries
+//
+// This process does no validation beyond JSON parsing: the shape gates are `ai/library.js
+// validateIndex` and `ai/knowledge.js validateProposedEntry`, both pure, both tested headless.
+// Keeping them out of here is what lets `aitest` and the `library_search` benchmark exercise the
+// whole of the real logic without an Electron app.
+//
+// `--user-data-dir` moves the whole folder, so the smoketest writes into `test-output/userdata`
+// and never touches the user's own library.
+const libraryDir = () => {
+  const d = path.join(userData(), 'library');
+  fs.mkdirSync(d, { recursive: true });
+  return d;
+};
+const libraryEntriesDir = () => {
+  const d = path.join(libraryDir(), 'entries');
+  fs.mkdirSync(d, { recursive: true });
+  return d;
+};
+const libraryKnowledgeDir = () => {
+  const d = path.join(libraryDir(), 'knowledge');
+  fs.mkdirSync(d, { recursive: true });
+  return d;
+};
+// The corpus that ships with the app: the twelve classical principles exported by
+// `tools/export-knowledge.mjs`, plus every entry a watch batch has had merged in. Read-only here —
+// the app never writes into its own installation.
+const seedKnowledgeDir = () => path.join(app.getAppPath(), 'docs', 'animation-intelligence', 'knowledge');
+
+/** Atomic replace, the same discipline autosave:write uses: a crash mid-write must never leave a
+ *  half-written index, because the index is the only thing that knows the entries exist. */
+function writeFileAtomic(file, text) {
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, text);
+  fs.renameSync(tmp, file);
+}
+
+const libraryIndexPath = () => path.join(libraryDir(), 'index.json');
+
+ipcMain.handle('library:paths', () => ({
+  dir: libraryDir(),
+  entries: libraryEntriesDir(),
+  knowledge: libraryKnowledgeDir(),
+  seedKnowledge: seedKnowledgeDir(),
+  seedKnowledgeExists: fs.existsSync(seedKnowledgeDir()),
+}));
+
+ipcMain.handle('library:readIndex', () => {
+  const p = libraryIndexPath();
+  if (!fs.existsSync(p)) return { index: null, existed: false, path: p };
+  try {
+    return { index: JSON.parse(fs.readFileSync(p, 'utf8')), existed: true, path: p };
+  } catch (e) {
+    // A corrupt index is reported, never silently replaced with an empty one — that would read as
+    // "your library is empty" and the next write would make it true.
+    return { index: null, existed: true, path: p, error: `library index is not valid JSON: ${e.message}` };
+  }
+});
+
+ipcMain.handle('library:writeIndex', (_e, index) => {
+  writeFileAtomic(libraryIndexPath(), JSON.stringify(index, null, 2));
+  return { path: libraryIndexPath(), entries: (index?.entries || []).length };
+});
+
+/** Write one entry's two files and the index together. The index goes LAST: a clip on disk that
+ *  nothing indexes is invisible and harmless, while an index row pointing at a missing file is a
+ *  broken library. */
+ipcMain.handle('library:writeEntry', (_e, { id, cadenceText, profile, index }) => {
+  const safe = String(id).replace(/^lib:/, '').replace(/[^\w.-]/g, '_');
+  const dir = libraryEntriesDir();
+  const clip = path.join(dir, `${safe}.cadence`);
+  writeFileAtomic(clip, cadenceText);
+  if (profile) writeFileAtomic(path.join(dir, `${safe}.profile.json`), JSON.stringify(profile, null, 2));
+  writeFileAtomic(libraryIndexPath(), JSON.stringify(index, null, 2));
+  return { clip, profile: profile ? path.join(dir, `${safe}.profile.json`) : null, entries: (index?.entries || []).length };
+});
+
+ipcMain.handle('library:readEntry', (_e, id) => {
+  const safe = String(id).replace(/^lib:/, '').replace(/[^\w.-]/g, '_');
+  const dir = libraryEntriesDir();
+  const clip = path.join(dir, `${safe}.cadence`);
+  const prof = path.join(dir, `${safe}.profile.json`);
+  if (!fs.existsSync(clip)) return { error: `no clip file for ${id} — the index names it but ${clip} is missing` };
+  let profile = null;
+  try { profile = fs.existsSync(prof) ? JSON.parse(fs.readFileSync(prof, 'utf8')) : null; } catch (_) { profile = null; }
+  return { cadenceText: fs.readFileSync(clip, 'utf8'), profile, path: clip };
+});
+
+ipcMain.handle('library:deleteEntry', (_e, { id, index }) => {
+  const safe = String(id).replace(/^lib:/, '').replace(/[^\w.-]/g, '_');
+  const dir = libraryEntriesDir();
+  // Index first here, for the mirror of the reason above: once the row is gone the clip is
+  // invisible, and a delete interrupted halfway leaves an orphan file rather than a dangling row.
+  writeFileAtomic(libraryIndexPath(), JSON.stringify(index, null, 2));
+  for (const f of [`${safe}.cadence`, `${safe}.profile.json`]) {
+    try { fs.unlinkSync(path.join(dir, f)); } catch (_) { /* already gone */ }
+  }
+  return { removed: id, entries: (index?.entries || []).length };
+});
+
+/** Every knowledge entry on disk, from both folders, unvalidated. `source` says which folder, so
+ *  the renderer's gate can report "the shipped corpus" separately from "something you wrote". */
+ipcMain.handle('library:readKnowledge', () => {
+  const out = [];
+  for (const [dir, source] of [[seedKnowledgeDir(), 'packaged'], [libraryKnowledgeDir(), 'user']]) {
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.json')).sort()) {
+      try { out.push({ name: f, source, entry: JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) }); } catch (e) {
+        out.push({ name: f, source, entry: null, error: `not valid JSON: ${e.message}` });
+      }
+    }
+  }
+  return out;
+});
+
+ipcMain.handle('library:writeKnowledge', (_e, { concept, entry }) => {
+  const safe = String(concept).replace(/[^\w.-]/g, '_');
+  const file = path.join(libraryKnowledgeDir(), `${safe}.json`);
+  const existed = fs.existsSync(file);
+  writeFileAtomic(file, `${JSON.stringify(entry, null, 2)}\n`);
+  return { path: file, replaced: existed };
+});
+
+/** The lesson log the app can write: one dated paragraph per accepted or rejected shot. The
+ *  repo's own `docs/animation-intelligence/LESSONS.md` is the session-facing file and the app
+ *  cannot reach it (there is no repo at runtime), so `accept_shot` returns the paragraph as well
+ *  as appending it here, and a session pastes it across. */
+ipcMain.handle('library:appendLesson', (_e, paragraph) => {
+  const file = path.join(libraryDir(), 'lessons.md');
+  if (!fs.existsSync(file)) fs.writeFileSync(file, '# Lessons — written by accept_shot\n\nOne dated paragraph per accepted or rejected shot. The repo copy is docs/animation-intelligence/LESSONS.md.\n');
+  fs.appendFileSync(file, `\n${paragraph}\n`);
+  return { path: file };
+});
+
+
 // ---------------------------------------------------------------- IPC: audio store (for drag&dropped files)
 ipcMain.handle('audio:store', (_e, name, arrayBuffer) => {
   const dir = path.join(userData(), 'audio');

@@ -3143,11 +3143,19 @@
     const out = {};
 
     // 1. KNW-001/002/003/007: the catalogue is real and complete, not a stub.
-    const knw = D.mcp('animation_knowledge', {});
-    assert(knw.entries.length === 12, `twelve classical principles expected, got ${knw.entries.length}`);
-    assert(knw.entries.every((e) => e.category === 'essential'), 'all twelve are essential category');
+    const knw = await D.mcp('animation_knowledge', {}); // async since the learning loop: it reloads the on-disk corpus through Part 72's gate on every call
+    // The twelve compiled principles are a fixed list; the catalogue as a whole also carries
+    // whatever the on-disk corpus holds, which grows as watch batches are merged. Asserting a
+    // total of twelve would fail the moment the corpus did its job, so the check is on the
+    // compiled twelve specifically and on the user half being reported separately.
+    const builtin = knw.entries.filter((e) => e.source === 'builtin');
+    assert(builtin.length === 12, `twelve classical principles expected, got ${builtin.length}`);
+    assert(builtin.every((e) => e.category === 'essential'), 'all twelve are essential category');
+    assert(knw.entries.length >= 12 && knw.entries.length === builtin.length + knw.on_disk.loaded,
+      `the catalogue must be the twelve plus exactly what loaded from disk: ${knw.entries.length} vs ${builtin.length}+${knw.on_disk.loaded}`);
+    assert(knw.on_disk.refused.length === 0, `a corpus entry was refused at load: ${JSON.stringify(knw.on_disk.refused).slice(0, 300)}`);
     assert(knw.premium_standard.total === 19, 'Part 73 has 19 qualities');
-    out.knowledge = { entries: knw.entries.length, premium: knw.premium_standard.counts };
+    out.knowledge = { builtin: builtin.length, from_disk: knw.on_disk.loaded, premium: knw.premium_standard.counts };
 
     // 2. KNW-005: the relevance gate refuses to invent an answer with no context, and reports a
     // certain conflict as `not_recommended` when a real aspect lock is given.
@@ -3478,6 +3486,182 @@
     out.rolled_back_to_empty = true;
     return out;
   });
+
+  await step('the learning loop: a clip is imported from a file as a reference, measured, stored in the cross-project library, found again by measurement, loaded into a SECOND project, and the user rig proved untouched', async () => {
+    // The whole point of the library is that it outlives one project, so this step is the only
+    // place that can prove it: everything before this runs inside one `.cadence` file. It writes
+    // into the app's real library folder, which `--user-data-dir=test-output/userdata` puts under
+    // test-output — the user's own library is never touched by a test run.
+    const out = {};
+    S.newProject('library-a');
+    const hero = await D.addBuiltinRig('r15');
+    S.renameItem(hero.id, 'Working rig');
+
+    // A motion worth storing: the torso turns and the right arm swings, with a planted left foot.
+    const CFI = CF.IDENTITY.slice();
+    const pose = (t, waist, sh, el) => {
+      S.setKey(hero.id, 'Waist', t, waist, { noUndo: true, es: 'Sine', ed: 'InOut' });
+      S.setKey(hero.id, 'RightShoulder', t, sh, { noUndo: true, es: 'Sine', ed: 'InOut' });
+      S.setKey(hero.id, 'RightElbow', t, el, { noUndo: true, es: 'Sine', ed: 'InOut' });
+      S.setKey(hero.id, 'LeftAnkle', t, CFI.slice(), { noUndo: true, es: 'Sine', ed: 'InOut' });
+    };
+    pose(0, CFI.slice(), CFI.slice(), CFI.slice());
+    pose(8, CF.fromEuler(0, 0.4, 0), CF.fromEuler(0, 0, 1.2), CF.fromEuler(0.6, 0, 0));
+    pose(16, CF.fromEuler(0, -0.5, 0), CF.fromEuler(0, 0, -0.9), CF.fromEuler(0.1, 0, 0));
+    pose(28, CFI.slice(), CFI.slice(), CFI.slice());
+    S.addMarker(hero.id, 16, { name: 'impact', width: 2 });
+    const heroTracksBefore = JSON.stringify(S.getTracks(hero.id));
+
+    // 1. An entry cannot be stored without a declared provenance and a declared licence. Nothing
+    // in this build infers either, and this is the boundary where that is enforced for real.
+    let refusedProvenance = null, refusedLicence = null;
+    try { await D.mcp('add_to_library', { itemId: hero.id, semanticDescription: 'x', actionType: 'heavy attack' }); } catch (e) { refusedProvenance = e.message; }
+    try { await D.mcp('add_to_library', { itemId: hero.id, semanticDescription: 'x', actionType: 'heavy attack', provenance: { kind: 'authored' } }); } catch (e) { refusedLicence = e.message; }
+    assert(/provenance\.kind/.test(refusedProvenance || ''), `add_to_library must refuse an entry with no declared provenance; got: ${refusedProvenance}`);
+    assert(/licenseOrOwnership\.terms/.test(refusedLicence || ''), `add_to_library must refuse an entry with no declared licence; got: ${refusedLicence}`);
+    out.refuses_undeclared = { provenance: true, licence: true };
+
+    // 2. …and a CAPTURED clip cannot claim to be exact. Roblox Animation Capture estimates poses
+    // from video; an entry saying otherwise would turn every later measurement into a false
+    // measurement of the performer.
+    let refusedEstimate = null;
+    try {
+      await D.mcp('add_to_library', {
+        itemId: hero.id, semanticDescription: 'a captured slash', actionType: 'heavy attack',
+        provenance: { kind: 'captured', estimated: false, source_video_url: 'https://youtu.be/x', estimated_by: 'Roblox Animation Capture (Body)' },
+        licenseOrOwnership: { terms: 'reference only', redistributable: false },
+      });
+    } catch (e) { refusedEstimate = e.message; }
+    assert(/estimated must be true/.test(refusedEstimate || ''), `a captured entry claiming to be exact must be refused; got: ${refusedEstimate}`);
+    out.refuses_unlabelled_estimate = true;
+
+    // 3. The real store. Two entries: the user's own slash, and a captured one labelled estimated.
+    const stored = await D.mcp('add_to_library', {
+      itemId: hero.id,
+      semanticDescription: 'a body-driven overhead slash on a planted left foot',
+      actionType: 'heavy attack', intentTags: ['telegraphed', 'committed'], styleTags: ['anime'],
+      provenance: { kind: 'authored' },
+      licenseOrOwnership: { terms: 'the user\'s own work', redistributable: true },
+    });
+    assert(stored.entry.library_id.startsWith('lib:'), JSON.stringify(stored).slice(0, 200));
+    assert(stored.entry.action_type === 'heavy_attack', `the action type must be normalised for search, got ${stored.entry.action_type}`);
+    assert(stored.entry.characteristics && Object.keys(stored.entry.characteristics).length > 0, 'an entry with no measured characteristics cannot be searched by measurement');
+    out.stored = { id: stored.entry.library_id, values: Object.keys(stored.entry.characteristics).length, file: stored.files.clip.split(/[\\/]/).slice(-2).join('/') };
+
+    // Idempotent: the same clip added twice REPLACES rather than stacking, because the id is
+    // derived from what makes two entries the same entry.
+    const again = await D.mcp('add_to_library', {
+      itemId: hero.id,
+      semanticDescription: 'a body-driven overhead slash on a planted left foot',
+      actionType: 'heavy attack', provenance: { kind: 'authored' },
+      licenseOrOwnership: { terms: 'the user\'s own work', redistributable: true },
+    });
+    assert(again.replaced === true && again.library.entries === 1, `adding the same clip twice must replace; the library holds ${again.library.entries}`);
+    out.idempotent = true;
+
+    // 4. A second, deliberately different motion — a slow version — so search has to discriminate
+    // rather than return the only thing it has.
+    const slow = await D.addBuiltinRig('r15');
+    S.renameItem(slow.id, 'Slow twin');
+    for (const [track, keys] of Object.entries(JSON.parse(heroTracksBefore))) {
+      for (const k of keys.keys) S.setKey(slow.id, track, k.t * 2, k.v, { noUndo: true, es: k.es, ed: k.ed });
+    }
+    await D.mcp('add_to_library', {
+      itemId: slow.id, semanticDescription: 'the same slash at half speed',
+      actionType: 'heavy attack', intentTags: ['majestic'], styleTags: ['realistic'],
+      provenance: { kind: 'captured', estimated: true, source_video_url: 'https://youtu.be/rHEJZXvFc5I', source_timestamps: '5:44-6:05', estimated_by: 'Roblox Studio Animation Capture (Body)' },
+      licenseOrOwnership: { terms: 'reference only — estimated from a third-party video, not redistributable', redistributable: false },
+    });
+
+    // 5. Search, from the project that owns the motion. The nearest entry to the working rig must
+    // be the entry built from the working rig, not its half-speed twin.
+    const found = await D.mcp('search_library', { actionType: 'heavy attack', nearItemId: hero.id, limit: 10 });
+    assert(found.total_entries === 2, `expected 2 library entries, found ${found.total_entries}`);
+    assert(found.nearest_by_measurement.nearest[0].library_id === stored.entry.library_id,
+      `the nearest entry to the working rig must be its own: got ${found.nearest_by_measurement.nearest[0].semantic_description}`);
+    assert(found.nearest_by_measurement.nearest[0].distance === 0, `an item against its own stored profile must measure 0, got ${found.nearest_by_measurement.nearest[0].distance}`);
+    assert(found.nearest_by_measurement.nearest[1].distance > 0.1, 'the half-speed twin must measure as clearly different');
+    assert(found.matches.find((m) => m.estimated === true), 'the captured entry must carry its estimated flag into every search result');
+    out.search = {
+      nearest: found.nearest_by_measurement.nearest[0].distance,
+      runner_up: found.nearest_by_measurement.nearest[1].distance,
+      estimated_flagged: true,
+    };
+
+    // 6. THE CROSS-PROJECT CLAIM. A brand-new project, nothing carried over in memory: the entry
+    // is still there, still searchable, and loads as a reference item with its stored profile.
+    S.newProject('library-b');
+    const fresh = await D.addBuiltinRig('r15');
+    S.renameItem(fresh.id, 'A different shot');
+    const freshTracks = JSON.stringify(S.getTracks(fresh.id));
+    const inB = await D.mcp('search_library', { actionType: 'heavy attack' });
+    assert(inB.total_entries === 2, `the library must survive a new project; found ${inB.total_entries}`);
+    const loaded = await D.mcp('load_from_library', { libraryId: stored.entry.library_id });
+    assert(loaded.itemId !== fresh.id, 'a loaded clip must be its own item, never applied onto the working rig');
+    assert(loaded.tracks === Object.keys(JSON.parse(heroTracksBefore)).length, `the clip must arrive with all its tracks; got ${loaded.tracks}`);
+    assert(JSON.stringify(S.getTracks(fresh.id)) === freshTracks, 'load_from_library must not touch the user rig');
+    assert(loaded.profile_stored === true, 'the stored Part 36 profile must come across with the clip, not be rebuilt');
+    out.cross_project = { loaded_into: 'library-b', tracks: loaded.tracks, user_rig_untouched: true };
+
+    // The non-redistributable one says so on the way in, every time.
+    const restricted = inB.matches.find((m) => m.estimated);
+    const loadedRestricted = await D.mcp('load_from_library', { libraryId: restricted.library_id });
+    assert(/not redistributable/i.test(loadedRestricted.licence_reminder || ''), `a non-redistributable clip must say so when loaded; got ${loadedRestricted.licence_reminder}`);
+    out.licence_reminder = true;
+
+    // 7. Part 58 as a tool: accepting a shot records the lesson and OFFERS the library, never
+    // writes it. The offer names what it still needs, because none of it is derivable.
+    const accepted = await D.mcp('accept_shot', {
+      itemId: fresh.id, statement: 'the planted-foot solve is what made this read as heavy',
+      evidence: ['contact drift 0 studs across the whole action', 'the user kept it unchanged'],
+      retainedFeatures: ['the held contact'], matteredConstraints: ['left foot planted 0-36'],
+    });
+    assert(accepted.memory.scope === 'validated_solutions', JSON.stringify(accepted.memory).slice(0, 200));
+    assert(accepted.library_offer && accepted.library_offer.tool === 'add_to_library', 'an accepted shot must OFFER the library');
+    assert(accepted.library_offer.still_needed.includes('semanticDescription'), 'the offer must say what it cannot derive');
+    const afterAccept = await D.mcp('search_library', {});
+    assert(afterAccept.total_entries === 2, `accept_shot must not add to the library by itself; it now holds ${afterAccept.total_entries}`);
+    assert(/^\*\*\d{4}-\d{2}-\d{2} — accepted/.test(accepted.lesson_paragraph), accepted.lesson_paragraph.slice(0, 80));
+    out.accept_shot = { scope: accepted.memory.scope, offered_not_added: true, lesson: accepted.lesson_paragraph.slice(0, 70) };
+
+    // A rejection goes the same way, into failed_approaches — a failed approach is evidence too.
+    const rejected = await D.mcp('accept_shot', {
+      itemId: fresh.id, decision: 'rejected', statement: 'scaling the whole body amplitude dragged the plant',
+      evidence: ['contact drift 0.34 studs against a 0.3 tolerance'],
+      attempted: 'amplitude x1.4 on every joint', observedResult: 'the planted foot slid', failureKind: 'objective',
+      correctedBy: 'protecting the support chain',
+    });
+    assert(rejected.memory.scope === 'failed_approaches', JSON.stringify(rejected.memory).slice(0, 160));
+    assert(rejected.library_offer === null, 'a rejected shot must never be offered to the library');
+    out.reject_shot = { scope: rejected.memory.scope, not_offered: true };
+
+    // 8. Part 72: a knowledge entry written by this session, refused when it cites no evidence and
+    // accepted when it does — and once accepted it is a REAL check in review_shot, because it
+    // names a measurement ai/motion.js already makes.
+    const base = (await D.mcp('animation_knowledge', { concept: 'arcs' })).entry;
+    const draft = { ...base, concept: 'smoketest_entry', category: 'advanced', measurement_keys: ['linear_velocity'] };
+    const vague = await D.mcp('propose_knowledge_entry', { entry: { ...draft, evidence_status: 'experimental' } });
+    assert(vague.written === false && /names no source/.test(vague.problems.join(' ')), JSON.stringify(vague.problems));
+    const shadow = await D.mcp('propose_knowledge_entry', { entry: { ...base, measurement_keys: [] } });
+    assert(shadow.written === false && /may not be shadowed/.test(shadow.problems.join(' ')), JSON.stringify(shadow.problems));
+    const good = await D.mcp('propose_knowledge_entry', { entry: { ...draft, evidence_status: 'video: https://youtu.be/rYtrV1lChsA @ 13:59 — experimental until validated' } });
+    assert(good.written === true, JSON.stringify(good.problems || good));
+    assert(good.checks.runnable.length === 1, `an entry naming a real measurement must become a runnable check; got ${JSON.stringify(good.checks.counts)}`);
+    out.knowledge = { refused_without_evidence: true, refused_shadow: true, written: good.path.split(/[\\/]/).slice(-2).join('/') };
+
+    // …and the review really does consume it. Thirteen entries, not twelve, with no code change.
+    const listed = await D.mcp('animation_knowledge', {});
+    assert(listed.on_disk.loaded >= 1, `the entry must be loadable from disk: ${JSON.stringify(listed.on_disk).slice(0, 200)}`);
+    const review = D.mcp('review_shot', { itemId: loaded.itemId });
+    assert(review.knowledge_checks.counts.total >= 13, `review_shot must see the new entry; total ${review.knowledge_checks.counts.total}`);
+    const mine = review.knowledge_checks.runnable.find((c) => c.concept === 'smoketest_entry');
+    assert(mine && mine.source === 'user', 'the user entry must reach the review as a runnable check');
+    assert(mine.verdict === null, 'a principle-backed measurement must never carry a verdict');
+    assert(!JSON.stringify(review.deterministic_defects).includes('smoketest_entry'), 'a knowledge measurement is not a defect');
+    out.review_consumes_knowledge = { total: review.knowledge_checks.counts.total, runnable: review.knowledge_checks.counts.runnable };
+    return out;
+  });
+
 
   await step('semantic layer: a persisted lock survives save/load, blocks a patch, and is undoable', async () => {
     S.newProject('locks');

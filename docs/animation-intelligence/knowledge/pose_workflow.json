@@ -1,0 +1,35 @@
+{
+  "concept": "pose_workflow",
+  "category": "essential",
+  "definition": "The choice between pose-to-pose (plan key poses first, then fill) and straight-ahead (build sequentially, letting rhythm emerge) — Part 26.4.",
+  "purpose": "Match the authoring method to what the motion needs: predictable timing and revision safety, or emergent, spontaneous rhythm.",
+  "visible_effect": "Not visible in the result directly — this is a process choice, not a motion property — though pose-to-pose work tends to show clearer, more deliberate key poses.",
+  "psychological_or_gameplay_effect": "Indirect, through the poses and rhythm the chosen workflow tends to produce.",
+  "physical_interpretation": "None — a production-method concept, not a physical one.",
+  "use_cases": [
+    "pose-to-pose: deliberate character performance, combat clarity, controlled production pipelines",
+    "straight-ahead: organic motion, effects, creature movement, expressive experimentation"
+  ],
+  "non_use_cases": [
+    "forcing pose-to-pose onto every fluid effect, or straight-ahead onto every gameplay-critical action — Part 26.4's explicit warning"
+  ],
+  "interactions": [
+    "Rig complexity and style both bear on the choice (Part 26.4)",
+    "Reference-driven motion (Part 36, REF-001) is closer to straight-ahead in spirit"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a choice at all. Every tool in `ai/plan.js` edits EXISTING keys placed by pose-to-pose-style authoring; nothing in this build generates a sequential, straight-ahead motion from nothing (see `ai/index.js capabilities().cannot`: \"generate a motion from nothing\"). This is a genuine, named absence rather than an implicit default.",
+  "control_surface": "none — there is no tool that lets a caller declare or act on this choice",
+  "detection_and_measurement_methods": "None — this is a workflow property of how an animation was AUTHORED, not a property `ai/motion.js` can recover by measuring the result.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "none observable from this build, since neither workflow is currently chosen or enforced by any tool"
+  ],
+  "roblox_considerations": "None specific.",
+  "performance_implications": "None.",
+  "examples": [
+    "planning key poses for a combo before filling breakdowns",
+    "improvising a creature's idle sway frame by frame"
+  ],
+  "evidence_status": "directive text only (Part 26.4); Cadence has no capability that reasons about this distinction, named here rather than implied"
+}

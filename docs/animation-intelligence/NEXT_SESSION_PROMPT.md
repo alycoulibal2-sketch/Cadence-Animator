@@ -6,11 +6,16 @@ build next and in what order, the rules, and the traps. Read section 0, run its 
 then start the first unfinished slice in section 3. Do not re-read the whole directive. Do not
 re-litigate decisions the notes say are settled.
 
-**Before this prompt, the learning loop should have been built** (`LEARNING_LOOP_PROMPT.md` in
-this folder: the cross-project library, the knowledge folder, the watch-and-learn skill, and
-`LESSONS.md`). If `docs/animation-intelligence/LESSONS.md` does not exist, that session has not
-run — tell the user, then continue with Slice A anyway; only Slice C depends on the library.
-Read `LESSONS.md` when it exists.
+**The learning loop IS built** (2026-09-11, `LEARNING_LOOP_PROMPT.md` v2 in this folder): the
+cross-project library (`ai/library.js` + seven MCP tools), knowledge on disk behind Part 72's two
+gates, the `cadence-learn` skill, the `library_search` benchmark, and `LESSONS.md`. Slice A of
+THIS prompt is also done (see `SHARED_TASK_NOTES.md`); **Slice F is next**.
+
+What is NOT done there is the corpus itself: the library is empty until the user works through
+`CORPUS.md`, because Mixamo downloads, Studio's Animation Capture and every licence decision are
+theirs. Do not invent one. **Read `docs/animation-intelligence/LESSONS.md` before starting** —
+it holds what the watch batches have taught, a queue of 15 buildable measurements with their
+evidence, and a queue of 7 motions worth capturing.
 
 ## 0. Read this first, in this order (about ten minutes)
 
@@ -24,16 +29,19 @@ Read `LESSONS.md` when it exists.
 3. `docs/animation-intelligence/requirements-matrix.md` — the living state, one row per
    requirement, 165 rows. You will move rows and recount its header.
 4. `CLAUDE.md` — rules and pitfalls, each learned the hard way.
-5. The directive, `Cadence_Animator_Ultimate_Master_Directive.md` (in `Documents` on both
+5. `docs/animation-intelligence/LESSONS.md` — what the system KNOWS, as opposed to what the code
+   does: the merged watch batches, the checks queue a building session picks from, and the
+   capture queue waiting on the user.
+6. The directive, `Cadence_Animator_Ultimate_Master_Directive.md` (in `Documents` on both
    machines, 4150 lines): read ONLY the parts a task below cites. Loading it whole wastes the
    context this session has.
-6. Before touching anything, prove the tree is green here:
+7. Before touching anything, prove the tree is green here:
 
    ```
-   node test/aitest.mjs                # 373/373
+   node test/aitest.mjs                # 390/390
    node test/coretest.mjs              #  41/41
    node test/pnxtest.mjs               # 298/298
-   node tools/benchmark.mjs --compare  # clean: 64 cells unchanged against the committed baseline
+   node tools/benchmark.mjs --compare  # clean: 66 cells unchanged against the committed baseline
    ```
 
 ## 1. Where the programme is (with the numbers)
