@@ -1,0 +1,40 @@
+{
+  "concept": "abrupt_windup_snap_for_input_feedback_and_telegraph",
+  "category": "advanced",
+  "definition": "The transition from idle into an attack's stance/wind-up pose is deliberately a sudden, large pose jump rather than a smooth eased transition - even though a smoother transition is physically and visually available, it is rejected on purpose because instant, unmistakable feedback that the input was received matters more than a graceful transition, and the same abruptness gives the opponent the earliest possible telegraph to react to.",
+  "purpose": "Serve two audiences with one design choice at once: confirm to the ACTING player that their input registered instantly, and give the OPPONENT (or opposing player) the earliest possible moment to recognize and react to the coming attack.",
+  "visible_effect": "The character's pose jumps directly from idle to a held wind-up pose with no smooth in-between transition, reading as an instant snap rather than a gradual wind into the pose.",
+  "psychological_or_gameplay_effect": "For the acting player: immediate, unambiguous confirmation their button press registered, with no perceived input lag. For the opponent: the wind-up pose appears as early as it possibly can, maximizing their available reaction window before the attack itself connects - directly stated on screen over the source's own footage: \"a smoother transition between standby and lead-in would take too long.\"",
+  "physical_interpretation": "None - a deliberate departure from physically-plausible easing, chosen for gameplay-communication reasons over physical smoothness, the same kind of trade this corpus's own `anti_realism_readability_tradeoff_for_screen_combat` (this batch, video 36) already names for a different reason (screen impact rather than input latency).",
+  "use_cases": [
+    "any competitive or reactive game-combat context where both (a) input responsiveness feedback and (b) giving the opponent a fair reaction window matter",
+    "the specific idle-to-stance transition at the very start of an attack, as opposed to transitions elsewhere in the same attack's timeline"
+  ],
+  "non_use_cases": [
+    "a non-competitive or non-reactive context where neither input-feedback nor opponent-telegraph considerations apply (a cinematic, a single-player action with no blockable/dodgeable window)",
+    "a transition later in the same attack (stance-to-attack, attack-to-follow-through) - this specific abruptness is named only for the idle-to-stance moment, not the whole sequence"
+  ],
+  "interactions": [
+    "implied_zero_frame_anticipation (W01, video 3) - a related but more precisely-reasoned case: that entry's 'snap to a recognizable pose' variant is justified generically by a tight frame budget; this entry gives the SAME mechanical shape (an instant snap) a dual, named design reason (input feedback AND opponent telegraph) from an authoritative game-combat-design source",
+    "startup_frame_budget - this technique operates INSIDE the startup budget: the snap itself is near-instant, but it is followed by a held stance pose that IS meant to be readable, so the overall startup can still be long even though this one transition within it is not",
+    "anti_realism_readability_tradeoff_for_screen_combat (this batch, video 36) - a sibling deliberate departure from smooth/realistic transition, for a related but distinct pair of reasons (competitive fairness and input feedback here, versus screen spectacle there)"
+  ],
+  "style_variations": {
+    "game_combat": "the source's own native context - the technique is stated as specifically about competitive readability and responsiveness",
+    "realistic": "would favor the smoother, more physically continuous transition this technique explicitly rejects"
+  },
+  "cadence_representation": "Directly authorable, not yet named as a rule: an instant idle-to-stance snap is just a hold with no eased in-between key, fully expressible with existing `set_keyframe`/easing tools - nothing currently states WHEN to deliberately choose zero transition time for this dual input-feedback-plus-telegraph reason, as opposed to it reading as an oversight.",
+  "control_surface": "Ordinary keyframe placement (a held key with no eased transition before it) already covers the mechanical requirement; no dedicated rule names when to reach for it.",
+  "detection_and_measurement_methods": "Real and simple: `ai/motion.js sampleMotion`'s per-frame position/rotation series already shows whether the idle-to-stance transition is a near-instant jump (very few or zero frames of interpolation) or a gradual ease - directly measurable from existing data, though nothing currently checks it against a declared design intent.",
+  "generation_or_modification_methods": "None dedicated - authoring a zero-transition snap today means simply not adding in-between keys; no vocabulary dimension names this as a deliberate choice distinct from an unfinished animation.",
+  "failure_modes": [
+    "smoothing the idle-to-stance transition for visual polish, unintentionally undercutting both the input-feedback read and the opponent's fair reaction window",
+    "applying this abruptness to a context with no competitive reaction window to protect, where a smoother transition would have been the better choice with nothing to lose"
+  ],
+  "roblox_considerations": "None beyond the existing keyframe/easing model - directly expressible in Roblox's Animation Editor the same way.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"a sudden, large pose jump shows immediately that the input has been received, which also prompts the opponent to take immediate evasive action\" (video @ 00:55-01:14), captioned directly over Donkey Kong's attack footage as \"a smoother transition between standby and lead-in would take too long\" (frame confirmed at t=01:02)"
+  ],
+  "evidence_status": "video: https://youtu.be/LewXWM7HDd8 @ 00:55-01:14 - Masahiro Sakurai (director, Super Smash Bros. series) states this directly as his own design reasoning, illustrated with real Super Smash Bros. Ultimate gameplay footage and an on-screen caption restating the same point, both confirmed directly in this session's frame at t=01:02; experimental until validated"
+}

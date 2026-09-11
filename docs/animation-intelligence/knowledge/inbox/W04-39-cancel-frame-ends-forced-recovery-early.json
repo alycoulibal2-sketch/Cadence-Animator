@@ -1,0 +1,40 @@
+{
+  "concept": "cancel_frame_ends_forced_recovery_early",
+  "category": "advanced",
+  "definition": "A declared frame partway through an attack's follow-through/recovery phase, after which the player regains control (can move, jump, or attack again) even though the return-to-idle animation has not yet finished playing - the visual recovery animation and the player's actual regained control are two independently-declared events, not one and the same.",
+  "purpose": "Let a designer tune how long an attack's UNCONTROLLABLE window lasts independently of how long its visual follow-through animation takes to finish, rather than forcing the two to always match.",
+  "visible_effect": "The character can begin a new action (moving, jumping, attacking again) while still visibly mid-way through the previous attack's recovery/return-to-idle motion, rather than only after that motion has fully completed.",
+  "psychological_or_gameplay_effect": "Named directly as a historically significant mechanic: before this existed, a player could not act again until the character had FULLY visually returned to idle, which the source states was the case until Super Smash Bros. Melee introduced the cancel frame - separating the two lets a designer make an attack feel responsive (a short forced-recovery window) while still keeping a longer, more readable visual follow-through animation playing out.",
+  "physical_interpretation": "Not physical - a gameplay-control design mechanic layered on top of an animation, independent of the motion's own physical plausibility.",
+  "use_cases": [
+    "any attack where the designer wants the PLAYER's control window to be shorter than the visual recovery animation's own full duration",
+    "tuning an attack's combat feel (responsiveness, punishability) independently of its visual polish/readability, which a single shared duration cannot do"
+  ],
+  "non_use_cases": [
+    "a context with no player-control state machine at all (a pure cutscene, a non-interactive animation) - there is no 'regaining control' event to declare",
+    "a design that deliberately wants the two durations to match exactly (full accountability for the whole visible recovery) - here a cancel frame equal to the animation's own last frame is the correct, if trivial, choice"
+  ],
+  "interactions": [
+    "startup_frame_budget - the cancel frame is the RECOVERY-side counterpart to that card's startup-side design dial; together the two are the fighting-game 'startup/active/recovery' framework in full, applied to both ends of an attack",
+    "action_end_pose_must_match_idle_for_automatic_blend (this batch, video 37) - a related but distinct constraint on the SAME follow-through phase: that entry is about the visual pose an automatic engine blend lands on; this entry is about WHEN player control returns, a gameplay-logic event that can happen well before that pose is even reached",
+    "recovery_weight_substitution / follow_through_backfill_hold (W01) - both already treat the recovery/follow-through phase as a place timing budget gets spent; this entry adds that the phase's PLAYER-FACING duration and its ANIMATED duration are two separately-declared numbers, not one"
+  ],
+  "style_variations": {
+    "game_combat": "the source's own native context; a near-universal modern fighting/action-game convention traced directly to a named historical origin (Super Smash Bros. Melee)"
+  },
+  "cadence_representation": "Partially representable, with a clear scope boundary: the cancel frame's TIMING (a specific frame number within the follow-through phase) is markable today via `ai/events.js`'s shot-event timeline, the same way any other named frame (a contact, an impact) already is - but Cadence has no player-input or control-state model at all, so ENFORCING what a cancel frame actually does (unblocking player input) is gameplay-programming scope, entirely outside this build's own responsibility, the same boundary `ai/workflows.js`'s tool-chain approval points already respect for anything beyond animation authoring.",
+  "control_surface": "`set_marker`/`ai/events.js` could name a cancel frame as an ordinary named marker on the follow-through phase; nothing currently has a dedicated marker TYPE for it, and nothing in this build enforces or consumes what it means.",
+  "detection_and_measurement_methods": "None beyond ordinary marker/frame-timestamp reads - there is no ANIMATION property that distinguishes a cancel-frame marker from any other named marker; its meaning is entirely a gameplay-logic convention layered on top.",
+  "generation_or_modification_methods": "None dedicated - placing a marker at a chosen frame is already possible with existing tools; nothing generates or suggests a cancel frame's placement from other data.",
+  "failure_modes": [
+    "forcing the player's control window to match the full visual recovery animation's length in every case, producing the exact pre-Melee unresponsiveness the source names as the historical default this mechanism improved on",
+    "setting a cancel frame so early that it undercuts the recovery's own readability/fairness purpose (an opponent's punish window becoming too short to use)"
+  ],
+  "roblox_considerations": "Implementing the actual control-gating behavior is Luau game-logic scope (re-enabling input handling at a declared frame via an AnimationTrack's marker/event callback), not something an animation clip or Cadence itself enforces.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"to follow through, you set a cancel frame. This allows you to control the character before they completely return to the return pose. You can move, jump, attack, etc., even before they've completely returned to the idle pose\" (video @ 02:06-02:30), captioned directly on screen over Link's own attack-recovery footage: \"The animation doesn't have to finish before the player can move, jump, or attack again\" (frame confirmed at t=02:31)",
+    "the explicit historical claim: \"this mechanism didn't exist until Super Smash Bros. Melee, so you couldn't control the character until they completely returned to the idle pose\" (video @ 02:30-02:39)"
+  ],
+  "evidence_status": "video: https://youtu.be/LewXWM7HDd8 @ 02:06-02:39 - Masahiro Sakurai (director, Super Smash Bros. series, including Melee) states this directly, including its own historical origin, illustrated with Super Smash Bros. Ultimate gameplay footage and a matching on-screen caption, both confirmed directly in this session's frame at t=02:31; experimental until validated"
+}

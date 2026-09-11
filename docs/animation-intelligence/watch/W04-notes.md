@@ -10,8 +10,8 @@
 - [x] 36. Fisticuffs: Tips for animating action and fight scenes — Dong Chang (6:07) — https://youtu.be/-HXx1fK415I
 - [x] 37. How to ANIMATE SWORD COMBAT Part 1 — Gogan (77:15) — https://youtu.be/sBNDzqO8ZT8
 - [x] 38. How to Animate a Sword Fight: Full Creative Process — Winged Canvas (15:40) — https://youtu.be/ZTH3meW3o4E
-- [ ] 39. Breaking Down Attack Animations [Animation] — Masahiro Sakurai on Creating Games (3:35) — https://youtu.be/LewXWM7HDd8
-- [ ] 40. Animation vs Choreography — Honored Clarity (8:03) — https://youtu.be/xlfcZ2B8Vvs
+- [x] 39. Breaking Down Attack Animations [Animation] — Masahiro Sakurai on Creating Games (3:35) — https://youtu.be/LewXWM7HDd8
+- [x] 40. Animation vs Choreography — Honored Clarity (8:03) — https://youtu.be/xlfcZ2B8Vvs
 
 ## Per-video notes
 
@@ -580,3 +580,184 @@ external material, not a property of finished project data.
 
 **Entries written:** `W04-38-reference-gap-inference-from-anatomical-plausibility.json` — passes
 `validateProposedEntry` and `validateEvidenceSource` cleanly.
+
+### 39. Breaking Down Attack Animations [Animation] — Masahiro Sakurai on Creating Games
+
+2026-09-11. Watched at `balanced` detail (46 frames from a 46-candidate pass across the full 3:34
+run — every scene change kept, real Super Smash Bros. Ultimate gameplay footage throughout with
+matching on-screen captions). Short but exceptionally dense and authoritative: Masahiro Sakurai,
+director of the Super Smash Bros. series, explaining the exact four-phase attack-animation model
+and production parameters used in his own AAA fighting-game work. The single most professionally
+authoritative source in this batch, and the best-matched to this batch's own "game-combat phase
+template" framing.
+
+**What it teaches, specifically:**
+1. A four-phase template — Idle (Atmosphere) → Stance (wind-up/charge) → Attack → Follow-through —
+   is a clean, authoritative, precisely-named version of the fighting-game startup/active/recovery
+   framework this corpus's `startup_frame_budget` already covers generically, and a strong
+   cross-domain confirmation of Cadence's own `TEMPLATES` phase-order concept in `ai/plan.js`. Logged
+   as a **cross-check**.
+2. The idle-to-stance transition is DELIBERATELY a sudden, large pose jump rather than a smooth
+   ease — "a smoother transition between standby and lead-in would take too long" (00:55–01:14,
+   confirmed directly on screen in this session's frame at t=01:02, captioned identically) — for two
+   named reasons at once: instant input-feedback for the acting player, and the earliest possible
+   telegraph for the opponent to react to. A more precisely-reasoned, dual-purpose version of
+   `implied_zero_frame_anticipation`'s snap-pose variant. Wrote
+   **`abrupt_windup_snap_for_input_feedback_and_telegraph`**.
+3. "Hitstop" — a genre-standard mechanic not yet in this corpus: both characters' motion freezes
+   briefly at the instant a hit connects, which is exactly why the ATTACK pose itself needs to be
+   unusually sharp — "if that's not done well, you could say that everything else falls apart"
+   (01:18–01:41, confirmed at t=01:31). Worth naming its relationship to this batch's own
+   `subliminal_single_frame_impact_pose` (video 36) explicitly rather than treating them as
+   conflicting: one holds an impact pose long enough to be SEEN (hitstop), the other holds it too
+   briefly to be seen at all (felt not seen) — both legitimate, opposite choices for the same
+   moment. Wrote **`hitstop_freeze_on_confirmed_hit`**.
+4. A named, historically-dated mechanic: a declared "cancel frame" partway through follow-through
+   lets the player regain control before the return-to-idle animation visually finishes — "this
+   mechanism didn't exist until Super Smash Bros. Melee, so you couldn't control the character until
+   they completely returned to the idle pose" (02:30–02:39, confirmed at t=02:31). The
+   recovery-phase companion to this batch's own `action_end_pose_must_match_idle_for_automatic_
+  blend` (video 37) — one is about the visual pose an automatic blend lands on, this is about when
+   the PLAYER actually regains control, a separate, gameplay-logic event. Wrote
+   **`cancel_frame_ends_forced_recovery_early`**.
+5. The four numbers Sakurai states as sufficient to define any attack — idle pose, attack pose,
+   attack start frame, total frames (until cancel) — are a striking, authoritative real-production
+   match for `authorMotion`'s own declarative philosophy (`phases:[{name, from, to, pose}]`, "this
+   compiler will not invent durations"). Logged as a **cross-check** worth flagging explicitly: this
+   is independent confirmation from a major shipped game series that Cadence's phase-timing model's
+   shape is right.
+
+**Contradicted an existing card:** none.
+
+**Cross-checks:** `startup_frame_budget` / Cadence's own `TEMPLATES` phase order (the four-phase
+model), `authorMotion`'s declarative phase-timing philosophy (the four stated parameters).
+
+**Capture candidate:** none — real gameplay footage from a shipped commercial game, not something
+to capture from.
+
+**Checks for the queue:**
+- `check: attack_pose_sharpness_at_contact_marker — given a declared contact/impact marker, check
+  that the pose held there is a genuine extreme (not mid-interpolation) rather than a transitional
+  frame; buildable via existing key/marker alignment data — video 39 @ 01:18–01:41`
+
+**Entries written:** `W04-39-abrupt-windup-snap-for-input-feedback-and-telegraph.json`,
+`W04-39-hitstop-freeze-on-confirmed-hit.json`, `W04-39-cancel-frame-ends-forced-recovery-early.json`
+— all three pass `validateProposedEntry` and `validateEvidenceSource` cleanly.
+
+### 40. Animation vs Choreography — Honored Clarity
+
+2026-09-11. Watched at `balanced` detail (100 frames from a 2597-candidate pass over the full 08:02
+run — an extremely fast-cut video-essay montage of clips from many different shipped anime, so the
+100-frame budget spreads very thin; only spot-checked a couple of frames against the transcript's
+named examples, e.g. t=00:45 confirmed as the Demon Slayer sequence discussed at the video's start,
+rather than individually verifying every cited example). **Structurally different from every other
+video in this batch**: not a hands-on tutorial but a critique/analysis essay comparing "animation"
+(execution quality - smoothness, polish, visual appeal) against "choreography" (why a sequence of
+actions was chosen - tactics, emotion, story) as two separable axes of a fight scene's quality,
+argued across five real, named, shipped examples on both sides of the split.
+
+**What it teaches, specifically:**
+1. The core framework: animation execution and choreographic intent do not predict each other, and
+   across the video's own examples, strong intent consistently carries weak execution more
+   successfully than strong execution carries weak intent does. The diagnostic question offered
+   directly: "read the intent behind it and not just the pixels. If you can follow and see the goal
+   behind every movement, then chances are choreography is winning" (06:40–06:52). **This maps with
+   striking precision onto `ai/review.js`'s own existing `QUALITY_LAYERS`**: layer 1, "intent and
+   purpose," already sits at the TOP of Part 14's thirteen-layer hierarchy, already stated as
+   measurable only "partly... by the AcceptanceSpec, when one is supplied — otherwise nothing here
+   knows what the shot is FOR" — exactly this video's "choreography" axis, independently arrived at
+   from anime criticism rather than from the directive. The video's own repeated real examples (One
+   Punch Man S2's budget-starved but tactically legible Garou fight, 2016 Berserk's "ugly frames but
+   the choreography respects the characters fighting") are real-world evidence FOR the hierarchy's
+   own ordering principle and its named anti-patterns (e.g. "do not add beautiful secondary motion
+   to a weak pose") — the same asymmetry, independently confirmed. Wrote
+   **`choreographic_intent_matches_quality_layer_one`**.
+2. Everything else in the video (specific anime title commentary, production-budget history,
+   opinions on individual shows) is film/anime criticism rather than animation TECHNIQUE, and isn't
+   written up further — the one entry above is this video's real, substantial contribution to the
+   corpus.
+
+**Contradicted an existing card:** none. If anything, this is the strongest independent CONFIRMATION
+in the whole batch of an existing piece of Cadence's own architecture (the quality-layer ordering),
+arrived at completely independently from anime criticism rather than from reading the directive.
+
+**Cross-checks:** none formally separate from the one entry above, since the entry's whole content
+IS the cross-check (real-world evidence for `QUALITY_LAYERS`' existing layer-1 priority).
+
+**Capture candidate:** none — clips from many different shipped, copyrighted anime, not something to
+capture from.
+
+**Checks for the queue:** none — this video's contribution is conceptual/architectural
+(confirmation of an existing design decision), not a new measurable motion property.
+
+**Entries written:** `W04-40-choreographic-intent-matches-quality-layer-one.json` — passes
+`validateProposedEntry` and `validateEvidenceSource` cleanly.
+
+---
+
+## Batch summary (all ten videos watched, 2026-09-11)
+
+**24 knowledge entries** written across all ten videos (2+2+3+3+2+3+4+1+3+1 for videos 31–40 in
+order), all passing both `validateProposedEntry` and `validateEvidenceSource` cleanly (checked
+individually per video as written, and this count re-verified by listing the actual inbox files
+before writing this summary — the first draft of this paragraph said 30, caught only by re-running
+the count rather than trusting the running mental tally, the same habit W03's own notes flagged).
+Zero refused, zero placeholder fields. No existing knowledge-base card was contradicted by any of the ten videos —
+every apparent overlap resolved to either a genuine cross-check (a confirmation, logged as such,
+never rewritten as a new entry) or a distinct-enough claim to justify its own entry, with the
+relationship stated explicitly in `interactions` either way.
+
+**One capture candidate**: a real, filmed (not drawn or rendered) human jump-and-landing reference
+at video 31 @ 08:26–08:33 and 11:28–11:34 — found only after a full-video pass's sparse sampling
+missed it and a focused local re-extraction was run specifically to check a B-roll clip. Genuinely
+more directly usable for Roblox Studio's Animation Capture → Body than most of the existing capture
+queue, which is mostly 2D or rendered-game reference.
+
+**11 buildable checks** queued (video 31 ×2, video 32 ×2, video 34 ×2, video 36 ×1, video 37 ×3,
+video 39 ×1 — counted directly from the `check:` lines above rather than estimated; see each
+video's own section for the exact list, not re-duplicated here).
+
+**The throughline across this batch, the way W02's was "the chain" and W03's was "weight-transfer
+gates locomotion"**: **a single named intermediate frame carries a disproportionate share of the
+signal, across three unrelated angles.** Video 31's breakdown TIME placement (estimated from a
+physical event, not the arithmetic midpoint) redistributes an ease-out-in split. Video 34's
+breakdown POSE — the torso/foot already arrived while the fist still trails — is literally how a
+punch gets its power, independently reconfirmed twice more in video 36 (a boxing wind-up, a
+taekwondo kick) with its scope extended to the anticipation phase. Video 39's cancel frame decouples
+the player's REGAINED CONTROL from the animation's own visual completion. Three different fields on
+the same underlying object (a declared frame within a phase) turn out to be doing three genuinely
+different kinds of work — timing, power delivery, and control-state — which is worth a future
+session's attention if it ever tries to unify them into one concept rather than three. `ai/plan.js
+authorMotion`'s existing breakdown mechanism (POSE BIAS at a declared TIME, per its own source
+comment) already has the right SHAPE for the first two; the third (cancel frame) is gameplay-logic
+scope this batch is careful to say Cadence has no business enforcing.
+
+**Two smaller cross-cutting findings worth a future session's attention:**
+- **Reference-gathering has (at least) three legitimate, distinct patterns now on record**, not one:
+  measured self-performance (`physical_reference_timing_method`, W01), blended multi-source
+  inspiration (`multi_source_reference_blend_not_measured`, this batch), and single-source gap-filling
+  by anatomical inference (`reference_gap_inference_from_anatomical_plausibility`, this batch). A
+  future session collecting reference-technique cards together would find all three worth reading as
+  one family.
+- **The idle/action blend seam is now covered from both directions, both within this same batch**:
+  `idle_pose_as_blend_hub_constrains_extremity` (video 33, why the idle pose itself must stay
+  moderate) and `action_end_pose_must_match_idle_for_automatic_blend` (video 37, why an action's
+  FINAL pose must stay close to idle) are two halves of the same automatic-engine-blend problem,
+  found in two unrelated videos four videos apart, neither one citing or aware of the other when
+  written.
+
+**What changed in the code because of this batch:** nothing yet, deliberately, matching every prior
+batch's own discipline — this is a knowledge- and queue-producing pass, not a building one. The
+`weapon_ik_decoupled_from_torso_overlap` entry (video 37) is the strongest immediate case FOR
+building something (it names an existing measurement, `measureContactDrift`, that would catch
+exactly the failure the entry describes, on a rig setup this corpus has never discussed before) —
+worth a building session's attention alongside check #10 from the existing queue.
+
+**One structural note for the merge session**: video 37 (77:15, the batch's long video) was watched
+`transcript`-first per its own instruction and read to roughly the 48-minute mark before stopping —
+the back half (~48:00–77:15) was never read. If a future session wants the rest of that video's
+content, it should re-open `https://youtu.be/sBNDzqO8ZT8` at `--start 48:00` rather than assuming
+video 37 is fully exhausted just because it is ticked here as watched.
+
+**Next session should start from:** all ten W04 videos are watched — W05 (videos 41–50, "C. Game
+animation talks and analysis," ~354 min) is the next unwatched batch.

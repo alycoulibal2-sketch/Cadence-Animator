@@ -1,0 +1,40 @@
+{
+  "concept": "hitstop_freeze_on_confirmed_hit",
+  "category": "advanced",
+  "definition": "At the moment an attack's hitbox connects, both the attacker's and the target's motion briefly freeze in place (a \"hitstop\") before continuing - which means the ATTACK pose itself (the pose held at the moment the hitbox is generated or connects) has to be especially sharp and well-defined, since it is exactly the pose the freeze holds on screen for the player to register.",
+  "purpose": "Sell the weight and impact of a confirmed hit by briefly halting time itself around the moment of contact, and name why the attack pose's own quality matters more than any other single pose in the sequence as a direct consequence.",
+  "visible_effect": "Both characters' motion stops completely for a short span at the instant of contact, holding on the attack's connecting pose, before motion resumes (the recoil/follow-through for the attacker, the hit-reaction for the target).",
+  "psychological_or_gameplay_effect": "A brief universal freeze at confirmed contact reads as the game itself acknowledging the weight of the hit, and is a near-ubiquitous convention in action and fighting games specifically because of that shared, legible pause; a weak or unclear pose held during that freeze undermines the hit's impact more than a weak pose anywhere else in the sequence would, because the freeze is what gives the audience time to actually look at it.",
+  "physical_interpretation": "Not physical - a deliberate manipulation of perceived time around an impact moment, a stylistic convention rather than a simulated property.",
+  "use_cases": [
+    "any attack whose hitbox connecting with an opponent should read as a weighty, confirmed impact rather than a glancing pass-through",
+    "deciding which single pose in an attack sequence deserves the most posing attention - the source states directly that this is that pose"
+  ],
+  "non_use_cases": [
+    "an attack that deliberately should NOT read as a hard, weighty connection (a graze, a non-damaging touch, a whiffed/missed attack with no hitstop to sell)",
+    "a non-competitive, non-impact-focused animation with no hit-confirmation moment to freeze on"
+  ],
+  "interactions": [
+    "subliminal_single_frame_impact_pose (this batch, video 36) - an apparent opposite convention worth naming rather than treating as a contradiction: that entry holds an impact pose for a single near-invisible frame ('felt not seen'); this entry HOLDS on the impact pose long enough to be clearly seen (a hitstop freeze) - both are legitimate, and the choice depends on whether the surrounding style wants the impact instant-and-subliminal or paused-and-legible",
+    "peak_spacing_immediately_before_impact (video 34) - a different part of the same impact moment: that entry is about the spacing/velocity APPROACHING contact; this entry is about what happens the instant AFTER contact is confirmed",
+    "external_force_easing_override (W01, video 5) - a related abrupt-transition rule for an externally-caused stop; a hitstop is an even more extreme case, freezing BOTH parties rather than only easing one"
+  ],
+  "style_variations": {
+    "game_combat": "the source's own native context and a near-universal convention in the genre",
+    "realistic": "no equivalent - hitstop is an explicitly stylized, non-physical convention"
+  },
+  "cadence_representation": "Not represented: a hitstop is a TIME-MANIPULATION effect (both characters' playback pausing briefly at a shared frame) rather than a property of either character's own keyframe data - Cadence's project/track model has no notion of pausing playback itself as an authorable event, only of what a track's keys contain.",
+  "control_surface": "None - no tool in this build addresses playback-level time manipulation shared across items.",
+  "detection_and_measurement_methods": "Partially indirect: `ai/motion.js sampleMotion` could confirm that the ATTACK pose itself (at a declared contact/impact marker) is a strong, held pose rather than a transitional one, which is the half of this technique that IS about project data - the freeze/pause itself is not something this build's data model represents at all.",
+  "generation_or_modification_methods": "None - authoring the attack pose's own quality is reachable with existing pose tools; authoring an actual playback freeze is outside this build's scope entirely.",
+  "failure_modes": [
+    "a weak or ambiguous pose at the exact contact frame, which the source states directly undermines the whole attack ('if that's not done well, you could say that everything else falls apart') precisely because the hitstop holds the audience's eye on it",
+    "applying a hitstop to an attack that missed or was blocked, misrepresenting the outcome to the player"
+  ],
+  "roblox_considerations": "A hitstop would need to be implemented as game logic (briefly pausing or slowing relevant Humanoid/Animator playback on both characters at a shared server or client event), not as anything expressible inside a single AnimationTrack - outside both Cadence's and a single animation clip's own scope.",
+  "performance_implications": "None measured by the source; a real implementation would need to coordinate a shared pause across at least two characters' playback and any affected game systems.",
+  "examples": [
+    "\"when you hit the opponent, there is often a stop motion called a hitstop, so I make sure the pose is sharp at the moment the attack hitbox is generated or at the moment you actually hit the opponent. If that's not done well, you could say that everything else falls apart\" (video @ 01:18-01:41), illustrated over King K. Rool's attack pose against Ness, confirmed directly in this session's frame at t=01:31"
+  ],
+  "evidence_status": "video: https://youtu.be/LewXWM7HDd8 @ 01:18-01:41 - Masahiro Sakurai (director, Super Smash Bros. series) states this directly as his own design practice, illustrated with real Super Smash Bros. Ultimate gameplay footage confirmed directly in this session's frame at t=01:31; experimental until validated"
+}
