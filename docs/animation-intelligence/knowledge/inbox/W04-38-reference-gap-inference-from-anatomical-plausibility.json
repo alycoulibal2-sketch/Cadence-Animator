@@ -1,0 +1,37 @@
+{
+  "concept": "reference_gap_inference_from_anatomical_plausibility",
+  "category": "advanced",
+  "definition": "When reference footage does not clearly show a body part at a given moment - occluded by framing, blurred by fast motion, or simply out of camera view - its likely position is inferred from what the VISIBLE parts mechanically imply, rather than left undrawn or guessed arbitrarily: a visible leg silhouette that could only look that way if the near foot were forward implies the near foot's position even when the foot itself is not directly visible.",
+  "purpose": "Let an animator confidently complete a pose from incomplete reference by reasoning from anatomical/mechanical constraint, rather than either stalling on missing information or inventing it with no grounding at all.",
+  "visible_effect": "The finished pose fills in the parts the reference did not clearly show, in a way that stays mechanically consistent with everything the reference DID show - the inferred parts do not call attention to themselves as guesses.",
+  "psychological_or_gameplay_effect": "None directly - the technique's effect is entirely on production, not on what a viewer eventually perceives.",
+  "physical_interpretation": "A real body's parts are mechanically linked (a leg's visible silhouette constrains where the foot at its end can plausibly be), so an occluded part is not actually a total unknown - it is bounded by what the connected, visible parts already imply.",
+  "use_cases": [
+    "adapting a live-action or filmed reference where motion blur, camera angle, or framing hides part of the pose being studied",
+    "any reference-driven pose-extraction pass where the reference is photographic/filmed rather than a clean, fully-visible diagram"
+  ],
+  "non_use_cases": [
+    "a reference that already shows the part in question clearly - there is nothing to infer",
+    "a part whose position genuinely cannot be constrained by anything visible (no connected part gives any hint) - here the honest move is to note the uncertainty, not to present a pure guess as an inference"
+  ],
+  "interactions": [
+    "multi_source_reference_blend_not_measured (this batch, videos 32+33) - a related but distinct reference technique: that entry is about drawing from MULTIPLE sources as blended inspiration; this entry is about completing ONE source's own gaps through mechanical reasoning, and the two can be used together (this video also changes its own camera angle from the reference's, which is a second, independent reason - beyond gap-filling - that a pose has to be adapted rather than copied exactly: 'because I changed up the angles a little bit... I can't exactly follow this completely... I took the idea of this pose and then I made it my own', video @ 03:19-03:29)",
+    "physical_reference_timing_method (W01, video 9) - a different half of reference-based work: that technique grounds TIMING in a measurement; this entry is about completing a single POSE'S missing detail through reasoning, not measurement"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and out of scope for the same reason `physical_reference_timing_method` already states: this reasoning happens over external reference material before any Cadence project data exists, and Cadence's own rig data has no notion of an 'occluded' or 'unknown' part to begin with - every joint in an existing pose already has an explicit value, so there is no gap for this technique to fill inside the tool itself.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "None - a pre-authoring reasoning step over external material, not a property of project data.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "presenting a pure, ungrounded guess as if it were a mechanically-constrained inference, when the visible parts do not actually constrain the missing one",
+    "stalling on an occluded part rather than making a reasoned, revisable inference and moving forward - the source's own explicit choice is to infer and proceed rather than wait for clearer reference"
+  ],
+  "roblox_considerations": "None specific - a pre-authoring research method independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"in this first image, I can't see where her leg is, but I love this pose. I'm like, okay, in order for her leg to be like this, her left foot probably has to be in front. So that's what I did\" (video @ 03:45-04:04), the rotoscoping process directly confirmed in this session's frame at t=10:17 (reference film stills beside a red gesture/blue refined-figure drawing pair)",
+    "\"there is a lot of motion blur, so it's actually kind of hard tracking exactly what's happening underneath, but I think this is what's going on... I have to kind of infer and make decisions on my own as to what is exactly happening\" (video @ 11:32-14:13)"
+  ],
+  "evidence_status": "video: https://youtu.be/ZTH3meW3o4E @ 03:45-04:04 and 11:32-14:13 - Winged Canvas (Josh) states this reasoning directly and repeatedly while adapting real film reference (a Michelle Yeoh sword-fight sequence) into a drawn character pose, with the rotoscoping process itself directly confirmed in this session's frame at t=10:17; experimental until validated"
+}

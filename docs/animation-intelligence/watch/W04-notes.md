@@ -9,7 +9,7 @@
 - [x] 35. How to Animate Fight Scenes (Part 1): Punches — Besty Animates (6:02) — https://youtu.be/4uvQytZ3DmA
 - [x] 36. Fisticuffs: Tips for animating action and fight scenes — Dong Chang (6:07) — https://youtu.be/-HXx1fK415I
 - [x] 37. How to ANIMATE SWORD COMBAT Part 1 — Gogan (77:15) — https://youtu.be/sBNDzqO8ZT8
-- [ ] 38. How to Animate a Sword Fight: Full Creative Process — Winged Canvas (15:40) — https://youtu.be/ZTH3meW3o4E
+- [x] 38. How to Animate a Sword Fight: Full Creative Process — Winged Canvas (15:40) — https://youtu.be/ZTH3meW3o4E
 - [ ] 39. Breaking Down Attack Animations [Animation] — Masahiro Sakurai on Creating Games (3:35) — https://youtu.be/LewXWM7HDd8
 - [ ] 40. Animation vs Choreography — Honored Clarity (8:03) — https://youtu.be/xlfcZ2B8Vvs
 
@@ -517,4 +517,66 @@ but worth a note for whoever merges or extends this batch.
 `W04-37-continuous-horizontal-momentum-through-jump-apex.json`,
 `W04-37-weapon-ik-decoupled-from-torso-overlap.json`,
 `W04-37-action-end-pose-must-match-idle-for-automatic-blend.json` — all four pass
+`validateProposedEntry` and `validateEvidenceSource` cleanly.
+
+### 38. How to Animate a Sword Fight: Full Creative Process — Winged Canvas
+
+2026-09-11. Watched at `balanced` detail (39 frames from a 39-candidate pass across the full 15:39
+run — a naturally sparse-scene 2D drawing screen recording, so effectively every scene change was
+kept). A rotoscoping-and-adaptation tutorial: studying a real film fight scene (a Michelle Yeoh
+sword sequence) for line of action and footwork, then hand-drawing an adapted version. Billed by
+the batch list as covering "choreography, staging and camera," but the video itself (this appears
+to be part of a series, ending right after cleanup with a "part 2" teased for refinement) doesn't
+actually get to camera work — worth noting honestly rather than forcing a camera-related entry that
+isn't really there.
+
+**What it teaches, specifically:**
+1. A genuinely distinct reference technique from anything already in the corpus: when filmed
+   reference doesn't clearly show a body part (occlusion, motion blur, a bad angle), infer its
+   likely position from what the VISIBLE, mechanically-connected parts imply, rather than leaving it
+   undrawn or guessing with no grounding — "in this first image, I can't see where her leg is, but...
+   in order for her leg to be like this, her left foot probably has to be in front" (03:45–04:04),
+   and again for a fully motion-blurred pose: "I have to kind of infer and make decisions on my own
+   as to what is exactly happening" (11:32–14:13). The rotoscoping process itself is directly
+   confirmed in this session's frame at t=10:17 (reference film stills beside a red gesture/blue
+   refined-figure drawing pair). Wrote **`reference_gap_inference_from_anatomical_plausibility`**,
+   which also folds in a second, independent reason to adapt rather than copy a reference exactly
+   (beyond gap-filling): a changed camera angle can make a literal copy geometrically impossible in
+   the first place (03:19–03:29).
+2. Two things tracked deliberately across every reference pose studied — line of action, and foot
+   placement — directly confirmed in this session's frame at t=02:27 (a "1) Line of Action,
+   2) Placement of feet" summary slide with drawn gesture marks per pose). A clean, well-illustrated
+   restatement of existing line-of-action and foot-lock/no-slide content already in the corpus.
+   Logged as a **cross-check**.
+3. An exposure/timing chart with explicit, reasoned frame-gap counts per transition (a 3-frame hold
+   before a slow first pose, 2-frame gaps for "a fast energetic sword swing," an extra hold on a
+   major uppercut for "a little bit of slowing down in motion") — confirmed in this session's frame
+   at t=13:51 (a visible exposure timeline). A clean, concrete restatement of
+   `spacing_subdivision_method_ladder` / `pose_hold_density` / `mixed_hold_pacing_within_phase`.
+   Logged as a **cross-check**.
+4. Front-foot-plants-stay-put, back-foot-hovers-before-leading-off footwork to avoid a sliding read
+   (04:29–05:03) is a clean restatement of the corpus's existing foot-lock/contact-drift content.
+   Logged as a **cross-check**.
+5. Figure-construction technique (building a gesture from a sphere-plus-limbs mannequin, treating
+   shoulders "like spears but don't draw them as spears") is real, useful 2D drawing craft but has
+   no Cadence-relevant analogue — Cadence manipulates an existing rig rather than constructing a
+   figure from primitives — noted here as out of scope rather than forced into an entry, the same
+   judgment call `silhouette_readability_diagnostic_pass` already made for a character-DESIGN
+   example.
+
+**Contradicted an existing card:** none.
+
+**Cross-checks:** line-of-action + foot-placement tracking (existing `appeal`/foot-lock content),
+`spacing_subdivision_method_ladder` / `pose_hold_density` / `mixed_hold_pacing_within_phase`
+(exposure/timing chart), foot-lock/no-slide content (footwork).
+
+**Capture candidate:** none — 2D drawn adaptation of existing film footage throughout; the
+underlying film reference is copyrighted third-party material, not something to capture from even
+if it showed a cleanly capturable performance.
+
+**Checks for the queue:** none from this video — its genuinely new content
+(`reference_gap_inference_from_anatomical_plausibility`) is a pre-authoring reasoning step over
+external material, not a property of finished project data.
+
+**Entries written:** `W04-38-reference-gap-inference-from-anatomical-plausibility.json` — passes
 `validateProposedEntry` and `validateEvidenceSource` cleanly.
