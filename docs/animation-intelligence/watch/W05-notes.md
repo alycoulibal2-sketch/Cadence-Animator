@@ -10,7 +10,7 @@
 - [x] 46. Animation Bootcamp: Script to Screen: The Development Diary of Marvel's Spider-Man — GDC (31:13) — https://youtu.be/r_rJJyIPrmM
 - [x] 47. Evolving Combat in 'God of War' for a New Perspective — GDC (59:52) — https://youtu.be/hE5tWF-Ou2k
 - [x] 48. Keyframes and Cardboard Props: The Cinematic Process Behind 'God of War' — GDC (54:01) — https://youtu.be/MNinZWlhprE
-- [ ] 49. Unsynced: The Last of Us Melee System — GDC (54:20) — https://youtu.be/Ox2H3kUQByo
+- [x] 49. Unsynced: The Last of Us Melee System — GDC (54:20) — https://youtu.be/Ox2H3kUQByo
 - [ ] 50. Making Fluid and Powerful Animations For 'Skullgirls' — GDC (21:06) — https://youtu.be/Mw0h9WmBlsw
 
 ## Per-video notes
@@ -571,4 +571,74 @@ trackable reference performance presented as such.
 `W05-48-character-business-motivates-no-cut-camera-disengagement.json`,
 `W05-48-zero-joint-velocity-must-match-visual-locomotion-state.json`,
 `W05-48-scale-double-sacrifices-timing-for-composition.json` — all four pass `validateProposedEntry`
+and `validateEvidenceSource`; no concept-name collisions.
+
+### 49. Unsynced: The Last of Us Melee System — GDC (Anthony Newman, Naughty Dog)
+
+2026-09-11. Watched at `transcript` detail (1371 caption segments; read via targeted scanning ahead
+for the title's own "sync" keyword given length, same approach as videos 47–48, full 0:00–39:00
+technical-content span covered non-sequentially). The title itself names this video's headline
+finding, and it did not disappoint — the shift from Naughty Dog's own prior (Uncharted) paired-
+animation combat system to an "unsynced" independent-expectation one is one of the strongest, most
+directly Cadence-relevant findings in the whole batch. Five entries written, matching the density
+precedent set by videos 43/46/48.
+
+**What it teaches, specifically:**
+1. **The headline finding**: replacing paired animation (attacker and defender authored together
+   around one shared placement point — every combination needs its own pair) with a system where each
+   participant independently animates relative to where it EXPECTS the other to be ("a system of
+   interlocking joints") — escaping a combinatorial explosion (~1000 moves, under 4MB) and enabling
+   mechanics the paired system structurally could not (mid-exchange flinch reactions, readable hits on
+   enemies standing on uneven terrain) (32:22–35:24). Wrote
+   **`independent_expectation_positioning_replaces_paired_animation`**.
+2. A hard, non-interpolated pose "pop" between two animations is invisible to the eye when the
+   character is shown being forced into the new pose by a stated external cause (a weapon impact) —
+   demonstrated with a direct slow-motion-vs-full-speed comparison (09:16–10:46). Wrote
+   **`causally_motivated_pose_pop_conceals_discontinuity`**.
+3. The sibling technique at the POSITION level: a large, physically-implausible instantaneous
+   positional snap (a generous wall-slam trigger distance) reads as continuous motion when the
+   attacking character's own motion is visibly continuous across the same span — 'your eye
+   interpolates that as it's happening' (10:52–11:29). Wrote
+   **`concurrent_driver_motion_camouflages_positional_snap`**.
+4. Deliberately suppressing rebound on a head/body impact against a hard surface — no bounce back —
+   reads as pain/injury (energy absorbed internally) rather than an elastic, fake-feeling collision;
+   the presenter's own explicit counterfactual is that a bouncy version 'would look like WWF.' Directly
+   strengthens the already-queued `bounce_decay_rate_matches_declared_material` check (LESSONS.md #15)
+   with a second, independent citation for its low extreme (06:32–07:22). Wrote
+   **`suppressed_rebound_reads_as_internalized_impact_trauma`**.
+5. A systemic (non-hand-placed) combat camera orbits to one side of the attacker/defender midpoint,
+   auto-correcting to the other side if it starts wrong — the same combinatorial-avoidance motive as
+   finding #1, applied to the camera instead of the bodies, with hand-animated cameras reserved
+   separately for finishers/grapples (11:34–12:38). Wrote
+   **`midpoint_framing_camera_with_side_auto_correction`**.
+
+**Not written as entries** (real, well-evidenced, but judged thinner extensions of material already
+covered): impact velocity concentrated in the head/upper-body while the rest of the body stays
+comparatively still (from MMA reference, making a hit read both harder AND heavier, 05:04–05:33) is a
+strong finding but close enough to existing weight/impact cards that it was logged as supporting
+context rather than a new entry. Long anticipation/follow-through holds bracketing a 2–3-frame punch
+swing (05:54–06:28) directly confirms `startup_frame_budget`/`dps_floor_for_short_actions` (W01/W02)
+with new concrete numbers — a cross-check, not a new card. Cut cameras reserved exclusively for death
+moments specifically because a cut's disorientation cost is zero when the player is dead (12:42–13:25)
+and camera shake as a cheap universal impact-amplifier (13:36–14:09) are both real and well-stated but
+were judged secondary to the five entries above given this video's density and the batch's remaining
+runway.
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — an internal systems/pipeline talk with shipped-game footage, no
+independent trackable reference performance.
+
+**Checks for the queue:** none new beyond what's already queued — entry 4 above directly strengthens
+existing queued check #15 (`bounce_decay_rate_matches_declared_material`, LESSONS.md) rather than
+proposing a new one; entries 2, 3 and 5's own `detection_and_measurement_methods` fields each already
+state precisely what is buildable today versus blocked on this build's lack of any two-item or
+camera-runtime comparison, matching this batch's established practice of stating that inline rather
+than duplicating it as a separate queued line.
+
+**Entries written:** `W05-49-independent-expectation-positioning-replaces-paired-animation.json`,
+`W05-49-causally-motivated-pose-pop-conceals-discontinuity.json`,
+`W05-49-concurrent-driver-motion-camouflages-positional-snap.json`,
+`W05-49-suppressed-rebound-reads-as-internalized-impact-trauma.json`,
+`W05-49-midpoint-framing-camera-with-side-auto-correction.json` — all five pass `validateProposedEntry`
 and `validateEvidenceSource`; no concept-name collisions.

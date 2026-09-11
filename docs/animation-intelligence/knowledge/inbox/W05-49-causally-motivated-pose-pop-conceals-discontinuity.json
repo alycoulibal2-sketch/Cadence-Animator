@@ -1,0 +1,36 @@
+{
+  "concept": "causally_motivated_pose_pop_conceals_discontinuity",
+  "category": "advanced",
+  "definition": "A hard, non-interpolated pose discontinuity ('pop') between two animations is imperceptible to a viewer when the character is simultaneously shown to be forced into the new pose by a visible external physical cause (a weapon striking them) — the stated causal justification, not any smoothing or blending, is what hides the jump.",
+  "purpose": "Get away with an authoring shortcut (skipping a transition between two poses that don't naturally connect) specifically in the one circumstance where the audience already has a physical explanation for an abrupt change, so the discontinuity reads as caused rather than broken.",
+  "visible_effect": "A character's pose changes abruptly between frames with no interpolating motion between them, without reading as a glitch, because a co-occurring visible force (a weapon impact) gives the eye a reason for the sudden change.",
+  "psychological_or_gameplay_effect": "The presenter states this directly and specifically: the pop is 'pretty significant' when examined in slow motion or isolation, but 'your eye hides it because he's being motivated by the axe through his neck' — at full speed, viewers report not noticing it at all.",
+  "physical_interpretation": "Exploits the fact that a sufficiently violent external force COULD physically produce an instantaneous pose change in reality (a sharp impact does cause near-instantaneous position changes) — the technique borrows plausibility from the cause rather than manufacturing plausible motion for the transition itself.",
+  "use_cases": [
+    "connecting two poses that do not have a natural interpolated path between them (e.g. a move that must serve two very different entry states, like a stun-doubled-over pose and a standing pose) when authoring a proper transition for every entry case is infeasible",
+    "any hit-reaction or impact-driven pose change, where a visible force already provides the causal cover this technique depends on"
+  ],
+  "non_use_cases": [
+    "a pose change with no visible external cause to justify it — the technique's entire mechanism depends on a co-occurring, visible causal event; without one, the same pop would read as a glitch",
+    "a slow-motion, close-up, or otherwise scrutinized presentation of the same moment, where the presenter's own evidence shows the pop becomes visible on inspection even with the causal justification present"
+  ],
+  "interactions": [
+    "discontinuity_concealment_via_visibility_gap (W02) — a sibling concealment technique for the exact same underlying problem (a pose discontinuity that must be hidden), using a different mechanism: that entry hides a discontinuity by placing it inside a period the viewer cannot see at all (occlusion/transparency), this one hides it in plain sight by giving it a stated cause",
+    "concurrent_driver_motion_camouflages_positional_snap (this batch, video 49) — a closely related sibling technique from the SAME video and the same underlying insight (a large discontinuity reads as continuous when something else visible is happening at the same moment) applied to POSITION rather than POSE"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a technique, though the raw discontinuity it exploits is exactly what `ai/motion.js` already measures: a hard pop between two poses with no interpolating keys would show up directly in `sampleMotion`'s jerk/acceleration series as a large, instantaneous spike — Cadence can already SEE this discontinuity numerically, but has no way to know whether a co-occurring causal justification (a marker-declared impact) makes it acceptable or not; that judgment is exactly what `ai/certainty.js`'s discipline of labelling what a check can and cannot decide would require here — the measurement is certain, the acceptability verdict is not.",
+  "control_surface": "None — nothing in this build authors a deliberate pose pop as a technique; a project wanting one today would simply place two keys with no interpolation between them, indistinguishable from an authoring mistake.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s jerk measurement would directly flag the large instantaneous discontinuity this technique produces; cross-referencing it against `ai/events.js`'s shot-event timeline for a co-occurring declared impact marker at the same frame would let a check distinguish 'a justified pop' from 'an unjustified one' — a real, buildable comparison using two measurements this build already has, though no code currently runs it.",
+  "generation_or_modification_methods": "None — deliberately authoring an uninterpolated pop between two named poses is not a generation operation any tool in this build performs (every existing strategy in `ai/plan.js` edits or adds a key with interpolation, never removes it entirely between two states).",
+  "failure_modes": [
+    "using this technique with no co-occurring causal justification, which the presenter's own account implies would read as a broken transition rather than a motivated one",
+    "relying on it for a moment likely to be scrutinized in slow motion, a replay, or a close-up, where the presenter's own account shows the pop becomes visible on inspection"
+  ],
+  "roblox_considerations": "None specific — a general animation-authoring shortcut independent of target engine; directly usable in any Roblox combat system needing to connect otherwise-incompatible hit-reaction entry poses.",
+  "performance_implications": "Strictly cheaper than authoring a proper transition (a missing transition costs nothing to author), which is the whole point of the technique.",
+  "examples": [
+    "a stun-doubled-over enemy popping into a standing-stab-reaction pose (needed because the same finisher move must also work as a stealth kill on an already-standing target) — described directly: 'the pop is pretty significant... but your eye hides it because he's being motivated by the axe through his neck... when you look at it full speed you don't notice the pop at all' (video @ 09:16–10:46)"
+  ],
+  "evidence_status": "video: https://youtu.be/Ox2H3kUQByo @ 09:16–10:46 — Anthony Newman demonstrates the motivated pop directly with a slow-motion comparison against full-speed playback, naming the exact mechanism (a stated external cause) that hides it; no frames extracted (transcript-only); experimental until validated"
+}

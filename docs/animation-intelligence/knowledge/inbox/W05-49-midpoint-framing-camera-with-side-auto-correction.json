@@ -1,0 +1,37 @@
+{
+  "concept": "midpoint_framing_camera_with_side_auto_correction",
+  "category": "advanced",
+  "definition": "A systemic (non-hand-placed, per-move) combat camera that positions itself to one side of the midpoint between an attacker and a defender, keeping both roughly on screen, and automatically orbits to the OTHER side when it finds itself starting from the wrong one — providing consistent, good framing for every move combination without authoring a camera for each.",
+  "purpose": "Get reliable, well-composed two-character framing across an enormous combinatorial space of attacker/defender/move combinations (the video's own melee system covers roughly a thousand moves) without hand-placing a camera for each one — the same combinatorial-avoidance motive as this video's own unsynced-animation system, applied to the camera instead of the bodies.",
+  "visible_effect": "The camera consistently frames both participants from a readable angle across arbitrary move combinations, occasionally visibly re-orbiting from an initially-wrong side to the correct one rather than starting there directly.",
+  "psychological_or_gameplay_effect": "Removes the combinatorial authoring cost of per-move cameras while still reliably avoiding the single worst camera failure for a two-character action (losing track of one participant), at the acknowledged cost of an occasional visible orbit correction rather than a perfectly-placed cut.",
+  "physical_interpretation": "A purely geometric rule (midpoint-relative offset, side selection, auto-correction) rather than anything physically simulated — the camera's own motion has no mass or momentum model, just a positioning heuristic.",
+  "use_cases": [
+    "any combat or interaction system with too many attacker/defender/move combinations to hand-author a camera for each",
+    "a systemic camera needing a reliable DEFAULT behavior that hand-animated cameras (for special moves) can still override for specific, high-value moments"
+  ],
+  "non_use_cases": [
+    "a small, fixed set of scripted moves where hand-placed cameras are affordable and would read better than a generic systemic rule (the same video's own approach for finishers/grapples, which use animated cameras 'for emphasis and a greater cinematic feel' instead)",
+    "a single-character (non-contact) camera problem, where there is no second participant's position to frame relative to — this entry's midpoint logic has nothing to compute against"
+  ],
+  "interactions": [
+    "deliberate_thirds_placement_as_story_variable and unintentional_tangent_hijacks_viewer_attention (video 45) — all concern deliberate camera-framing rules; this entry is a systemic, runtime RULE rather than an authored, per-shot choice, addressing the same underlying framing concerns at combinatorial scale",
+    "independent_expectation_positioning_replaces_paired_animation (this batch, video 49) — the same talk's combinatorial-avoidance motive applied to camera placement instead of character animation; both trade a small amount of per-instance polish for coverage across an otherwise unaffordable combination space"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Squarely inside the SHOT-003/004 gap this batch has named repeatedly: Cadence has no active-camera/framing model at all, so a systemic 'position relative to two characters' midpoint, auto-correct side' rule is entirely out of scope for a single-clip authoring tool — the inputs it would need (two characters' world positions, already available via `ai/pose.js`) exist in this build, but the camera-positioning LOGIC itself is runtime game code, not something a `.cadence` project could express.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "None directly, though `ai/pose.js`'s per-item world position (already computed for any posed rig) supplies exactly the midpoint-computation input this technique's logic would need, the same partial-input situation named in this batch's other SHOT-003/004-adjacent entries.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "the auto-correction orbit itself becoming visible and distracting often enough to undercut the 'consistent, good framing' goal — an acknowledged tradeoff, not a hidden one, in the source material",
+    "applying the generic systemic rule to a move important enough that a hand-placed/animated camera would read substantially better — the same video's own solution is to reserve authored cameras for exactly those cases rather than replacing the systemic default everywhere"
+  ],
+  "roblox_considerations": "Directly implementable on Roblox: a script-driven `Camera` computing an offset from the midpoint of two characters' `HumanoidRootPart` positions, with a side-selection and re-orbit rule, is ordinary Luau camera-scripting work with no engine-specific obstacle.",
+  "performance_implications": "Cheap — a per-frame midpoint and offset computation plus an occasional orbit interpolation; negligible relative to combat animation costs.",
+  "examples": [
+    "the mechanism stated directly: 'a systemic camera that can shift to one side and tries to frame both the attacker and the defender by looking at the midpoint and keeping the defender on-screen... when the camera starts off on the wrong side of the action it slowly orbits around until it's in the correct spot' (video @ 11:38–12:12)",
+    "contrasted directly with the video's own special-case approach: animated (hand-authored) cameras reserved specifically for finishers and grapples, 'for emphasis and a greater cinematic feel' (video @ 12:26–12:38)"
+  ],
+  "evidence_status": "video: https://youtu.be/Ox2H3kUQByo @ 11:34–12:38 — Anthony Newman describes the systemic midpoint-framing camera and its auto-correction behaviour directly, contrasting it with the team's separate hand-animated-camera approach for special moves; no frames extracted (transcript-only); experimental until validated"
+}

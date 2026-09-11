@@ -1,0 +1,36 @@
+{
+  "concept": "concurrent_driver_motion_camouflages_positional_snap",
+  "category": "advanced",
+  "definition": "A large, physically-implausible instantaneous positional correction (e.g. snapping a struck character's position across a substantial gap to align with a scripted move) reads as continuous, plausible motion when the character CAUSING it is simultaneously shown visibly moving through the same space — the eye attributes the target's displacement to the visible mover's ongoing push rather than perceiving the underlying snap.",
+  "purpose": "Get away with generously large positional-correction tolerances (letting a scripted contact move trigger from much farther away than the move's own animation would suggest) without the resulting snap reading as a teleport, by ensuring the attacker's own motion is visible and continuous across the same span.",
+  "visible_effect": "A character appears to be pushed or dragged a large, continuous-looking distance into a wall/position, when in fact a large portion of that distance is an instantaneous, non-interpolated correction — imperceptible specifically because the pushing character's own visible motion spans the same moment.",
+  "psychological_or_gameplay_effect": "The presenter states this directly: the correction is a 'pretty gnarly lurch' when isolated and viewed from the side, but 'from the player's perspective it looks fine and you don't notice that it's happened' — the visible mover's motion is doing the perceptual work of explaining the snap.",
+  "physical_interpretation": "The eye is tracking the MOVER's continuous, physically-plausible motion (pushing an object forward) and attributes the pushed object's total displacement to that visible cause, rather than independently verifying the pushed object's own frame-by-frame continuity.",
+  "use_cases": [
+    "a scripted contact/finisher move needing generous trigger-distance tolerance (so it fires reliably across a range of realistic approach distances) without requiring a proportionally long, hand-animated closing motion for every possible starting distance",
+    "any large positional correction that can be authored to co-occur with a visibly moving, causally-connected driver character"
+  ],
+  "non_use_cases": [
+    "a positional correction with no visibly-moving driver to attribute it to — the technique depends entirely on a co-occurring, causally-plausible mover; a snap on a static or off-screen character has nothing to hide behind",
+    "a shot or camera angle (e.g. a static side-on framing, as the presenter's own diagnostic view was) that isolates and exposes the correction rather than integrating it into the mover's motion — the technique is view-dependent, not universal"
+  ],
+  "interactions": [
+    "causally_motivated_pose_pop_conceals_discontinuity (this batch, video 49) — the direct sibling technique from the same video and talk, applied to POSITION rather than POSE; both exploit the same underlying perceptual principle (a discontinuity reads as continuous when attention is anchored to a co-occurring, causally-connected visible event)",
+    "angle_scaled_reach_correction_for_lateral_targets (video 47) — a related but distinct approach to the same general problem class (correcting a gap between authored animation and actual target distance); that entry scales the correction DOWN to avoid it being noticed, this one hides a LARGER correction behind a co-occurring visible cause instead"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a technique, but its raw ingredients are measurable: `ai/motion.js sampleMotion` on the corrected character's position track would show the same jerk-spike signature as any other snap, and comparing the TIMING of that spike against a second, causally-linked item's (the attacker's) own measured velocity at the same frame is a real, buildable check for whether a positional correction has a plausible co-occurring 'cover' — this is a two-item comparison Cadence's single-clip-at-a-time model does not currently support performing, the same structural gap named in `independent_expectation_positioning_replaces_paired_animation`'s own cadence_representation.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "`sampleMotion`'s position/jerk series on the corrected item would measure the snap itself; whether it is 'covered' by a co-occurring driver's motion would need a second item's simultaneous velocity compared against it — buildable in principle from existing single-item measurements, blocked on this build's lack of any built-in two-item comparison tool.",
+  "generation_or_modification_methods": "None — no strategy in this build inserts a deliberate positional correction timed against another item's motion.",
+  "failure_modes": [
+    "viewing or reviewing the correction from an angle or in a context (a side-on diagnostic view, a slow-motion replay) that isolates it from the covering driver motion, exposing the snap the technique depends on hiding",
+    "triggering the corrected move from a distance so large that even the driver's covering motion cannot plausibly account for the total displacement"
+  ],
+  "roblox_considerations": "Directly applicable to any Roblox combat system using generous trigger-range tolerances for scripted grab/slam moves — the same technique (ensure the attacking character's own motion is visible and continuous across the correction) would apply regardless of engine.",
+  "performance_implications": "None beyond ordinary animation/positioning cost.",
+  "examples": [
+    "Joel slamming an enemy into a wall from a generously large trigger distance — viewed from the side, 'that's a pretty gnarly lurch, like he's going pretty far', but 'it's hidden by the fact that Joel is pushing the guy forward... your eye interpolates that as it's happening... from the player's perspective it looks fine' (video @ 10:52–11:29)"
+  ],
+  "evidence_status": "video: https://youtu.be/Ox2H3kUQByo @ 10:52–11:29 — Anthony Newman demonstrates the wall-slam example directly, contrasting an isolated side-view (where the correction is obvious) against normal player-perspective playback (where it is not); no frames extracted (transcript-only); experimental until validated"
+}

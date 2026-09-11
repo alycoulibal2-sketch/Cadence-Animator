@@ -1,0 +1,38 @@
+{
+  "concept": "independent_expectation_positioning_replaces_paired_animation",
+  "category": "advanced",
+  "definition": "Replace a paired-animation combat system (where an attack and its reaction are authored TOGETHER as one linked pair sharing a single placed reference point, so every valid attacker/defender/terrain combination needs its own authored pair) with a system where each participant independently animates relative to where it EXPECTS the other to be — 'a system of interlocking joints' rather than one shared anchor — so attacks and reactions can be authored, chosen, and mixed independently instead of as a fixed combinatorial matrix.",
+  "purpose": "Escape the combinatorial-explosion cost of a paired-animation system (every attacker move × every defender state × every terrain variation needing its own authored pair) by making each side's animation self-sufficient against an EXPECTED relative position, so any attack can combine with any reaction without a dedicated authored pair for that specific combination.",
+  "visible_effect": "An attacker's animation places them relative to where they expect a target to be; the target's reaction animation independently places IT relative to where it expects the attacker to be — the two are not driven from one shared point, and normally converge closely enough to read as a single connected performance.",
+  "psychological_or_gameplay_effect": "Enabled entirely new mechanics the paired system could not support at all — mid-exchange 'flinch' reactions where both characters keep acting independently (a lighter enemy class that keeps moving and can be punched back while it is still mid-attack), which required attacks and reactions to no longer be mutually exclusive, paired events.",
+  "physical_interpretation": "Each participant's motion is generated from its own local reference frame and an assumption about the other's position, rather than both being slaved to one shared world-space anchor — closer to how two real people coordinate a contact (each reacts to where they believe the other is) than to two puppets moved by one shared point.",
+  "use_cases": [
+    "a combat or contact system with enough attacker/defender/state/terrain combinations that authoring every valid pair is infeasible",
+    "any mechanic requiring both participants to remain independently responsive during a shared contact moment (interruptible reactions, simultaneous mutual attacks) rather than one fully committing to a scripted pair"
+  ],
+  "non_use_cases": [
+    "a small, fixed set of combinations where full paired authoring is affordable and its tighter, hand-guaranteed contact fidelity is worth the cost (the video's own prior system, used successfully on Uncharted)",
+    "a hero/cinematic moment where exact, guaranteed contact placement matters more than combinatorial flexibility — the entry's own evidence shows the unsynced system's own generic fallback moves 'don't look as fantastic' as a true paired move"
+  ],
+  "interactions": [
+    "single_pose_plus_ik_generalizes_contact_variants (video 41) — a structurally similar move: both trade authored-pair precision for combinatorial coverage by routing a contact through an independent expectation/target rather than a fixed paired relationship",
+    "weapon_attach_under_root_avoids_subframe_chain_desync (video 43) — a much smaller-scale instance of the same general principle (two things that must appear connected are more robust when each is driven from a stable independent reference than when one is rigidly slaved to the other)"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: Cadence authors ONE rig's clip at a time with no concept of a second, independently-driven participant reacting to it at all — there is no multi-character contact model, paired or unsynced, anywhere in this build. The honest statement is that Cadence could author either HALF of an unsynced pair (an attacker's clip placed relative to an assumed target position, or a reaction clip placed relative to an assumed attacker position) as an ordinary single-rig clip, but has no mechanism to declare, validate, or measure the RELATIONSHIP (expected-vs-actual convergence) between two such independently-authored clips.",
+  "control_surface": "None — no multi-item contact/expectation model exists to expose a control surface for.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion` could measure each participant's own position independently, and `measureContactDrift` already measures ONE effector's drift against a declared target — a hypothetical extension comparing two INDEPENDENTLY-authored clips' converging positions against each other (rather than one clip against a fixed target) is a real, buildable generalization of an existing measurement, not a wholly new capability class.",
+  "generation_or_modification_methods": "None — this build has no two-participant generation step of any kind.",
+  "failure_modes": [
+    "the two participants' independent expectations diverging enough that the contact reads as disconnected — the exact failure the shared-anchor paired system was originally built to guarantee against",
+    "over-relying on the generic/independent fallback for cases a proper authored pair would serve much better, producing the 'doesn't look as fantastic' generic result where a bespoke pair was actually affordable"
+  ],
+  "roblox_considerations": "A Roblox implementation would need each character's own script to independently place/orient itself relative to a read (not shared-authored) estimate of the other's position — directly analogous to server-authoritative combat systems where each character's hit-reaction is triggered and placed independently rather than driven by one shared cinematic.",
+  "performance_implications": "Removes the combinatorial AUTHORING cost (memory/disk for every pair) at the cost of a small runtime placement computation per contact — the video states the whole single-player melee system, built this way, never exceeded a 4-megabyte memory footprint despite covering roughly a thousand individual moves.",
+  "examples": [
+    "the mechanism itself stated directly: 'we moved to... a system where each character knows where they expect the other character to be... so we kind of joined them together and synced up nicely' — attacker and defender no longer share one common placement point (video @ 33:14–33:53)",
+    "runners (a lighter enemy class) able to keep moving and be punched back WHILE they are still mid-punch, described as 'wouldn't have been possible in the Uncharted paradigm', directly enabled by decoupling the two participants' animations (video @ 34:03–34:26)",
+    "an enemy standing on 1-meter cover, or on a downhill slope, still receiving a readable hit reaction despite a vertical mismatch a rigid paired system 'just wasn't feasible' for — an explicit, honestly-described fallback case, not the system's best-case result (video @ 34:30–35:24)"
+  ],
+  "evidence_status": "video: https://youtu.be/Ox2H3kUQByo @ 32:22–35:24 — Anthony Newman (lead melee designer, Naughty Dog, The Last of Us) explains the shift from Uncharted's paired-animation system to the unsynced independent-expectation system in full detail, with concrete before/after examples; no frames extracted (transcript-only); experimental until validated"
+}

@@ -1,0 +1,36 @@
+{
+  "concept": "suppressed_rebound_reads_as_internalized_impact_trauma",
+  "category": "advanced",
+  "definition": "When a struck character's head or body reaches a hard surface (a wall, a counter), deliberately suppress the natural bounce/rebound a real collision would produce — bringing the motion to a near-dead stop on contact rather than letting kinetic energy visibly reflect back — so the impact reads as the energy being absorbed internally ('as trauma') rather than as an elastic, cartoonish, or fake-feeling collision.",
+  "purpose": "Communicate that an impact HURT (energy absorbed by the victim's body) rather than merely that a collision occurred (energy reflected by an elastic surface) — the opposite deliberate choice from an ordinary follow-through/overshoot bounce, applied specifically where the story wants pain to read rather than force or comedy.",
+  "visible_effect": "A struck head or body meeting a hard surface stops abruptly with minimal or no rebound, in contrast to a springy bounce-back that a more elastic or comedic collision would show.",
+  "psychological_or_gameplay_effect": "The presenter states the counterfactual directly: a visible bounce off the surface 'would look like WWF or something and it wouldn't be as believable of an impact' — rebound reads as performed/theatrical, its absence reads as real injury.",
+  "physical_interpretation": "A deliberate departure from ordinary elastic-collision physics (which would produce some rebound) toward inelastic-collision behaviour, chosen specifically because inelastic collisions are what real injury (energy absorbed by soft tissue) actually looks like.",
+  "use_cases": [
+    "any impact meant to read as genuinely painful/injurious (a body slammed into a hard surface, a serious hit) rather than as a stylized, bouncy, or comedic collision",
+    "a story or tone (survival horror, grounded realism) that specifically wants violence to read as consequential and real rather than as spectacle"
+  ],
+  "non_use_cases": [
+    "a cartoon, anime, or otherwise stylized/exaggerated tone where a bounce or rebound IS the desired read (energy, comedy, elasticity) — this entry's technique is a deliberate style choice, not a universal rule (compare `squash_stretch`'s own style_variations, which name exactly this kind of tone-dependent bounce)",
+    "an impact against a soft or yielding surface, where a real collision would show visible give/deformation and suppressing all response would read as unnaturally stiff instead of painful"
+  ],
+  "interactions": [
+    "squash_stretch (compiled) and float_to_stop_settle (W02) — this entry is close to the deliberate ABSENCE of both: no compression/extension bounce at all, chosen specifically because the absence itself carries the intended meaning (pain, not energy)",
+    "bounce_decay_rate_matches_declared_material (queued check, LESSONS.md) — this entry is direct, concrete evidence for the opposite extreme of that check's own range: a 'material' that absorbs essentially 100% of impact energy on the first contact, zero decaying bounces"
+  ],
+  "style_variations": { "realistic": "the default expression of this technique — most real high-energy impacts against a rigid surface DO show reduced rebound compared to a stylized bounce", "cartoon": "excluded — a cartoon impact typically wants a visible, sometimes exaggerated bounce to read as energetic rather than painful", "anime": "genre-dependent — a grounded/seinen tone may use this technique directly, a shonen/action tone more often wants a visible bounce or knockback for spectacle" },
+  "cadence_representation": "Directly measurable, and directly actionable against an already-queued check: `ai/motion.js sampleMotion`'s position/velocity data at a declared contact/impact marker would show exactly the near-zero post-contact rebound this entry describes, which is precisely the low end of the range LESSONS.md's own queued check #15 (`bounce_decay_rate_matches_declared_material`) is meant to measure — this entry supplies a second, independently-sourced piece of evidence (a professional AAA presenter's explicit before/after comparison) for why that check matters and what one of its extremes should look like.",
+  "control_surface": "None dedicated; ordinary keyframe authoring at a declared contact frame already lets a user suppress rebound by hand — nothing currently measures or validates the result against a declared material/intent.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s velocity series at and after a declared contact marker directly measures the presence or absence of rebound — the same measurement LESSONS.md's queued `bounce_decay_rate_matches_declared_material` check already names as buildable, now with a second, independent citation supporting it.",
+  "generation_or_modification_methods": "None built specifically for this; the general contact/settle machinery in `ai/plan.js` (the `settle`/`overshoot` steps) could in principle be parameterized toward zero rebound, but nothing currently exposes 'suppress rebound entirely' as a named, intentional choice.",
+  "failure_modes": [
+    "suppressing rebound on an impact that should read as light, comedic, or highly elastic, producing an unintentionally grim or heavy tone where none was wanted",
+    "suppressing rebound so completely that the motion reads as simply stopping rather than as an impact at all — some minimal deceleration curve is still needed to sell contact happened, just without a return bounce"
+  ],
+  "roblox_considerations": "None specific — a keyframe-authoring choice independent of target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "a head-to-wall/counter impact shown in slow motion with the explicit narration: 'there isn't a lot of bounce from the head when it hits the surface... the kinetic energy... isn't going anywhere, like the only place it's going is internally as trauma... if he was bouncing off of the surface it would look like WWF or something and it wouldn't be as believable of an impact' (video @ 06:43–07:22)"
+  ],
+  "evidence_status": "video: https://youtu.be/Ox2H3kUQByo @ 06:32–07:22 — Anthony Newman demonstrates the no-bounce impact in slow motion and states the physical/perceptual reasoning directly, with an explicit stated counterfactual (a bouncy version reading as fake); no frames extracted (transcript-only); experimental until validated"
+}
