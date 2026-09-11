@@ -170,6 +170,27 @@ useful facet. Two of the new checks (#24, #30) are **blocked on a declaration th
 exist** — per-leg weight bearing, and per-item mass distribution — and are queued as blocked
 rather than as derivable, which is the distinction that keeps the queue honest.
 
+## 2026-09-11 — the loop caught its first stale card
+
+Not from a video: from the W02 session READING the twelve compiled cards against what the code
+now does. `structural_understanding` said "pose balance: none — part mass is unknown, so a
+centre-of-mass computation cannot be built honestly" and `appeal` said "there is no line-of-action
+measurement". Both predate `ai/pose.js measurePose` (Slice A, the same day), which computes a
+least-squares line of action through the spine parts, a part-VOLUME-proxy centre of mass, and
+balance against a DECLARED support polygon. Both cards are corrected, with the two caveats that
+travel with those numbers kept attached: the mass is a proxy because Cadence stores no density,
+and with no declared support `balance.supported` is null rather than a verdict.
+
+Neither is wired into `knowledgeChecks`, and the reason is now written down instead of implied:
+that function maps a concept onto `ai/motion.js MEASUREMENTS` keys and is handed a
+`sampleMotion` result, which carries neither a posed frame nor a declared support polygon. A
+pose measurement needs both. That is a wiring gap with a known shape — worth doing when something
+needs it, and dishonest to describe as a missing capability.
+
+**This is the stale-blocker class the Phase 4 review pass named, in the knowledge cards rather
+than in the code**, and it will happen again every time a capability ships. A watch session
+reading the cards against the build is a cheap way to catch it, and is worth repeating.
+
 ## 2026-09-11 — the learning loop shipped (the store these entries needed)
 
 Built in the same session as the merge above, because the merge had nowhere to merge INTO.

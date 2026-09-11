@@ -282,9 +282,9 @@ const ENTRY_LIST = [
     non_use_cases: ['abstract, magical, or nonhuman motion that deliberately breaks structural expectation (horror/fantasy styles)'],
     interactions: ['Contacts — a structurally credible stance usually implies a consistent contact (MOT-008 measures the contact side, not the balance side)', 'Rig validation (`ai/riggraph.js`) checks STRUCTURE of the rig itself, not the pose applied to it — a different, adjacent concern'],
     style_variations: { horror: 'altered biomechanics are an explicit, permitted exception' },
-    cadence_representation: 'Rig-level structural validation exists and is real (`ai/riggraph.js validateRig` — root, cycles, duplicate motors, orphans, rest-pose consistency, mirror completeness). POSE-level structural judgement (does THIS pose have credible balance and volume) does not exist — `ai/index.js capabilities().cannot` already names "balance and centre of mass (part mass is unknown)" as absent.',
-    control_surface: '`inspect_rig` for rig-structure validation; nothing for pose-level balance.',
-    detection_and_measurement_methods: 'Rig structure: real, in `validateRig`. Pose balance: none — part mass is unknown, so a centre-of-mass computation cannot be built honestly.',
+    cadence_representation: 'Rig-level structural validation exists and is real (`ai/riggraph.js validateRig` — root, cycles, duplicate motors, orphans, rest-pose consistency, mirror completeness). POSE-level structure is now PARTLY measured: `ai/pose.js measurePose` (MOT-011) computes a line of action through the spine parts, a centre of mass from a part-VOLUME proxy, and balance against a support polygon the caller DECLARED. Two caveats travel with every one of those numbers and are not decoration: the mass is a volume proxy because Cadence stores no density, and nothing infers a contact, so with no declared support `balance.supported` is null rather than a verdict. What is still absent is a judgement: whether the measured balance is CREDIBLE for this character and this action is not decided anywhere.',
+    control_surface: '`inspect_rig` for rig-structure validation; `compile_pose` / `author_motion` for the pose measurements, which return line of action, centre of mass and balance whenever a support polygon is declared.',
+    detection_and_measurement_methods: 'Rig structure: real, in `validateRig`. Pose balance, centre of mass and line of action: real, in `ai/pose.js measurePose` — against a DECLARED support polygon, with a part-volume mass proxy, both stated in the result. Not reachable from `knowledgeChecks` below, which maps a concept onto `ai/motion.js MEASUREMENTS` keys and is fed a `sampleMotion` result; a pose measurement needs a posed frame and a declared support, which that call does not carry. That is a wiring gap with a known shape, not a missing capability.',
     generation_or_modification_methods: 'None for pose-level structural correction.',
     failure_modes: ['a pose that violates the rig\'s own limb lengths or joint limits — partially caught by `ai/constraints.js` where `joint_limits` are declared, `null` otherwise (never assumed unlimited)', 'silhouette-merging limbs, not currently detected'],
     roblox_considerations: 'None beyond the Motor6D rig model already shared across this codebase.',
@@ -304,9 +304,9 @@ const ENTRY_LIST = [
     non_use_cases: ['reducing this to a generic, character-independent "looks nice" metric — Part 26.11\'s own warning: "It is character- and style-specific"'],
     interactions: ['Structural understanding — the two halves of Part 26.11 are related but distinct: one is mechanical credibility, the other is design intent', 'Character-level memory (MEM-001\'s `character_rules` scope) is the natural place a specific character\'s appeal conventions would live, once observed and evidenced'],
     style_variations: {},
-    cadence_representation: 'None. This is the single most subjective principle in the table and this build states that plainly rather than approximating it — there is no line-of-action measurement, no personality model, and no character-specific appeal record (MEM-001\'s `character_rules` scope exists structurally but nothing has populated one yet).',
-    control_surface: 'None.',
-    detection_and_measurement_methods: 'None, and none is claimed. Part 13\'s certainty taxonomy would label any attempted appeal judgement `subjective`, and Part 13 forbids automatically acting on a subjective finding — so this entry\'s honest position is that appeal should reach a human, not a verdict.',
+    cadence_representation: 'Almost none, and deliberately so — this is the most subjective principle in the table. One of its classical tools IS measured now: `ai/pose.js measurePose` fits a least-squares line of action through the spine parts, so "is there a clear line" has a number behind it (MOT-011). Appeal itself does not: there is no personality model, and no character-specific appeal record (MEM-001\'s `character_rules` scope exists structurally but nothing has populated one). A measured line of action is evidence a human can use; it is not a verdict on appeal, and nothing here turns it into one.',
+    control_surface: 'None for appeal. `compile_pose` returns the line-of-action measurement, which is one input a person can weigh.',
+    detection_and_measurement_methods: 'The line of action is measured (`ai/pose.js measurePose`, MOT-011) and is the only component of appeal that is. Appeal as a whole: none, and none is claimed. Part 13\'s certainty taxonomy would label any attempted appeal judgement `subjective`, and Part 13 forbids automatically acting on a subjective finding — so this entry\'s honest position is unchanged: appeal reaches a human, not a verdict. Not wired into `knowledgeChecks` for the same reason as `structural_understanding`: a pose measurement needs a posed frame, not a `sampleMotion` result.',
     generation_or_modification_methods: 'None.',
     failure_modes: ['treating appeal as generically maximisable, rather than specific to the character being animated'],
     roblox_considerations: 'None.',
@@ -663,8 +663,14 @@ export const DETECTION_MEASUREMENTS = Object.freeze({
   secondary_action: ['relation_to_motion_graph_parent'],
   exaggeration: ['angular_velocity'],
   pose_workflow: ['key_density'],
-  // Named with an empty list rather than omitted: these four have no measurement in this build at
-  // all, and the empty array is the declaration that somebody checked.
+  // Named with an empty list rather than omitted — the empty array is the declaration that
+  // somebody checked. Two of these four have no measurement in this build at all (no scale
+  // signal for squash_stretch, no camera or attention model for staging). The other two DO have
+  // one and cannot be reached from here: `ai/pose.js measurePose` measures line of action, a
+  // volume-proxy centre of mass and balance against a declared support, and `knowledgeChecks` is
+  // handed a `sampleMotion` result, which carries neither a posed frame nor a declared support
+  // polygon. That is a wiring gap with a known shape, and each entry says so in its own
+  // detection field.
   squash_stretch: [],
   staging: [],
   appeal: [],
