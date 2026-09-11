@@ -1,0 +1,42 @@
+{
+  "concept": "external_force_easing_override",
+  "category": "advanced",
+  "definition": "The specific case where a motion's start or stop is caused by an external force or object contact (a wall, a spring, a trigger discharge) rather than the moving thing's own effort — such a transition should be abrupt/near-instant rather than eased, because the physical cause of the change is itself abrupt.",
+  "purpose": "Keep an externally-caused stop or start reading as caused by that external event, rather than contradicting it with a self-generated-looking gradual ease.",
+  "visible_effect": "A hard, immediate transition into or out of a pose at the exact moment of the external event (a collision, a trigger pull, a spring release), with no gradual ramp on that side of the transition, even though the SAME object's self-powered motion elsewhere may ease normally.",
+  "psychological_or_gameplay_effect": "An eased stop against a wall reads as if the object slowed itself down on purpose, contradicting the read of a hard collision; an eased launch out of a spring or a gun reads as self-powered effort rather than an instantaneous external force, undercutting the whole point of showing that force.",
+  "physical_interpretation": "A direct physical distinction: slow-in/slow-out approximates a body's own acceleration under its own force, but a sudden EXTERNAL force (impact, discharge, release) genuinely does change velocity abruptly in reality, so an abrupt transition is the physically correct choice here, not an exception to physical accuracy.",
+  "use_cases": [
+    "a character or object colliding with a solid surface, ending self-powered easing on impact",
+    "a launch caused by an external mechanism (a spring, a cannon, an explosion) rather than the object's own effort",
+    "a weapon discharge (a gunshot, a released bowstring) whose kick or release reads as sudden specifically because nothing eases into it"
+  ],
+  "non_use_cases": [
+    "the SAME object's own self-powered acceleration/deceleration elsewhere in the same motion, which should still ease normally — this rule applies only at the moment an external force takes over, not to the whole motion",
+    "a soft or cushioned impact where the collision itself is not abrupt (landing in water, a padded surface), where the physical premise of a hard stop does not hold"
+  ],
+  "interactions": [
+    "Slow in/slow out — this is the specific exception to it, not a separate principle; both existing non_use_cases in that card describe when a smooth ease is inappropriate for STYLE reasons, while this one is about PHYSICAL CAUSE instead",
+    "Timing — the moment of external contact is exactly the kind of event `ai/events.js`'s shot-event timeline exists to mark",
+    "Recovery-weight substitution / startup frame budget — a sibling case of the same broader idea that not every transition should default to a smooth, self-generated-looking curve"
+  ],
+  "style_variations": {
+    "mechanical": "a related but distinct case — mechanical style removes easing from SELF-powered motion by convention; this entry removes it specifically at an EXTERNAL-force moment, on any style, including ones that ease everywhere else"
+  },
+  "cadence_representation": "Not represented as a distinct rule, though fully expressible with existing tools: `set_easing` already supports a stepped/abrupt style at a specific key (named under the existing `slow_in_slow_out` card), so nothing NEW needs to be built to apply this — what is missing is the RULE that tells a caller WHEN to reach for it (an external-force event) versus when a smooth ease is still correct on the very same track.",
+  "control_surface": "`set_easing` at the key coinciding with the external-force event; `ai/events.js` markers to identify which key that is.",
+  "detection_and_measurement_methods": "Partially measurable: `ai/motion.js` already measures the actual acceleration curve at any key, so a mismatch — an eased-in transition at a key that is ALSO marked as a contact/impact event — is detectable by cross-referencing existing easing data against existing contact/event markers; nothing in this build currently runs that specific cross-reference.",
+  "generation_or_modification_methods": "`set_easing` changes the easing style/direction at an existing key; nothing decides automatically which keys are external-force moments requiring it.",
+  "failure_modes": [
+    "an eased stop against a solid collision, which reads as the object slowing itself down rather than being stopped by the wall",
+    "an eased launch out of a spring or weapon discharge, which undercuts the instantaneousness that sells the force of the mechanism",
+    "over-applying this rule to a soft or cushioned impact that was never physically abrupt to begin with"
+  ],
+  "roblox_considerations": "None specific — a pure keyframe-easing concept independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "Sonic's own acceleration/deceleration eases normally, but hitting a wall stops him instantly and a spring launches him instantly — both external-force moments named directly and contrasted against his self-powered movement (video 5 @ 4:26–4:48)",
+    "a gunshot's kick reading as correct specifically because there is no slow-out into that initial pose — \"it's just instant kick\" (video 5 @ 4:48–4:58)"
+  ],
+  "evidence_status": "video: https://youtu.be/3jNiNctcQ4c @ 4:26–4:58 — Dan contrasts Sonic's self-powered easing against his instant stop/launch on external contact (Sonic's running and a nearby spring/bumper object confirmed on screen at t=4:34–4:44), and separately names a gunshot's instant kick as the same rule; experimental until validated"
+}

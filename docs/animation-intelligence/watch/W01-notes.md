@@ -6,7 +6,7 @@
 - [x] 2. TIMING - The 12 Principles of Animation in Games — New Frame Plus (9:38) — https://youtu.be/rHEJZXvFc5I
 - [x] 3. ANTICIPATION - The 12 Principles of Animation in Games — New Frame Plus (7:52) — https://youtu.be/28s1Hv3Zqlo
 - [x] 4. SQUASH & STRETCH - The 12 Principles of Animation in Games — New Frame Plus (8:19) — https://youtu.be/1kFRU_xBZnE
-- [ ] 5. SLOW IN & SLOW OUT - The 12 Principles of Animation in Games — New Frame Plus (7:24) — https://youtu.be/3jNiNctcQ4c
+- [x] 5. SLOW IN & SLOW OUT - The 12 Principles of Animation in Games — New Frame Plus (7:24) — https://youtu.be/3jNiNctcQ4c
 - [ ] 6. ARCS - The 12 Principles of Animation in Games — New Frame Plus (7:47) — https://youtu.be/lOzgxMgAnxQ
 - [ ] 7. FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games — New Frame Plus (16:53) — https://youtu.be/rYtrV1lChsA
 - [ ] 8. The most important animation principle: An introduction on animation spacing and timing — Dong Chang (11:04) — https://youtu.be/vSJ5lT_ma-E
@@ -108,4 +108,22 @@ Watched at `balanced` detail (100 scene-aware frames over 8:19, ~75 read directl
 
 **Entries written:** 1 (`W01-4-motion-smear-readability.json`), passed `validateProposedEntry` cleanly.
 
-**Next video: 5** (SLOW IN & SLOW OUT - The 12 Principles of Animation in Games, `balanced` detail).
+### 5. SLOW IN & SLOW OUT - The 12 Principles of Animation in Games — 2026-09-11
+
+Watched at `balanced` detail (100 scene-aware frames over 7:24, ~40 read directly, with a ~100-frame rapid-cut montage of classic Disney comedic shorts around t=5:01–5:45 sampled representatively rather than exhaustively) plus the full 230-segment caption transcript.
+
+**Cross-check:** strongly confirms the existing `slow_in_slow_out` card — the bouncing-ball demo, the Overwatch Brigitte emote (lingering hard on held poses), the Kingdom Hearts III Sora example (subtler, naturalistic), and the mechanical/robotic style note all match directly, including a Tesla acceleration clip and a crash-test-dummy inertia demo as real-world physical groundings the existing card's `physical_interpretation` already describes abstractly. The video's closing point that game responsiveness sometimes forces animators to "find alternative ways to sell the weight of our player characters" is the same pressure `recovery_weight_substitution` and `startup_frame_budget` (videos 2–3) already name — direct cross-confirmation, not new.
+
+**One new entry — a sharp, well-evidenced exception the existing card doesn't state precisely:**
+- **External-force easing override** (`W01-5-external-force-easing-override.json`) — when a motion's start or stop is caused by an EXTERNAL force (hitting a wall, a spring launch, a trigger discharge) rather than the object's own effort, the transition should be abrupt, not eased — an eased version reads as self-generated and contradicts the external cause. Confirmed directly: Sonic's own running eases normally, but the video contrasts that against his instant stop on a wall and instant launch off a spring (video @ 4:26–4:48, Sonic and a spring/bumper object both visible on screen at t=4:34–4:44), and a gunshot's kick reading correctly specifically because nothing eases into it — "it's just instant kick" (video @ 4:48–4:58). This is a genuine physical-cause distinction, not merely a style choice, so it sits apart from the existing card's two style-driven non_use_cases.
+
+**Other observations, no new entry:** the video's "comedic instant-snap" non-use case (illustrated with an extended, exaggerated Disney short montage) is a specific instance of the existing card's `style_variations.anime` note about near-instant snaps, not a structurally new concept. The "ease in/ease out" terminology aside is a naming note, not a technique.
+
+**Capture candidates:** none beyond what earlier videos already named — no new distinctly-capturable 3D reference motion appeared in this video that videos 1–4 didn't already cover.
+
+**Checks for a later session to implement:**
+- `check: external_force_easing_mismatch — cross-reference an existing contact/impact marker (ai/events.js) against the easing style on the key at that same time — flag when a contact/impact-marked key uses an eased-in style rather than an abrupt one — video 5 @ 4:26–4:58`
+
+**Entries written:** 1 (`W01-5-external-force-easing-override.json`), passed `validateProposedEntry` cleanly.
+
+**Next video: 6** (ARCS - The 12 Principles of Animation in Games, `balanced` detail).
