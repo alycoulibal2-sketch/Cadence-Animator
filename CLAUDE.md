@@ -26,6 +26,10 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 | `renderer/js/ai/knowledge.js` | Parts 25, 26, 71, 73. The twelve classical principles (full 20-field structure), the relevance gate, the premium-animation standard. Compiled reference data, like `vocabulary.js TERMS` — not project state. |
 | `renderer/js/ai/memory.js` | Parts 57, 58. Scoped project/preference memory in `project.semantics.memory`, undoable. A correction is only surfaced as a candidate once observed enough times; accepting one changes only its own status field. |
 | `renderer/js/ai/reference.js` | Part 36. A motion profile built from an in-project item via `ai/motion.js`, stored in `project.semantics.references` (NOT_STATE, like baselines). `emulate`/`not_copied` are the caller's own declaration. |
+| `renderer/js/ai/benchmark.js` | Part 59. The benchmark library: 25 categories (16 defined), 16 fixtures through the REAL pipeline, 21 dimensions (11 measured), `runSuite`, `compareRuns` (per cell, no score), human evaluation as a separate block. The implementation under test is injected (`makeImplementation`). |
+| `renderer/js/ai/benchmarkBaseline.js` | **GENERATED** by `node tools/benchmark.mjs --write-baseline`. The committed production run every fresh run is compared against. Never hand-edit; re-generate and commit the diff with the change that moved a number. |
+| `renderer/js/ai/improve.js` | Part 60. Detect recurring problems from durable evidence, record a proposal (category REQUIRED), evaluate its adoption rule against two runs, record a human decision with a version and a rollback path. Applies nothing (Part 4.8). |
+| `tools/benchmark.mjs` | The suite from the command line: run, `--compare` (exit 1 on any deterministic difference), `--write-baseline`, `--options '{…}'` / `--prototype file.mjs` for prototypes, `--json` to hand a run to `review_architecture_experiment`. |
 | `renderer/js/observationPasses.js` | Diagnostic render passes. Outside `ai/` because three.js. |
 | `renderer/js/pnx/**`, `renderer-vfx/` | The procedural VFX engine and its own studio window. |
 | `mcp-server/index.js` | `server.tool(...)` registrations. The other half of every MCP tool. |
@@ -36,10 +40,14 @@ Status and "what to do next" live in `SHARED_TASK_NOTES.md`, not here.
 `npm` is broken under Git Bash here. Use PowerShell, and invoke binaries directly.
 
 ```
-node test/aitest.mjs     # semantic layer — 314 checks
-node test/coretest.mjs   # core           —  41
-node test/pnxtest.mjs    # PNX engine     — 298
+node test/aitest.mjs                # semantic layer — 359 checks
+node test/coretest.mjs              # core           —  41
+node test/pnxtest.mjs               # PNX engine     — 298
+node tools/benchmark.mjs --compare  # Part 59 suite vs the committed baseline (deterministic only)
 ```
+
+`--compare` exits 1 on a difference in EITHER direction. Intended: `node tools/benchmark.mjs
+--write-baseline` and commit the new baseline with the change. Not intended: a regression.
 
 ```powershell
 # Electron smoketest, ~4 min, 100 steps against the real app
@@ -151,6 +159,25 @@ work.
   automatically.** A caller wanting a one-off "what if this were anime" query must pass `style`
   explicitly — that argument always wins over the declared project style. Do not add a second,
   competing way to override this; `activeStyle = style ?? resolveStyle(project)` is the one seam.
+- **A contact effector must be a ROLE PHRASE (`'left foot'`), not the part name (`'LeftFoot'`).**
+  `measureContactDrift` resolves either; the constraint target goes through `ai/select.js`, where a
+  part name is "no known role" → the constraint is UNRESOLVED and never enforced, and a violation
+  rate of 0 is a lie. Read `report.unresolved_targets` before trusting a zero. The benchmarks carry
+  a check for exactly this.
+- **A benchmark check's `ok` is three-valued.** `null` means not applicable (a plan that never
+  applied has nothing to roll back); only `ok === false` is a failure. Code that tests `!c.ok`
+  double-reports.
+- **`compareRuns` is symmetric and directionless until a dimension's declared `direction` is
+  applied — and that direction is a convention.** Never add an overall score, a weight, or a
+  human rating into it; `curve_continuity` counts INTRODUCED spikes precisely because "smoother"
+  is not "better" for a heavier edit.
+- **The benchmark suite runs on its own fixtures, never on the open project**, and
+  `run_benchmark_suite` proves it by hashing the project before and after. Do not "optimise" that
+  away; it is the evidence for the tool being READ-ONLY.
+- **A proposal is a record and a verdict is not a decision.** `evaluateAdoption` never advances a
+  proposal past `evaluated`; `decideProposal` records what a PERSON chose and refuses an approval
+  with no evaluation behind it. Nothing under `ai/` may adopt a change, flip an option default, or
+  edit a threshold on its own — the adopting change is a commit, and git is the rollback path.
 - **Accepting a memory candidate (`review_preference_candidate`, decision `accept`) changes only
   that entry's own `status` field.** It never writes `ai/vocabulary.js` or a track by itself — that
   silent step is exactly the "unapproved global assumption" Part 62 forbids. A caller that wants an

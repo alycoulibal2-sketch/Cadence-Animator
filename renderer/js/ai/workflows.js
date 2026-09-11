@@ -25,10 +25,12 @@
 //    duplicated here — adding rows the directive does not list would make the registry drift from
 //    the thing it is derived from.
 //
-// 2. **Every workflow's `benchmark_coverage` is `none`, and that is not an oversight.** Part 52
-//    requires the field, and there is no benchmark suite in this build at all (BCH-001, Phase 9).
-//    Reporting `none` with the row that would fix it is the honest answer; inventing a coverage
-//    number would be worse than the empty field.
+// 2. **`benchmark_coverage` is DERIVED, per workflow, from the benchmark library.** Part 52 requires
+//    the field. `ai/benchmark.js` declares which tools each benchmark drives, and a workflow is
+//    `measured` when at least one benchmark drives every tool in its chain, `partial` when some
+//    benchmark drives some of them, and `none` otherwise — computed at call time, so a benchmark
+//    added later changes the answer here without anyone remembering to edit a string. Before Phase 9
+//    every workflow honestly reported `none`; that string is what this derivation replaced.
 //
 // 3. **A workflow declares its protected inputs, and they become real constraints.** Part 52 asks
 //    for "protected inputs" as documentation. Where a workflow's whole point is preserving
@@ -40,6 +42,7 @@
 
 import { CERTAINTY, evidence, finding } from './certainty.js';
 import { TERMS } from './vocabulary.js';
+import { BENCHMARKS, BENCHMARK_IDS, benchmarksExercising } from './benchmark.js';
 
 /** The three-field shape every step of a resolved plan has. */
 const step = (tool, args, { approval = false, why = null } = {}) => ({ tool, args, requires_user_approval: approval, why });
@@ -266,18 +269,64 @@ function heavierLike(term, goal) {
 
 export const WORKFLOW_NAMES = Object.freeze(Object.keys(WORKFLOWS));
 
-/** Part 52 requires a `benchmark_coverage` field on every workflow. There is no benchmark suite in
- *  this build, so the honest value is the same for all sixteen, said once. */
-export const BENCHMARK_COVERAGE = Object.freeze({
-  coverage: 'none',
-  why: 'no benchmark suite exists in this build (BCH-001, Phase 9). Part 52 requires the field, so it is reported as none rather than filled with a number nothing measured.',
-  unblocked_by: 'BCH-001 — the Part 59 benchmark library',
-});
+/**
+ * Part 52 requires a `benchmark_coverage` field on every workflow. It is derived from the benchmark
+ * library (BCH-001): a benchmark declares the tools its pipeline drives, and a workflow is covered
+ * to the extent those tools are its chain. An unimplemented workflow is `none` by construction — a
+ * chain that cannot run cannot be benchmarked.
+ *
+ *   measured  at least one benchmark drives EVERY tool in the chain; the dimensions it measures
+ *             are listed
+ *   partial   some benchmark drives some of the chain; the uncovered tools are named
+ *   none      no benchmark drives any tool in the chain
+ */
+export function benchmarkCoverageFor(name) {
+  const w = WORKFLOWS[name];
+  if (!w) return null;
+  if (!w.implemented) {
+    return { coverage: 'none', benchmarks: [], why: `"${name}" is not implemented, so no benchmark can run its chain`, unblocked_by: w.blocked_by };
+  }
+  const full = benchmarksExercising(w.tools);
+  if (full.length) {
+    return {
+      coverage: 'measured',
+      benchmarks: full,
+      dimensions: [...new Set(full.flatMap((id) => BENCHMARKS[id].dimensions))].sort(),
+      why: `${full.length} benchmark(s) drive every tool in this chain (${w.tools.join(' → ')})`,
+    };
+  }
+  const drivenBy = (tool) => BENCHMARK_IDS.filter((id) => (BENCHMARKS[id].exercises_tools || []).includes(tool));
+  const covered = w.tools.filter((t) => drivenBy(t).length);
+  const uncovered = w.tools.filter((t) => !drivenBy(t).length);
+  if (covered.length) {
+    return {
+      coverage: 'partial',
+      benchmarks: [...new Set(covered.flatMap(drivenBy))],
+      covered_tools: covered,
+      uncovered_tools: uncovered,
+      why: uncovered.length
+        ? `${uncovered.join(', ')} ${uncovered.length === 1 ? 'is' : 'are'} not driven by any benchmark — ${uncovered.includes('create_baseline') ? 'create_baseline renders, and a headless benchmark cannot' : 'no fixture exercises it yet'}`
+        : 'each tool in the chain is driven by some benchmark, but no single benchmark drives the whole chain in order — the chain as a chain has not been measured',
+    };
+  }
+  return { coverage: 'none', benchmarks: [], why: `no benchmark drives ${w.tools.join(', ')}`, unblocked_by: 'a Part 59 benchmark whose pipeline calls the chain\'s tools' };
+}
+
+/** The whole registry's coverage at a glance, for listWorkflows and the matrix. */
+export function benchmarkCoverageSummary() {
+  const rows = WORKFLOW_NAMES.map((n) => ({ name: n, ...benchmarkCoverageFor(n) }));
+  return {
+    measured: rows.filter((r) => r.coverage === 'measured').map((r) => r.name),
+    partial: rows.filter((r) => r.coverage === 'partial').map((r) => r.name),
+    none: rows.filter((r) => r.coverage === 'none').map((r) => r.name),
+    source: 'derived from ai/benchmark.js BENCHMARKS[].exercises_tools at call time (Part 59, BCH-001)',
+  };
+}
 
 export const WORKFLOW_LIMITATIONS = Object.freeze([
   'A workflow is a declared, ordered tool chain — it composes existing MCP tools and implements nothing itself (Part 52\'s own instruction). This module resolves the chain; the run_workflow handler executes it, because ai/** cannot call an MCP tool.',
-  '13 of Part 52\'s 16 workflows are implemented and 3 are not: `polish_animation` (choosing which defect to correct is the judgement Part 14 orders and this build cannot make), `compare_to_reference` (nothing is ingested to compare against — Phase 8) and `prepare_for_export` (validate.js imports state.js, so the export acceptance check cannot run from the pure layer).',
-  'Every workflow reports benchmark_coverage: none. Part 52 requires the field and no benchmark suite exists (BCH-001).',
+  '13 of Part 52\'s 16 workflows are implemented and 3 are not: `polish_animation` (choosing which defect to correct is the judgement Part 14 orders and this build cannot make), `compare_to_reference` (its declared chain was never rewired to store_reference_profile, which now exists — REF-001) and `prepare_for_export` (validate.js imports state.js, so the export acceptance check cannot run from the pure layer).',
+  'benchmark_coverage is derived from which tools each Part 59 benchmark drives (BCH-001). "measured" means the chain\'s tools are exercised by a benchmark that measures named dimensions — not that the workflow\'s RESULT was judged good; "partial" names the tools no benchmark reaches, and a workflow that renders (create_baseline) can only ever be partial from a headless suite.',
   'A resolved plan is not validated against the live project. It names tools and arguments; whether the itemId exists is checked by the tools themselves when the plan runs.',
 ]);
 
@@ -348,7 +397,7 @@ function describe(name, w) {
     normal_output: w.normal_output,
     failure_behavior: w.failure_behavior,
     approval_points: w.approval_points,
-    benchmark_coverage: BENCHMARK_COVERAGE,
+    benchmark_coverage: benchmarkCoverageFor(name),
     ...(w.blocked_by ? { blocked_by: w.blocked_by } : {}),
     ...(w.term ? { vocabulary_term: w.term, term_known: !!TERMS[w.term] } : {}),
   };
@@ -362,7 +411,7 @@ export function listWorkflows() {
     implemented: all.filter((w) => w.implemented).map((w) => w.name),
     not_implemented: all.filter((w) => !w.implemented).map((w) => ({ name: w.name, blocked_by: w.blocked_by })),
     count: all.length,
-    benchmark_coverage: BENCHMARK_COVERAGE,
+    benchmark_coverage: benchmarkCoverageSummary(),
     limitations: WORKFLOW_LIMITATIONS,
   };
 }

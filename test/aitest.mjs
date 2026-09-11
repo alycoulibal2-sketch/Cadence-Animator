@@ -55,6 +55,9 @@ const STYLE = await import('../renderer/js/ai/style.js');
 const KNOW = await import('../renderer/js/ai/knowledge.js');
 const MEM = await import('../renderer/js/ai/memory.js');
 const REF = await import('../renderer/js/ai/reference.js');
+const BENCH = await import('../renderer/js/ai/benchmark.js');
+const BASELINE = await import('../renderer/js/ai/benchmarkBaseline.js');
+const IMP = await import('../renderer/js/ai/improve.js');
 const CF = await import('../renderer/js/cf.js');
 const PARTICLES = await import('../renderer/js/particleLibrary.js');
 
@@ -130,7 +133,7 @@ console.log('\n— purity —');
 check('purity: every ai/ module imports in plain Node with no renderer globals', () => {
   // Reaching this line at all means all 12 imports at the top of this file succeeded. Asserting a
   // symbol from each one keeps a future tree-shaking or re-export mistake from making that vacuous.
-  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN, RAS, OBS, BASE, EXP, MOT, DIAG, EV, VS, MODES, EXPT, REVIEW, SIM, WF, STYLE, KNOW, MEM, REF })) {
+  for (const [name, mod] of Object.entries({ H, C, IDS, K, R, RG, TG, SG, SEL, SNAP, PRV, PATCH, CON, SCOPE, TXN, VOC, CAL, INT, PLAN, RAS, OBS, BASE, EXP, MOT, DIAG, EV, VS, MODES, EXPT, REVIEW, SIM, WF, STYLE, KNOW, MEM, REF, BENCH, BASELINE, IMP })) {
     assert.ok(Object.keys(mod).length > 0, `${name} exported nothing`);
   }
   assert.equal(typeof AI.SEMANTIC_LAYER_VERSION, 'string');
@@ -141,7 +144,7 @@ check('purity: every ai/ module on disk is imported by this file', () => {
   // could reach for `window` freely, and the check below that greps the sources would catch the
   // obvious cases but not a lazy `await import('three')`.
   const onDisk = fs.readdirSync(path.join(ROOT, 'renderer/js/ai')).filter((n) => n.endsWith('.js') && n !== 'index.js').sort();
-  const imported = ['baseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'experiment.js', 'explain.js', 'hash.js', 'ids.js', 'intent.js', 'kinematics.js', 'knowledge.js', 'memory.js', 'modes.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'reference.js', 'review.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'simulate.js', 'snapshot.js', 'style.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js', 'workflows.js'];
+  const imported = ['baseline.js', 'benchmark.js', 'benchmarkBaseline.js', 'cal.js', 'certainty.js', 'constraints.js', 'diagnose.js', 'events.js', 'experiment.js', 'explain.js', 'hash.js', 'ids.js', 'improve.js', 'intent.js', 'kinematics.js', 'knowledge.js', 'memory.js', 'modes.js', 'motion.js', 'observe.js', 'patch.js', 'plan.js', 'provenance.js', 'raster.js', 'reference.js', 'review.js', 'riggraph.js', 'roles.js', 'scenegraph.js', 'scope.js', 'select.js', 'simulate.js', 'snapshot.js', 'style.js', 'timelinegraph.js', 'transaction.js', 'vfxspec.js', 'vocabulary.js', 'workflows.js'];
   assert.deepEqual(onDisk, imported, 'a module was added to renderer/js/ai without being imported at the top of test/aitest.mjs');
 });
 
@@ -172,6 +175,9 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     // Phase 8
     'animation_knowledge', 'evaluate_technique_relevance', 'style_profile', 'set_project_style',
     'record_user_correction', 'review_preference_candidate', 'store_reference_profile', 'list_reference_profiles',
+    // Phase 9
+    'benchmark_library', 'run_benchmark_suite', 'detect_recurring_problems',
+    'propose_architecture_improvement', 'review_architecture_experiment',
   ];
   const src = fs.readFileSync(path.join(ROOT, 'mcp-server/index.js'), 'utf8');
   const found = new Map();
@@ -208,7 +214,13 @@ check('mcp: every semantic-layer tool declares its effect before it is called', 
     // explain_change makes. `simulate_change` and `list_workflows` write nothing at all.
     'review_shot', 'simulate_change', 'list_workflows',
     // Phase 8: all four read tools write nothing at all — not even a provenance record.
-    'animation_knowledge', 'evaluate_technique_relevance', 'style_profile', 'list_reference_profiles']) {
+    'animation_knowledge', 'evaluate_technique_relevance', 'style_profile', 'list_reference_profiles',
+    // Phase 9: the suite runs on its own fixtures and proves the live project untouched on every
+    // call; the two proposal tools record a proposal, an evaluation and a decision in provenance
+    // and nothing else — the same bargain explain_change and review_shot make. Calling them
+    // MUTATING would tell a caller to hesitate before asking whether a change is any good.
+    'benchmark_library', 'run_benchmark_suite', 'detect_recurring_problems',
+    'propose_architecture_improvement', 'review_architecture_experiment']) {
     assert.ok(found.get(t).startsWith('READ-ONLY'), `${t} must be declared READ-ONLY`);
   }
   for (const t of ['apply_animation_patch', 'rollback_transaction', 'lock_constraint', 'unlock_constraint',
@@ -4618,11 +4630,25 @@ check('workflows: the registry is exactly Part 52\'s sixteen, and every entry do
     for (const f of ['goal', 'tools_used', 'required_input', 'protected_inputs', 'normal_output', 'failure_behavior', 'approval_points', 'benchmark_coverage']) {
       assert.ok(w[f] !== undefined && w[f] !== null, `${w.name} is missing Part 52's "${f}"`);
     }
-    // Part 52 requires benchmark coverage and no benchmark suite exists, so it must say none.
-    assert.equal(w.benchmark_coverage.coverage, 'none');
-    assert.match(w.benchmark_coverage.unblocked_by, /BCH-001/);
-    if (!w.implemented) assert.ok(w.blocked_by, `${w.name} is unimplemented, so it must say what blocks it`);
+    // Part 52 requires benchmark coverage. Since Phase 9 it is DERIVED from the benchmark library
+    // (BCH-001): measured / partial / none, each with the reason — never a bare string.
+    assert.ok(['measured', 'partial', 'none'].includes(w.benchmark_coverage.coverage), `${w.name}: ${w.benchmark_coverage.coverage}`);
+    assert.ok(w.benchmark_coverage.why, `${w.name}'s coverage must say why`);
+    if (!w.implemented) {
+      assert.equal(w.benchmark_coverage.coverage, 'none', 'a chain that cannot run cannot be benchmarked');
+      assert.ok(w.blocked_by, `${w.name} is unimplemented, so it must say what blocks it`);
+    }
+    if (w.benchmark_coverage.coverage === 'measured') {
+      assert.ok(w.benchmark_coverage.benchmarks.length > 0 && w.benchmark_coverage.dimensions.length > 0, `${w.name} claims measured coverage and must name benchmarks and dimensions`);
+      for (const id of w.benchmark_coverage.benchmarks) assert.ok(BENCH.BENCHMARKS[id], `${w.name} names a benchmark that does not exist: ${id}`);
+    }
   }
+  // The stale sentence Phase 9 replaced must not come back: a workflow whose whole chain a
+  // benchmark drives is measured, and the make_motion_* family is exactly that.
+  const heavier = l.workflows.find((w) => w.name === 'make_motion_heavier').benchmark_coverage;
+  assert.equal(heavier.coverage, 'measured');
+  assert.ok(heavier.benchmarks.includes('heavy_attack'));
+  assert.deepEqual(l.benchmark_coverage.measured.length + l.benchmark_coverage.partial.length + l.benchmark_coverage.none.length, 16);
 });
 
 check('workflows: a workflow resolves to an ordered tool chain with its approval points marked', () => {
@@ -4962,6 +4988,390 @@ check('reference: storeReferenceProfile persists on project.semantics.references
 });
 check('reference: references is NOT_STATE — held out of undo/snapshot exactly like baselines and provenance', () => {
   assert.deepEqual([...SNAP.NOT_STATE].sort(), ['baselines', 'provenance', 'references']);
+});
+
+console.log('\n— benchmark (Part 59) —');
+
+// Part 59's own lists, so the module cannot drift from the directive without this failing.
+const PART_59_CATEGORIES = [
+  'idle breathing and subtle weight shift', 'walk cycle', 'run cycle', 'start and stop', 'jump and landing',
+  'turn and pivot', 'heavy attack', 'light attack', 'dodge', 'reaction animation', 'weapon swing',
+  'layered upper-body action', 'character-to-environment contact', 'camera follow', 'impact event', 'smoke',
+  'sparks', 'dust impact', 'explosion', 'magic effect', 'effect dissolve',
+  'complex character, VFX, and camera shot', 'reference adaptation', 'constrained correction', 'regression detection',
+];
+const PART_59_DIMENSIONS = [
+  'time_to_acceptable_result', 'number_of_user_corrections', 'number_of_iterations', 'unintended_change_rate',
+  'constraint_violation_rate', 'regression_detection_recall', 'regression_detection_false_positive_rate',
+  'correct_causal_diagnosis_rate', 'animation_intent_alignment', 'reference_alignment', 'contact_stability',
+  'curve_continuity', 'visual_temporal_continuity', 'vfx_timing_alignment', 'camera_readability', 'reproducibility',
+  'export_success', 'render_cost', 'tool_call_efficiency', 'rollback_frequency', 'user_approval_rate',
+];
+const PART_59_FIELDS = [
+  'benchmark_id', 'goal', 'scene_and_rig_prerequisites', 'input_request', 'reference_or_baseline', 'required_constraints',
+  'allowed_variation', 'forbidden_variation', 'technical_metrics', 'visual_metrics', 'review_rubric', 'expected_artifacts',
+  'performance_budget', 'known_failure_cases', 'human_acceptance_procedure',
+];
+
+check('benchmark: Part 59\'s 25 categories, 21 dimensions and 15 fields are present verbatim, and none is an overall score', () => {
+  assert.deepEqual([...BENCH.BENCHMARK_CATEGORIES], PART_59_CATEGORIES);
+  assert.deepEqual([...BENCH.DIMENSION_IDS].sort(), [...PART_59_DIMENSIONS].sort());
+  assert.deepEqual([...BENCH.BENCHMARK_FIELDS], PART_59_FIELDS);
+  assert.ok(!BENCH.DIMENSION_IDS.some((d) => /overall|score/.test(d)), 'Part 59 forbids optimising a metric in isolation, and an overall score is the worst case of it');
+  assert.match(BENCH.WHY_NO_OVERALL_SCORE, /Part 59/);
+  for (const [id, spec] of Object.entries(BENCH.EVALUATION_DIMENSIONS)) {
+    assert.ok(['lower', 'higher'].includes(spec.direction), `${id} needs a declared reading direction`);
+    if (spec.measured) assert.ok(spec.method, `${id} is measured and must say how`);
+    else assert.ok(spec.blocked_by, `${id} is not measured and must say what blocks it`);
+  }
+  assert.equal(BENCH.DIMENSION_IDS.length, 21, 'Part 59 lists twenty-one dimensions — counted, not assumed round');
+  assert.equal(BENCH.MEASURED_DIMENSIONS.length, 11, 'eleven of the twenty-one are measurable headless; changing that is a real change and this pins it');
+});
+
+check('benchmark: every category keeps a row — defined with ids or blocked with a reason — and every defined benchmark carries all 15 fields', () => {
+  const lib = BENCH.listBenchmarks();
+  assert.equal(lib.categories.length, 25);
+  for (const c of lib.categories) {
+    if (c.defined) assert.ok(c.benchmark_ids.length > 0 && c.benchmark_ids.every((id) => BENCH.BENCHMARKS[id].category === c.category));
+    else assert.ok(c.blocked_by && c.blocked_by.length > 20, `${c.category} is undefined and must say why`);
+  }
+  assert.ok(lib.defined_categories >= 16, `at least sixteen categories have a benchmark (got ${lib.defined_categories})`);
+  for (const id of BENCH.BENCHMARK_IDS) {
+    const b = BENCH.describeBenchmark(id);
+    for (const f of PART_59_FIELDS) assert.ok(b[f] !== null && b[f] !== undefined, `${id} is missing Part 59's "${f}"`);
+    assert.ok(BENCH.BENCHMARKS[id].dimensions.length >= 2, `${id} must measure at least two dimensions — a benchmark that measures nothing is a shell`);
+    assert.ok(BENCH.BENCHMARKS[id].dimensions.every((d) => BENCH.EVALUATION_DIMENSIONS[d]?.measured), `${id} declares an unmeasurable dimension`);
+    assert.ok(Array.isArray(b.review_rubric) && b.review_rubric.every((r) => BENCH.HUMAN_RUBRIC.includes(r)), `${id}'s rubric must use Part 59's human dimensions`);
+  }
+});
+
+check('benchmark: makeImplementation refuses an unknown option or override, and labels a prototype as one', () => {
+  assert.throws(() => BENCH.makeImplementation({ options: { make_it_better: true } }), /unknown option/);
+  assert.throws(() => BENCH.makeImplementation({ overrides: { renderEverything: () => {} } }), /not an overridable function/);
+  assert.throws(() => BENCH.makeImplementation({ overrides: { planMotion: 42 } }), /must be a function/);
+  const prod = BENCH.makeImplementation();
+  assert.equal(prod.production, true);
+  assert.equal(prod.label, 'production');
+  const proto = BENCH.makeImplementation({ options: { protect_support_chains: true } });
+  assert.equal(proto.production, false);
+  assert.deepEqual(proto.options_on, ['protect_support_chains']);
+});
+
+check('benchmark: without a rig table a benchmark reports not_run — never a number', () => {
+  const r = BENCH.runBenchmark('heavy_attack', { rigs: null });
+  assert.equal(r.status, 'not_run');
+  assert.deepEqual(r.measured, {});
+  assert.equal(r.not_measured.length, 21);
+  assert.ok(r.coverage.notRun.length);
+});
+
+const SUITE = BENCH.runSuite({ rigs: RIGS, timestamp: 'bench-t' });
+
+check('benchmark: the whole suite runs, every benchmark twice, reproducibly, and every result carries coverage and an unrated rubric', () => {
+  assert.equal(SUITE.kind, 'benchmark_run');
+  assert.equal(SUITE.summary.ran, BENCH.BENCHMARK_IDS.length);
+  assert.equal(SUITE.summary.failed, 0);
+  assert.equal(SUITE.summary.reproducible, SUITE.summary.ran, 'every benchmark must produce the same result hash twice');
+  assert.equal(SUITE.implementation.production, true);
+  for (const r of SUITE.results) {
+    assert.equal(r.measured.reproducibility.value, 1);
+    assert.ok(r.coverage.notRun.length >= 2, `${r.benchmark_id} must name what it did not check`);
+    assert.equal(r.human_evaluation.ratings, null, 'nobody has rated anything');
+    assert.equal(r.human_evaluation.separate_from_measured, true);
+    for (const [dim, m] of Object.entries(r.measured)) assert.ok(BENCH.BENCHMARKS[r.benchmark_id].dimensions.includes(dim), `${r.benchmark_id} measured ${dim}, which it did not declare`);
+    assert.ok(r.not_measured.every((n) => n.reason), `${r.benchmark_id}: every unmeasured dimension names a reason`);
+  }
+  assert.ok(SUITE.dimensions.measured_in_this_run.length >= 9);
+  assert.equal(SUITE.dimensions.not_measured_in_this_build.length, 10);
+  assert.ok(SUITE.id.startsWith('run:'));
+  assert.equal(SUITE.elapsed_ms, null, 'no clock was supplied, so no time is claimed');
+});
+
+check('benchmark: the numbers are what the pipeline did — the heavy attack drags its planted foot, the allow-list cancels the edit, the regression is caught, the cause is named', () => {
+  const by = Object.fromEntries(SUITE.results.map((r) => [r.benchmark_id, r]));
+  const heavy = by.heavy_attack;
+  assert.ok(heavy.measured.contact_stability.value > 0.3, `heavier scales the torso turn and the planted foot crosses its 0.3-stud tolerance: ${heavy.measured.contact_stability.value}`);
+  assert.ok(heavy.measured.contact_stability.detail.before_edit_studs < 0.3, 'the fixture itself is inside tolerance');
+  assert.ok(heavy.measured.animation_intent_alignment.value < 1, 'the contact_drift_within check fails, so alignment is below 1');
+  assert.ok(heavy.checks.find((c) => /no key changed time/.test(c.name)).ok, 'timing was protected by the request');
+  assert.equal(heavy.measured.unintended_change_rate.value, 0);
+
+  const cc = by.constrained_correction;
+  assert.equal(cc.measured.animation_intent_alignment.value, 0, 'production drops a whole strategy when one op is refused, so an allow-list of two tracks cancels everything');
+  assert.equal(cc.checks.find((c) => c.name === 'the plan applied').ok, false);
+  assert.equal(cc.checks.find((c) => /rollback/.test(c.name)).ok, null, 'nothing applied, so rollback is not applicable — not a failure');
+
+  const rd = by.regression_detection;
+  assert.equal(rd.measured.regression_detection_recall.value, 1, 'both untracked edits are classified unexpected');
+  assert.equal(rd.measured.regression_detection_false_positive_rate.value, 0, 'the recorded edit is not');
+
+  const cd = by.contact_diagnosis;
+  assert.equal(cd.measured.correct_causal_diagnosis_rate.value, 1, 'the counterfactual names LeftHip, not the distracting shoulder');
+  assert.ok(cd.measured.contact_stability.value > 0.05);
+
+  for (const id of ['sparks', 'dust_impact', 'smoke', 'explosion', 'magic_effect', 'effect_dissolve', 'impact_event']) {
+    assert.equal(by[id].measured.vfx_timing_alignment.value, 0, `${id}: the compiled envelope lands exactly where the spec declared`);
+    assert.equal(by[id].measured.unintended_change_rate.value, 0, `${id}: only the new emitter changed`);
+    assert.ok(by[id].checks.every((c) => c.ok !== false), `${id}: ${by[id].checks.filter((c) => c.ok === false).map((c) => c.name).join('; ')}`);
+  }
+  const ra = by.reference_adaptation;
+  assert.ok(ra.measured.reference_alignment.value < ra.measured.reference_alignment.detail.before_edit, 'snappier moved the slow hero toward the fast reference');
+});
+
+check('benchmark: recordHumanRating writes only the human block, and refuses an off-rubric or out-of-range rating', () => {
+  const r = SUITE.results[0];
+  const rated = BENCH.recordHumanRating(r, { reviewer: 'a person', ratings: { weight: 4, timing: 3 }, notes: 'reads heavier', timestamp: 't' });
+  assert.equal(rated.human_evaluation.ratings.ratings.weight, 4);
+  assert.strictEqual(rated.measured, r.measured, 'measured is the same object — untouched');
+  assert.equal(r.human_evaluation.ratings, null, 'the original result is not mutated');
+  assert.throws(() => BENCH.recordHumanRating(r, { reviewer: 'x', ratings: { beauty: 5 } }), /not on Part 59's rubric/);
+  assert.throws(() => BENCH.recordHumanRating(r, { reviewer: 'x', ratings: { weight: 6 } }), /1\.\.5/);
+  assert.throws(() => BENCH.recordHumanRating(r, { ratings: { weight: 3 } }), /reviewer/);
+});
+
+check('benchmark: a run compared against itself is unchanged everywhere, timing is informational, and human ratings are never read', () => {
+  const c = BENCH.compareRuns(SUITE, SUITE);
+  assert.equal(c.kind, 'benchmark_comparison');
+  assert.equal(c.counts.regressed, 0);
+  assert.equal(c.counts.improved, 0);
+  assert.ok(c.counts.unchanged > 40);
+  assert.equal(c.human_evaluation_read, false);
+  assert.ok(!('score' in c) && !('overall' in c), 'no overall score');
+  assert.ok(c.benchmarks.every((b) => b.timing_ms.informational_only === true));
+  assert.ok(c.coverage.notRun.some((n) => /wall-clock/.test(n)));
+  assert.throws(() => BENCH.compareRuns({}, SUITE), /benchmark_run/);
+});
+
+check('benchmark: Phase 9 success condition — an architecture change is shown to IMPROVE and to REGRESS measured outcomes', () => {
+  // A declared-option prototype: keep the support chain of a declared contact out of the edit.
+  const protect = BENCH.runSuite({ rigs: RIGS, ids: ['heavy_attack', 'walk_cycle'], implementation: BENCH.makeImplementation({ label: 'protect', options: { protect_support_chains: true } }) });
+  const prod = BENCH.runSuite({ rigs: RIGS, ids: ['heavy_attack', 'walk_cycle'] });
+  const up = BENCH.compareRuns(prod, protect);
+  const cell = (c, b, d) => c.cells.find((x) => x.benchmark_id === b && x.dimension === d);
+  assert.equal(cell(up, 'heavy_attack', 'contact_stability').verdict, 'improved');
+  assert.equal(cell(up, 'walk_cycle', 'contact_stability').verdict, 'improved');
+  assert.equal(cell(up, 'heavy_attack', 'animation_intent_alignment').verdict, 'improved', 'the contact check now passes');
+  assert.ok(up.cells.some((x) => x.dimension === 'curve_continuity' && x.verdict === 'regressed'), 'the same change also regresses something — and the comparison says so rather than netting it out');
+  assert.ok(up.findings.some((f) => f.id === 'BENCHMARK-IMPROVED' && f.evidence.some((e) => e.kind === 'convention')), 'every verdict states that its direction is a convention');
+  assert.ok(protect.results.every((r) => r.detail.support_chain_dropped > 0), 'the prototype reports what it dropped');
+
+  // The reverse comparison flips every verdict: a comparison is symmetric, not a pass/fail.
+  const down = BENCH.compareRuns(protect, prod);
+  assert.equal(cell(down, 'heavy_attack', 'contact_stability').verdict, 'regressed');
+  assert.equal(up.counts.improved, down.counts.regressed);
+
+  // A code prototype: the directive's own warning, "heavy does not mean slow", as an implementation.
+  const naive = BENCH.makeImplementation({
+    label: 'naive-heavy-is-slower',
+    overrides: {
+      compilePlan: (project, plan) => {
+        const ops = [];
+        for (const [name, tr] of Object.entries(project.tracks[plan.target.itemId] || {})) {
+          for (const k of [...tr.keys].sort((a, b) => b.t - a.t)) if (k.t > 0) ops.push({ op: 'move_key', itemId: plan.target.itemId, track: name, t: k.t, to: k.t * 1.5 });
+        }
+        return { ops, applied: [{ strategy: 'stretch', dimensions: ['duration'], pull: 1, operations: ops.length, aspects: ['timing'] }], blocked: [], notes: [], skipped: [], findings: [], summary: `${ops.length} retime op(s)`, lost: [] };
+      },
+    },
+  });
+  const slow = BENCH.runSuite({ rigs: RIGS, ids: ['heavy_attack'], implementation: naive });
+  const worse = BENCH.compareRuns(BENCH.runSuite({ rigs: RIGS, ids: ['heavy_attack'] }), slow);
+  assert.equal(cell(worse, 'heavy_attack', 'animation_intent_alignment').verdict, 'regressed', '"heavier without changing timing" refuses a retime, so nothing applies and alignment falls to 0');
+  assert.equal(cell(worse, 'heavy_attack', 'constraint_violation_rate').verdict, 'regressed');
+  assert.ok(worse.benchmarks[0].check_flips.some((f) => f.check === 'the plan applied' && f.before === true && f.after === false));
+  assert.equal(slow.implementation.overrides[0], 'compilePlan');
+});
+
+check('benchmark: the pruning prototype rescues the allow-listed edit without leaving the allowed scope', () => {
+  const prune = BENCH.runSuite({ rigs: RIGS, ids: ['constrained_correction'], implementation: BENCH.makeImplementation({ label: 'prune', options: { prune_violating_ops: true } }) });
+  const r = prune.results[0];
+  assert.ok(r.measured.animation_intent_alignment.value > 0, 'something applied');
+  assert.equal(r.measured.constraint_violation_rate.value, 0, 'what applied violates nothing');
+  assert.ok(r.checks.find((c) => /allowed scope/.test(c.name)).ok);
+  assert.ok(r.checks.find((c) => /frame 16/.test(c.name)).ok, 'the protected frame held');
+  assert.ok(r.detail.pruned > 0);
+});
+
+check('benchmark: the committed baseline is a production run of this layer version, and a fresh run matches it on every measured dimension', () => {
+  assert.equal(BASELINE.BASELINE_RUN.kind, 'benchmark_run');
+  assert.equal(BASELINE.BASELINE_RUN.implementation.production, true, 'the baseline is production, never a prototype');
+  assert.equal(BASELINE.BASELINE_META.semantic_layer_version, AI.SEMANTIC_LAYER_VERSION, 'the baseline was written for a different layer version — re-run `node tools/benchmark.mjs --write-baseline` and commit it with the change that moved the version');
+  assert.ok(BASELINE.BASELINE_RUN.results.every((r) => r.elapsed_ms === null), 'timing is stripped from the baseline');
+  const c = BENCH.compareRuns(BASELINE.BASELINE_RUN, SUITE);
+  const drift = [...c.cells.filter((x) => x.verdict !== 'unchanged'), ...c.benchmarks.filter((b) => !b.comparable)];
+  assert.deepEqual(drift, [], 'a fresh production run differs from the committed baseline. If the change that caused this was MEANT to move a measured outcome, re-run `node tools/benchmark.mjs --write-baseline` and commit the new baseline with it; otherwise this is a regression');
+  assert.ok(!c.benchmarks.some((b) => (b.check_flips || []).some((f) => f.before === true && f.after === false)), 'a benchmark check that held in the baseline fails now');
+});
+
+console.log('\n— improve (Part 60) —');
+
+check('improve: Part 60\'s twelve problem categories and eleven loop stages, verbatim and in order', () => {
+  assert.deepEqual([...IMP.CATEGORY_IDS], ['knowledge', 'representation', 'tool', 'observation', 'planning', 'generation', 'evaluation', 'memory', 'ux', 'performance', 'architecture', 'platform_limitation']);
+  assert.deepEqual([...IMP.LOOP_STAGES], [
+    'detect_recurring_problem', 'classify_the_problem', 'identify_likely_architectural_cause', 'propose_hypothesis',
+    'define_minimum_prototype', 'build_benchmark', 'compare_old_and_new', 'review_side_effects',
+    'request_or_record_approval', 'version_adopted_change', 'retain_rollback_path',
+  ]);
+  assert.equal(IMP.ENGINEERING_CARD_FIELDS.length, 17, 'Part 8\'s card has seventeen lines');
+  assert.equal(IMP.SELF_CRITIQUE_QUESTIONS.length, 10);
+});
+
+const PROPOSAL_A = {
+  problem: { statement: 'a heavier edit drags a declared planted foot past its tolerance', category: 'planning', evidence: ['heavy_attack and walk_cycle fail contact_drift_within under production'] },
+  likely_cause: 'the planner treats a declared contact as something to MEASURE after the edit rather than as a scope the amplitude strategy must avoid',
+  hypothesis: 'dropping operations on the support chain of a declared contact inside its range keeps the foot planted while the rest of the edit still applies',
+  prototype: { description: 'protect_support_chains, a declared option in the benchmark pipeline', options: { protect_support_chains: true } },
+  benchmark_ids: ['heavy_attack', 'walk_cycle'],
+  adoption_rule: { must_improve: ['contact_stability'], must_not_regress: ['animation_intent_alignment', 'unintended_change_rate', 'constraint_violation_rate', 'reproducibility'] },
+};
+
+check('improve: a proposal without a category is refused (ARCH-002), and so is one nothing can measure, or one with no benchmark', () => {
+  const noCat = IMP.proposeImprovement({ ...PROPOSAL_A, problem: { statement: 'x' } });
+  assert.equal(noCat.ok, false);
+  assert.match(noCat.refused_because, /Do not rewrite architecture before understanding the failure category/);
+  assert.match(IMP.proposeImprovement({ ...PROPOSAL_A, problem: { statement: 'x', category: 'vibes' } }).refused_because, /not one of Part 60/);
+  assert.match(IMP.proposeImprovement({ ...PROPOSAL_A, adoption_rule: { must_improve: ['render_cost'] } }).refused_because, /cannot measure/);
+  assert.match(IMP.proposeImprovement({ ...PROPOSAL_A, adoption_rule: { must_improve: ['regression_detection_recall'] } }).refused_because, /no named benchmark measures/);
+  assert.match(IMP.proposeImprovement({ ...PROPOSAL_A, benchmark_ids: [] }).refused_because, /BUILD BENCHMARK before COMPARE/);
+  assert.match(IMP.proposeImprovement({ ...PROPOSAL_A, benchmark_ids: ['nope'] }).refused_because, /unknown benchmark/);
+  assert.match(IMP.proposeImprovement({ ...PROPOSAL_A, prototype: { description: 'd' } }).refused_because, /must be runnable/);
+  assert.match(IMP.proposeImprovement({ ...PROPOSAL_A, prototype: { description: 'd', options: { magic: true } } }).refused_because, /not one ai\/benchmark.js can flip/);
+  assert.match(IMP.proposeImprovement({ ...PROPOSAL_A, hypothesis: undefined }).refused_because, /hypothesis/);
+  assert.ok(noCat.findings.some((f) => f.id === 'PROPOSAL-REFUSED' && f.certainty === 'certain'));
+});
+
+check('improve: a proposal carries every loop stage, with compare, review, approval and version NOT done at creation', () => {
+  const out = IMP.proposeImprovement(PROPOSAL_A, { timestamp: 't0' });
+  assert.equal(out.ok, true);
+  const p = out.proposal;
+  assert.equal(p.kind, 'architecture_proposal');
+  assert.equal(p.status, 'proposed');
+  assert.ok(p.id.startsWith('proposal:'));
+  assert.deepEqual(Object.keys(p.stages), [...IMP.LOOP_STAGES]);
+  for (const s of ['detect_recurring_problem', 'classify_the_problem', 'identify_likely_architectural_cause', 'propose_hypothesis', 'define_minimum_prototype', 'build_benchmark', 'retain_rollback_path']) assert.equal(p.stages[s].done, true, s);
+  for (const s of ['compare_old_and_new', 'review_side_effects', 'request_or_record_approval', 'version_adopted_change']) assert.equal(p.stages[s].done, false, `${s} cannot be done by proposing`);
+  assert.equal(p.evaluation, null);
+  assert.equal(p.decision, null);
+  assert.equal(p.adoption_rule.reproducibility_required, true);
+  assert.equal(p.card_completeness.present, 0, 'no card was given, and the record says so instead of inventing one');
+  assert.equal(p.card_completeness.missing.length, 17);
+  assert.match(p.never_self_applies, /Part 4\.8/);
+  // Identical content is the same proposal; a different hypothesis is a different one.
+  assert.equal(IMP.proposeImprovement(PROPOSAL_A).proposal.id, p.id);
+  assert.notEqual(IMP.proposeImprovement({ ...PROPOSAL_A, hypothesis: 'something else' }).proposal.id, p.id);
+});
+
+check('improve: detectRecurringProblems reads memory candidates, the ledger, provenance and a benchmark run, and offers categories without choosing one', () => {
+  const p = fixture();
+  const empty = IMP.detectRecurringProblems(p);
+  assert.equal(empty.count, 0);
+  assert.ok(empty.coverage.notRun.length >= 4, 'every unread source is named');
+
+  for (let i = 0; i < MEM.SUFFICIENCY_THRESHOLD; i++) {
+    MEM.recordCorrection(p, { patternKey: 'sword.torso_contribution', before: { a: i }, after: { a: i + 1 }, evidence: ['seen'], rationale: 'more torso', createdAt: 't' });
+  }
+  const ledger = { transactions: [{ transaction_id: 't1', status: 'rolled_back' }, { transaction_id: 't2', status: 'rolled_back' }, { transaction_id: 't3', status: 'failed' }, { transaction_id: 't4', status: 'applied' }] };
+  const d = IMP.detectRecurringProblems(p, { ledger, benchmarkRun: SUITE });
+  const kinds = d.problems.map((x) => x.kind);
+  assert.ok(kinds.includes('repeated_correction'));
+  assert.ok(kinds.includes('rollback_frequency'));
+  assert.ok(kinds.includes('reproducible_benchmark_failure'), 'constrained_correction fails the same way every run, and that is a detected problem');
+  for (const pr of d.problems) {
+    assert.ok(pr.candidate_categories.length && pr.candidate_categories.every((c) => IMP.CATEGORY_IDS.includes(c)));
+    assert.ok(pr.evidence.length && pr.certainty);
+    assert.ok(!('category' in pr), 'detection must not choose the category — that is the CLASSIFY stage');
+  }
+  assert.match(d.classification_note, /ARCH-002/);
+  // Below the threshold nothing is a pattern: one rollback is a rollback.
+  const one = IMP.detectRecurringProblems(fixture(), { ledger: { transactions: [{ transaction_id: 'x', status: 'rolled_back' }] } });
+  assert.ok(!one.problems.some((x) => x.kind === 'rollback_frequency'));
+});
+
+check('improve: evaluateAdoption applies the rule mechanically — adopt with side effects listed, reject on a regression, inconclusive on a tie', () => {
+  const A = IMP.proposeImprovement(PROPOSAL_A, { timestamp: 't0' }).proposal;
+  const prod = BENCH.runSuite({ rigs: RIGS, ids: ['heavy_attack', 'walk_cycle', 'constrained_correction'] });
+  const protect = BENCH.runSuite({ rigs: RIGS, ids: ['heavy_attack', 'walk_cycle', 'constrained_correction'], implementation: BENCH.makeImplementation({ label: 'protect', options: { protect_support_chains: true } }) });
+
+  const ev = IMP.evaluateAdoption(A, prod, protect, { timestamp: 't1' });
+  assert.equal(ev.verdict, 'adopt');
+  assert.ok(ev.evaluation.rule_evaluation.must_improve[0].improved_on.includes('heavy_attack'));
+  assert.ok(ev.evaluation.rule_evaluation.must_not_regress.every((r) => r.satisfied));
+  assert.ok(ev.evaluation.side_effects.some((s) => s.dimension === 'curve_continuity'), 'the regression the rule did not cover is a named side effect');
+  assert.equal(ev.requires_user_approval, true);
+  assert.equal(ev.proposal.status, 'evaluated');
+  assert.equal(ev.proposal.stages.compare_old_and_new.done, true);
+  assert.equal(ev.proposal.stages.review_side_effects.side_effects, ev.evaluation.side_effects.length);
+  assert.equal(A.status, 'proposed', 'the proposal it was given is not mutated');
+  assert.ok(ev.findings.some((f) => f.id === 'ADOPTION-ADOPT') && ev.findings.some((f) => f.id === 'ADOPTION-SIDE-EFFECT'));
+
+  // A rule that protects everything else turns the same evidence into a rejection: the rule decides,
+  // not the enthusiasm.
+  const strict = IMP.proposeImprovement({ ...PROPOSAL_A, adoption_rule: { must_improve: ['contact_stability'] } }).proposal;
+  assert.equal(strict.adoption_rule.must_not_regress, 'all_others');
+  assert.equal(IMP.evaluateAdoption(strict, prod, protect).verdict, 'reject');
+
+  // The same run on both sides: nothing improved, nothing regressed — inconclusive, never adopt.
+  const tie = IMP.evaluateAdoption(A, prod, prod);
+  assert.equal(tie.verdict, 'inconclusive');
+  assert.match(tie.why, /did not improve/);
+
+  // A benchmark the proposal names but the runs lack: inconclusive with the name.
+  const partial = BENCH.runSuite({ rigs: RIGS, ids: ['heavy_attack'] });
+  const missing = IMP.evaluateAdoption(A, partial, partial);
+  assert.equal(missing.verdict, 'inconclusive');
+  assert.match(missing.why, /walk_cycle/);
+});
+
+check('improve: approval is refused before evaluation, adoption needs a version, and every decision is a recorded transition', () => {
+  const A = IMP.proposeImprovement(PROPOSAL_A, { timestamp: 't0' }).proposal;
+  const early = IMP.decideProposal(A, { decision: 'approve', timestamp: 't1' });
+  assert.equal(early.ok, false);
+  assert.match(early.refused_because, /COMPARE OLD AND NEW before REQUEST OR RECORD APPROVAL/);
+  assert.equal(IMP.decideProposal(A, { decision: 'ship_it' }).ok, false);
+
+  const prod = BENCH.runSuite({ rigs: RIGS, ids: ['heavy_attack', 'walk_cycle'] });
+  const protect = BENCH.runSuite({ rigs: RIGS, ids: ['heavy_attack', 'walk_cycle'], implementation: BENCH.makeImplementation({ label: 'protect', options: { protect_support_chains: true } }) });
+  const evaluated = IMP.evaluateAdoption(A, prod, protect, { timestamp: 't1' }).proposal;
+
+  assert.equal(IMP.decideProposal(evaluated, { decision: 'adopt', version: '1.11.0' }).ok, false, 'adopt needs approve first');
+  const approved = IMP.decideProposal(evaluated, { decision: 'approve', author: 'the user', timestamp: 't2' });
+  assert.equal(approved.ok, true);
+  assert.equal(approved.proposal.status, 'approved');
+  assert.equal(approved.proposal.decision.overrides_verdict, false);
+  assert.equal(approved.warning, undefined);
+  const noVersion = IMP.decideProposal(approved.proposal, { decision: 'adopt' });
+  assert.equal(noVersion.ok, false);
+  assert.match(noVersion.refused_because, /version/);
+  const adopted = IMP.decideProposal(approved.proposal, { decision: 'adopt', version: '1.11.0', timestamp: 't3' });
+  assert.equal(adopted.proposal.status, 'adopted');
+  assert.equal(adopted.proposal.adopted_in_version, '1.11.0');
+  assert.equal(adopted.proposal.stages.retain_rollback_path.pre_adoption_run, prod.id, 'the rollback path keeps the run adoption was measured against');
+  assert.equal(IMP.decideProposal(adopted.proposal, { decision: 'reject' }).ok, false, 'an adopted proposal is rolled back, not rejected');
+  const back = IMP.decideProposal(adopted.proposal, { decision: 'roll_back', note: 'the side effect was not acceptable', timestamp: 't4' });
+  assert.equal(back.proposal.status, 'rolled_back');
+  assert.deepEqual(back.proposal.history.map((h) => h.status), ['proposed', 'evaluated', 'approved', 'adopted', 'rolled_back'], 'every transition is on the record, in order');
+
+  // Approving against the verdict is allowed — a person may — and is recorded as an override.
+  const rejected = IMP.evaluateAdoption(IMP.proposeImprovement({ ...PROPOSAL_A, adoption_rule: { must_improve: ['contact_stability'] } }).proposal, prod, protect).proposal;
+  const over = IMP.decideProposal(rejected, { decision: 'approve', author: 'the user' });
+  assert.equal(over.ok, true);
+  assert.equal(over.proposal.decision.overrides_verdict, true);
+  assert.match(over.warning, /overrides it/);
+  assert.equal(evaluated.status, 'evaluated', 'decideProposal returns a new record and never mutates its input');
+});
+
+check('improve: nothing here mutates the runs, the proposal, or the project', () => {
+  const p = fixture();
+  const before = H.contentHash(p);
+  const prod = BENCH.runSuite({ rigs: RIGS, ids: ['heavy_attack'] });
+  const runHash = H.contentHash(prod);
+  const A = IMP.proposeImprovement({ ...PROPOSAL_A, benchmark_ids: ['heavy_attack'] }).proposal;
+  const aHash = H.contentHash(A);
+  IMP.evaluateAdoption(A, prod, prod);
+  IMP.detectRecurringProblems(p, { benchmarkRun: prod });
+  assert.equal(H.contentHash(prod), runHash);
+  assert.equal(H.contentHash(A), aHash);
+  assert.equal(H.contentHash(p), before);
+  assert.ok(IMP.improveLimitations().some((l) => /Part 4\.8/.test(l)));
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

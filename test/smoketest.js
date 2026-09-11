@@ -3077,7 +3077,11 @@
     const wf = D.mcp('list_workflows', {});
     assert(wf.count === 16, `Part 52 lists 16 workflows, registry has ${wf.count}`);
     assert(wf.implemented.length === 13 && wf.not_implemented.length === 3);
-    assert(wf.workflows.every((w) => w.benchmark_coverage.coverage === 'none'), 'no benchmark suite exists, so every workflow must say none');
+    // Since Phase 9 coverage is derived from the benchmark library: the make_motion_* family and
+    // the two VFX workflows are measured, three are partial, and the unimplemented ones are none.
+    assert(wf.benchmark_coverage.measured.length >= 8, `at least eight workflows are measured by a benchmark: ${JSON.stringify(wf.benchmark_coverage)}`);
+    assert(wf.workflows.every((w) => ['measured', 'partial', 'none'].includes(w.benchmark_coverage.coverage) && w.benchmark_coverage.why), 'every workflow says how far a benchmark covers it, and why');
+    assert(wf.not_implemented.every((w) => wf.workflows.find((x) => x.name === w.name).benchmark_coverage.coverage === 'none'), 'a chain that cannot run cannot be benchmarked');
     assert(wf.not_implemented.every((w) => w.blocked_by), 'each unimplemented workflow must name what blocks it');
     out.workflows = { count: wf.count, implemented: wf.implemented.length, blocked: wf.not_implemented.map((w) => w.name) };
 
@@ -3232,6 +3236,85 @@
     const afterRef = D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
     assert(beforeRef === afterRef, 'storing a reference profile must not appear as a change to the animation itself (references is NOT_STATE)');
 
+    return out;
+  });
+
+  await step('benchmarks and the improvement loop: the suite runs in-app against the committed baseline, leaves the live project untouched, and an architecture experiment is reviewed and decided at the handler boundary', async () => {
+    S.newProject('phase9-benchmarks');
+    const item = await D.addBuiltinRig('r15');
+    S.setKey(item.id, 'RightShoulder', 0, CF.IDENTITY.slice(), { noUndo: true });
+    S.setKey(item.id, 'RightShoulder', 16, CF.fromEuler(0, 0, 1.2), { noUndo: true });
+    const liveBefore = D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project));
+    const out = {};
+
+    // 1. BCH-001/002/003: the library is complete — every category and dimension keeps a row.
+    const lib = D.mcp('benchmark_library', {});
+    assert(lib.categories.length === 25, `Part 59 lists 25 categories, got ${lib.categories.length}`);
+    assert(lib.benchmarks.length >= 16 && lib.measured_dimensions.length === 11, `${lib.benchmarks.length} benchmarks, ${lib.measured_dimensions.length} measured dimensions`);
+    assert(lib.categories.every((c) => c.defined ? c.benchmark_ids.length > 0 : !!c.blocked_by), 'every category is defined or blocked with a reason');
+    out.library = { benchmarks: lib.benchmarks.length, defined_categories: lib.defined_categories, measured_dimensions: lib.measured_dimensions.length };
+
+    // 2. The suite runs IN THE APP, on its own fixtures, and matches the committed baseline cell for
+    // cell. The live project is proven untouched by the handler's own before/after hash.
+    const r = D.mcp('run_benchmark_suite', { compare: 'baseline' });
+    assert(r.live_project_untouched === true, 'the suite must never touch the open project');
+    assert(r.run.summary.ran === lib.benchmarks.length && r.run.summary.failed === 0, `ran ${r.run.summary.ran}, failed ${r.run.summary.failed}`);
+    assert(r.run.summary.reproducible === r.run.summary.ran, 'every benchmark reproduces its own result');
+    assert(r.comparison && r.compared_against.kind === 'committed baseline');
+    const drift = r.comparison.cells.filter((c) => c.verdict !== 'unchanged');
+    assert(drift.length === 0, `the in-app run must match the committed baseline; differing cells: ${JSON.stringify(drift.map((c) => `${c.benchmark_id}.${c.dimension} ${c.before}->${c.after}`))}`);
+    assert(r.comparison.human_evaluation_read === false && !('score' in r.comparison), 'no human rating is read, and there is no overall score');
+    assert(!r.run.results[0].detail, 'the default result is compact; detail blocks stay under run_id');
+    out.run = { id: r.run_id, ran: r.run.summary.ran, unchanged_cells: r.comparison.counts.unchanged };
+
+    // 3. Part 60 DETECT: a benchmark that fails the same way twice is a recurring problem with
+    // evidence and candidate categories — and no chosen category.
+    const det = D.mcp('detect_recurring_problems', { benchmarkRunId: r.run_id });
+    const repro = det.problems.find((p) => p.kind === 'reproducible_benchmark_failure');
+    assert(repro && /constrained_correction/.test(repro.statement), 'constrained_correction fails reproducibly under production and must be detected');
+    assert(!('category' in repro) && repro.candidate_categories.length > 0, 'detection offers categories and chooses none');
+    out.detected = det.problems.map((p) => p.kind);
+
+    // 4. ARCH-002: no category, no proposal.
+    const refused = D.mcp('propose_architecture_improvement', { problem: { statement: 'x' }, likely_cause: 'c', hypothesis: 'h', prototype: { description: 'd', options: { protect_support_chains: true } }, benchmark_ids: ['heavy_attack'], adoption_rule: { must_improve: ['contact_stability'] } });
+    assert(refused.ok === false && /category/.test(refused.refused_because), 'a proposal without a category must be refused');
+
+    // 5. A real proposal, recorded in this session and in provenance.
+    const prop = D.mcp('propose_architecture_improvement', {
+      problem: { statement: 'a heavier edit drags a declared planted foot past its tolerance', category: 'planning', evidence: [repro.statement] },
+      likely_cause: 'the planner treats a declared contact as something to MEASURE after the edit rather than as a scope the amplitude strategy must avoid',
+      hypothesis: 'dropping operations on the support chain of a declared contact inside its range keeps the foot planted while the rest of the edit still applies',
+      prototype: { description: 'protect_support_chains — a declared option the app can run', options: { protect_support_chains: true } },
+      benchmark_ids: ['heavy_attack', 'walk_cycle'],
+      adoption_rule: { must_improve: ['contact_stability'], must_not_regress: ['animation_intent_alignment', 'unintended_change_rate', 'constraint_violation_rate', 'reproducibility'] },
+    });
+    assert(prop.ok === true && prop.proposal.status === 'proposed', JSON.stringify(prop.refused_because));
+    assert(D.mcp('review_architecture_experiment', {}).proposals.some((p) => p.id === prop.proposal.id), 'the session lists it');
+
+    // 6. Approval BEFORE any comparison is refused — Part 60's order, enforced.
+    const early = D.mcp('review_architecture_experiment', { proposalId: prop.proposal.id, decision: 'approve' });
+    assert(early.decision.ok === false && /COMPARE OLD AND NEW/.test(early.decision.refused_because), 'approval before evaluation must be refused');
+
+    // 7. COMPARE OLD AND NEW at the handler boundary: production now against the prototype now.
+    // The success condition of Phase 9, in the app: the change is shown to improve a measured
+    // outcome, and the regression it also causes is listed as a side effect.
+    const rev = D.mcp('review_architecture_experiment', { proposalId: prop.proposal.id, before: 'production', after: 'prototype' });
+    assert(rev.evaluation.verdict === 'adopt', `expected adopt, got ${rev.evaluation.verdict}: ${rev.evaluation.why}`);
+    assert(rev.evaluation.rule_evaluation.must_improve[0].improved_on.length === 2, 'contact_stability improved on both named benchmarks');
+    assert(rev.evaluation.side_effects.some((s) => s.dimension === 'curve_continuity'), 'the uncovered regression is a named side effect');
+    assert(rev.requires_user_approval === true && rev.proposal.status === 'evaluated', 'a verdict is not a decision');
+    out.review = { verdict: rev.evaluation.verdict, improved_on: rev.evaluation.rule_evaluation.must_improve[0].improved_on, side_effects: rev.evaluation.side_effects.length };
+
+    // 8. The decision is a person's. The smoketest is not the user, so it REJECTS — and the record,
+    // in provenance, says who decided what.
+    const dec = D.mcp('review_architecture_experiment', { proposalId: prop.proposal.id, decision: 'reject', note: 'smoketest: never adopted without the user' });
+    assert(dec.decision.ok === true && dec.proposal.status === 'rejected', JSON.stringify(dec.decision));
+    const prov = D.mcp('inspect_provenance', { type: 'decision' });
+    assert(prov.nodes.some((n) => /architecture proposal .* reject/.test(n.summary)), 'the decision is recorded in provenance');
+    assert(D.mcp('inspect_provenance', { type: 'note' }).nodes.some((n) => /architecture proposal/.test(n.summary)), 'the proposal itself is a durable note');
+
+    // Nothing above touched the animation: only provenance grew, and provenance is not state.
+    assert(D.AI.hash.contentHash(D.AI.snapshot.withoutHistory(S.state.project)) === liveBefore, 'benchmarking, proposing and deciding must leave the animation byte-identical');
     return out;
   });
 

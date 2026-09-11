@@ -38,6 +38,12 @@ jobs:
       - name: PNX engine (test/pnxtest.mjs)
         run: node test/pnxtest.mjs
 
+      # Part 59's benchmark suite against the committed baseline. Deterministic only — timing is
+      # never compared — so a difference here means the code changed what a benchmark measures.
+      # An intended change re-runs `node tools/benchmark.mjs --write-baseline` and commits the diff.
+      - name: Benchmarks vs the committed baseline (tools/benchmark.mjs --compare)
+        run: node tools/benchmark.mjs --compare
+
       - name: Say what was NOT checked
         if: always()
         run: |

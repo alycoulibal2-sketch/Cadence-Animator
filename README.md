@@ -70,9 +70,13 @@ Twelve MCP tools expose it: `inspect_scene`, `inspect_rig`, `inspect_timeline`,
 `inspect_provenance`. Each states up front whether it is read-only, mutating or destructive.
 
 The layer is deliberately honest about its own limits: every result reports what it actually
-examined, and `inspect_scene` returns a list of what the layer *cannot* yet do — no motion
-measurement, no render passes beyond a beauty pass, no baselines, no constraints or transactions.
-Design, status per requirement, and the two pre-existing defects this work uncovered are in
+examined, and `inspect_scene` returns a list of what the layer can and *cannot* do. Later phases
+added transactions with scoped rollback, constraints and locks, a formal animation language and
+planner, silhouette and object-ID passes with baselines, motion and contact measurement, a VFX
+compiler timed to shot events, operating modes, experiments, a structured shot review, knowledge,
+memory and style, and — last — a benchmark library that runs the real pipeline on permanent
+fixtures and an improvement loop that evaluates a proposed change against it without ever applying
+one. Design, status per requirement, and the defects this work uncovered are in
 [`docs/animation-intelligence/`](docs/animation-intelligence/).
 
 ## Keyboard
@@ -94,10 +98,15 @@ Every release:
 2. Run the tests. The three plain-Node suites are the fast loop and need no Electron:
 
    ```bash
-   node test/coretest.mjs   # the pure effect core
-   node test/pnxtest.mjs    # the PNX procedural engine
-   node test/aitest.mjs     # the semantic layer (renderer/js/ai/**)
+   node test/coretest.mjs              # the pure effect core
+   node test/pnxtest.mjs               # the PNX procedural engine
+   node test/aitest.mjs                # the semantic layer (renderer/js/ai/**)
+   node tools/benchmark.mjs --compare  # the animation-intelligence benchmarks vs their committed baseline
    ```
+
+   The last one exits non-zero when a measured outcome moved in either direction. If the change
+   was meant to move it, `node tools/benchmark.mjs --write-baseline` and commit the new
+   `renderer/js/ai/benchmarkBaseline.js` with it.
 
    Then `npm run smoketest` — the in-app pass (one check, classic clothing, needs the Roblox CDN).
    Wipe `test-output/userdata` and kill stray `electron` processes first. Some `pnxtest` and

@@ -1790,6 +1790,80 @@ server.tool(
   async () => { try { return textResult(await call('list_reference_profiles', {})); } catch (e) { return errorResult(e); } },
 );
 
+server.tool(
+  'benchmark_library',
+  'READ-ONLY. Part 59\'s benchmark library: all 25 baseline categories (each defined with benchmark ids, or blocked with the reason), every defined benchmark with its 15 Part 59 fields, the 21 evaluation dimensions with which 11 this build measures and why the other 10 cannot be measured headless, the human-review rubric (kept apart from everything measured), and the implementation options a prototype can flip without code. Read this before run_benchmark_suite or propose_architecture_improvement.',
+  {},
+  async () => { try { return textResult(await call('benchmark_library', {})); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'run_benchmark_suite',
+  'READ-ONLY. Runs the Part 59 benchmark suite — permanent fixtures through the real interpret → plan → compile → check → apply → evaluate pipeline, each benchmark twice for reproducibility — against production, or against a prototype named by `options` (see benchmark_library.implementation_options). The suite runs on its own fixtures and never on the open project: the result carries `live_project_untouched`, measured by hashing the project before and after. By default the run is compared against the committed baseline (renderer/js/ai/benchmarkBaseline.js) per dimension, per benchmark, with no overall score; a difference in either direction means the code changed what a benchmark measures. Wall-clock time is reported and never judged.',
+  {
+    ids: z.array(z.string()).optional().describe('A subset of benchmark ids from benchmark_library. Omit for all.'),
+    options: z.record(z.boolean()).optional().describe('Implementation options to flip, e.g. { protect_support_chains: true } — this makes the run a PROTOTYPE run, labelled as such.'),
+    label: z.string().optional(),
+    compare: z.union([z.literal('baseline'), z.literal('none'), z.string(), z.object({}).passthrough()]).optional().describe('"baseline" (default) compares against the committed baseline; "none" skips; a run id from this session or a benchmark_run object compares against that.'),
+    repeat: z.number().int().min(2).max(5).optional().describe('Runs per benchmark for the reproducibility measurement. Default 2.'),
+    verbose: z.boolean().optional().describe('Return every per-benchmark detail block. Default false — the full run is held under run_id.'),
+  },
+  async (a) => { try { return textResult(await call('run_benchmark_suite', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'detect_recurring_problems',
+  'READ-ONLY. Part 60\'s DETECT stage, from durable evidence only: memory candidates that reached the sufficiency threshold (repeated corrections), rollback frequency in this session\'s ledger and in the project\'s provenance graph, and — given a run id — benchmarks that fail reproducibly. Each problem carries evidence, a certainty level and CANDIDATE categories; the category itself is the caller\'s choice, because propose_architecture_improvement refuses a proposal that skipped classification (ARCH-002). Part 60\'s self-critique questions are listed, not answered — they need session history this layer never sees.',
+  {
+    benchmarkRunId: z.string().optional().describe('A run_id from run_benchmark_suite, to include reproducible benchmark failures.'),
+  },
+  async (a) => { try { return textResult(await call('detect_recurring_problems', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'propose_architecture_improvement',
+  'READ-ONLY (records a proposal in this session and as a provenance note; changes nothing else). Part 60: a proposal must name the problem WITH one of the twelve problem categories, a likely architectural cause, a hypothesis, a runnable minimum prototype (an implementation option from benchmark_library, or the label of a code prototype the CLI runs), the benchmarks that will decide it, and an adoption rule over measured dimensions. Anything missing, unknown, or unmeasurable is REFUSED with the reason rather than filled in. The record carries every Part 60 loop stage; compare, approval and versioning are not done at creation. Nothing is ever applied by this tool (Part 4.8).',
+  {
+    problem: z.object({
+      statement: z.string(),
+      category: z.string().describe('One of Part 60\'s twelve: knowledge, representation, tool, observation, planning, generation, evaluation, memory, ux, performance, architecture, platform_limitation. Required.'),
+      evidence: z.array(z.any()).optional(),
+      source: z.any().optional(),
+    }),
+    likely_cause: z.string(),
+    hypothesis: z.string(),
+    prototype: z.object({
+      description: z.string(),
+      options: z.record(z.boolean()).optional().describe('A declared implementation option the app can run, e.g. { protect_support_chains: true }.'),
+      overrides_label: z.string().optional().describe('The label of a code prototype run with tools/benchmark.mjs --prototype; its run is passed to review_architecture_experiment as `after`.'),
+    }),
+    benchmark_ids: z.array(z.string()).min(1),
+    adoption_rule: z.object({
+      must_improve: z.array(z.string()).min(1).describe('Measured dimensions that must improve on at least one named benchmark and regress on none.'),
+      must_not_regress: z.union([z.literal('all_others'), z.array(z.string())]).optional().describe('Dimensions that may not regress on the named benchmarks. Default all_others.'),
+    }),
+    engineering_card: z.object({}).passthrough().optional().describe('Part 8\'s engineering card, any subset of its 17 fields; completeness is reported.'),
+    rollback_path: z.string().optional(),
+    author: z.string().optional(),
+  },
+  async (a) => { try { return textResult(await call('propose_architecture_improvement', a)); } catch (e) { return errorResult(e); } },
+);
+
+server.tool(
+  'review_architecture_experiment',
+  'READ-ONLY (records the evaluation and any decision in provenance; changes nothing else). With no arguments, lists this session\'s proposals. With a proposalId: runs Part 60\'s COMPARE OLD AND NEW — `before` and `after` are each "baseline" (the committed run), "production" (a fresh production run now), "prototype" (a fresh run with the proposal\'s declared options), "current", a run id from this session, or a benchmark_run object — evaluates the proposal\'s adoption rule mechanically, lists every side effect outside the rule by name, and returns adopt / reject / inconclusive with the cells behind it. The verdict is never the decision: pass `decision` (approve, reject, defer, adopt, roll_back) to record what a PERSON decided. An approval before any evaluation is refused; adoption needs a `version`; a code prototype must be run with tools/benchmark.mjs and passed in as a run.',
+  {
+    proposalId: z.string().optional(),
+    before: z.union([z.string(), z.object({}).passthrough()]).optional().describe('Default "baseline".'),
+    after: z.union([z.string(), z.object({}).passthrough()]).optional().describe('Default "prototype".'),
+    decision: z.enum(['approve', 'reject', 'defer', 'adopt', 'roll_back']).optional().describe('A human decision to record. Without before/after, only the decision is recorded (and refused if the proposal was never evaluated).'),
+    version: z.string().optional().describe('Required for decision "adopt": the version the change ships in.'),
+    note: z.string().optional(),
+    author: z.string().optional().describe('Who decided. Default "user".'),
+  },
+  async (a) => { try { return textResult(await call('review_architecture_experiment', a)); } catch (e) { return errorResult(e); } },
+);
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

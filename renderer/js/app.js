@@ -3233,6 +3233,12 @@ const snapshotStore = new AI.SnapshotStore();
 // depends on the in-memory before-state, so a ledger that survived a restart would promise a
 // recovery it could not perform. The durable record is the provenance graph inside the project.
 const txnLedger = new AI.TransactionLedger();
+// Phase 9: benchmark runs and architecture proposals, keyed by id, for this session. A run is
+// large (16 benchmarks with their detail blocks) and a proposal is a record a later call decides
+// on; both are held here so a tool result can be compact and a follow-up can name them. Proposals
+// are also written into provenance as notes, which is the durable copy.
+const benchmarkRuns = new Map();
+const proposals = new Map();
 
 // Rendered passes, for this session only. A baseline in the project file carries a digest and a
 // 16x16 signature per observation; the pixels live here so a same-session comparison can measure a
@@ -5197,7 +5203,154 @@ const MCP_HANDLERS = {
   },
 
   list_reference_profiles: () => ({ profiles: AI.reference.listReferenceProfiles(S.state.project), limitations: AI.reference.referenceLimitations() }),
+
+  // ---------------------------------------------------------------- Phase 9: benchmarks and the improvement loop
+  //
+  // The suite runs on its own fixtures, never on the live project — `run_benchmark_suite` proves
+  // that on every call by hashing the project before and after. A proposal never changes anything;
+  // `review_architecture_experiment` evaluates it against two runs and, only when the caller
+  // passes a `decision`, records what a person decided (Part 4.8, Part 60).
+
+  benchmark_library: () => AI.benchmark.listBenchmarks(),
+
+  run_benchmark_suite: ({ ids = null, options = null, label = null, compare = 'baseline', repeat = 2, verbose = false } = {}) => {
+    const liveBefore = AI.hash.contentHash(AI.snapshot.withoutHistory(S.state.project));
+    const implementation = AI.benchmark.makeImplementation({ label: label ?? (options && Object.values(options).some(Boolean) ? 'prototype' : 'production'), options: options || {} });
+    const run = AI.benchmark.runSuite({
+      ids: ids && ids.length ? ids : null, rigs: builtinRigs, implementation, repeat,
+      clock: { now: () => performance.now() }, timestamp: new Date().toISOString(),
+    });
+    const liveAfter = AI.hash.contentHash(AI.snapshot.withoutHistory(S.state.project));
+    benchmarkRuns.set(run.id, run);
+    let comparison = null;
+    let against = null;
+    if (compare === 'baseline') {
+      comparison = AI.benchmark.compareRuns(AI.benchmarkBaseline.BASELINE_RUN, run);
+      against = { kind: 'committed baseline', ...AI.benchmarkBaseline.BASELINE_META };
+    } else if (typeof compare === 'string' && compare !== 'none' && benchmarkRuns.has(compare)) {
+      comparison = AI.benchmark.compareRuns(benchmarkRuns.get(compare), run);
+      against = { kind: 'a run from this session', id: compare };
+    } else if (compare && typeof compare === 'object' && compare.kind === 'benchmark_run') {
+      comparison = AI.benchmark.compareRuns(compare, run);
+      against = { kind: 'a run the caller supplied', id: compare.id };
+    }
+    return {
+      run: verbose ? run : compactRun(run),
+      run_id: run.id,
+      comparison,
+      compared_against: against,
+      // The proof that the suite is read-only for the user's work. Not a promise: a measurement.
+      live_project_untouched: liveBefore === liveAfter,
+      note: 'the full run (with per-benchmark detail blocks) is held for this session under run_id — pass verbose: true to return it whole, or name run_id as `compare` on a later call',
+    };
+  },
+
+  detect_recurring_problems: ({ benchmarkRunId = null } = {}) => AI.improve.detectRecurringProblems(S.state.project, {
+    ledger: txnLedger.list({ limit: 200 }),
+    benchmarkRun: benchmarkRunId ? (benchmarkRuns.get(benchmarkRunId) || null) : null,
+  }),
+
+  propose_architecture_improvement: (args = {}) => {
+    const now = new Date().toISOString();
+    const out = AI.improve.proposeImprovement(args, { timestamp: now });
+    if (!out.ok) return out;
+    proposals.set(out.proposal.id, out.proposal);
+    // The durable copy. A proposal is ABOUT the system, not a change to the animation, so it is a
+    // provenance note rather than project state — and provenance survives save/load and undo.
+    AI.provenance.record(S.state.project, {
+      type: 'note', author: out.proposal.author,
+      summary: `architecture proposal ${out.proposal.id} (${out.proposal.problem.category}): ${out.proposal.hypothesis}`,
+      detail: { proposal: out.proposal },
+      timestamp: now,
+    });
+    S.markDirty();
+    return { ...out, note: 'recorded in this session and in provenance. Nothing was applied: evaluate it with review_architecture_experiment, and a person decides with its `decision` argument (Part 60)' };
+  },
+
+  review_architecture_experiment: ({ proposalId = null, before = null, after = null, decision = null, version = null, note = null, author = 'user' } = {}) => {
+    if (!proposalId) {
+      return {
+        proposals: [...proposals.values()].map((p) => ({ id: p.id, status: p.status, category: p.problem.category, hypothesis: p.hypothesis, verdict: p.evaluation?.verdict ?? null, adopted_in_version: p.adopted_in_version })),
+        count: proposals.size,
+        limitations: AI.improve.improveLimitations(),
+      };
+    }
+    let proposal = proposals.get(proposalId);
+    if (!proposal) throw new Error(`no proposal "${proposalId}" in this session — review_architecture_experiment with no arguments lists them; a proposal from an earlier session is in provenance (inspect_provenance type note) and must be proposed again to be reviewed`);
+    const now = new Date().toISOString();
+    const out = { proposal_id: proposalId };
+
+    // Evaluation runs when the caller asked for one (before/after named) or when no decision was
+    // given. A bare decision on an unevaluated proposal is passed straight to decideProposal, which
+    // refuses it — Part 60 puts COMPARE before APPROVAL, and that refusal is the point.
+    const wantsEvaluation = !decision || before !== null || after !== null;
+    if (wantsEvaluation) {
+      const beforeRun = resolveBenchmarkRun(before ?? 'baseline', proposal, 'before');
+      const afterRun = resolveBenchmarkRun(after ?? 'prototype', proposal, 'after');
+      const ev = AI.improve.evaluateAdoption(proposal, beforeRun, afterRun, { timestamp: now });
+      proposal = ev.proposal;
+      proposals.set(proposalId, proposal);
+      AI.provenance.record(S.state.project, {
+        type: 'analysis', author: 'ai',
+        summary: `architecture proposal ${proposalId} evaluated: ${ev.verdict} — ${ev.why}`,
+        detail: { verdict: ev.verdict, rule_evaluation: ev.evaluation.rule_evaluation, side_effects: ev.evaluation.side_effects, before: ev.evaluation.before, after: ev.evaluation.after },
+        timestamp: now,
+      });
+      out.evaluation = ev.evaluation;
+      out.comparison_counts = ev.comparison.counts;
+      out.findings = ev.findings;
+      out.requires_user_approval = true;
+    }
+    if (decision) {
+      const d = AI.improve.decideProposal(proposal, { decision, version, author, note, timestamp: now });
+      out.decision = { ok: d.ok, refused_because: d.refused_because ?? null, warning: d.warning ?? null };
+      if (d.ok) {
+        proposal = d.proposal;
+        proposals.set(proposalId, proposal);
+        AI.provenance.record(S.state.project, {
+          type: 'decision', author,
+          summary: `architecture proposal ${proposalId}: ${decision} by ${author}${version ? ` (version ${version})` : ''}${note ? ` — ${note}` : ''}`,
+          detail: { decision, version, note, status: proposal.status, overrides_verdict: proposal.decision?.overrides_verdict ?? false },
+          timestamp: now,
+        });
+      }
+    }
+    S.markDirty();
+    return { ...out, proposal, limitations: AI.improve.improveLimitations() };
+  },
 };
+
+/** A benchmark run without its per-benchmark detail blocks, for a tool result a model reads. */
+function compactRun(run) {
+  return {
+    ...run,
+    results: run.results.map(({ detail, not_measured, ...rest }) => ({ ...rest, not_measured_count: not_measured?.length ?? 0 })),
+  };
+}
+
+/** Turn a `before`/`after` argument into a benchmark run: the committed baseline, a fresh
+ *  production run, the proposal's declared-option prototype, a run id from this session, or a run
+ *  object the caller supplied. A code prototype cannot be run from here and says so. */
+function resolveBenchmarkRun(ref, proposal, side) {
+  const ids = proposal.benchmark_ids;
+  const fresh = (implementation, label) => {
+    const run = AI.benchmark.runSuite({ ids, rigs: builtinRigs, implementation, repeat: 2, clock: { now: () => performance.now() }, timestamp: new Date().toISOString(), label });
+    benchmarkRuns.set(run.id, run);
+    return run;
+  };
+  if (ref && typeof ref === 'object' && ref.kind === 'benchmark_run') return ref;
+  if (typeof ref !== 'string') throw new Error(`${side}: expected 'baseline', 'production', 'prototype', 'current', a run id, or a benchmark_run object`);
+  if (ref === 'baseline') return AI.benchmarkBaseline.BASELINE_RUN;
+  if (ref === 'production' || ref === 'current') return fresh(AI.benchmark.makeImplementation({ label: 'production' }), 'production');
+  if (ref === 'prototype') {
+    if (!proposal.prototype.options) {
+      throw new Error(`${side}: the proposal's prototype is a code override ("${proposal.prototype.overrides_label}"), which the app cannot run — run it with \`node tools/benchmark.mjs --prototype <module> --json out.json\` and pass that run object as \`${side}\``);
+    }
+    return fresh(AI.benchmark.makeImplementation({ label: `prototype:${proposal.id}`, options: proposal.prototype.options }), `prototype:${proposal.id}`);
+  }
+  if (benchmarkRuns.has(ref)) return benchmarkRuns.get(ref);
+  throw new Error(`${side}: "${ref}" is not a run id from this session and not one of baseline / production / prototype / current`);
+}
 
 function initMcp() {
   window.cadence.onMcpCommand(async ({ id, type, payload }) => {

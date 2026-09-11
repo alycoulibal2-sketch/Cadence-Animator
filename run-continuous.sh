@@ -64,9 +64,11 @@ Start by reading SHARED_TASK_NOTES.md in full, then
 docs/animation-intelligence/requirements-matrix.md. Between them they tell you what is done, what
 is next, and the rules this codebase holds itself to. Follow the working agreement in the notes.
 
-Pick the next phase from directive Part 62's roadmap and work on ONE vertical slice of it —
+Part 62's nine phases are complete. Pick the next ROW from the matrix — an unplanned or partial
+row whose blocker is named, highest priority first — and work on ONE vertical slice of it:
 something that can be inspected, changed, observed and undone end to end. Do not start several
-phases, and do not build a row of feature shells: directive 4.6 is explicit about that.
+rows, and do not build a row of feature shells: directive 4.6 is explicit about that. Never adopt
+an evaluated architecture proposal on your own — that decision is the user's.
 
 Read only the directive sections your rows cite. The file is 4151 lines; loading it whole wastes
 the context this session has.
@@ -91,6 +93,10 @@ read -r -d '' REVIEW <<'EOF' || true
 Verify this iteration before it is proposed.
 
 Run node test/aitest.mjs, node test/coretest.mjs and node test/pnxtest.mjs. All three must pass.
+Then run node tools/benchmark.mjs --compare. It exits 1 on ANY deterministic difference from the
+committed baseline, in either direction: if the change was meant to move a measured outcome, the
+baseline must have been re-written (node tools/benchmark.mjs --write-baseline) and committed with
+it — check that it was; if it was not meant to, that is a regression.
 
 Then run the Electron smoketest from PowerShell (npm is broken under Git Bash here):
   .\node_modules\.bin\electron.cmd . --disable-backgrounding-occluded-windows
