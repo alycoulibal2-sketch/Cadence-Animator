@@ -1,0 +1,38 @@
+{
+  "concept": "torso_pelvis_camera_relative_counter_tilt_converges_at_passing",
+  "category": "advanced",
+  "definition": "During a run cycle, the torso and pelvis counter-tilt toward and away from the camera in opposition to each other, not just the already-known opposite yaw rotation: at one contact pose the torso tilts toward camera while the pelvis tilts away, at the far-side contact pose the relationship reverses, and at the passing pose the two are momentarily in exact alignment, both facing directly forward.",
+  "purpose": "Add a camera-relative (depth) counter-tilt to the already-established torso/pelvis counter-rotation, and name the specific phase (Passing) where the two body regions momentarily align rather than oppose each other.",
+  "visible_effect": "The torso and pelvis visibly rotate in opposite depth directions at each contact pose, exaggerating the run's intensity by letting those body forms rotate around each other; at the passing pose specifically, that opposition resolves and both are square to the camera.",
+  "psychological_or_gameplay_effect": "The opposing tilt at the contacts is what the source credits with exaggerating the run's intensity; without it the torso and pelvis would read as a single rigid unit rather than a body with real twist through it.",
+  "physical_interpretation": "An extension of ordinary spinal counter-rotation into the camera-facing (depth) axis, not only the yaw axis already covered elsewhere in this corpus - the same body naturally twists in more than one plane at once during a full stride.",
+  "use_cases": [
+    "posing or reviewing a run cycle's torso/pelvis relationship specifically at its two contact poses and its passing pose",
+    "diagnosing a run cycle whose torso and pelvis feel like one rigid block rather than a body with real cross-body twist"
+  ],
+  "non_use_cases": [
+    "a pure side-view (profile) camera angle, where a toward/away-from-camera tilt has no meaningful depth axis to read against",
+    "the down and up poses, which the source does not describe with this specific camera-relative claim (only the two contacts and the passing pose are)"
+  ],
+  "interactions": [
+    "hip_lift_driven_by_support_leg_not_swing_leg (W03, video 27) and the general arms/chest counter-rotation confirmed across W03 videos 26-27 - this entry adds a THIRD axis (camera-relative depth tilt) to a torso/pelvis relationship this corpus had previously only covered on the yaw axis",
+    "figure_eight_trajectory_signature (W03, video 26) - a different projection of body motion (vertical/lateral) than this entry's camera-depth tilt; both are real, independent claims about the same general region of the cycle"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not computed. Torso and pelvis rotation are each measured for any authored pose (ai/pose.js / ai/motion.js rotation), so the raw values needed to check this claim already exist; nothing currently reads them relative to a camera's facing direction (the still-absent active-camera model, SHOT-003/004, named as a gap by several existing cards) or checks for convergence-to-alignment at a specific declared phase like Passing.",
+  "control_surface": "Rotation values for torso and pelvis are already queryable for any pose; nothing relates them to camera facing or to each other's convergence at a named phase.",
+  "detection_and_measurement_methods": "Partly real: torso and pelvis rotation are measured (ai/pose.js / ai/motion.js). Reading that rotation relative to an active camera's facing direction is not built (no live-camera model exists yet). Checking for convergence at a declared Passing phase, independent of camera, IS buildable today from the existing rotation values alone - camera-relative framing is the only piece genuinely blocked.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "keeping the torso and pelvis in the same rotational relationship throughout the cycle instead of opposing at the contacts and aligning at the passing pose, which reads as a rigid, un-twisted body",
+    "misjudging the direction of the opposition (both tilting the same way rather than opposite) at a contact pose"
+  ],
+  "roblox_considerations": "None beyond the shared rig's torso/pelvis joints.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"in this first contact pose, you'll notice that the torso is tilted towards the camera with the pelvis tilted in the opposite direction\" - video @ 03:46-03:56",
+    "the reversal at the far-side contact: \"the torso is tilting away from the camera and the pelvis is slightly angled towards us\" - video @ 04:40-04:45",
+    "the convergence at passing: \"in the passing pose, both the torso and the pelvis are directly facing forward and are in line with each other\" - video @ 05:26-05:29"
+  ],
+  "evidence_status": "video: https://youtu.be/nKvBYXzRszw @ 03:41-05:29 - stated directly by the presenter (moderndayjames) while walking through his own close-up run-cycle turnaround, phase by phase; experimental until validated"
+}

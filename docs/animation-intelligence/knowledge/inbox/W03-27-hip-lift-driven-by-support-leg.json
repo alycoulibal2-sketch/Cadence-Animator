@@ -1,0 +1,36 @@
+{
+  "concept": "hip_lift_driven_by_support_leg_not_swing_leg",
+  "category": "advanced",
+  "definition": "During a walk cycle's pass-to-up transition, the hip on the weight-bearing (support) side is what lifts to raise the body - not the swinging/lifting leg pushing the hip up, which is a commonly-cited misconception; a hip bent deep toward the swing leg's side, on the mistaken assumption that the swing leg is doing the lifting, produces an incorrect pose.",
+  "purpose": "Correct a specifically-named, common error at the source (which leg's hip motion is causally responsible for the body's rise) rather than leaving 'get the hip right' as an unexplained result to copy.",
+  "visible_effect": "A correctly-posed hip bends and rises on the support leg's side during the pass-to-up transition; the commonly-made error bends the hip toward the opposite (swing leg) side instead, based on the wrong idea that the swing leg is what lifts the body.",
+  "psychological_or_gameplay_effect": "The mis-posed version reads as subtly wrong in a way that is hard to name without understanding the underlying mechanism - exactly why the presenter calls it out as a mistake he sees other animators make.",
+  "physical_interpretation": "The support leg is the one actually bearing and transmitting the body's weight into the ground at this phase, so it is mechanically the leg whose hip motion raises the body; the swing leg is unloaded and cannot push anything up.",
+  "use_cases": [
+    "posing or reviewing the pass-to-up transition of a walk or run cycle's hip motion",
+    "diagnosing a walk cycle whose hip motion looks subtly wrong without an obvious cause"
+  ],
+  "non_use_cases": [
+    "a pose where neither leg is weight-bearing (a flight-phase moment in a run) - the support-leg/swing-leg distinction this rule depends on does not apply",
+    "stylised or non-bipedal locomotion where hip-driven weight-bearing is not the mechanism at all"
+  ],
+  "interactions": [
+    "hip_rotation_balance_correction (W02, video 17) - a related but different hip rule: that one is about POLISH-PASS correction of hip rotation against an extending limb, this one is about which leg CAUSES the hip's vertical lift during a specific phase of the gait cycle",
+    "figure_eight_trajectory_signature (W03, video 26) - the hip's vertical lift this entry explains is one of the two components (with lateral swing) that produces that entry's figure-eight trajectory"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not computed. ai/pose.js measurePose can report the support side declared via a support polygon, and hip rotation/position is measured for any authored pose, but nothing currently checks WHICH side's hip motion correlates with a measured vertical rise, or flags a rise correlated with the wrong (swing) side.",
+  "control_surface": "None specific; the underlying position/rotation and declared-support data are each independently available.",
+  "detection_and_measurement_methods": "Partly real: hip position and rotation are measured for any pose (ai/pose.js), and a declared support polygon identifies which leg is bearing weight (measurePose balance). Correlating the hip's vertical rise specifically with the support side, and flagging a rise correlated with the swing side instead, is not built.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "bending the hip deep toward the swing leg's side during the pass-to-up transition, on the mistaken assumption that the swing leg pushes the hip up",
+    "a hip motion with no clear correlation to either leg's weight-bearing state at all"
+  ],
+  "roblox_considerations": "None beyond the shared pose/balance model.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"during the pass position... when the body shift[s] on this side and the supporting leg[,] hip bend[s] like this - a lot of animators [are] doing the mistake [of] bending deep in the opposite direction, they think that... the [swing] leg... will [push it] up, which is not true - it means that the hip was going up to support the weight on the [support] leg\" - video @ 10:53-11:31"
+  ],
+  "evidence_status": "video: https://youtu.be/ynXadXE9UjU @ 10:53-11:31 - stated directly by the presenter as a named, commonly-observed mistake while live-correcting a walk cycle's hip pose; auto-captions are rough in this exact passage (heavy accent, some words substituted) but the mechanism described - support-leg hip lift, not swing-leg push - is unambiguous from repetition and context; experimental until validated"
+}

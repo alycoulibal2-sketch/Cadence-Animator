@@ -6,10 +6,10 @@
 - [x] 24. Improve Your Animation! Good Posing vs Bad Posing | Animation Techniques — Foxy Fern Animation (9:07) — https://youtu.be/QCHSPSBmSHk (watched, 0 entries — see note: no reliable transcript)
 - [x] 25. Create BETTER animations using SILHOUETTES — Start Animating (10:12) — https://youtu.be/uwK0DFEbcCk
 - [x] 26. Animating LEGS (Walk Cycles and Weight) — Doodley (11:25) — https://youtu.be/6lGPvMLE8Oo
-- [ ] 27. how to animate a walk cycle (100% polish) — Alessandro Camporota (32:40) — https://youtu.be/ynXadXE9UjU
-- [ ] 28. ALAN BECKER - Animating Walk Cycles — AlanBeckerTutorials (3:53) — https://youtu.be/2y6aVz0Acx0
-- [ ] 29. The COMPLETE Guide to Run Cycle Animation — owenferny (49:04) — https://youtu.be/7NkvAP3aqeo
-- [ ] 30. How to Animate Run Cycles — moderndayjames (11:41) — https://youtu.be/nKvBYXzRszw
+- [x] 27. how to animate a walk cycle (100% polish) — Alessandro Camporota (32:40) — https://youtu.be/ynXadXE9UjU
+- [x] 28. ALAN BECKER - Animating Walk Cycles — AlanBeckerTutorials (3:53) — https://youtu.be/2y6aVz0Acx0
+- [x] 29. The COMPLETE Guide to Run Cycle Animation — owenferny (49:04) — https://youtu.be/7NkvAP3aqeo
+- [x] 30. How to Animate Run Cycles — moderndayjames (11:41) — https://youtu.be/nKvBYXzRszw
 
 ---
 
@@ -305,3 +305,242 @@ clip, or Doodley's own pre-existing rigged demo character; no real human perform
 `check: walk_vertical_peak_drop_alignment — locate the single local maximum in root/hip vertical position across one step and confirm the following local minimum lands within a small tolerance of the declared Contact key — video 26 @ 02:50-02:57`
 `check: figure_eight_path_shape — project a tracked part's sampled position onto the side-view plane over one cycle and test for a self-crossing (figure-eight) path, expected for hips in a walk and a foot in a run, not for a foot in a walk — video 26 @ 03:54-04:04, 07:38-07:49`
 `check: ground_contact_state_per_frame — a new, more basic measurement than MOT-008: whether ANY declared foot effector is within contact tolerance of its target at a given frame (not how far it has drifted given an assumed contact) — the prerequisite for checking continuous_ground_contact_except_during_flight_phase and several other checks in this batch — video 26 @ 09:16-09:32`
+
+## Video 27 — how to animate a walk cycle (100% polish) (Alessandro Camporota) (2026-09-11)
+
+Used `efficient` detail as directed (32:40, long/mostly-words with visuals) — 50 keyframes across a
+full live 3D-software walk-cycle build, start to finish. Auto-captions are noticeably rough
+throughout (a strong accent — words substituted, some phrases garbled: "isola 20 meters" for what's
+clearly "a lot of animators", "EEP" for "hip", "Papa knee" for "pop knee", "PI controller" for a rig
+control name I could not confidently resolve). I read every quote against its surrounding context
+before using it and only kept the ones unambiguous despite the noise; I want to flag this plainly
+rather than let a clean-looking entry hide a rough source — this is a different, milder version of
+video 24's caption problem: not incoherent, just heavily accented and imperfectly transcribed.
+
+Four entries, all specific technique/workflow details a "just watch the result" viewing would miss
+because they're about WHY a step is done, not just what it looks like:
+
+1. **Walk-cycle pose spacing + heel-snap sub-timing** (@ 05:15–05:27, 09:12–09:34) — the five main
+   poses land roughly every 3 frames, but the heel-to-flat foot snap nested inside a contact pose
+   happens in about 1 frame, much faster than the pose spacing itself. Two actual numbers from a
+   working professional, which is rare enough in this batch to call out — most sources give shape,
+   not frame counts.
+2. **Hip lift is driven by the SUPPORT leg, not the swing leg** (@ 10:53–11:31) — a specifically
+   named common mistake: animators who bend the hip toward the swing leg's side during pass-to-up,
+   on the wrong assumption that the swing leg pushes the hip up, when it's actually the weight-
+   bearing leg's hip that rises. I checked this doesn't just duplicate W02's `hip_rotation_balance_
+   correction` (that one is a polish-pass correction against an extending limb; this one is about
+   causal attribution — which leg's hip motion is responsible for the lift) before writing it up.
+3. **Symmetric pose mirroring workflow** (@ 02:16–02:47) — copy the first contact key, negate only
+   the rotation, rather than re-posing the opposite leg. Worth recording as a genuinely POSITIVE
+   finding rather than a gap: I checked `renderer/js/state.js mirrorItem` (the `mirror_item` tool)
+   and it already does a stronger, more general version of this automatically — swaps every paired
+   left/right track AND mirrors every key's value in one call, not just one rotation channel by
+   hand. Cadence is ahead of the manual technique shown here.
+4. **Head control parented to the neck, not world space, for controlled secondary sway** (@
+   30:24–30:46) — a deliberate rig-hierarchy choice with a stated reason (avoid a head that's either
+   perfectly rigid or fully floaty), tied to the existing but under-used `get_track_space` /
+   `set_track_space` tools.
+
+**Confirmed, not written up separately** (cross-checks against W02/W03 cards already in the
+corpus, to avoid padding): pelvis rotation favoring the front leg at contact (@ 00:44–01:20, close
+to `hip_rotation_balance_correction`/the figure-eight mechanism); upper-body counter-rotation now
+stated on a SECOND axis (Z/bank, not just Y/yaw) beyond what video 26 covered (@ 15:20–16:44);
+staggered offset timing between arm sub-parts by declared frame counts (@ 22:49–23:09, the same
+family as W02's `chain_depth_proportional_secondary_delay`); "a little bit of noise" on every axis
+as a polish philosophy (@ 07:53–08:19, already well covered by W01's spacing/timing cards); a
+relaxed default finger pose to avoid a distracting rigid hand (@ 18:58–19:14, minor enough to note
+rather than evidence separately).
+
+**Entries written:** `W03-27-walk-cycle-pose-spacing-and-heel-snap.json`,
+`W03-27-hip-lift-driven-by-support-leg.json`, `W03-27-symmetric-pose-mirroring-workflow.json`,
+`W03-27-head-parent-space-secondary-sway.json` (all category: advanced). All four pass both Part 72
+gates.
+
+**Capture candidate:** none — a screen-recorded 3D software tutorial, no performed human motion.
+
+**Check:**
+`check: main_pose_vs_subevent_key_density_split — classify keys within a declared walk-cycle phase into a main-pose tier and a faster sub-event tier (e.g. a heel snap) from key_density's raw per-frame spacing, rather than treating all keys as one undifferentiated series — video 27 @ 05:15-05:27, 09:12-09:34`
+
+## Video 28 — ALAN BECKER - Animating Walk Cycles (2026-09-11)
+
+Short (3:53), clean 111-segment transcript, and by far the most STRUCTURED source in this batch —
+Alan Becker literally puts labelled fields ("Timing / Position / Offset") on screen for the
+personality system, and a clean four-panel "contact / down / passing / up" diagram, both confirmed
+directly in captured frames (t=00:52 and t=03:12). 54 frames were selected but the tool's own report
+said only 2 were real scene-change candidates (the rest came from uniform-time fallback with 26
+near-duplicates dropped) — this is a slide/drawing explainer with very little visual change moment
+to moment, so I read a spread sample of 8 rather than all 54, the same judgement call as video 23.
+
+Two entries:
+
+1. **Looping-vs-full-sequence production tradeoff** (@ 01:14–01:39) — a looped cycle
+   slid/translated across the screen is cheap but risks reading as "mechanical and slidy, like a
+   video game character" (his words, not mine — a 2D animator naming MY target domain's default
+   pattern as the cautionary example); a full unique traversal costs more but avoids it; moving the
+   BACKGROUND instead of the character is named as a third option that keeps the cheap animation but
+   avoids the slide read. I flagged this as directly, unusually relevant to Cadence's own domain:
+   Roblox characters basically always use the cheap pattern (a looped walk plus root motion), so this
+   named failure mode is describing a real, common risk for Cadence's actual output, not a
+   hypothetical from a different medium.
+2. **The Timing/Position/Offset personality system** (@ 02:26–03:11) — three independent, named
+   dials, demonstrated with exact worked values (arms offset by exactly 2 frames, in opposite
+   directions, for "powerful" vs "chill"). I checked this against W03 video 26's
+   `center_of_gravity_shift_personality_mapping` before writing it up: that one is a DIFFERENT
+   parameter (centre-of-gravity shift direction) for a similar goal, so this isn't a duplicate — it's
+   a second, independent lever set, and I said so explicitly in both entries' `interactions`. The
+   Offset dial is the strongest single finding in this entry: `ai/motion.js analyseChain`'s lead/lag
+   measurement already reports exactly the arm-to-leg frame offset this dial is built from, so this
+   is measurable today, not just describable.
+
+**Confirmed, not written up separately:** the two-pose (Contact+Passing) minimum-viable walk with
+Up/Down added afterward for bounce (@ 00:26–01:12) is the same five/four-pose vocabulary and
+mechanism already covered by W03 video 26's `walk_cycle_vertical_drop_is_arrested_fall` and video
+27's pose-spacing entry — I judged the "you can legitimately ship with just two poses, here's
+exactly what you lose" framing as a useful teaching device rather than new information to evidence
+separately. Also confirmed but not written up: front-view walk cycles should be blocked Up/Down
+first rather than Contact/Passing first, because they read more clearly from that angle (@
+02:14–02:24) — a real, specific workflow tip, but narrow enough, and tied closely enough to the
+still-absent camera model (SHOT-003/004, named as a gap by several existing cards already), that a
+dedicated entry felt like padding rather than new ground.
+
+**Entries written:** `W03-28-looping-vs-full-sequence-tradeoff.json`,
+`W03-28-personality-timing-position-offset.json` (both category: advanced). Both pass both Part 72
+gates.
+
+**Capture candidate:** none — 2D hand-drawn stick-figure diagrams throughout, no performed human
+motion.
+
+**Checks:**
+`check: identical_repeat_cycle_detection — for a declared traversal action, compare per-step position/velocity samples (sample_motion) across consecutive repeats of a loop; near-identical repeats flag the specific "looped and translated" failure mode this video names, distinct from an intentional loop like an idle — video 28 @ 01:14-01:25`
+`check: arm_leg_frame_offset_personality_signal — analyseChain's existing lead/lag measurement between an arm chain and the corresponding leg chain, read as a personality signal (leading = powerful, lagging = relaxed) at roughly the magnitudes this video demonstrates (1-2 frames) — video 28 @ 02:52-03:08`
+
+## Video 29 — The COMPLETE Guide to Run Cycle Animation (owenferny) (2026-09-11)
+
+The longest video in this batch (49:04, `efficient` detail as directed — 50 keyframes from 558
+candidates, 1150 transcript segments). A real-time Maya screen-recording of one professional
+building a run cycle from a blank scene, not a scripted lecture — the tone is exploratory
+throughout ("I don't know", "we'll see", "I'm not 100% on these poses"), which matters for how I
+used it: I only wrote up claims stated as SETTLED technique, not his live in-progress guessing, and
+I want to say plainly that I did not read the full transcript. I read closely from 00:00 to about
+22:00 (blocking through early cleanup) and again from 30:48 to the end (polish, smear-FX
+embellishment, a closing note on making animation "clickable" for social media that's a real
+observation but not an animation TECHNIQUE, so I left it out) — the middle stretch (roughly
+22:00–30:48) was not read in detail. Flagging this rather than implying full coverage; if this
+video matters enough to revisit, that middle section is the gap.
+
+Two entries, both from portions where the presenter was stating technique with confidence rather
+than thinking out loud:
+
+1. **Run-cycle extremes as squash/stretch poses, held for readability** (@ 07:17–07:31, 09:59–10:47,
+   13:27–13:52) — he explicitly renames the walk-cycle's "up"/"down" poses as STRETCH and SQUASH for
+   a run, ties skipping them directly to a "not organic" read, and states the timing rule as holding
+   on the extremes (where the character is readable, suspended in the air) while moving fast through
+   the transitions — with a bouncing-ball analogy that checks out physically (slow at the apex, fast
+   through the middle). I connected this explicitly to the compiled `squash_stretch` card, since this
+   is a named, direct application of that principle to a specific pose pair, not a generic mention.
+2. **Half-cycle mirror symmetry for a non-directional track** (@ 20:41–21:37) — a precise, almost
+   mathematical production shortcut: a symmetric cycle's vertical (up-down) bob only needs keys for
+   HALF the cycle length, because gravity treats both steps identically regardless of which foot
+   leads; the cycle's own post/pre-infinity looping plus the gait's left-right mirror symmetry fills
+   in the rest. He states the exception just as precisely: this does NOT work for a directional track
+   like forward translation, which must span the full cycle. I liked this entry because the source
+   gives both the rule AND its exact boundary in one breath, which is rarer than it should be.
+
+**Confirmed, not written up separately:** run cycles have fewer poses to worry about than walk
+cycles, stated as a direct comparative opinion (@ 11:31–11:40); blocking "on ones" without splining
+when poses are far enough apart that interpolation wouldn't help anyway (@ 12:03–12:32, close enough
+to W02's `staged_keyframe_then_straight_ahead_workflow` that a separate entry felt redundant);
+building each new extreme pose FROM the previous one rather than from an in-between, to keep spacing
+intentional (@ 09:14–09:56) — a real technique but stated too tentatively ("I'm not making huge
+decisions right now") to evidence with confidence.
+
+**Entries written:** `W03-29-run-cycle-squash-stretch-held-extremes.json`,
+`W03-29-half-cycle-mirror-symmetry-vertical.json` (both category: advanced). Both pass both Part 72
+gates.
+
+**Capture candidate:** none — a screen-recorded 3D software session, no performed human motion.
+
+**Check:**
+`check: extreme_pose_hold_concentration — compare key_density/velocity near a cycle's position extrema (squash/stretch) against its transitional phases; holds should concentrate at the extrema for a pushed/cartoony cycle — video 29 @ 07:17-07:31, 13:27-13:52`
+
+## Video 30 — How to Animate Run Cycles (moderndayjames) (2026-09-11)
+
+The last video of the batch, and a strong closer: clean 207-segment transcript, confidently stated
+throughout (no hedging like video 29, no caption problems like videos 24/29-tail), split into the
+presenter's own close-up run-cycle turnaround followed by a frame-by-frame study of two real
+professional sakuga (Japanese animation) run cycles — Little Witch Academia and Kill la Kill. I
+sampled 4 frames rather than working through all 100 (mostly a real-time pencil-to-ink progression
+of the same turnaround, very high scene-change count from rapid drawing-tool UI changes rather than
+content changes) and both sakuga frames I pulled (t=06:13, 07:37) matched the transcript's
+description of the Little Witch Academia example exactly.
+
+Three entries:
+
+1. **Run-cycle frame count sets perceived speed** (@ 01:06–02:31, 06:16–06:42) — an 8-frame
+   contact-to-contact cycle for a baseline run, 6 frames for faster; and a real, specific NUANCE I
+   want to flag because it's easy to over-generalize past: the source states even spacing is an
+   ACCEPTABLE BASELINE for a run specifically, with the favored (2-frame-held-at-extremes) spacing
+   as a refinement, not a requirement — worth holding onto given how emphatically other sources in
+   this corpus argue against even spacing for OTHER actions. The extreme case (a 6-frame, 3-drawing
+   sakuga cycle merging Down and Passing into one pose) is folded in as the far end of this same
+   frame-count dial.
+2. **Flight-phase pose often omitted in stylized convention** (@ 03:10–03:25, 09:59–10:04) — this is
+   the entry I'm happiest with from this video: it directly QUALIFIES W03 video 26's
+   `continuous_ground_contact_except_during_flight_phase` (a physical rule) with a named, common
+   STYLE exception (sakuga convention often skips drawing the flight-phase pose entirely, confirmed
+   independently in TWO different studied sources) — exactly the kind of cross-video connection this
+   whole batch structure is supposed to surface, and a genuine warning against a naive check that
+   would flag every stylized run cycle as "missing" a pose its own convention deliberately omits.
+3. **Torso/pelvis camera-relative counter-tilt, converging at Passing** (@ 03:41–05:29) — adds a
+   THIRD axis (camera-depth tilt, not just the yaw counter-rotation already covered by W03 videos
+   26–27) to the torso/pelvis relationship, with a specific, checkable claim about exactly which
+   phase (Passing) the two body regions momentarily align at.
+
+**Entries written:** `W03-30-run-cycle-frame-count-perceived-speed.json`,
+`W03-30-flight-phase-omitted-in-stylized-convention.json`,
+`W03-30-torso-pelvis-counter-tilt-converges-passing.json` (all category: advanced). All three pass
+both Part 72 gates.
+
+**Capture candidate:** none — entirely 2D hand-drawn animation, the presenter's own work and the
+studied anime examples alike; no performed 3D human motion to source from.
+
+**Check:**
+`check: contact_to_contact_frame_count_speed_correlation — contact-to-contact frame span (key_density / key timestamps) as a direct, checkable proxy for a run's declared or intended speed, with 6-8 frames as the baseline range this video's examples fall in — video 30 @ 02:20-02:31`
+
+---
+
+## End of session (2026-09-11)
+
+All ten videos watched: 21–23, 25–30 produced entries; video 24 (Good Posing vs Bad Posing) produced
+none, for a stated reason (see its section) rather than being skipped silently. **27 knowledge
+entries** written to `knowledge/inbox/W03-*.json`, all validated against both Part 72 gates
+(`validateProposedEntry` 20/20 fields, `validateEvidenceSource` URL+timestamp) before being counted
+here. **1 capture candidate** (video 21's weight-shift-into-first-step demonstration — every other
+video was either 2D/hand-drawn, pre-existing third-party footage, or a screen-recorded software
+session, none of which Roblox Studio's Animation Capture can source from). **10 `check:` lines**
+across the ten videos, now sitting in this file for the merge session to lift into `LESSONS.md`'s
+checks queue.
+
+**What contradicted an existing card:** nothing, cleanly — no video in this batch stated a claim
+that conflicts with a card already in the corpus. What DID happen twice, and is worth naming as its
+own category since "contradiction" undersells it: two existing cards (`structural_understanding`,
+`appeal`) were already flagged stale by W02 and were FIXED by a concurrent learning-loop session
+partway through THIS batch (commit `fcd475f`, videos 21–23 straddle the exact moment it landed —
+see video 21's note for the full account of catching my own snapshot going stale mid-session). And
+video 30's flight-phase entry is a genuine QUALIFIER on a same-batch card
+(`continuous_ground_contact_except_during_flight_phase`, video 26) rather than a contradiction of
+anything pre-existing — worth the merge session's attention as a paired read, not a standalone.
+
+**Two lessons for whoever reads this next**, beyond the per-video notes: (1) if a batch straddles a
+concurrent merge landing, re-read any card you're about to call stale before you commit — a snapshot
+taken at the top of a long session can go out of date under you; (2) caption presence is not caption
+trustworthiness — video 24's captions came back as coherent-looking English that was actually
+nonsense, and video 29's genuinely-usable transcript was still mostly hedged, in-progress thinking
+that needed filtering before any of it could be evidence. Neither failure mode looks like "no
+transcript," so both are easy to miss if a session trusts text just because it downloaded.
+
+**Committed and pushed** in two commits: `59e5a0b` (videos 21–26, mid-batch) and one more for
+videos 27–30 (see below). **Next session**: W03 is complete. Continue with `W04.md` (videos 31–40),
+or merge this batch first with `node tools/merge-knowledge-inbox.mjs --batch W03` — per
+`watch/README.md`, only merge a batch whose notes say it finished, which this one now does.

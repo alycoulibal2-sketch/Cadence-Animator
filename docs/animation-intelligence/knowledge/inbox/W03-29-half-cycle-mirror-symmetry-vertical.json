@@ -1,0 +1,37 @@
+{
+  "concept": "half_cycle_mirror_symmetry_for_vertical_oscillation",
+  "category": "advanced",
+  "definition": "In a symmetric run or walk cycle, a track whose value does not depend on left/right side - such as the hips' vertical (up-down) bob - only needs to be keyed for half the total cycle length; combined with the cycle's own left-right mirror symmetry and post/pre-infinity looping, that half automatically produces the correct motion for the full cycle, so the second half never needs to be keyed or matched by hand. A track that DOES depend on side (a forward/backward or side-to-side translation) is the explicit exception and must be keyed for the full cycle.",
+  "purpose": "State a precise, almost mathematical shortcut for building a symmetric cycle's non-directional tracks, and name exactly which kind of track the shortcut does not apply to, rather than leaving 'cycles are symmetric' as a vague intuition.",
+  "visible_effect": "A 7-frame-long vertical bob key range, once cycled, produces correct motion across the full 14-frame stride - deleting the second half of a hand-matched vertical curve and relying on the cycle produces an identical, perfectly consistent result to keying both halves by hand.",
+  "psychological_or_gameplay_effect": "None directly - a production-accuracy technique: it guarantees the two halves of a cycle's vertical motion are exactly consistent, which manual matching by eye cannot guarantee.",
+  "physical_interpretation": "The vertical bob repeats once per STEP, not once per full stride (two steps), because gravity pulls the body down the same way regardless of which foot is leading - so its natural period is half the full left-right stride cycle.",
+  "use_cases": [
+    "building the vertical (up-down) motion of a symmetric walk or run cycle's hips or root",
+    "identifying which tracks in a cycle qualify for this shortcut (non-directional, period-doubling ones) versus which do not (directional translation, which must span the full cycle)"
+  ],
+  "non_use_cases": [
+    "a directional track such as forward-progression or side-to-side sway, which the source explicitly excludes: \"that doesn't work for things like the translate Z, because you're going from one side to another\"",
+    "an intentionally asymmetric gait, where the two steps are not mirror images of each other and this shortcut's premise does not hold"
+  ],
+  "interactions": [
+    "symmetric_pose_mirroring_workflow (W03, video 27) - the same underlying mirror-symmetry assumption, applied here to a continuous curve's period rather than to a single key's value",
+    "walk_cycle_vertical_drop_is_arrested_fall (W03, video 26) - the vertical curve this technique halves is exactly that entry's single-peak-per-step drop"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not built as an authoring shortcut, though the underlying pieces exist. The project's cycle/loop evaluation and mirror_item each exist independently; nothing currently offers 'key half a symmetric cycle's non-directional track and derive the rest' as one operation - a caller would have to key the half-cycle and rely on the project's own cycle/loop evaluation, which is a manual assembly of existing pieces, not a single built shortcut.",
+  "control_surface": "None specific; mirror_item and the track evaluation's own looping are each independently available.",
+  "detection_and_measurement_methods": "Not applicable directly - a generation/workflow shortcut rather than something to measure. A validation check IS possible: confirming a track's second half is an exact within-tolerance repeat of its first half (offset by the half-period) would verify the technique was applied correctly, using nothing beyond existing key-value comparison.",
+  "generation_or_modification_methods": "Partly buildable from existing pieces (see cadence_representation); not implemented as a single operation.",
+  "failure_modes": [
+    "hand-keying both halves of a vertical bob and letting them drift out of sync with each other, which this shortcut avoids by construction",
+    "applying the same half-cycle shortcut to a directional track, which the source explicitly warns does not work"
+  ],
+  "roblox_considerations": "None beyond the shared keyframe/cycling model.",
+  "performance_implications": "Fewer authored keys for an equivalent result - a minor efficiency gain, not a runtime performance concern.",
+  "examples": [
+    "\"things like the up-down of the hips can just be half of a cycle and it will cycle for the entire run - if I cycle it for seven frames here, it will work for fourteen frames, the whole cycle... you can just delete half of this and it cycles perfectly\" - video @ 20:41-21:22",
+    "the named exception: \"obviously that doesn't work for things like the translate Z, because you're going from one side to another\" - video @ 21:32-21:37"
+  ],
+  "evidence_status": "video: https://youtu.be/7NkvAP3aqeo @ 20:41-21:37 - stated directly and precisely by the presenter (owenferny), including the specific exception, while cleaning up a run cycle's hip motion; experimental until validated"
+}

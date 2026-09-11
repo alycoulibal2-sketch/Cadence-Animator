@@ -1,0 +1,35 @@
+{
+  "concept": "head_parent_space_controls_secondary_sway",
+  "category": "advanced",
+  "definition": "Parenting a walk cycle's head control to the neck/chest, rather than keying it in world space, is a deliberate choice that lets the head inherit a small, controlled amount of the chest's side-to-side sway instead of reading as either fully rigid (independent of the body) or fully floaty (drifting with no resistance).",
+  "purpose": "Name WHERE in the rig hierarchy a head control should live for a walk cycle, and why, as a specific structural choice rather than leaving 'the head needs a bit of secondary motion' unexplained.",
+  "visible_effect": "The head shows a small, natural-looking amount of side-to-side sway that follows the chest's own counter-rotation, rather than staying perfectly level (if fully corrected in world space every frame) or swinging with no restraint (if left fully independent).",
+  "psychological_or_gameplay_effect": "A head that is either perfectly still relative to the world or unrestrained relative to the body both read as wrong in different ways - perfectly still reads as floaty or disconnected, unrestrained reads as loose or broken; the neck-parented middle ground reads as a head genuinely attached to a moving body.",
+  "physical_interpretation": "The head's own inertia would resist the torso's rotation somewhat while still being physically attached to and carried by the neck; parenting to the neck (inheriting a fraction of the torso's motion) is a cheap approximation of that partial resistance, without simulating it.",
+  "use_cases": [
+    "rigging or choosing a control-space parenting strategy for a walk or run cycle's head",
+    "diagnosing a head that reads as floaty (likely world-space keyed) or as too loose/swingy (likely parented with no restraint at all)"
+  ],
+  "non_use_cases": [
+    "a shot where the head must track a specific world-space target regardless of body motion (a look-at), where inheriting body sway would fight the read",
+    "a rig style that wants a deliberately rigid, doll-like head with zero secondary motion"
+  ],
+  "interactions": [
+    "get_track_space / set_track_space (already-existing MCP tools) - this is exactly the kind of declared choice those tools exist to make explicit and adjustable, though nothing currently recommends a SPECIFIC space for a head control based on this reasoning"
+  ],
+  "style_variations": {},
+  "cadence_representation": "The mechanism exists generically (any track can already be parented/keyed in a declared space via set_track_space / get_track_space), but nothing encodes this specific recommendation - a head control should live in a space that inherits a fraction of chest motion for a walk cycle - as a named rule or a default.",
+  "control_surface": "set_track_space / get_track_space already let a caller declare and inspect which space a track is keyed in; nothing currently applies this rule automatically or flags a head keyed in world space during a walk cycle.",
+  "detection_and_measurement_methods": "Partly real: which space a track is currently keyed in is inspectable (get_track_space). Whether that choice is appropriate for a walk cycle (world space likely wrong, unparented-with-no-restraint likely wrong, neck-parented likely right) is a judgement this build does not make.",
+  "generation_or_modification_methods": "set_track_space already exists to change a track's space; nothing derives the recommended choice from a declared action type.",
+  "failure_modes": [
+    "keying the head fully in world space during a walk cycle, which can read as floaty or disconnected from the body",
+    "leaving the head parented with no counter-motion restraint at all, which can read as loose or broken"
+  ],
+  "roblox_considerations": "None beyond the shared track-space model.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"as you notice I did not align the head in the world space, but [parented] it to the neck - because of the chest movement... the upper spine and shoulder... we're gonna have a little bit of side movement as well on the head that you want to control a little bit; I don't like to have the head completely floaty [as it would be if] parented to the world space, that's why I'm using this trick\" - video @ 30:24-30:46"
+  ],
+  "evidence_status": "video: https://youtu.be/ynXadXE9UjU @ 30:24-30:46 - stated directly by the presenter, explaining a deliberate rig-hierarchy choice while live-keying the head; cross-checked against this session's awareness of Cadence's existing get_track_space/set_track_space tools; experimental until validated"
+}

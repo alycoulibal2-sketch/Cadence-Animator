@@ -1,0 +1,39 @@
+{
+  "concept": "flight_phase_pose_often_omitted_in_stylized_convention",
+  "category": "advanced",
+  "definition": "A physically accurate run has a pose between Up and the next Contact where both feet are off the ground (the flight phase), but a common stylized/anime (sakuga) convention deliberately skips drawing it, cutting directly from the Up pose to the following Contact - a named, deliberate stylistic economy choice, not a physical error.",
+  "purpose": "Qualify continuous_ground_contact_except_during_flight_phase's physical rule with a real, named style exception: the physically-real flight-phase pose is often intentionally omitted in stylized 2D convention, which a naive 'the flight phase must be keyed' check would wrongly flag as missing.",
+  "visible_effect": "A run cycle that cuts straight from the Up pose to the next Contact, with no intermediate both-feet-off-the-ground drawing, still reads clearly as a run in the sakuga convention the source studies - the omission is not perceived as an error by the convention's own audience.",
+  "psychological_or_gameplay_effect": "Skipping the flight-phase pose is an economy-of-drawings choice (one fewer key per cycle) that this source treats as a legitimate, common stylistic decision rather than a corner cut carelessly.",
+  "physical_interpretation": "The flight phase is still physically real even when its drawing is omitted - the omission is a representational choice (which poses get drawn), not a claim that the physical event does not happen.",
+  "use_cases": [
+    "deciding whether a stylized run cycle needs an explicit flight-phase key, or can cut directly from Up to the next Contact as a deliberate stylistic economy",
+    "reviewing a stylized or anime-influenced run cycle against continuous_ground_contact_except_during_flight_phase's physical rule without over-flagging a legitimate stylistic omission as a defect"
+  ],
+  "non_use_cases": [
+    "a realistic or simulation-driven run, where the source's own framing implies the flight-phase pose is expected, not optional",
+    "a walk cycle, where no flight phase exists to omit in the first place"
+  ],
+  "interactions": [
+    "continuous_ground_contact_except_during_flight_phase (W03, video 26) - this entry is the direct style-level qualifier for that entry's physical rule: the flight phase is still real, but a stylized convention may not draw or key it explicitly",
+    "ai/style.js - a natural place a declared style ('sakuga-influenced', 'anime') could record 'flight-phase pose typically omitted' as a per-style convention, once such conventions are authored"
+  ],
+  "style_variations": {
+    "sakuga_anime": "flight-phase pose typically omitted; cuts directly from Up to the next Contact"
+  },
+  "cadence_representation": "Not computed. Nothing in ai/style.js currently records this or any per-style convention about which physically-real poses a style typically omits; continuous_ground_contact_except_during_flight_phase's check (once built) would need this exception registered against a declared style, or it would incorrectly flag every sakuga-convention run cycle as missing its flight phase.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "Not applicable directly - this is a qualifier on a check (continuous_ground_contact_except_during_flight_phase) that is itself not yet built, rather than a new measurement of its own.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "flagging a stylized run cycle's omitted flight-phase pose as an error, when it is a deliberate and common convention in the style being emulated",
+    "conversely, omitting the flight-phase pose in a REALISTIC run where the source's framing implies it should be present"
+  ],
+  "roblox_considerations": "None beyond the shared keyframe model.",
+  "performance_implications": "Omitting a key is a minor authoring-cost saving, not a runtime concern.",
+  "examples": [
+    "\"in real life there's actually a pose between the up and contact where both feet are off the ground, but I noticed that in a lot of sakuga animation they tended to just skip this over and go directly from the up pose to the following contact\" - video @ 03:10-03:25",
+    "confirmed again in a second, independent sakuga study even under extreme perspective distortion: \"even though she's right up in the camera, they're still keeping that contact down up pose\" [sequence, with no separate flight-phase drawing] - video @ 09:59-10:04"
+  ],
+  "evidence_status": "video: https://youtu.be/nKvBYXzRszw @ 03:10-03:25 and @ 09:59-10:04 - stated directly by the presenter (moderndayjames) while breaking down real professional sakuga run cycles frame by frame, the second passage independently confirming the same convention in a different (Kill la Kill) source; experimental until validated"
+}

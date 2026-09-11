@@ -1,0 +1,35 @@
+{
+  "concept": "symmetric_pose_mirroring_workflow",
+  "category": "advanced",
+  "definition": "The opposite-side contact pose in a walk cycle is built by copying the first contact key wholesale and then negating only the rotation values that need to flip for the mirrored side, rather than re-posing the opposite leg from scratch.",
+  "purpose": "State a concrete, time-saving production workflow for building a symmetric walk cycle's second half, and note that Cadence already automates a more general version of exactly this.",
+  "visible_effect": "The two contact poses (leading with the left leg, leading with the right) are visibly mirror images of each other, produced by one copy-and-negate operation rather than two independent posing passes.",
+  "psychological_or_gameplay_effect": "None directly - a production-efficiency technique, not a visual-quality one; its value is symmetric consistency between the two halves of the cycle, which a from-scratch re-pose risks losing.",
+  "physical_interpretation": "None - a workflow convenience, not a physical claim.",
+  "use_cases": [
+    "building the second (opposite-leg) half of a symmetric walk or run cycle from an already-posed first half",
+    "keeping a cycle's two halves genuinely symmetric rather than subtly mismatched from two independent posing passes"
+  ],
+  "non_use_cases": [
+    "a deliberately asymmetric gait (a limp, an injury, a stylistic choice) where the two halves should not mirror each other",
+    "a pose with no clear left/right mirror structure to exploit"
+  ],
+  "interactions": [
+    "Cadence already automates a more general version of this exact workflow: state.js's mirrorItem swaps every paired left/right track AND applies a coordinate-frame mirror to every key's value in one call, for a whole item's current keys - a stronger, more automatic version of the video's manual single-key copy-and-negate-one-rotation-channel technique"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Already built, and more capable than the source's manual technique. state.js mirrorItem (exposed as the mirror_item tool) mirrors every track on a declared item in one call - both swapping left/right-named track pairs and applying CF.mirror to every key's value - rather than requiring a per-key, per-channel manual copy-and-negate the way the video demonstrates. This is a case where Cadence's tooling is ahead of the manual workflow shown, worth recording as a genuine positive finding rather than only a gap.",
+  "control_surface": "mirror_item (MCP tool over state.js mirrorItem) already does this for a whole item's current tracks.",
+  "detection_and_measurement_methods": "Not applicable - a workflow technique, not something to measure.",
+  "generation_or_modification_methods": "Already implemented: state.js mirrorItem / the mirror_item tool.",
+  "failure_modes": [
+    "building a symmetric cycle's second half by re-posing from scratch rather than mirroring, risking subtle asymmetry between the two halves",
+    "mirroring only a rotation channel by hand and missing a track that also needed a position or other channel mirrored - exactly the class of mistake a whole-item mirror operation avoids"
+  ],
+  "roblox_considerations": "None beyond the shared rig/track model mirror_item already operates on.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"we're gonna go back to the contact position here, we're gonna copy paste this one here, and just make sure you change the opposite value for the rotation... you can take a look at the value here, [it was] 36, and appl[y] it [negated] here\" - video @ 02:16-02:47"
+  ],
+  "evidence_status": "video: https://youtu.be/ynXadXE9UjU @ 02:16-02:47 - demonstrated live by the presenter while keying a walk cycle; cross-checked directly against this session's read of renderer/js/state.js mirrorItem; experimental until validated"
+}

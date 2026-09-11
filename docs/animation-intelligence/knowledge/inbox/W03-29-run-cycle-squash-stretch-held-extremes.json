@@ -1,0 +1,40 @@
+{
+  "concept": "run_cycle_squash_stretch_extremes_with_held_timing",
+  "category": "advanced",
+  "definition": "A run cycle's low and high extreme poses read as a squash pose (lowest point) and a stretch pose (highest point) rather than generic 'down' and 'up' labels, and the pose timing should hold longer at these extremes (the character is most readable while suspended in the air) while moving quickly through the transitional poses between them, rather than spacing everything evenly.",
+  "purpose": "Reframe the run cycle's vertical extremes through the squash-and-stretch principle specifically, and give a concrete timing rule (hold at extremes, move fast between them) rather than leaving 'add some bounce' unspecified.",
+  "visible_effect": "Going straight from Contact to an Up pose to Contact without the intermediate squash/stretch extremes reads as flat and mechanical; adding them, and holding on them longer than the transitional poses, produces a run that feels organic and lets the audience actually read the extreme pose while the character is airborne.",
+  "psychological_or_gameplay_effect": "The held extreme is the moment a viewer's eye actually registers the pose's shape and attitude; a run with even timing throughout never gives the eye that moment, even if the poses themselves are well-designed.",
+  "physical_interpretation": "Mirrors a bouncing ball's real spacing: motion is slowest (a near-hold) at the top of an arc and fastest through the middle - the run cycle's squash (compressed, low) and stretch (extended, high) extremes are exactly the moments this natural slow-fast-slow rhythm should concentrate readable time.",
+  "use_cases": [
+    "authoring or reviewing a run cycle's overall timing curve, specifically where holds should concentrate (the extremes) versus where motion should be fast (the transitions)",
+    "deciding whether a run cycle's low/high poses are doing enough - the source's own test is whether skipping them and going straight contact-to-up-to-contact still feels organic"
+  ],
+  "non_use_cases": [
+    "a walk cycle, where the extremes are held less dramatically and the whole rhythm is gentler (see walk_cycle_vertical_drop_is_arrested_fall, W03 video 26, for the walk-specific version of this same mechanism)",
+    "a highly realistic, non-cartoony run where the presenter himself notes a more even, less-held timing may be more appropriate"
+  ],
+  "interactions": [
+    "walk_cycle_vertical_drop_is_arrested_fall (W03, video 26) - the same single-peak vertical mechanism, but this entry adds a run-specific timing emphasis (concentrated holds at the extremes) the walk-cycle entry does not claim",
+    "continuous_ground_contact_except_during_flight_phase (W03, video 26) - the held stretch/squash extremes this entry names are exactly the poses framing a run's flight phase",
+    "squash_stretch (the compiled twelve-principle card) - this entry is a direct, named application of that principle to a run cycle's vertical extremes specifically, not a restatement of the principle in general"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not computed as a named check. The raw data is real: ai/motion.js sampleMotion's position/velocity series already shows hold-vs-transit timing, and key_density/interpolation_type show where holds are keyed. Nothing currently checks whether a run cycle's holds specifically concentrate at its position extremes (the squash/stretch poses) versus being spread evenly, or flags a run whose extremes are NOT held relative to its transitions.",
+  "control_surface": "sample_motion already returns the needed position/velocity/key-timing series; nothing classifies where holds concentrate relative to a cycle's extremes.",
+  "detection_and_measurement_methods": "Real for the raw series (position, velocity, key_density). Not built: locating the position extremes (squash/stretch) and comparing local velocity or key density there against the transitional phases, to confirm holds concentrate at the extremes as this technique requires.",
+  "generation_or_modification_methods": "None. No strategy in ai/plan.js / authorMotion derives a run cycle's hold-versus-transit timing from a declared squash/stretch extreme.",
+  "failure_modes": [
+    "spacing a run cycle's poses evenly throughout, which the source states reads as flat and mechanical and denies the eye a moment to read the extreme poses",
+    "omitting the squash/stretch extreme poses entirely and going straight from Contact to Up to Contact, which the source states does not feel organic"
+  ],
+  "roblox_considerations": "None beyond the shared keyframe/track model.",
+  "performance_implications": "None.",
+  "examples": [
+    "the reframe, stated directly: \"I don't think of it so much as a passing position or an up pose, I think of this as a stretch pose - so you have a contact here, but this is an extreme pose 'cause we have this at its lowest, so this is the squash pose, and then you have the stretch pose\" - video @ 09:59-10:29",
+    "why it matters: \"if you don't have that pose and you just go from contact to up to contact, things don't feel super overlapping and organic - so if you put in this pose which gives you some squash and stretch, it really starts to come to life\" - video @ 10:29-10:47",
+    "the timing rule: \"I want this to be quite a push cycle, I don't want to just be moving linearly the whole way through - I want it to be very held at the top, and then quickly [move], so you're almost just reading these poses when he's in the air\" - video @ 07:17-07:31",
+    "the bouncing-ball analogy for the same rule: \"I actually want these middle frames, anything that isn't [at] this [extreme], to happen fast... you can hopefully feel a bit of a bouncing ball in the centre of gravity\" - video @ 13:27-13:52"
+  ],
+  "evidence_status": "video: https://youtu.be/7NkvAP3aqeo @ 07:17-07:31, 09:59-10:47, and 13:27-13:52 - stated directly and confidently by the presenter (owenferny) while live-blocking a run cycle; this video is largely exploratory and hedged in tone throughout ('I don't know', 'we'll see'), so these specific quotes were chosen because they are stated as settled technique rather than in-progress guessing; experimental until validated"
+}

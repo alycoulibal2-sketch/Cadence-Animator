@@ -1,0 +1,38 @@
+{
+  "concept": "walk_cycle_looping_vs_full_sequence_tradeoff",
+  "category": "advanced",
+  "definition": "A character walking across a shot can be built two ways: loop one short walk cycle and either slide the looped character across the screen or hold the character still and move the background instead, which is cheaper but risks reading as mechanical and slidy 'like a video game character'; or animate the whole traversal as one continuous, non-repeating sequence, which costs more work but gives the most control over each individual step.",
+  "purpose": "Name a real production-cost-versus-quality tradeoff explicitly, including the specific failure mode (a looped-and-slid cycle reading as mechanical) that the cheaper method risks, rather than presenting looping as a free simplification.",
+  "visible_effect": "A looped-and-translated cycle can read as sliding or mechanically repetitive, especially if the loop is short or perfectly even; a fully hand-animated traversal can vary each step's timing and spacing individually, at the cost of far more keys.",
+  "psychological_or_gameplay_effect": "The presenter's own comparison point for the cheaper method's failure mode is a real-time video game character - directly relevant to Cadence's own target domain, where a looped cycle plus root-motion translation is usually the only affordable option, not a corner being cut by choice.",
+  "physical_interpretation": "None - a production-method choice, not a physical claim.",
+  "use_cases": [
+    "choosing between a looped walk-cycle-plus-translation and a fully unique traversal animation for a specific shot or gameplay need",
+    "diagnosing a game or cutscene character's walk reading as mechanical, when the cause is a perfectly even, unvaried loop rather than anything wrong with the individual poses"
+  ],
+  "non_use_cases": [
+    "a short, stationary walk-in-place (an idle-adjacent action) where no traversal choice is being made at all",
+    "a loop long and varied enough, or blended with enough secondary variation, that the mechanical-repetition failure mode does not apply"
+  ],
+  "interactions": [
+    "global_timing_register (W01, video 2) - a loop's evenness across repeats is exactly the kind of cross-repeat consistency that card's variance measurement is built to catch, applied here to a specific named cause (a translated cycle) rather than left general",
+    "the video's own named fix for a translated cycle's flatness: moving the BACKGROUND instead of the character keeps the character's animation itself identical to a stationary cycle while still reading as traversal on screen - a staging trick, not an animation change"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not computed as a named check. Cadence already has everything needed to measure the SYMPTOM (an unvaried, perfectly-repeating cycle) via cross-repeat variance and sample_motion's position/velocity series, but nothing currently flags 'this looks like a looped-and-translated cycle specifically because repeats are identical' as its own named defect, distinct from an ordinary looping animation (which is often intentional and fine, e.g. an idle).",
+  "control_surface": "sample_motion and the existing cross-repeat variance measurement (search_library-adjacent) could detect identical repeats; nothing currently interprets that as the specific game-character-slide failure mode.",
+  "detection_and_measurement_methods": "Partly real: detecting that a translating character's per-step motion is IDENTICAL across repeats is measurable from existing position/velocity sampling. Distinguishing 'a looped cycle used for traversal' (where identical repeats are the reported problem) from 'a looped cycle used as an idle or hold' (where identical repeats are correct) is not built - it needs a declared action-type context this build does not carry.",
+  "generation_or_modification_methods": "None. No strategy varies a looped cycle's repeats to avoid the mechanical read, or generates a full unique traversal from a single cycle.",
+  "failure_modes": [
+    "a looped-and-translated walk reading as mechanical or slidy because every repeat is identical, with no per-step variation",
+    "choosing full-sequence hand animation for a case where a well-varied loop would have been sufficient, at a much higher cost with little quality gain"
+  ],
+  "roblox_considerations": "This is close to the default Roblox pattern (a looped walk animation plus root-motion or velocity-driven translation) - the failure mode this entry names is a real, common risk for exactly that default pattern, not a hypothetical.",
+  "performance_implications": "A full unique traversal sequence costs proportionally more keys/memory than a short looped cycle; this is the actual cost side of the tradeoff the entry names.",
+  "examples": [
+    "\"some people will make the walk cycle first and move the cycle across the screen - while this will save you some work, it can sometimes look mechanical and slidy, like a video game character\" - video @ 01:14-01:25",
+    "the staging alternative: \"a better solution is to hold the cycle in place and have the background move instead\" - video @ 01:25-01:29",
+    "the full-control alternative, named directly: \"otherwise you would animate the whole sequence from start to finish - this gives you the most control\" - video @ 01:29-01:34"
+  ],
+  "evidence_status": "video: https://youtu.be/2y6aVz0Acx0 @ 01:14-01:39 - stated directly by the presenter (Alan Becker) as a named production choice with a specific failure mode; experimental until validated"
+}

@@ -1,0 +1,39 @@
+{
+  "concept": "run_cycle_frame_count_sets_perceived_speed",
+  "category": "advanced",
+  "definition": "A run cycle's contact-to-contact frame count directly sets how fast the run reads: an 8-frame cycle (contact every 8 frames) is a baseline running speed, a 6-frame cycle reads as faster; within that structure, even spacing between poses is an acceptable baseline for a run specifically (unlike a walk), and an optional refinement is to favor the arm swing's extremes by holding the pose nearly identical for two frames in a row before accelerating quickly through the centre.",
+  "purpose": "Give the run cycle's overall pacing a literal, adjustable frame-count dial, and state plainly that even spacing is a legitimate baseline for a run (not a defect to always avoid), with favoring as an optional refinement rather than a requirement.",
+  "visible_effect": "A shorter contact-to-contact cycle (6 frames) reads as a faster run than a longer one (8 frames) using the identical set of poses; a favored arm swing shows two visually near-identical frames at each extreme before a fast sweep through the centre, versus a run with even spacing throughout, which the source states is still an acceptable baseline for this action specifically.",
+  "psychological_or_gameplay_effect": "Favoring accentuates a particular pose and strengthens the sense of acceleration through the swing's centre; even spacing, while more mechanical-sounding in the abstract, is explicitly named as acceptable for a run, unlike the emphatic anti-even-spacing stance seen for other actions elsewhere in this corpus.",
+  "physical_interpretation": "A pendulum-like limb swing (the source's own analogy for the arm's arc) naturally lingers near its extremes (where velocity is lowest) and moves fastest through the centre (where velocity is highest) - favoring is choosing to key that natural spacing explicitly rather than leaving it even.",
+  "use_cases": [
+    "setting a run cycle's overall speed by choosing its contact-to-contact frame count directly, rather than only by adjusting spacing within a fixed cycle length",
+    "deciding whether a run needs the arm-favoring refinement or can ship with even spacing, which the source states is a legitimate choice specifically for this action",
+    "an extreme minimal/stylized cycle: the source's own sakuga example compresses a run to 6 frames on twos (three actual drawings total) by merging the Down and Passing poses into one combined pose"
+  ],
+  "non_use_cases": [
+    "a walk cycle, where the source (and this corpus's other walk-cycle entries) treat uneven, non-linear spacing as expected rather than optional",
+    "a cycle whose speed is meant to read as constant across a whole shot despite a changing frame count - mixing frame-count changes with no other visual cue would be confusing"
+  ],
+  "interactions": [
+    "walk_cycle_key_pose_spacing_and_heel_snap_subtiming (W03, video 27) - a direct numeric contrast: that entry's walk poses land roughly every 3 frames; this entry's run contacts land every 6-8 frames (a different, larger unit - the full contact-to-contact span, not sub-pose spacing) - worth reading together rather than assuming the same number applies to both gaits",
+    "run_cycle_squash_stretch_extremes_with_held_timing (W03, video 29) - a companion source on run timing; that entry says hold at the extremes, this entry adds the explicit permission that EVEN spacing is also an acceptable baseline for a run, a real, source-stated nuance worth keeping alongside the held-extremes technique rather than treated as contradicting it"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly measurable today for the frame-count half. ai/motion.js MEASUREMENTS.key_density and the track's own key timestamps already report contact-to-contact spacing directly; nothing currently maps a measured spacing number to a perceived-speed read, or distinguishes 'even spacing, correctly used as this video's stated baseline' from 'even spacing, a defect' - that classification needs a declared action type (walk vs. run) this build does not carry, the same gap continuous_ground_contact_except_during_flight_phase (W03, video 26) already names.",
+  "control_surface": "sample_motion / key_density already returns contact-to-contact frame spacing; nothing classifies it against a declared action type's expectation.",
+  "detection_and_measurement_methods": "Real: contact-to-contact frame count is directly readable from existing key timestamps (key_density). Not built: a declared action-type context to know whether even spacing at a given count is the correct baseline (a run) or a defect (most other actions in this corpus), and whether a favored two-frame near-hold is present at the swing extremes.",
+  "generation_or_modification_methods": "None. No strategy in ai/plan.js derives a target contact-to-contact frame count from a declared run speed.",
+  "failure_modes": [
+    "applying an aggressive anti-even-spacing rule to a run cycle when the source states even spacing is an acceptable baseline for this specific action",
+    "changing a run's contact-to-contact frame count without an in-fiction reason, producing an unmotivated speed change"
+  ],
+  "roblox_considerations": "None beyond the shared keyframe/track model.",
+  "performance_implications": "A shorter cycle (6 frames) needs fewer total keys per loop than an 8-frame one for the same coverage, a minor efficiency note, not a real performance concern.",
+  "examples": [
+    "\"for the run cycle we'll be doing, these contact poses will happen every eight frames, but if you wanted your character to run faster you could do a six frame cycle\" - video @ 02:20-02:31",
+    "\"with the run cycle you can get away with even spacing, but I like to let the arms linger a little bit longer at the end of their swing, and then accelerate faster towards the other side... at the extreme ends of that arm swing the arm is almost in the exact same position two frames in a row\" - video @ 01:17-01:52",
+    "the extreme minimal case from the sakuga study: \"this is a six-frame run cycle done on twos, so it's a total of three drawings for the entire run cycle... since it's only six frames, the down and passing pose are combined into one\" - video @ 06:16-06:42"
+  ],
+  "evidence_status": "video: https://youtu.be/nKvBYXzRszw @ 01:06-02:31 and @ 06:16-06:42 - stated directly by the presenter (moderndayjames), the second passage while breaking down a professional sakuga (Little Witch Academia) run cycle frame by frame; cross-checked against this session's read of ai/motion.js MEASUREMENTS.key_density; experimental until validated"
+}

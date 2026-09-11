@@ -1,0 +1,37 @@
+{
+  "concept": "walk_cycle_key_pose_spacing_and_heel_snap_subtiming",
+  "category": "advanced",
+  "definition": "A walk cycle's five main poses (Contact, Down, Pass, Up, Contact) are spaced roughly three frames apart from each other, but a sub-event nested inside that spacing - the heel snapping from a heel-first contact down to a fully flat foot - happens far faster, in about one frame, not gradually across the three.",
+  "purpose": "Give the walk cycle's timing a second, faster tier most descriptions of the five-pose vocabulary leave out: the poses themselves are evenly-ish spaced, but at least one event inside that spacing is much quicker than the spacing itself.",
+  "visible_effect": "The five main poses read as an even, roughly-three-frame rhythm; independently, the foot's heel-to-flat transition at each contact is a near-instant snap rather than a gradual roll across those same three frames.",
+  "psychological_or_gameplay_effect": "A heel-to-flat transition spread out gradually across the full pose spacing instead of snapping quickly reads as mushy or floaty contact, even if the main poses themselves are timed correctly.",
+  "physical_interpretation": "The heel-to-flat foot roll is a short mechanical event (the ankle rotating the foot flat once weight commits) riding on top of the much longer stride rhythm - two different timescales in the same cycle, not one uniform timing.",
+  "use_cases": [
+    "setting initial key spacing for a new walk cycle's main poses",
+    "timing the foot-roll sub-event inside an existing walk cycle's contact pose, independent of the main pose spacing"
+  ],
+  "non_use_cases": [
+    "a stylised or cartoony walk that deliberately holds or drags the foot roll for comic timing rather than snapping it",
+    "a run cycle, where the overall pose spacing and the flight phase change the whole timing picture (see continuous_ground_contact_except_during_flight_phase, W03 video 26)"
+  ],
+  "interactions": [
+    "walk_cycle_vertical_drop_is_arrested_fall (W03, video 26) - the same five-pose vocabulary; this entry adds a timing/spacing number to poses that entry only described by shape",
+    "the foot-roll detail from W03 video 26's notes (heel peels off the ground around the ball) - this entry gives the heel-to-flat portion of that same foot roll a specific sub-frame timing the earlier video did not state"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly measurable today. ai/motion.js MEASUREMENTS.key_density already reports keys per frame from existing track key times, which is exactly what an even roughly-three-frame pose spacing would show up as; the much faster heel-to-flat sub-event would show as a locally denser key cluster inside that same series. Nothing currently distinguishes a walk cycle's main-pose spacing from a foot-roll sub-event as two different named timescales within one key_density read - that classification is not built, only the raw density measurement is.",
+  "control_surface": "sample_motion / key_density already returns the raw per-frame key spacing; nothing labels a fast cluster within it as a foot-roll snap specifically.",
+  "detection_and_measurement_methods": "Real: key_density (ai/motion.js MEASUREMENTS) reports keys per frame from existing track key times. Classifying which keys belong to the main-pose tier versus a faster sub-event tier (like a heel snap) is not built - it would need a declared role per key (main pose vs. sub-event) that the raw density measurement does not carry.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "spreading the heel-to-flat transition evenly across the full pose spacing instead of snapping it quickly, which reads as mushy contact",
+    "keying the five main poses at uneven or arbitrary spacing with no consistent rhythm"
+  ],
+  "roblox_considerations": "None beyond the shared keyframe/track model.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"when you do a walk cycle... you usually put that [pose] every three frame[s] - so we have the contact position, the down, passing position, up position, and contact again, and then you repeat\" - video @ 05:15-05:27",
+    "the heel snap, contrasted with that spacing: \"I want to make sure the heel is [flat] during the contact position... this part is really quick, doesn't happen in three frames, basically almost in one frame, and [the heel] snaps down\" - video @ 09:12-09:34"
+  ],
+  "evidence_status": "video: https://youtu.be/ynXadXE9UjU @ 05:15-05:27 and @ 09:12-09:34 - stated directly by the presenter (Alessandro Camporota) while live-keying a walk cycle in 3D animation software; auto-captions are rough throughout this video (heavy accent) but these two specific numeric claims are unambiguous in context; cross-checked against this session's read of ai/motion.js MEASUREMENTS.key_density; experimental until validated"
+}

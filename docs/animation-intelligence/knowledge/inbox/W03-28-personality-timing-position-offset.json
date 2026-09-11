@@ -1,0 +1,43 @@
+{
+  "concept": "personality_via_timing_position_offset_dials",
+  "category": "advanced",
+  "definition": "A walk cycle's personality is adjusted through three explicitly named, independent dials - Timing (which poses are held longer), Position (the body's overall lean), and Offset (how many frames the arms lead or lag the legs) - demonstrated with exact values: a sad/depressed walk holds the contact and down poses much longer, hunches the body forward, droops the arms, and compresses the up/down height difference to remove bounce; a happy/proud walk leans the body back, emphasizes the timing on the contact pose, raises the arms, and offsets the arms two frames ahead of the legs; a relaxed walk leans forward and offsets the arms two frames behind the legs.",
+  "purpose": "Turn 'give the walk personality' into three named, independently adjustable parameters with worked example values, rather than an unstructured artistic pass.",
+  "visible_effect": "Each named walk (sad, happy/proud, relaxed) is visibly distinguishable using only these three dials on the same base four-pose cycle - no new poses, only different hold-durations, a different body lean, and a different arm-to-leg frame offset.",
+  "psychological_or_gameplay_effect": "Arms leading the legs by two frames reads as a more powerful, driving attitude; arms lagging the legs by two frames reads as relaxed and chill - the same two-frame magnitude, in opposite directions, produces near-opposite personality reads.",
+  "physical_interpretation": "Position is a posture/centre-of-gravity choice; Timing is which phase of the gait dwells longest; Offset is a lead/lag relationship between two body regions - three independent, combinable levers rather than one blended attitude setting.",
+  "use_cases": [
+    "authoring a walk cycle variant for a specific personality without inventing new poses - reusing the existing four-pose vocabulary with different Timing/Position/Offset values",
+    "using the Offset dial alone (arms 1-2 frames ahead = powerful/leading, arms 1-2 frames behind = relaxed/chill) as a fast, isolated personality adjustment"
+  ],
+  "non_use_cases": [
+    "a personality change that requires an actual new pose shape (a limp, a different gait entirely) rather than a timing/position/offset adjustment to the existing four poses",
+    "a single reaction pose rather than a sustained, cyclical walk"
+  ],
+  "interactions": [
+    "center_of_gravity_shift_personality_mapping (W03, video 26) - a companion taxonomy using a DIFFERENT parameter (centre-of-gravity shift direction) for a similar goal; this entry's Position dial overlaps with that one, while Timing and Offset are two additional, independent dials that entry does not name",
+    "the arm-swing extremes also stated here - \"arms are farthest apart on the down pose and closest together on the passing pose\" (@ 01:58-02:02) - a specific extremes-to-poses mapping, more precise than the general opposite-the-legs rule already confirmed from W03 video 26"
+  ],
+  "style_variations": {
+    "sad_depressed": "contact and down poses held much longer (Timing); body hunched forward (Position); arms drooped low; up/down height difference reduced to remove bounce",
+    "happy_proud": "timing emphasises the contact pose (Timing); body leaned back (Position); arms raised high; arms offset two frames ahead of the legs (Offset)",
+    "relaxed_chill": "body leaned forward (Position); arms offset two frames behind (lagging) the legs (Offset)"
+  },
+  "cadence_representation": "Directly measurable for the Offset dial today. ai/motion.js analyseChain's lead/lag frame measurement (relation_to_motion_graph_parent) already reports exactly the arm-to-leg frame offset this dial is built from. Timing (per-pose hold duration) is measurable from existing key timestamps. Position (overall body lean) is measurable via ai/pose.js measurePose's line of action or rotation. All three raw measurements exist independently; nothing packages them as this video's named three-dial personality system, and nothing maps a value on any of the three to a named personality read.",
+  "control_surface": "sample_motion (for Offset and Timing) and compile_pose/measurePose (for Position) each already return the needed raw numbers; nothing joins them into this three-dial system.",
+  "detection_and_measurement_methods": "Real for all three raw quantities individually (lead/lag via analyseChain, hold duration via key timestamps, lean via measurePose). Not built: packaging the three as one named system, or mapping a combination of values to a personality label - that classification step does not exist.",
+  "generation_or_modification_methods": "None. No strategy in ai/plan.js derives Timing/Position/Offset values from a declared personality.",
+  "failure_modes": [
+    "adjusting only one of the three dials (for example leaning the body back with no timing or offset change) and getting a weaker personality read than combining all three",
+    "using an offset magnitude too small to read clearly - the source's own examples use a full two frames, not a fractional adjustment"
+  ],
+  "roblox_considerations": "None beyond the shared keyframe/pose model; all three dials apply directly to an R15/R6 rig's existing tracks.",
+  "performance_implications": "None.",
+  "examples": [
+    "the four-pose vocabulary, labelled on screen exactly as contact/down/passing/up - video @ 00:52",
+    "sad/depressed: \"let's hunch him forward, make his contact pose and down pose take much longer, and droop his arms down low; his up and down poses should be close in height to take away the bounce\" - video @ 02:34-02:45",
+    "happy/proud, with the Offset dial shown on screen as its own labelled field (\"Timing / Position / Offset\"): \"let's lean his body back and change the timing to emphasize his contact pose... then let's offset his arm movement so that there are two frames ahead of the legs... a more powerful attitude\" - video @ 02:45-03:00",
+    "relaxed: \"offset the arms in the other direction and make them lag behind the rest of the body by two frames... now he looks pretty chill\" - video @ 03:02-03:11"
+  ],
+  "evidence_status": "video: https://youtu.be/2y6aVz0Acx0 @ 02:26-03:11 - stated and demonstrated directly by the presenter (Alan Becker) as a named three-parameter system, with the parameter labels (Timing/Position/Offset) visible on screen in this session's captured frame at t=03:12; cross-checked against this session's awareness of ai/motion.js analyseChain (lead/lag) and ai/pose.js measurePose (lean); experimental until validated"
+}
