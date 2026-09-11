@@ -1,0 +1,36 @@
+{
+  "concept": "bespoke_pose_variant_as_undocumented_diegetic_state_indicator",
+  "category": "advanced",
+  "definition": "Authoring a small, deliberately hand-crafted (explicitly NOT procedural/IK) pose variant that is selected by an underlying, non-visual game-state flag — the source's example is a hand-on-wall contact pose placed higher when an ability is locked and lower once it is unlocked — so that the choice of variant itself communicates the game state to an attentive player, with no HUD element or explicit UI needed at all.",
+  "purpose": "Communicate a piece of gameplay-relevant state (here, whether an ability is currently available) through an in-world animation detail alone, and simultaneously make the transition into the next action read as more natural for whichever state is currently true.",
+  "visible_effect": "The same general contact pose (a hand placed against a wall/surface) appears in one of two distinct, deliberately different placements depending on which of two game states currently applies, without any other visible change to signal the difference.",
+  "psychological_or_gameplay_effect": "An attentive player can read the character's current ability state directly from a small, otherwise-unremarkable pose detail — the source notes this was noticed and discussed specifically because it was subtle enough to require close attention, not because it was an obvious UI cue.",
+  "physical_interpretation": "None — a deliberate authored signal, explicitly stated by the source to be NOT a physically-simulated (IK) placement, precisely because a physically 'correct' single placement would not be able to carry this state information at all.",
+  "use_cases": [
+    "communicating an ability-unlock or inventory state through an incidental-looking pose detail, avoiding a HUD element for a state that does not otherwise need constant on-screen presence",
+    "any contact/placement pose that also needs to prepare the character differently for two or more different follow-up actions, where a single physically-averaged (IK) placement would serve neither follow-up well"
+  ],
+  "non_use_cases": [
+    "state that the player needs to check constantly or urgently (health, ammo), where a discoverable incidental pose detail is far too subtle a channel and an explicit UI element is the correct choice",
+    "a placement that genuinely needs to adapt continuously to arbitrary surface geometry, where IK's continuous solve is the right tool and a small fixed set of hand-authored variants could not cover the range"
+  ],
+  "interactions": [
+    "state_driven_frame_selection_instead_of_playback (W05, video 42, Gwen Frey) — a closely related but distinct mechanism from the same general family (game state selecting which authored content plays): that entry's landing/turn clips are CONTINUOUSLY scrubbed by a live variable (height, orientation delta); this entry selects between a small DISCRETE set (here, two) of authored variants by a boolean flag, and its own distinguishing feature is doubling as an UNDOCUMENTED DIEGETIC UI signal rather than only solving a technical blending problem",
+    "planted_foot_float_track_eliminates_transition_clips (W05, video 42) — a sibling case of a small declared state value driving pose selection, there for foot-plant continuity specifically"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly reachable today: authoring two named pose variants (via ordinary `PoseSpec`/keyframe authoring) and selecting between them by a declared boolean is well within this build's existing pose-authoring capability. What is missing is the DECLARATION this technique depends on — a named game-state flag (an ability-unlock boolean, in this example) that a pose choice is conditioned on — since Cadence's project data has no general-purpose 'external game state' container; `ai/memory.js`'s `project_conventions` is the closest existing analogue (a scoped, evidenced project-specific declaration) but is not designed to represent a live, runtime-read gameplay flag.",
+  "control_surface": "Ordinary pose/keyframe authoring already reaches both variants individually; nothing in this build declares or switches between them by an external state flag.",
+  "detection_and_measurement_methods": "Not measurable in this build: distinguishing 'two deliberately different authored pose variants selected by state' from 'two unrelated poses that happen to differ' needs a declared link between the pose choice and the state flag, which this build's project data has nowhere to store.",
+  "generation_or_modification_methods": "Both individual pose variants are reachable with existing pose-authoring tools; nothing currently declares or automates the state-conditioned SELECTION between them.",
+  "failure_modes": [
+    "making the variant difference so subtle it fails to communicate the intended state to any player, becoming pure trivia rather than a functioning (if quiet) signal",
+    "relying on this technique for state a player urgently needs, where the diegetic subtlety works against the player rather than for them"
+  ],
+  "roblox_considerations": "Directly reachable via ordinary server-side or client-side logic selecting which of two authored `AnimationTrack`s (or IK target poses) to play, gated on a stored ability-unlock value (e.g. a leaderstat, an attribute, or a datastore-backed flag) — no bespoke engine feature required.",
+  "performance_implications": "None.",
+  "examples": [
+    "'this hand on the wall... isn't IK. This is a bespoke piece of animation, crafted for specific situations. The hand places higher if Samus doesn't have the morph ball, and then lower when she does. This allows a smoother and more appropriate transition into morph ball mode, and is a handy indicator if you do or don't have it' (video @ 06:32–06:53)"
+  ],
+  "evidence_status": "video: https://youtu.be/1B1beXTnvEI @ 06:32–06:53 — the presenter states this directly, including the explicit note that it is hand-authored rather than IK-driven and functions as an ability indicator; transcript-only, no frames extracted this session; experimental until validated"
+}

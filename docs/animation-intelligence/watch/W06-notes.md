@@ -6,7 +6,7 @@
 - [x] 52. The Animation of Guilty Gear Xrd & Dragon Ball FighterZ — New Frame Plus (17:21) — https://youtu.be/kZsboyfs-L4
 - [x] 53. How to Animate a Smash Bros Character // MARIO — New Frame Plus (12:59) — https://youtu.be/NHwnTm5o1kc
 - [x] 54. The Overanimation of Zenless Zone Zero — New Frame Plus (24:03) — https://youtu.be/1yH4Qz23FqM
-- [ ] 55. The Brilliant Animation in Metroid Dread — Video Game Animation Study (38:26) — https://youtu.be/1B1beXTnvEI
+- [x] 55. The Brilliant Animation in Metroid Dread — Video Game Animation Study (38:26) — https://youtu.be/1B1beXTnvEI
 - [ ] 56. The Animation of Cuphead — Video Game Animation Study (10:57) — https://youtu.be/pOBKGcehi8U
 - [ ] 57. How 2D Fighter Games are Animated — Video Game Animation Study (7:13) — https://youtu.be/WYCjmVhiLaM
 - [ ] 58. The Effects Animation of Hollow Knight — New Frame Plus (7:19) — https://youtu.be/SIJtfr-PO4Y
@@ -294,3 +294,81 @@ reference performance.
 `W06-54-technical-precision-does-not-substitute-for-genuine-acting-choice.json` — both checked
 directly against `validateProposedEntry`/`validateEvidenceSource`; both pass; re-swept against the
 full batch so far (eight prior entries) for concept-name collisions, none found.
+
+### 55. The Brilliant Animation in Metroid Dread — Video Game Animation Study
+
+2026-09-11. Watched at `transcript` detail (714 caption segments, clean on first pull, full 38:26
+read in full — the longest transcript in this batch so far). Matches W06.md's framing exactly
+("locomotion and transitions in a modern action game"). The densest video in the batch: four entries
+written, matching this programme's established precedent that an unusually dense video earns more
+than the usual 1–4 (W03 video 26, W05 videos 43/46/48/49).
+
+**What it teaches, specifically:**
+1. **The flagship mechanism**, cross-confirmed by the presenter across three unrelated situations
+   (the player character's step-climbing, a full mode change into Stealth, and an unrelated enemy
+   type): rather than authoring a transition for every possible (prior pose, next action) pair, every
+   bespoke action starts from one fixed canonical pose, and each limb independently performs its own
+   short "call to position" the instant the action triggers, however far it individually has to travel
+   (07:54–08:19, 11:00–11:08, 25:31–25:39). Wrote
+   **`limb_reset_to_canonical_pose_enables_seamless_bespoke_transitions`**.
+2. A companion finding at the decision-making layer: an enemy (the EMMI antagonists) reads as running
+   sophisticated adaptive pathfinding, but is actually a library of complete, NON-interruptible linear
+   clips selected one at a time, with a brief, natural-looking hesitation exactly at plausible decision
+   points (a corner, a threshold) reading as "thinking" rather than as a seam — the presenter's own
+   account is a direct correction of their initial, wrong assumption of a more complex system
+   (25:22–27:13). A genuinely interesting, non-contradictory tension with `blend_tree_locomotion_
+   replaces_state_machine` (W05, video 42) is named explicitly in this entry's own interactions: that
+   card argues away from state machines for smooth PLAYER control, while this finding shows a
+   state-machine-of-complete-clips is still the right call for an autonomous AGENT specifically. Wrote
+   **`noninterruptible_linear_clips_with_decision_hitch_read_as_complex_ai`**.
+3. Deliberately mismatched frame rates across simultaneous layers of the same game — 60fps character
+   gameplay, but many effects at a flat 30fps and in-engine (not pre-rendered) cutscenes dropping to
+   30 or 24fps — held for BOTH a real rendering-budget saving AND a deliberate "hand-crafted"/
+   "cinematic" stylistic payoff at once (20:08–20:42, 29:10–29:36). Important, deliberately-flagged
+   CONTRAST with this same batch's video 51 finding: that video found lowering a CAMERA's rate
+   specifically ugly and rejected; this video finds lowering an EFFECTS/cutscene rate specifically
+   good — not a disagreement between sources, since the domains (camera motion continuity vs.
+   effects/cutscene rendering budget and register) are genuinely different, and the entry's own
+   `non_use_cases` field states this explicitly so a future reader doesn't conflate the two. Wrote
+   **`differential_frame_rate_per_layer_for_performance_and_style`**.
+4. A small, vivid, single detail: a hand-on-wall contact pose is explicitly NOT IK-driven but a
+   hand-authored variant, placed higher or lower depending on whether an ability (the Morph Ball) is
+   currently unlocked — functioning as an undocumented diegetic ability indicator with no HUD element
+   at all (06:32–06:53). Distinct from `state_driven_frame_selection_instead_of_playback` (W05, video
+   42): that entry continuously SCRUBS a clip by a live variable; this one discretely SELECTS between
+   two authored variants by a boolean flag, and its distinguishing feature is doubling as a UI signal.
+   Wrote **`bespoke_pose_variant_as_undocumented_diegetic_state_indicator`**.
+
+**Cross-checks** (strong corroboration of an existing card from a fresh domain, not a new entry):
+Samus emoting through her eyes alone when the rest of her face/body is helmeted (31:00–31:37) is the
+same underlying principle as `always_visible_prop_as_primary_character_canvas` (W05, video 44,
+Overwatch first-person hands) — concentrate all characterization onto the one channel that is
+actually visible — applied to a fresh domain (a third-person helmeted character's eyes specifically)
+rather than a new mechanism.
+
+**Not written as entries** (real content, kept to notes): the near-total absence of visible mesh
+clipping in gameplay or cutscenes (28:43–29:09) is a real craft-quality observation but names no
+specific technique beyond "know your rig's limits," already implicit in existing pose/reach-limit
+knowledge. The detailed cutscene blocking analysis (Samus's stance shifts on meeting Quiet Robe,
+29:38–30:17) is genuinely well-observed acting-choice commentary but restates
+`technical_precision_does_not_substitute_for_genuine_acting_choice`'s own point (video 54, this
+batch) from a positive example rather than adding new mechanism.
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — entirely shipped game footage analysis, no independent filmed
+reference performance.
+
+**Checks for the queue:**
+- `check: per_item_key_density_variance_by_declared_layer — compare declared/effective key density
+  (ai/motion.js keyDensity) across different ITEMS in one project (a character vs. an effect vs. a
+  camera) as a proxy for a deliberate per-layer frame-rate mismatch — buildable today from an existing
+  measurement, contingent only on comparing across items rather than within one — video 55 @
+  20:08–20:42`
+
+**Entries written:** `W06-55-limb-reset-to-canonical-pose-enables-seamless-bespoke-transitions.json`,
+`W06-55-noninterruptible-linear-clips-with-decision-hitch-read-as-complex-ai.json`,
+`W06-55-differential-frame-rate-per-layer-for-performance-and-style.json`,
+`W06-55-bespoke-pose-variant-as-undocumented-diegetic-state-indicator.json` — all four checked
+directly against `validateProposedEntry`/`validateEvidenceSource`; all pass; re-swept against the full
+batch so far (twelve prior entries) for concept-name collisions, none found.

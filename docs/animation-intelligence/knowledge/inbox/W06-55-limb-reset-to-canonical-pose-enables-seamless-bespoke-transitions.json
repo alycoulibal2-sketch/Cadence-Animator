@@ -1,0 +1,38 @@
+{
+  "concept": "limb_reset_to_canonical_pose_enables_seamless_bespoke_transitions",
+  "category": "advanced",
+  "definition": "Rather than authoring a smooth transition for every possible pair of (whatever pose the character happens to be in) and (the next bespoke action being triggered), author each bespoke action to begin from ONE fixed, canonical starting pose, and have every limb independently perform a small, variable-length 'call to position' transition — however short or long that specific limb currently needs — into that canonical pose the instant the action is triggered, before the fully-authored bespoke clip itself plays.",
+  "purpose": "Make a high-frame-rate, highly responsive, button-driven character (or an autonomous agent choosing between many complete actions) look like it transitions smoothly between an unbounded number of possible prior states and an unbounded number of possible next actions, without needing to author a unique transition for every pair.",
+  "visible_effect": "An action that can be triggered from almost any prior pose (climbing a step, entering morph ball, snapping into stealth mode) always looks smooth — never a sudden snap from one pose to another — even though the character could have been in any number of very different configurations the instant before, because each limb only ever has to travel a short, individually-timed distance to the one pose the bespoke action always starts from.",
+  "psychological_or_gameplay_effect": "Reads as a highly polished, endlessly flexible character that 'just works' from any context, at high frame rate and with instant input response, without the visible seams a naive per-pair transition library (or a hard cut) would otherwise show.",
+  "physical_interpretation": "None — a transition-authoring strategy, not a physical property.",
+  "use_cases": [
+    "a fast, responsive, player-controlled character with many possible bespoke actions (climbing, rolling into a compact mode, entering a stealth stance) that can each be triggered from a wide range of prior poses",
+    "an autonomous agent (an enemy or companion) whose behavior tree selects between many complete linear actions, where each action can be entered from whatever pose the agent happened to be holding when the decision was made"
+  ],
+  "non_use_cases": [
+    "an action whose ENTRY pose is itself part of its meaning or timing (an anticipation pose that must read clearly before the main action) — collapsing straight to a canonical starting pose would erase exactly the anticipation a slower-paced action needs",
+    "a small number of possible source poses, where authoring the direct transitions individually is cheaper than building and tuning a canonical-pose reset step"
+  ],
+  "interactions": [
+    "independent_expectation_positioning_replaces_paired_animation (W05, video 49) — a sibling technique solving the same underlying combinatorial-explosion problem (too many possible pairings to author individually) in a completely different genre (paired melee combat), by having each side act relative to an EXPECTATION rather than a shared fixed point; this entry's fixed canonical pose is a different, complementary solution to the same class of problem",
+    "blend_tree_locomotion_replaces_state_machine (W05, video 42) — an apparent tension worth naming rather than resolving as a contradiction: that entry recommends moving AWAY from discrete states toward a continuous blend space for smooth PLAYER locomotion; this entry's mechanism is itself closer to a state-machine-of-complete-clips, and works well here specifically because the 'reset to canonical pose' step is what supplies the missing continuity a pure blend space would otherwise provide"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and honestly out of scope for an authoring tool rather than a wiring gap: this is a RUNTIME animation-blending strategy (a game engine's transition/state graph deciding, live, how to get from an arbitrary current pose to a fixed target pose), and Cadence has no runtime blend graph or state machine of any kind — `ai/motion.js` measures AUTHORED clip data, never a live runtime transition. `ai/pose.js` could author the canonical target pose itself (an ordinary `PoseSpec`), but the per-limb variable-duration reset-and-blend step this technique depends on is a runtime behavior this build does not attempt to represent, matching the same 'engine-side' scope boundary this batch's other runtime-behavior entries (W05) already establish.",
+  "control_surface": "None — `ai/pose.js` could author the canonical target pose an implementation would blend toward, but nothing in this build authors or represents the runtime blend step itself.",
+  "detection_and_measurement_methods": "Not measurable in this build: no track or measurement represents a live, runtime pose-to-pose blend distinct from an authored clip's own keys.",
+  "generation_or_modification_methods": "None currently reaches the runtime blend step; the canonical target pose itself is reachable with ordinary `PoseSpec` authoring.",
+  "failure_modes": [
+    "collapsing to the canonical pose too quickly on an action whose specific entry pose was meant to communicate something (weight, anticipation, character-specific timing), erasing that information",
+    "a canonical pose chosen so far from a character's typical range that the 'small' per-limb reset transition is no longer small for common cases, reintroducing the visible-snap problem this technique exists to avoid"
+  ],
+  "roblox_considerations": "Directly reachable in Roblox's own Animator/AnimationTrack system via a short blend-in duration on each new track's fade time, targeting a shared canonical pose — the same technique this source describes, expressed through Roblox's own native animation-blending primitives rather than anything bespoke.",
+  "performance_implications": "None stated by the source beyond the authoring-cost saving of not needing a transition per source-pose/action pair.",
+  "examples": [
+    "'at any point the character model needs to do one entire specific bespoke move, it calls in all separate limbs into the starting position of the bespoke move, and that animation then takes place... it doesn't necessarily matter which leg is first when it gets to that point, it fits in what tiny transition it can before moving onto the tailored action. Which is why climbing up short steps looks so nice.' (video @ 07:54–08:19)",
+    "the same mechanism named again for a full-body mode change: 'snapping into Cloak Mode requires the cease of all current animations and calling all limbs to the starting position of the next action in stealth mode' (video @ 11:00–11:08)",
+    "the same mechanism observed independently in the enemy AI (the EMMI antagonists): 'when a particular action is called, the current pose is halted, all limbs called into the starting position of the next action, and that action simply happens' (video @ 25:31–25:39)"
+  ],
+  "evidence_status": "video: https://youtu.be/1B1beXTnvEI @ 07:54–08:19, 11:00–11:08, 25:31–25:39 — the presenter (Video Game Animation Study) infers and states this mechanism directly from close repeated observation of Metroid Dread (Mercury Steam), confirmed independently across the player character, a mode-change action, and an unrelated enemy type; transcript-only, no frames extracted this session; experimental until validated"
+}

@@ -1,0 +1,41 @@
+{
+  "concept": "differential_frame_rate_per_layer_for_performance_and_style",
+  "category": "advanced",
+  "definition": "Deliberately running different simultaneous animation 'layers' of the same moment at different fixed frame rates from the base game's own — the source's example runs core character gameplay at 60fps while many particle/effects animations play at a flat 30fps, and in-engine cutscenes drop to 30 or even 24fps — for TWO reasons held at once: a genuine rendering/performance saving (letting the rest of the game run smoothly), and a deliberate stylistic payoff (a lower, evenly-stepped rate reads as more 'hand-crafted' and gives cutscenes a more cinematic feel), rather than treating frame rate as a single project-wide constant.",
+  "purpose": "Spend the frame-rate budget where it is actually needed (fast player-controlled motion) while deliberately under-spending it elsewhere (effects, cutscenes) for both a real performance saving and an intentional stylistic texture.",
+  "visible_effect": "Effects like particle water/lava, repellent-object reactions, suit destruction, and the wall-jump kick visibly step at a slower, more discrete rate than the 60fps character motion happening in the same frame; cutscenes visibly run choppier than gameplay while transitioning seamlessly to and from it, since they are rendered in-engine rather than pre-rendered separately.",
+  "psychological_or_gameplay_effect": "A deliberately lower, evenly-stepped rate on these specific layers reads as 'a more hand-crafted feel' and 'a stylish appeal' according to the source, distinct from reading as a technical shortcoming — though the source also notes some players find the visible rate mismatch takes getting used to, naming it honestly as a genuine trade-off rather than a costless win.",
+  "physical_interpretation": "None — a deliberate rendering-budget and stylistic choice, not a physical property.",
+  "use_cases": [
+    "a high-frame-rate, highly responsive player character where the responsiveness itself is a core requirement, paired with effects or secondary systems that can run at a visibly lower, stepped rate without harming that responsiveness",
+    "in-engine (not pre-rendered) cutscenes that need to transition seamlessly to and from gameplay, where a lower cutscene frame rate both saves rendering budget and lends a distinct, more cinematic register to those specific moments"
+  ],
+  "non_use_cases": [
+    "camera motion specifically — this same batch's own video 51 finding (`stepped_keyframes_replace_interpolation_for_2d_read`) reports the OPPOSITE result for a camera's own frame rate: lowering it independent of an already-stepped character 'looks ugly' and reads as disjointed rather than stylish, a genuinely different result for a different domain (camera MOTION continuity against the viewer's own tracking expectations, versus effects/cutscene RENDERING budget and register) that should not be conflated with this entry's finding",
+    "any layer whose responsiveness to player input is itself the point, where a lower frame rate would be read as unresponsive input lag rather than as a deliberate stylistic register"
+  ],
+  "interactions": [
+    "stepped_keyframes_replace_interpolation_for_2d_read (video 51, this same batch) — see the non-use-case above for the important contrast: both entries concern deliberately non-uniform frame rate across a project, but this entry's finding (lower rate on effects/cutscenes = good) is the opposite of that entry's own camera non-use-case (lower rate on camera = bad), and the difference is WHICH domain the rate applies to, not a disagreement between sources",
+    "frame_by_frame_remodeled_mesh_for_stepped_vfx (video 52, this same batch) — a different, more extreme technique for the same broader idea (an effects layer visually distinct from smooth continuous character motion); that entry uses discrete hand-sculpted GEOMETRY per frame, this entry uses a simple flat frame-rate divisor on an otherwise continuous effect"
+  ],
+  "style_variations": {
+    "anime": "a flat, lower stepped rate on cutscenes/effects reads as consistent with a hand-crafted, cel-animation-adjacent aesthetic, per the source's own framing",
+    "realistic": "a visibly stepped rate would more likely read as a technical shortcoming than a stylistic choice, since realistic rendering typically aims for rate consistency"
+  },
+  "cadence_representation": "Partially representable, but at the wrong granularity: Cadence's project has a single declared frame rate (`project.length`/track sampling implicitly assumes one timeline rate), and nothing in this build represents multiple simultaneous layers running at DIFFERENT fixed rates within the same shot. A key's own spacing could emulate a lower effective rate for one specific item's tracks (fewer, evenly-spaced keys), which is reachable today with ordinary keyframe authoring, but there is no declared, project-wide 'this layer runs at half rate' concept the way this source describes a whole rendering pipeline doing.",
+  "control_surface": "None declares a per-layer frame-rate override; the closest reachable approximation is authoring one item's own tracks with sparser, evenly-spaced keys than another item's in the same project.",
+  "detection_and_measurement_methods": "Partially buildable: `ai/motion.js`'s `keyDensity` already measures key spacing per track, so comparing declared/effective key density across different ITEMS in the same project (a character vs. an effect vs. a camera) is a real, buildable proxy for whether a deliberate rate mismatch exists — nothing currently frames this as a declared per-layer RATE, only as an emergent property of where keys happen to sit.",
+  "generation_or_modification_methods": "Ordinary keyframe authoring already allows sparser keying on one item's tracks than another's; nothing declares or enforces a target rate per item/layer as a style parameter.",
+  "failure_modes": [
+    "under-committing to the rate mismatch (some players finding it merely inconsistent rather than stylish) — the source notes this honestly rather than presenting the technique as a costless win",
+    "applying a lower rate to a layer whose own responsiveness (not appearance) is the point, reading as lag rather than as style",
+    "confusing this technique's PERFORMANCE-driven motive (some effects need the lower rate to let everything else run smoothly) with its STYLE-driven motive (a hand-crafted look) — the source holds both simultaneously rather than picking one justification"
+  ],
+  "roblox_considerations": "Roblox's own rendering does not expose a per-effect or per-cutscene frame-rate override distinct from the client's overall render rate; approximating this technique would mean authoring sparser keys on the relevant tracks (matching this entry's own closest Cadence approximation) rather than a true divided render rate.",
+  "performance_implications": "A real, stated rendering-budget saving on the source's own account: 'some of these half-speed frame rates actually allow the rest of the game to run as smoothly as it does.'",
+  "examples": [
+    "'Dread does something I love, and that's mixing frame rates. The game itself runs at 60fps during gameplay, but a lot of effects animations actually play at 30fps, half of the game's speed... it gives it a more hand-crafted feel, in my opinion, and it gives it a stylish appeal' (video @ 20:08–20:42)",
+    "'all the cutscenes in this game are done in-engine, and aren't pre-rendered, which is how we're able to transition from gameplay to cutscene and back again so smoothly... the cutscenes cut the frame rate from 60 to 30, or maybe even 24... I think, like the effects, this is to save rendering space. Also it just gives the scenes a slightly more cinematic feel' (video @ 29:10–29:36)"
+  ],
+  "evidence_status": "video: https://youtu.be/1B1beXTnvEI @ 20:08–20:42, 29:10–29:36 — the presenter states both the performance and stylistic motives directly, applied to two separate sites (effects, cutscenes) in the same game; transcript-only, no frames extracted this session; experimental until validated"
+}
