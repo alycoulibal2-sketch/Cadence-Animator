@@ -6,7 +6,7 @@
 - [x] 42. Animation Bootcamp: 2018 Tricks of the Trade — GDC (31:10) — https://youtu.be/o1tti636Kag
 - [x] 43. Animation Bootcamp: The First Person Animation of Overwatch — GDC (34:03) — https://youtu.be/7t0hLZd_8Z4
 - [x] 44. How Overwatch Conveys Character in First Person — New Frame Plus (15:32) — https://youtu.be/7Dga-UqdBR8
-- [ ] 45. Animation Bootcamp: Animating Cameras for Games — GDC (26:26) — https://youtu.be/hP1Vz70WouE
+- [x] 45. Animation Bootcamp: Animating Cameras for Games — GDC (26:26) — https://youtu.be/hP1Vz70WouE
 - [ ] 46. Animation Bootcamp: Script to Screen: The Development Diary of Marvel's Spider-Man — GDC (31:13) — https://youtu.be/r_rJJyIPrmM
 - [ ] 47. Evolving Combat in 'God of War' for a New Perspective — GDC (59:52) — https://youtu.be/hE5tWF-Ou2k
 - [ ] 48. Keyframes and Cardboard Props: The Cinematic Process Behind 'God of War' — GDC (54:01) — https://youtu.be/MNinZWlhprE
@@ -301,3 +301,69 @@ as if merely unbuilt.
 `W05-44-locomotion-character-conveyed-via-hand-secondary-motion-alone.json`,
 `W05-44-swing-pivot-at-grip-not-geometric-center.json` — all four pass `validateProposedEntry` and
 `validateEvidenceSource`; no concept-name collisions against the full corpus.
+
+### 45. Animation Bootcamp: Animating Cameras for Games — GDC (presenter unnamed in captions)
+
+2026-09-11. Watched at `transcript` detail (608 caption segments, clean on first pull). The captions
+never clearly state the presenter's name (auto-captions render their studio as "robotki", almost
+certainly Robotoki, maker of Human Element — noted honestly as caption-derived rather than confirmed);
+entries below cite them as "the GDC presenter" rather than guess a name. This is the first purely
+camera-focused talk in the batch, and it directly engages the exact gap W05.md's own line for this
+video points at: this build's `SHOT-003/004` ("no active-camera model exists... a camera is an item
+with @origin and @fov tracks and nothing measures framing"), referenced explicitly in `ai/benchmark.js`
+and the committed baseline. Two of the four entries below name that gap directly as their shared
+missing prerequisite, with a concrete sketch of what filling it would need.
+
+**What it teaches, specifically:**
+1. First-person camera motion sickness is caused primarily by uncompensated ROTATION relative to the
+   horizon, not by FOV — demonstrated with a direct before/after (identical translation, only rotation
+   stabilized) and a named real incident (a teammate made "violently sick" by an unrelated camera
+   change) (23:04–24:22). Wrote **`horizon_stabilization_reduces_motion_sickness_independent_of_fov`**.
+2. Lens focal length distorts a character's proportions independently of camera distance — a direct
+   300mm-vs-25mm comparison on the same model, with the explicit warning that a wrong lens choice can
+   "break your character... before you've even animated it" (03:44–04:38). Wrote
+   **`lens_focal_length_distorts_character_off_model`**.
+3. Rule-of-thirds subject placement is a deliberate STORY variable, not a single generic aesthetic
+   target — the identical shot moved between two thirds produces opposite readings (wonder vs. danger),
+   and Forest Gump's dead-centre-by-default framing makes its rare deviations meaningful precisely
+   because the norm is maintained (10:58–12:02). This is the entry that most directly engages
+   `SHOT-003/004`: every input a world-to-screen projection would need (camera FOV/origin, a rig's
+   world position via `ai/pose.js`) already exists in this build except the projection step itself —
+   said explicitly in the entry rather than left implied. Wrote
+   **`deliberate_thirds_placement_as_story_variable`**.
+4. Unintentional tangents (elements touching-but-not-crossing, most commonly a head grazing the frame's
+   top edge) measurably hijack viewer attention away from the intended focal point, backed by cited
+   third-party eye-tracking heat-map research (13:23–15:07). The harder sibling of #3: detecting a
+   tangent needs projected SILHOUETTES (`get_bounding_box` could supply the world-space half), not just
+   a single subject point. Wrote **`unintentional_tangent_hijacks_viewer_attention`**.
+
+**Not written as entries** (real content, kept to notes): the four depth-space categories (flat/deep/
+limited/ambiguous) matched to story beats or deliberately contrasted between a game's different
+environments (15:32–18:47) is a real, evidenced technique but would mostly restate the same
+`SHOT-003/004`-blocked measurement problem a third time without adding a new mechanism beyond entries 3
+and 4 above. First-person gameplay-camera restraint (any control-taking-away moment must be small and
+tied to a natural trigger — stationary→movement, indoor→outdoor — never an arbitrary cinematic flourish,
+20:56–22:53) is essentially this video's own camera-specific restatement of `procedural_movement_
+precedes_cosmetic_animation` (video 41)'s core claim and was logged as a cross-check rather than a new
+entry.
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — a cinematography/composition talk with film-still and slide examples, no
+trackable performed motion.
+
+**Checks for the queue:**
+- `check: subject_thirds_grid_placement — the SHOT-003/004-blocked check named directly in this
+  video's entries: given a camera's @origin/@fov and a declared subject's world position (already
+  available via ai/pose.js), project to screen space and report which thirds-grid cell the subject
+  falls in per frame — blocked on building the projection step itself — video 45 @ 10:58–12:02`
+- `check: frame_tangent_detection — given projected screen-space silhouettes for two or more items
+  (get_bounding_box supplies the world-space half), flag a near-zero non-overlapping gap between their
+  projected extents as a candidate unintentional tangent — blocked on the same projection step as
+  above, plus the silhouette (not just centre-point) extension — video 45 @ 13:23–15:07`
+
+**Entries written:** `W05-45-horizon-stabilization-reduces-motion-sickness-independent-of-fov.json`,
+`W05-45-lens-focal-length-distorts-character-off-model.json`,
+`W05-45-deliberate-thirds-placement-as-story-variable.json`,
+`W05-45-unintentional-tangent-hijacks-viewer-attention.json` — all four pass `validateProposedEntry`
+and `validateEvidenceSource`; no concept-name collisions.

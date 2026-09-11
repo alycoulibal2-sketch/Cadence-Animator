@@ -1,0 +1,37 @@
+{
+  "concept": "lens_focal_length_distorts_character_off_model",
+  "category": "advanced",
+  "definition": "A camera lens's focal length distorts a captured subject's proportions in a way that is NOT equivalent to simply moving the camera closer or farther away — a short/wide focal length exaggerates depth separation and can distort facial features up close, while a long focal length flattens the image — so the SAME character model can visibly read as off-model purely from an animator's lens choice, before any pose or expression is even keyed.",
+  "purpose": "Protect a character's intended design/proportions through the camera stage of production, treating lens choice as a character-fidelity concern and not only a framing/composition one.",
+  "visible_effect": "The same character model, shot with a short (e.g. 25mm) versus long (e.g. 300mm) focal length, visibly changes proportion — features can appear stretched, exaggerated, or compressed in ways the original model was never designed to display.",
+  "psychological_or_gameplay_effect": "A viewer familiar with the character's canonical design can perceive an off-model shot as 'wrong' even when the underlying rig/pose data is completely unchanged, which the presenter frames as a distinct risk from ordinary posing or animation mistakes.",
+  "physical_interpretation": "An accurate simulation of real lens optics — perspective distortion increases as focal length shortens and camera distance decreases, a real property of projecting a 3D scene through a finite-focal-length lens onto a flat sensor/frame.",
+  "use_cases": [
+    "any close character shot (a first-person view model, a cinematic close-up) where lens choice must be validated against the character's known-good proportions before it ships",
+    "establishing a per-character or per-shot-type standard focal length range specifically to protect model fidelity across many shots and animators"
+  ],
+  "non_use_cases": [
+    "a wide establishing/environment shot with no character close enough for lens distortion to be perceptible on their proportions",
+    "a deliberate stylistic choice to exaggerate a character via lens distortion (a comedic or horror close-up), where the 'off-model' read IS the intended effect rather than a defect"
+  ],
+  "interactions": [
+    "decoupled_view_model_fov_protects_authored_pose (video 43) — a related but distinct camera-protects-character concern: that entry protects a POSE from a player-adjustable FOV, this one protects a MODEL's proportions from an animator's own lens choice at authoring time",
+    "the SHOT-003/004 gap (this build) — both this entry and the composition entries from this same video name the same missing active-camera/framing model as their shared prerequisite for automated checking"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: Cadence's camera FOV (`add_camera`, `set_project_props`) is authored as a single scalar with no simulated lens-distortion model behind it — the same `SHOT-003/004` gap ('no active-camera model exists... nothing measures framing') means Cadence has no way to predict or flag that a given FOV/distance combination will visibly distort a specific character's proportions. A user can set any FOV value with no feedback about its effect on the framed subject.",
+  "control_surface": "`add_camera`/`set_project_props` author a camera's FOV as project data; nothing checks that value against a subject's distance or known-good proportions.",
+  "detection_and_measurement_methods": "None currently, though the underlying quantity (camera FOV plus subject distance, which together determine effective distortion) is exactly project data Cadence already stores — a future check could flag a short-FOV-at-close-distance combination as a distortion-risk warning, but no code in this build computes or reports it.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "choosing a lens/FOV purely for framing convenience without checking its effect on a close character's proportions, producing an off-model result the presenter names directly",
+    "copying a lens setting from a wide establishing shot into a close character shot without re-validating it at the new distance"
+  ],
+  "roblox_considerations": "Roblox's `Camera.FieldOfView` maps onto a real perspective projection with the same distortion behaviour real lenses have, so this is a directly transferable concern for any Roblox game with close-up character cameras (a cutscene, a first-person view model), not a CG-only artifact.",
+  "performance_implications": "None.",
+  "examples": [
+    "a direct 300mm-vs-25mm comparison on the same character shown on screen, with the presenter stating 'you can easily break your character without being careful about how you choose your lenses' (video @ 04:26–04:38)",
+    "the general claim stated immediately beforehand: shorter focal lengths give a wider field of view 'but also creates greater depth and separation between your focal points', while longer focal lengths give a narrower field of view but 'flattens the image' (video @ 03:50–04:12)"
+  ],
+  "evidence_status": "video: https://youtu.be/hP1Vz70WouE @ 03:44–04:38 — the GDC presenter demonstrates a direct 300mm/25mm lens comparison on the same character model and states the off-model risk directly; no frames extracted (transcript-only); experimental until validated"
+}

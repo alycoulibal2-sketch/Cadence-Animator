@@ -1,0 +1,37 @@
+{
+  "concept": "deliberate_thirds_placement_as_story_variable",
+  "category": "advanced",
+  "definition": "Treat a subject's position relative to the frame's rule-of-thirds grid as a deliberate storytelling variable with its own specific meaning (edge-of-frame with room behind = wonder/no-urgency, opposite-third with the subject crowding the edge = danger/pressure, dead-centre held for most of a film then broken only at character-defining moments = neutrality until change), rather than treating 'on a third' as a single generic aesthetic default to satisfy and move on from.",
+  "purpose": "Use frame position itself as a narrative signal the audience reads, on top of (not instead of) whatever the rule of thirds already does for general visual appeal.",
+  "visible_effect": "The identical character, expression and lens can be placed at different points along the same thirds grid and produce visibly different emotional readings purely from that placement choice.",
+  "psychological_or_gameplay_effect": "The presenter's own worked example (the same shot moved from one edge-third to the opposite one) demonstrates two opposite emotional reads — wonder versus impending danger — from position alone, with nothing else changed.",
+  "physical_interpretation": "None — a compositional/directorial choice, not a property of the motion or the physical scene.",
+  "use_cases": [
+    "any shot where a character's specific emotional state or narrative moment (not just general appeal) needs to be communicated through framing alone",
+    "establishing a consistent frame-position 'home' for a character (e.g. always dead-centre) specifically so that DEVIATING from it at a key story moment carries meaning, per the Forest Gump example cited"
+  ],
+  "non_use_cases": [
+    "a purely functional/gameplay HUD-adjacent shot where rule-of-thirds placement is only about legibility, with no narrative weight to assign",
+    "a rapid sequence of many shots where a viewer has no time to register a specific position's meaning before the next cut — the technique depends on a moment held long enough to read"
+  ],
+  "interactions": [
+    "unintentional_tangent_hijacks_viewer_attention (this batch, video 45) — both concern where a frame directs a viewer's eye, one through deliberate subject placement and the other through avoiding an accidental competing pull",
+    "the SHOT-003/004 gap (this build) — the shared missing prerequisite: computing where a declared subject actually projects onto the frame through the camera's own FOV/origin, which nothing in this build does today"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and named directly by this build's own tracked gap: `SHOT-003/004` states 'a camera is an item with @origin and @fov tracks and nothing measures framing' — this entry is precisely the kind of framing measurement that gap refers to. Building it would need, at minimum: the camera's `@origin`/`@fov` at a frame, a declared subject's world position (from the rig's own FK solve, already available via `ai/pose.js`), and a world-to-screen projection to place that subject against a thirds grid — every input already exists in this build except the projection step itself.",
+  "control_surface": "None. A camera's FOV/origin and a rig's world position are both already authored/computed data; nothing projects one against the other.",
+  "detection_and_measurement_methods": "Buildable in principle, blocked on the SHOT-003/004 gap: a world-to-screen projection (standard perspective-projection math, given the camera's FOV/origin/orientation and the subject's world position, both already available) would let a check report which third-grid cell a declared subject falls in at any frame — no code in this build performs that projection today.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "defaulting every shot to on-thirds placement as an aesthetic checkbox without considering which specific reading (wonder vs. danger vs. neutral) the exact position within that guideline communicates",
+    "breaking an established frame-position 'home' too often, which the Forest Gump example depends on NOT doing — the technique's payoff comes from the contrast against a maintained norm"
+  ],
+  "roblox_considerations": "A Roblox `Camera`'s `ViewportSize` and `WorldToViewportPoint` APIs already provide exactly the projection this entry's measurement would need — the capability exists natively on the target engine even though Cadence itself has no equivalent yet.",
+  "performance_implications": "A single world-to-screen projection per subject per frame is cheap; this would be an authoring-time/review-time check, not a runtime cost.",
+  "examples": [
+    "the same character, expression and shot type placed at one edge-third ('nowhere to go... a sense of wonder, there's something fantastic in front of me') versus the opposite third ('a sense of impending danger... something about to crush me') — identical elements, opposite readings, from position alone (video @ 10:58–11:19)",
+    "Forest Gump held dead-centre-frame for most of the film specifically so that shifting him onto a third at his character-arc's turning points carries weight the placement would not otherwise have (video @ 11:31–12:02)"
+  ],
+  "evidence_status": "video: https://youtu.be/hP1Vz70WouE @ 10:58–12:02 — the GDC presenter demonstrates the same-shot-different-third comparison directly and analyzes the Forest Gump example by name; no frames extracted (transcript-only); experimental until validated"
+}

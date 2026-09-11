@@ -1,0 +1,37 @@
+{
+  "concept": "unintentional_tangent_hijacks_viewer_attention",
+  "category": "advanced",
+  "definition": "A tangent — any point where two elements in a frame touch or nearly touch without crossing (a head grazing the top frame edge, two silhouette edges kissing) — measurably pulls a viewer's eye to that intersection, whether or not the shot's composer intended it, so an UNINTENTIONAL tangent actively competes with and can defeat a shot's actual intended focal point.",
+  "purpose": "Name and avoid a specific, common composition defect (viewer attention pulled somewhere the composer did not intend) that is otherwise easy to miss because the individual elements involved may each look fine in isolation.",
+  "visible_effect": "A composition where a character's head just touches the top frame edge, or two objects' silhouettes just kiss, draws a viewer's eye to that touch point measurably (per cited eye-tracking data) even when nothing else marks it as significant.",
+  "psychological_or_gameplay_effect": "An intended focal point (a character's face, a key prop) loses viewer attention share to an unrelated, unintended tangent point elsewhere in the frame — a subtle defect that degrades a shot's communication without being obviously 'wrong' on a casual look.",
+  "physical_interpretation": "None — a property of how human visual attention responds to line/edge geometry in a 2D projection, not a property of the 3D scene itself.",
+  "use_cases": [
+    "reviewing any composed shot (cinematic or gameplay) where a specific element must reliably draw viewer attention",
+    "deliberately CREATING a tangent as a directing tool when its attention-pulling effect is wanted at a specific point — the same mechanism used on purpose rather than avoided"
+  ],
+  "non_use_cases": [
+    "a shot with no specific intended focal point (a pure establishing/environment shot), where the concept of a 'hijacked' focal point does not apply",
+    "a deliberately ambiguous or chaotic composition where drawing the eye to multiple competing points IS the intended effect"
+  ],
+  "interactions": [
+    "deliberate_thirds_placement_as_story_variable (this batch, video 45) — both concern directing viewer attention through frame geometry, one through subject position and this one through unintended edge-touching; a shot can get the first right and still lose to the second",
+    "the SHOT-003/004 gap (this build) — the shared missing prerequisite: detecting a tangent requires knowing where multiple elements' silhouette edges actually project onto the frame, the same missing capability the thirds-placement entry names"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, blocked by the same SHOT-003/004 gap as `deliberate_thirds_placement_as_story_variable`: detecting a tangent needs each relevant item's projected screen-space silhouette (not just its centre point), which is a strictly harder version of the world-to-screen projection that entry already names as missing — this entry is evidence the eventual active-camera model needs silhouette/bounding data (`get_bounding_box` already exists and could supply it), not just a single point per item.",
+  "control_surface": "None. `get_bounding_box` already computes an item's extent in world space; nothing projects that extent to screen space or checks it against another item's projected extent for a near-touch.",
+  "detection_and_measurement_methods": "Buildable in principle, blocked on the same missing projection step: with a world-to-screen projection available (see `deliberate_thirds_placement_as_story_variable`), comparing two items' projected bounding extents for a near-zero, non-overlapping gap would directly detect a tangent — the eye-tracking evidence cited in this entry's source is exactly the kind of ground truth such a check could be validated against, though no code in this build performs the check today.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "reviewing a shot only by checking whether the INTENDED focal point is correctly placed, without also checking whether an unrelated tangent elsewhere in frame is competing for attention",
+    "the common, specifically-named case of a head touching the top frame edge going unnoticed because each individual element (the head's position, the frame's top edge) looks unremarkable alone"
+  ],
+  "roblox_considerations": "The same `WorldToViewportPoint` API noted for `deliberate_thirds_placement_as_story_variable` would supply the projection this check needs; Roblox has no built-in tangent-detection tool either.",
+  "performance_implications": "A pairwise projected-bounding-extent comparison across a scene's items per checked frame is cheap for typical item counts; this would be an authoring-time/review-time check, not a runtime cost.",
+  "examples": [
+    "heads touching the top of the frame named directly as 'a very very common one', fixable by cropping in or pulling back (video @ 13:56–14:04)",
+    "real eye-tracking heat-map data cited showing a viewer's gaze drawn immediately to a vanishing point and to points of contrast/movement, and 'darting all over' in ambiguous space with no clear focal point — direct external evidence for how strongly frame geometry (not just narrative content) drives viewer attention (video @ 14:16–15:07)"
+  ],
+  "evidence_status": "video: https://youtu.be/hP1Vz70WouE @ 13:23–15:07 — the GDC presenter defines tangents, gives the head-touching-frame-top example, and cites third-party eye-tracking heat-map research as evidence; no frames extracted (transcript-only); experimental until validated"
+}

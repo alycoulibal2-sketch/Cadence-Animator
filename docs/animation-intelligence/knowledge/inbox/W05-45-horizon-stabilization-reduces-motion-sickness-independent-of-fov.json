@@ -1,0 +1,37 @@
+{
+  "concept": "horizon_stabilization_reduces_motion_sickness_independent_of_fov",
+  "category": "advanced",
+  "definition": "Player motion sickness in a moving first-person camera is driven primarily by uncompensated camera ROTATION relative to the horizon (roll/pitch jitter from head-bob or uneven ground), not by field of view or the amount of translational movement itself — stabilizing the camera's rotation against the horizon while leaving translation and speed completely unchanged measurably reduces sickness.",
+  "purpose": "Fix a first-person camera's motion-sickness problem at its actual biological cause (mismatched visual rotation vs. the inner ear's own stabilization expectation) instead of the commonly-assumed fix (narrowing FOV), which the presenter states directly is a misconception.",
+  "visible_effect": "Two cameras with byte-for-byte identical translational movement and FOV, one with raw head-tracked rotation and one with the SAME rotation stabilized against the horizon, look almost the same on casual viewing but produce measurably different physical comfort for a player actually controlling one.",
+  "psychological_or_gameplay_effect": "A camera whose rotation fights the player's own vestibular-ocular/vestibular-spinal stabilizing reflexes reads as physically wrong at a level below conscious perception — the presenter frames this as an evolutionary mismatch ('it's hard to run away from a bear if you can't see straight'), not a stylistic preference.",
+  "physical_interpretation": "Models the real human vestibular system's expectation that the visual horizon stays stable during self-motion regardless of head/body jostling — a moving camera that violates this (rotating with every footstep) reads as physically wrong the way real uncompensated vision never does, since biological head-stabilization reflexes normally prevent it.",
+  "use_cases": [
+    "any first-person camera driven by procedural head-bob, footstep impact, or uneven-terrain contact, where the raw rotational signal would otherwise reach the player unfiltered",
+    "diagnosing a reported motion-sickness complaint before assuming FOV is the cause — the presenter's own anecdote is a teammate becoming 'violently sick' from a camera value change unrelated to FOV"
+  ],
+  "non_use_cases": [
+    "a deliberately disorienting effect wanted for a specific narrative beat (a concussion, an underwater tumble) — stabilization would defeat the intended effect",
+    "a camera with no rotational component to stabilize in the first place (a fixed-angle or pure-translation camera)"
+  ],
+  "interactions": [
+    "decoupled_view_model_fov_protects_authored_pose (video 43) — both are 'protect the player's experience from an uncontrolled camera variable' techniques, one for pose distortion and this one for physical comfort; both directly contradict the common assumption that FOV alone governs first-person comfort",
+    "procedural_movement_precedes_cosmetic_animation (video 41) — a related but distinct discipline: that entry protects player INPUT from an animation layer, this one protects player COMFORT from a camera layer, both by isolating a cosmetic signal from something that must stay trustworthy"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: Cadence's camera items (`add_camera`) author `@origin`/`@fov` tracks as ordinary keyframed data, with nothing distinguishing a camera's rotation as horizon-relative versus head-relative, and no runtime stabilization filter at all — the same gap named directly by this build's own `SHOT-003/004` note ('no active-camera model exists... a camera is an item with @origin and @fov tracks and nothing measures framing'). A Cadence-authored camera clip could express either a stabilized or unstabilized rotation curve by hand, but nothing in this build classifies which one a given curve is, or recommends one over the other.",
+  "control_surface": "None. `add_camera`/`set_keyframe` on a camera's rotation track can author either signal, but no tool distinguishes or validates them.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s angular-velocity/orientation-change measurement, applied to a camera item's rotation track and compared against a declared 'horizon' reference (a world up-vector), could in principle classify how much of a camera's rotation is horizon-relative-stable versus not — a real, buildable comparison no code in this build currently runs, and one more concrete data point toward what a `SHOT-003/004` active-camera model would need.",
+  "generation_or_modification_methods": "None built — a stabilization filter (subtracting a horizon-relative rotation component from a raw signal) is a signal-processing operation no tool in this build performs.",
+  "failure_modes": [
+    "assuming a motion-sickness complaint is an FOV problem and narrowing FOV, which the presenter states directly is a common but incorrect diagnosis",
+    "stabilizing rotation so aggressively that intentional camera acting (a deliberate tilt, a Dutch angle) is flattened along with the unwanted jitter — the fix needs to preserve authored rotation while removing only the involuntary component"
+  ],
+  "roblox_considerations": "A Roblox first-person `Camera` driven by `Humanoid` head CFrame inherits exactly the raw rotational jitter this entry describes; implementing horizon stabilization would mean computing the camera's rotation relative to a world up-vector each frame rather than parenting it directly to a bobbing head part.",
+  "performance_implications": "A per-frame stabilization filter (comparing raw rotation against a horizon reference and correcting) is cheap, well within a first-person camera's existing per-frame cost.",
+  "examples": [
+    "a direct A/B demonstration: a camera rigidly constrained to a running character's head versus the identical camera with ONLY its rotation stabilized against the horizon — 'no difference in the camera movement at all but it's a much more stable experience' (video @ 23:10–23:47)",
+    "a named real incident: a teammate at the presenter's studio became 'violently sick' after a camera value was changed during a playtest, traced to rotational instability rather than FOV (video @ 23:22–23:36)"
+  ],
+  "evidence_status": "video: https://youtu.be/hP1Vz70WouE @ 23:04–24:22 — the GDC presenter (an animation director with ~14 years in games: EA, then animation director on Hitman at Square Enix, now at a studio the auto-captions render as 'Robotki' working on 'Human Element') states the FOV-is-not-the-cause finding directly and demonstrates the stabilization fix with a real before/after comparison and a named incident; no frames extracted (transcript-only); experimental until validated"
+}
