@@ -1,0 +1,41 @@
+{
+  "concept": "high_contrast_monochrome_burst_as_named_impact_frame_technique",
+  "category": "advanced",
+  "definition": "At a moment of high impact or energy release, insert a frame (or short run of frames) that abandons the shot's normal color palette entirely for a near-monochrome black-and-white image dominated by sharp, straight lines radiating outward from a central point (a 'starburst' pattern) — explicitly labeled on-screen in this source as a 'HIGH CONTRAST FRAME' — shown recurring across multiple different anime sources credited to the same key animator, suggesting a recognized, named professional technique rather than a one-off effect.",
+  "purpose": "Sell the intensity of an impact or energy release by briefly breaking the shot's own established color and rendering language, using a starkly different (near-monochrome, radiating-line) visual register that reads as more intense than continuing the shot's normal look ever could.",
+  "visible_effect": "A frame or short burst of frames showing a stark black-and-white radiating spike/line pattern emanating from a central point, cutting in at the peak of an impact, energy attack, or explosion, then returning to the shot's normal color rendering immediately after.",
+  "psychological_or_gameplay_effect": "Not confirmable from the sampled frames alone (no transcript was available for this video — see evidence_status); visually, the technique's placement at each clip's most intense, highest-energy beat is consistent with a readability/impact-emphasis purpose, matching this batch's own already-documented impact/exaggeration vocabulary, but no spoken claim from the source could be captured to confirm the intended psychological mechanism directly.",
+  "physical_interpretation": "None — an explicit, stylized departure from the shot's own established rendering, not a claim about the effect's real appearance.",
+  "use_cases": [
+    "the peak instant of a high-energy attack, explosion, or impact in an action sequence, where a shot's established color rendering can be deliberately broken for one beat to sell extra intensity",
+    "a personal or small-team 2D project wanting the same technique, since (per the frames showing the source's own project) it is achievable with ordinary rough-sketch-to-clean-fill digital ink/paint tools rather than requiring a large studio pipeline"
+  ],
+  "non_use_cases": [
+    "a shot or style that specifically avoids breaking its own established color language, where the technique's whole mechanism (a jarring register break) would work against the intended consistency",
+    "a slower, non-impact beat where no sudden intensity spike needs selling"
+  ],
+  "interactions": [
+    "motion_smear_readability (W01) — a related but distinct fast-motion/impact readability technique; that entry is a directional elongation/blur, this entry is a full-frame monochrome radiating-burst register break, a stronger and more total departure from the shot's own rendering",
+    "stepped_keyframes_replace_interpolation_for_2d_read (video 51, this batch) — both this entry and that one involve deliberately breaking a shot's normal continuous rendering for a stylistic payoff, though for different purposes (2D-read vs. impact intensity) and via different mechanisms (interpolation vs. color/line register)",
+    "physical_reference_timing_method (W01) — the sampled frames show real-world arc-welding footage (bright white-blue sparks) placed adjacent to drawn burst-effect work in the same video, a pattern consistent with that existing card's own documented practice of using filmed physical reference for a stylized effect, though this could not be confirmed from spoken commentary since none was available"
+  ],
+  "style_variations": {
+    "anime": "a recurring, named technique in high-energy action anime specifically, shown here across multiple different franchises credited to one animator",
+    "realistic": "not applicable — an explicit, total departure from realistic rendering"
+  },
+  "cadence_representation": "Not represented: Cadence has no notion of a frame breaking a shot's own established rendering/color register (this is a rendering/compositing-level effect, closer to `pnx/**`'s procedural texture/color tools than to anything `ai/motion.js` measures), and no track type represents a deliberate, temporary full-frame color/style override. The AUTHORING WORKFLOW visible in the sampled frames — a rough sketch refined progressively into a clean high-contrast shape across several passes — is a general digital-painting process outside this build's pose/motion scope entirely.",
+  "control_surface": "None — outside this build's current scope (a rendering/compositing effect, not a pose or motion property).",
+  "detection_and_measurement_methods": "Not measurable in this build: no measurement represents a frame's own color/contrast register, only pose and motion data.",
+  "generation_or_modification_methods": "None — outside this build's scope.",
+  "failure_modes": [
+    "not confirmable from the sampled frames alone — no spoken commentary was available to capture the source's own stated failure modes for this technique"
+  ],
+  "roblox_considerations": "A comparable effect in a 3D Roblox context would need a post-processing/shader-level full-screen color override (e.g. a `ColorCorrectionEffect`/`Highlight` flash) rather than anything reachable through ordinary rig animation.",
+  "performance_implications": "Not confirmable from the sampled frames alone.",
+  "examples": [
+    "an on-screen title card reading 'HIGH CONTRAST FRAME' appears directly in the video (frame at t=02:25), naming the technique explicitly rather than this being an inferred label",
+    "the identical black-and-white radiating-burst visual pattern recurs across at least three visually distinct anime source clips in the sampled frames (t=03:10-03:30, t=03:44-04:03, t=17:14-17:55), each captioned on-screen with the same credited animator's name ('YUTAKA NAKAMURA'), indicating a deliberately curated montage of one specific technique across that animator's body of work",
+    "the source's own project (visible in an editing timeline captioned 'Pendulumbear...') shows the identical technique being constructed by hand: a rough green-line sketch of a radiating burst shape overlaid directly on the shot (t=11:05), progressively filled to solid black (t=11:22-11:48), and refined into a final crisp high-contrast starburst frame (t=11:53-12:51)"
+  ],
+  "evidence_status": "video: https://youtu.be/6UaUi5fBmJc (Howard Wimshurst Animation) @ t=02:25, 03:10-04:03, 11:05-12:51, 17:14-17:55 (all frame timestamps from the sampled scene-change frames) — NO TRANSCRIPT WAS AVAILABLE for this video (no native captions, and no Whisper API key configured in this environment, a prior deliberate setup choice this session did not override); this entry is built entirely from visual evidence across 100 sampled frames, explicitly excluding any claim about spoken reasoning, purpose, timing rules, or duration the presenter may have stated but which could not be captured; experimental until validated, and lower-confidence than this programme's usual transcript-backed entries specifically because of the missing audio"
+}

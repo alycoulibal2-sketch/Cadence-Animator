@@ -10,7 +10,7 @@
 - [x] 56. The Animation of Cuphead — Video Game Animation Study (10:57) — https://youtu.be/pOBKGcehi8U
 - [x] 57. How 2D Fighter Games are Animated — Video Game Animation Study (7:13) — https://youtu.be/WYCjmVhiLaM
 - [x] 58. The Effects Animation of Hollow Knight — New Frame Plus (7:19) — https://youtu.be/SIJtfr-PO4Y
-- [ ] 59. How to add IMPACT frames to your animation — Howard Wimshurst Animation (18:42) — https://youtu.be/6UaUi5fBmJc
+- [x] 59. How to add IMPACT frames to your animation — Howard Wimshurst Animation (18:42) — https://youtu.be/6UaUi5fBmJc
 - [ ] 60. Animate action with SMEAR FRAMES — Kuzillon (6:37) — https://youtu.be/5v0IZSr9-j0
 
 ## Per-video notes
@@ -578,3 +578,51 @@ demonstration, no independent filmed reference performance.
 `W06-58-identical-character-clip-reused-with-varied-vfx-differentiates-states.json` — both checked
 directly against `validateProposedEntry`/`validateEvidenceSource`; both pass; a full-corpus
 concept-name sweep (161 JSON files: 159 prior + this video's 2) found zero collisions.
+
+### 59. How to add IMPACT frames to your animation — Howard Wimshurst Animation
+
+2026-09-11. Watched at `balanced` detail per W06.md's own instruction for this video (it SHOWS
+motion). **No transcript was available**: no native captions on this video, and this environment has
+no Whisper API key configured — checked `setup.py --check` earlier in this session and confirmed
+`SETUP_COMPLETE=true` already, meaning the user made a deliberate prior choice to run keyless; per the
+`/watch` skill's own instructions this is a valid, already-made setup state that should not be
+re-litigated mid-batch, so no attempt was made to prompt for a key. 100 frames were extracted (of a
+440-candidate scene-aware pass over the full 18:41) and all 100 were read directly. This is a real,
+honestly-recorded limitation: every claim below is built from VISUAL evidence only, with no spoken
+claim, reasoning, or timing rule attributed to the presenter, per this batch's own standing rule
+("never claim a measurement the video did not show... a presenter's opinion is recorded as the
+presenter's, with their name" — impossible to do honestly here without audio).
+
+**What the frames show:**
+A montage of "impact frame" examples from multiple different anime sources, several captioned
+on-screen with the same credited key animator's name ("YUTAKA NAKAMURA"), all sharing one recurring
+visual signature: a near-monochrome black-and-white frame with sharp lines radiating from a central
+point, cut in at each clip's most intense beat. An on-screen title card explicitly reads "HIGH CONTRAST
+FRAME," naming the technique directly rather than requiring inference. Real arc-welding footage (bright
+white-blue sparks) appears adjacent to drawn burst-effect work, consistent with (though not confirmable
+as) physical reference use. The presenter's own project (an editing timeline captioned
+"Pendulumbear...") shows the identical technique being hand-constructed across several progressive
+passes: a rough green-line sketch of a burst shape overlaid directly on the shot, filled to solid
+black, then refined into a final crisp high-contrast starburst. Wrote
+**`high_contrast_monochrome_burst_as_named_impact_frame_technique`**, explicitly scoped to what the
+frames alone support, with every field that would normally need spoken evidence (purpose, timing,
+failure modes) marked honestly as not confirmable rather than guessed.
+
+**Not written as entries:** W06.md's own promised content for this video ("when, how long, what they
+replace") needs exact TIMING/DURATION claims a sparse 100-frame sample over 18:41 (roughly one frame
+per 11 seconds) cannot support even with full narration, let alone without it — a future session with
+Whisper enabled, or a focused `--start/--end` re-run on the specific example clips now timestamped in
+this entry, would be needed to responsibly extract those specific claims.
+
+**Contradicted an existing card:** none confirmable.
+
+**Capture candidate:** none — professional anime clips and the presenter's own 2D digital project, no
+independent filmed reference performance beyond the real welding footage, which is a physical process
+reference rather than a character performance.
+
+**Checks for the queue:** none — nothing here is buildable in this project-data-only build regardless
+of narration (a rendering/compositing-level effect, not a pose or motion property).
+
+**Entries written:** `W06-59-high-contrast-monochrome-burst-as-named-impact-frame-technique.json` —
+checked directly against `validateProposedEntry`/`validateEvidenceSource`; passes. A full-corpus
+concept-name sweep (162 JSON files: 161 prior + this video's 1) found zero collisions.
