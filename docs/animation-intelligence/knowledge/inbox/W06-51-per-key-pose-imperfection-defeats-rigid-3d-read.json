@@ -1,0 +1,44 @@
+{
+  "concept": "per_key_pose_imperfection_defeats_rigid_3d_read",
+  "category": "advanced",
+  "definition": "On top of stepped/no-interpolation keying, deliberately perturbing every single key's pose away from what a physically clean, anatomically consistent transform would produce — bending a joint slightly off, letting a hand or foot drift out of natural alignment, allowing facial features to leave their neutral position — because a mathematically perfect rigid transform is itself the cue that reads as '3D object' to the human eye, and imperfection is what convinces the brain it is looking at something hand-made instead.",
+  "purpose": "Defeat the viewer's own perceptual shortcut for detecting rigid 3D geometry, by deliberately reproducing the kind of small, artist-introduced inconsistency a real hand-drawn or stop-motion frame naturally carries.",
+  "visible_effect": "Individual keys show small anatomically-off details — a limb bent slightly past where a clean pose would place it, a hand or foot not quite where a physically consistent transform would put it, facial features shifted from a neutral rest position — that would read as errors in a realistic pipeline but are applied consistently, on purpose, every key.",
+  "psychological_or_gameplay_effect": "The presenter states the causal claim directly: a part of a 3D model that moves through a perspective change while perfectly maintaining its own shape is what the brain 'instantly recognizes... as a rigid 3D object'; introducing imperfection removes that specific cue.",
+  "physical_interpretation": "An explicit rejection of anatomical/physical correctness as the priority — the source states this outright ('3D accuracy is not priority in this workflow... expressiveness over accuracy'), framing it as bringing 2D animation's traditional priority into a 3D pipeline rather than as a deficiency.",
+  "use_cases": [
+    "any shot already using stepped/no-interpolation keying (see `stepped_keyframes_replace_interpolation_for_2d_read`, this same video) where the stepping alone still reads as 'a 3D model being posed' rather than as a 2D drawing",
+    "a dynamic, exaggerated composition where a technically correct pose would read as static or stiff compared to the intended energy of the action"
+  ],
+  "non_use_cases": [
+    "a realistic or grounded style, where the same deliberate anatomical looseness would read as a rigging error rather than a stylistic choice",
+    "a shot where the imperfection would be visible for long enough (a held, scrutinized close-up) that it reads as a mistake rather than a fast-cut stylistic touch — the source's own context is a fast-paced fighting game, not a slow character study",
+    "any project without a validator or reviewer aware of the distinction — nothing in this technique is self-documenting, so an unrelated genuine authoring error looks identical to this deliberate one"
+  ],
+  "interactions": [
+    "stepped_keyframes_replace_interpolation_for_2d_read (this same video) — the presenter states this second technique is necessary IN ADDITION to stepping alone ('turning off interpolations... is essential, but that alone is not enough'); the two are meant to be applied together, not as alternatives",
+    "nonuniform_scale_keys_drive_2d_exaggeration_tricks (this same video) — non-uniform limb/hand/foot scale is the ONE specific, named vocabulary this general imperfection principle uses in this source; that entry covers the scale mechanism itself, this one covers the broader principle it is one instance of",
+    "fixed_camera_licenses_invisible_pose_cheats (W05, video 43) — a structurally similar 'deliberately break correctness because the payoff outweighs it' move, but with an opposite safety argument: that entry depends on the audience NEVER seeing the invalid angle; this entry's imperfection is meant to be seen constantly, on every key, as the whole point",
+    "the R15 reach-limit honesty this build's own solver already practises (CLAUDE.md) — the exact opposite instinct from this entry: Cadence's `ai/pose.js solveTwoBone` refuses to silently fake an out-of-range reach, where this technique is a human deliberately posing 'wrong' on purpose for a stylistic payoff a solver could never validate either way"
+  ],
+  "style_variations": {
+    "anime": "a stated, deliberate default technique in this source's own production",
+    "realistic": "actively contraindicated — the same deviation would read as a rigging/animation error"
+  },
+  "cadence_representation": "Nothing stops this today, and nothing assists or suggests it either. Cadence's direct FK rotation authoring and `ai/pose.js` IK already allow posing however a user likes, including anatomically 'wrong,' since `joint_limits: null` means no limit exists to violate in the first place (CLAUDE.md). But there is no way to distinguish a deliberate per-key perturbation, applied as a style choice, from an ordinary authoring mistake — the same data looks identical either way, and no validator in this build could tell them apart even if one existed.",
+  "control_surface": "None beyond ordinary keyframe authoring, which already permits this without any dedicated tool recognizing it as a named technique.",
+  "detection_and_measurement_methods": "Not measurable in this build as a distinct signal: `ai/motion.js` could in principle flag a pose that deviates from an expected anatomical range, but nothing declares what 'expected' means per style, and a deliberate stylistic deviation is bit-for-bit indistinguishable from an authoring error in stored keyframe data alone.",
+  "generation_or_modification_methods": "None specific — ordinary keyframe/pose authoring already reaches any pose a user chooses to author; no tool introduces or suggests a deliberate perturbation.",
+  "failure_modes": [
+    "applying the perturbation inconsistently, so some keys read as stylized and others read as accidental errors, with no way for a reviewer to tell which is which",
+    "holding on a perturbed pose long enough (see `stepped_keyframes_replace_interpolation_for_2d_read`'s hold-density interactions) that scrutiny turns the intended stylistic imperfection into a visible mistake",
+    "applying it to a rig or project that also needs to be reused in a realistic/non-stylized context later, since nothing marks the perturbation as deliberate for a future reader"
+  ],
+  "roblox_considerations": "No different from any other Motor6D pose authoring — Roblox enforces no inherent joint limits either, so this technique is exactly as reachable there as in Cadence directly; the only cost is that nothing in either pipeline documents which poses were perturbed on purpose.",
+  "performance_implications": "None.",
+  "examples": [
+    "'The secret is to deform the mesh every key frame to add imperfection. The human eyes and brains are very sensitive when it comes to perspectives. A part of a 3D model moves through the perspective perfectly maintaining its shape. The human brain instantly recognizes it as a rigid 3D object. To avoid this, adding imperfection was the only way. Nature isn't perfect. The artist is imperfect. Therefore, perfection looks too artificial.' (video @ 31:57–32:32)",
+    "'Every key frame, every bone on screen is adjusted by the animator to break the perfect transition... 3D accuracy is not priority in this workflow. We often sacrifice it in order to get more dynamic composition... facial parts do not maintain natural positions. This is exactly the same as 2D animation, expressiveness over accuracy.' (video @ 32:52–33:34)"
+  ],
+  "evidence_status": "video: https://youtu.be/yhGjCzxJV3E @ 31:57–33:34 — Junior Christopher Motoa states the technique and its perceptual justification directly, as the studio's own stated production practice; transcript-only, no frames extracted this session; experimental until validated"
+}

@@ -1,0 +1,45 @@
+{
+  "concept": "stepped_keyframes_replace_interpolation_for_2d_read",
+  "category": "advanced",
+  "definition": "Setting every key's interpolation to a held/stepped style — no blended in-between frames at all — across an entire character performance, so every rendered frame is itself a distinct, fully hand-posed key rather than an interpolated intermediate: the direct 3D equivalent of traditional single-frame-timed 2D limited animation.",
+  "purpose": "Make a rigid 3D model read as hand-drawn 2D animation by removing the single visual cue — smooth, continuous interpolation between poses — that most strongly signals \"this is an interpolated 3D object\" to the viewer.",
+  "visible_effect": "The character's motion cuts directly from one held pose to the next with zero blended in-between motion, at whatever pose density the animator chooses (this source's characters run roughly 500 bones each, posed at every one of ~8-12 distinct poses per second of character motion, independent of the engine/camera's own full frame rate).",
+  "psychological_or_gameplay_effect": "Reads as deliberately 2D/hand-drawn rather than as choppy or broken, specifically because the technique is applied consistently and paired with a matching art style (cel shading, inked outlines) — the presenter's own direct A/B comparison shows the interpolated version reading as smoother but 'more apparent that it's actually 3D,' while the stepped version 'may look less smooth, but has more distinctive poses, easier to recognize.'",
+  "physical_interpretation": "None — a deliberate stylistic renunciation of physically continuous motion, not a claim about how anything moves in reality; explicitly framed by the presenter as imitating stop-motion ('you could imagine stop motion animation where dolls pose each frame').",
+  "use_cases": [
+    "a 3D character or cutscene intended to read as 2D/hand-drawn or cel-animated, at any pose-density budget the target style calls for",
+    "reusing an existing full-fidelity 3D pipeline (rig, IK, physics-free posing) while still targeting a 2D-adjacent visual identity, without building a second 2D-native pipeline"
+  ],
+  "non_use_cases": [
+    "camera motion in the same shot — this source explicitly tested lowering the camera's own frame rate to match the character and reverted it, because a stepped camera specifically 'looks ugly' and reads as 'snappy'/disjointed even when the character stepping at the same rate reads fine",
+    "a realistic style aiming for continuous, physically plausible motion, where stepping would read as a rendering fault rather than a deliberate choice",
+    "a single isolated beat wanting a stop-motion ACCENT (the existing `vibe_timing_anti_pattern` and hold-pacing cards already cover selective holds) — this entry is specifically about applying the stepped style to an ENTIRE performance as a declared identity, not one held beat within an otherwise-eased clip"
+  ],
+  "interactions": [
+    "pose_hold_density / mixed_hold_pacing_within_phase (W01/W02) — those measure how LONG a pose is held before advancing; this entry is a stronger, orthogonal claim about the TRANSITION itself carrying zero blend at all, regardless of hold length",
+    "pose_workflow / staged_keyframe_then_straight_ahead_workflow (W02) — a different axis entirely: those describe the ORDER an animator places keys during authoring (planned vs. exploratory); this entry describes the EASING STYLE of the finished keys as played back, independent of how they were authored",
+    "vibe_timing_anti_pattern (W01) — that card warns against MISUSING a stepped/snappy feel where it undercuts weight; this entry is the same mechanism used deliberately and consistently as a whole-style choice, not a misapplied accent",
+    "video 52 in this same batch analyses the same studio's technique from an external, quantified angle and may name a specific frame-rate figure for the stepped character rate this video only describes qualitatively"
+  ],
+  "style_variations": {
+    "anime": "close to the expected default for this style, especially in cel-shaded 3D specifically imitating 2D fighting-game sprites",
+    "realistic": "actively contraindicated — continuous interpolation is the expected baseline"
+  },
+  "cadence_representation": "Already fully supported, not merely representable in principle: `renderer/js/easing.js` defines a named `Constant` easing style (aliased from Moon's `None`), `ai/motion.js`'s `VARIATION_KINDS.stepped` explicitly classifies a `Constant`/`None`-eased discontinuity as a DISTINGUISHABLE, deliberately-authored choice with `CERTAIN` certainty (not jitter, not a defect) via `classifyVariation`, and `app.js`'s `stopMotionFlow` already exposes a one-click 'Stop motion' command that applies `Constant` easing to a selected key range ('holds each pose in the selected range for a choppy, stepped look'). This is a shipped, professional-grade technique this build already fully implements at the single-key level; what is untested is applying it as a declared WHOLE-PERFORMANCE style choice rather than one selected range.",
+  "control_surface": "`set_easing` (MCP) and the in-app 'Stop motion' command both already apply `Constant` to a selected key range today. No tool currently applies it project-wide as a declared style default the way `ai/style.js STYLE_MODIFIERS` governs other vocabulary dimensions — a user must select every range by hand.",
+  "detection_and_measurement_methods": "Already measured at the per-key level: `ai/motion.js`'s easing-style tally counts `Constant`/`None` keys directly (the `stepped` counter in its per-track summary), and `classifyVariation` reports `stepped` with `CERTAIN` certainty for any sampled discontinuity landing on such a key. Not yet measured: the AGGREGATE claim this video makes — that a character's entire track set is stepped as a declared style, versus one or two isolated stepped beats within an otherwise-eased performance — which would need a proportion (stepped keys / total keys) rather than a single flagged instance.",
+  "generation_or_modification_methods": "`set_easing` already changes any existing key's style to `Constant` one range at a time; no bulk action currently converts an entire clip or project to a declared stepped style in one call.",
+  "failure_modes": [
+    "applying the style inconsistently — stepping the character while leaving camera/background motion smooth was explicitly tested by this source and reverted, because the mismatch itself (not the stepping alone) reads as disjointed",
+    "using `Constant` easing to mask genuinely broken interpolation or a missing key, rather than as a deliberate whole-style choice — the same key data looks identical either way, so intent has to be declared, not inferred",
+    "stepping so sparsely that the pose count falls below what the action's own speed needs to read at all (see `dps_floor_for_short_actions`, W02)"
+  ],
+  "roblox_considerations": "`easing.js`'s `POSE_NATIVE_STYLES` already includes `Constant` alongside `Linear`/`Cubic`/`Elastic`/`Bounce` — meaning a stepped key exports losslessly to a Roblox `KeyframeSequence`'s native `PoseEasingStyle` with no baking pass required, unlike a bezier-curve key which must be baked to discrete frames first. This is a genuinely easy, zero-conversion-cost win for a declared anime/limited-animation project style.",
+  "performance_implications": "Likely fewer effectively-distinct exported poses for a given visual read at low pose density, though this build does not measure exported file size or playback cost, so this is inferred rather than benchmarked here.",
+  "examples": [
+    "'We just stopped using interpolations between key frames. Every frame now is a key frame and the animator poses the character in the best way possible. You could imagine stop motion animation where dolls pose each frame. Basically, that is exactly what we're doing.' (video @ 29:53–30:26)",
+    "a direct, on-screen A/B comparison: 'This is how a full animation with interpolation would look like. And here is how limited animation would look... it's more apparent that it's actually 3D compared to the limited animation version. The limited animation version may look less smooth, but has more distinctive poses, easier to recognize.' (video @ 34:08–34:36)",
+    "the camera-rate non-use-case, from Q&A: lowering the camera's own frame rate to match the character's stepped rate 'looks ugly... it gets really snappy... we tried lower frame camera movement, but it just didn't feel good' (video @ 43:37–44:37)"
+  ],
+  "evidence_status": "video: https://youtu.be/yhGjCzxJV3E @ 29:53–30:26, 34:08–34:36, 43:37–44:37 — Junior Christopher Motoa (lead character modeler/technical artist, Arc System Works) states the technique, shows a direct interpolated-vs-stepped comparison, and confirms the camera non-use-case in audience Q&A; transcript-only, no frames extracted this session; experimental until validated"
+}

@@ -1,0 +1,40 @@
+{
+  "concept": "frame_by_frame_remodeled_mesh_for_stepped_vfx",
+  "category": "specialized",
+  "definition": "Modeling a completely new, hand-sculpted mesh for a VFX element — the source's own example is a dust cloud at a character's feet — for every single frame it appears in, rather than using a particle system or one continuously-deforming mesh, so the effect's own shape changes in the same sharp, discrete, hand-authored steps as the stepped-keyed character it accompanies.",
+  "purpose": "Keep an effect visually consistent with a stepped, hand-posed character performance, where a standard particle system's smooth, physically-simulated behavior would look conspicuously 'more 3D' than the character next to it.",
+  "visible_effect": "An effect's silhouette changes in sharp, distinct, deliberately-sculpted steps frame to frame, rather than evolving continuously the way a particle system or a single deforming mesh would.",
+  "psychological_or_gameplay_effect": "Preserves the production's own stated all-encompassing edict ('kill everything 3D... everything on screen had to be an intentional and artistic choice, not a computer's automated solution') for EFFECTS specifically, not just characters — a particle system is, by this source's own framing, exactly the kind of 'computer's automated solution' the studio was trying to eliminate everywhere.",
+  "physical_interpretation": "None — explicitly not a simulation of any physical dust/smoke behavior; a hand-sculpted substitute for one.",
+  "use_cases": [
+    "a small number of effect instances on screen at once (this source's own context: a competitive fighting game with at most two characters rendered), where the per-frame authoring cost is affordable specifically because of that low instance count",
+    "an effect placed close to, or interacting directly with, a stepped-keyed character, where a smoothly-simulated effect would visually clash with the character's own discrete posing"
+  ],
+  "non_use_cases": [
+    "any effect that needs to be reused cheaply across many characters, contexts, or simultaneous instances — a particle system's entire value proposition (reuse, parameterization, low per-instance cost) is given up completely",
+    "an effect whose motion needs to react procedurally to live gameplay state rather than playing back a fixed, pre-authored sequence",
+    "any production without the specific art-budget headroom this source's own reaction ('and that is bonkers') frames as an extreme, not a default, choice even within a AAA-adjacent production"
+  ],
+  "interactions": [
+    "stepped_keyframes_replace_interpolation_for_2d_read and per_key_pose_imperfection_defeats_rigid_3d_read (video 51, this batch) — the same 'hand-posed, deliberately imperfect, not a computer's automated result' principle applied to VFX GEOMETRY rather than character rig bones",
+    "motion_smear_readability (W01) — a much cheaper alternative technique for fast-motion readability; this same batch's video 52 also separately notes the two games in this comparison chose different alternatives (smears vs. old-school speed lines) for that different, cheaper problem, which this entry's technique is not solving"
+  ],
+  "style_variations": {
+    "anime": "an extreme, high-budget-only technique even within this style, per the source's own framing",
+    "realistic": "no equivalent — realistic VFX defaults to continuous simulation specifically because that IS the goal"
+  },
+  "cadence_representation": "Not represented, and not a close fit for either of this build's two VFX paths. `ai/vfxspec.js` targets the `kind:'vfx'` emitter item as a declarative, parametric, reversible effect — closer to a particle system than to hand-sculpted per-frame geometry. `pnx/**`'s procedural node graph describes effects through fields and nodes, not as a sequence of discretely-authored meshes either. A literal 'different hand-sculpted mesh every frame' sequence is closer to a raw keyframed-geometry animation than to anything either existing VFX system currently expresses, and neither is a natural extension for it — this is recorded as real, well-evidenced production knowledge with a clear capability gap rather than forced onto either path.",
+  "control_surface": "None currently reaches this in either VFX system.",
+  "detection_and_measurement_methods": "Not measurable in this build: no track type stores raw per-frame mesh geometry as a keyed asset, in the character rig system or in either VFX system.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "cost scaling directly with frame count AND instance count, with zero reuse across characters or contexts — the source's own 'and that is bonkers' reaction is itself evidence this is recognized internally as an extreme choice, not a default one",
+    "applying it to an effect that later needs to scale to many simultaneous instances or respond to live/reactive gameplay state, neither of which this technique supports at all"
+  ],
+  "roblox_considerations": "Roblox's native effect tooling (`ParticleEmitter`, `Beam`) is built around continuous/parametric behavior, much closer to what `ai/vfxspec.js` already targets than to this technique. A literal frame-swapped `MeshPart`/`SpecialMesh` sequence is possible in Roblox (swapping `MeshId` per frame) but would be exactly as extreme a departure from Roblox's own normal effect-authoring idioms as it was from this source's own general-purpose 3D engine.",
+  "performance_implications": "Significant per-instance modeling/authoring cost, explicitly called out by the source as unusual; no distinct RUNTIME cost claim is made, since rendering a swapped mesh costs the same as rendering any other mesh.",
+  "examples": [
+    "'when necessary for certain effects like the clouds of dust at a character's feet, they modeled those clouds in 3d frame by frame, and that is bonkers' (video @ 11:54–12:14)"
+  ],
+  "evidence_status": "video: https://youtu.be/kZsboyfs-L4 @ 11:54–12:14 — Dan (New Frame Plus) states the technique directly, sourced from the same studio's own GDC talk this video cites throughout; transcript-only, no frames extracted this session; experimental until validated"
+}

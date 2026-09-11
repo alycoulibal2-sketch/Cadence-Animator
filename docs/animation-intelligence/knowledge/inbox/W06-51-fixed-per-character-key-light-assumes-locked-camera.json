@@ -1,0 +1,41 @@
+{
+  "concept": "fixed_per_character_key_light_assumes_locked_camera",
+  "category": "advanced",
+  "definition": "Giving each character its own dedicated, non-moving light vector tuned specifically to flatter its idle pose, with no global/scene lighting system affecting characters at all — a deliberate choice that trades away any lighting response to the environment in exchange for guaranteed, consistent, well-composed per-character shading in every stage — that the presenter confirms directly depends on the camera being genuinely fixed (a locked-camera fighting game), and would not transfer to a game with open camera movement.",
+  "purpose": "Guarantee every character always reads with intentional, well-composed shading in every context, at the cost of any lighting interaction with the actual scene/environment — accepted because the genre's fixed camera makes the trade-off invisible.",
+  "visible_effect": "A character's shading and shadow shapes stay visually identical across every stage/background in the game, since the light vector lighting them never changes; only the ground shadow (a separate, globally-lit system) responds to the scene at all.",
+  "psychological_or_gameplay_effect": "Preserves 'the impression of an action' consistently for a given move across every context it might be performed in — the presenter states this as the direct reason the light set does not move: a shape-shifting shadow/lighting response, changing per stage, would change how the same action reads depending on where it happened, which the source states is undesirable specifically for a fighting game's readability needs.",
+  "physical_interpretation": "None — a deliberate rejection of physically-consistent scene lighting in favor of guaranteed per-character readability.",
+  "use_cases": [
+    "a genre with a genuinely fixed or heavily constrained camera (this source's own example: a 2D-plane fighting game with a locked camera), where the same character/action must read identically regardless of background",
+    "any context where consistent silhouette/shading readability of a small, fixed cast matters more than environmental lighting realism"
+  ],
+  "non_use_cases": [
+    "any game with open or player-directed camera movement through a varied environment — the presenter states this directly and unprompted when asked: 'if we were going to do an RPG or action game, we would take a different route obviously... probably not' when asked whether the same solution could apply to a game requiring more open movement through a stage",
+    "any project wanting characters to visually integrate with or react to their environment's actual lighting conditions"
+  ],
+  "interactions": [
+    "fixed_camera_licenses_invisible_pose_cheats (W05, video 43) — the same underlying move (a genre's camera guarantee licenses a shortcut invisible to the audience) applied to LIGHTING SETUP rather than POSE correctness; the two entries name the same family of trade-off from different technical domains, and neither should be treated as a restatement of the other",
+    "SHOT-003/004 (this build's own named camera-model gap, extensively documented in W05) — this entry is a rare case where the camera GUARANTEE itself (not the camera's own behavior) is the load-bearing fact; a future active-camera model would need to represent whether a camera is declared fixed/locked, since that single fact is what licenses or forbids this entire lighting approach"
+  ],
+  "style_variations": {
+    "game_combat": "a natural fit for a fixed-camera fighting game specifically, per the source's own genre",
+    "realistic": "not applicable as stated — this is a stylized readability trade-off independent of realism, but would conflict with any pipeline wanting environment-reactive lighting regardless of style"
+  },
+  "cadence_representation": "Not representable, and explicitly out of scope: Cadence's `ai/` layer has no lighting model of any kind — lighting is a three.js scene-authoring concern handled entirely outside the pure semantic layer (`renderer/js/viewport.js`), and nothing in `ai/pose.js`, `ai/vfxspec.js`, or any other module represents a light vector, a per-character light assignment, or a fixed-vs-global lighting choice. This entry is recorded as strong, well-evidenced production knowledge with a clear scope boundary rather than forced onto a capability this build does not have and, per this programme's own standing practice (see W05's several out-of-scope camera/production entries), should not become one.",
+  "control_surface": "None — outside this build's scope entirely.",
+  "detection_and_measurement_methods": "Not measurable in this build: no track, item, or measurement in `ai/motion.js` represents scene or character lighting in any form.",
+  "generation_or_modification_methods": "None — outside this build's scope entirely.",
+  "failure_modes": [
+    "applying a fixed per-character light scheme to a game whose camera can move freely through varied environments — the presenter's own stated failure case, confirmed directly under direct audience questioning",
+    "a fixed light scheme silently becoming wrong later if a sequel or mode reintroduces open camera movement the original genre guarantee did not anticipate — the same class of risk `fixed_camera_licenses_invisible_pose_cheats` (W05) already names for its own domain",
+    "treating this choice as permanent rather than a specific trade-off for a specific release: an independent source (video 52, this same batch) reports that later versions of this same game added an OPTIONAL more dynamic scene-based lighting mode, i.e. the studio itself later partially walked back the fully-fixed approach rather than keeping it as a fixed rule forever"
+  ],
+  "roblox_considerations": "A Roblox scene's lighting is typically global (`Lighting` service) rather than per-character by default; replicating this technique would need a custom per-character light source (e.g. a `PointLight`/`SpotLight` parented to each character, or a shader-level override) rather than anything Roblox provides natively for avatars.",
+  "performance_implications": "None measured by the source.",
+  "examples": [
+    "'Each character has his or her own dedicated light vector that lights their idle pose in the best way. The lighting doesn't change frame by frame in the battle scene... The light set doesn't move and that is an intentional choice... because we didn't want to change the impression of an action. If the shape of the shadow changes from stage to stage, it will give a different impression in each action, and that is not a good idea for fighting games.' (video @ 18:10–18:30, 52:27–52:50)",
+    "direct audience follow-up confirming the boundary: '[would] it be extraordinarily difficult to use your specific solution for a game that would require somewhat more open movement through a stage like an RPG?' — 'That's true... we knew it was going to be a fighting game with a fixed camera... If we were going to do an RPG or action game, we would take a different route, obviously... probably not [applicable to wider games].' (video @ 52:52–53:55)"
+  ],
+  "evidence_status": "video: https://youtu.be/yhGjCzxJV3E @ 18:10–18:30, 52:27–53:55 — Junior Christopher Motoa states the lighting design directly and, under direct audience questioning, explicitly confirms and bounds the genre/camera dependency himself; transcript-only, no frames extracted this session; experimental until validated"
+}

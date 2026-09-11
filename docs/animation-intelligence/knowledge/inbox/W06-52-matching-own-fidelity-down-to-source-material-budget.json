@@ -1,0 +1,41 @@
+{
+  "concept": "matching_own_fidelity_down_to_source_material_budget",
+  "category": "advanced",
+  "definition": "Deliberately targeting a LOWER motion fidelity and longer pose-hold durations than a studio's own established, more-detailed baseline, specifically to stay authentic to a particular external source material's own historical production economy — treating 'more subtlety/more secondary motion' as the WRONG choice, not merely an unaffordable one, when the property being adapted is itself known for its economy.",
+  "purpose": "Preserve a specific franchise's own recognizable character, including its production-driven limitations, rather than defaulting to the studio's own highest achievable fidelity everywhere.",
+  "visible_effect": "Poses held noticeably longer, with less secondary/subtle motion (e.g. no visible breathing-driven chest expansion or cloth secondary motion on an idle), compared to a direct same-studio, same-era point of comparison built with the same underlying tools.",
+  "psychological_or_gameplay_effect": "A direct A/B within the same studio's own output: extra subtlety that reads as impressive polish on one character reads as WRONG, off-model fidelity on another, because the second character's source material never had that level of detail to begin with — fidelity itself becomes a style parameter, not a universal quality target.",
+  "physical_interpretation": "None — a deliberate authorial choice about how much visual information to include, not a physical property.",
+  "use_cases": [
+    "adapting a specific existing franchise into a new medium (2D TV anime into a 3D fighting game, in this source), where matching audience expectation of the source's OWN look matters more than maximizing the new medium's technical capability",
+    "any project working across multiple properties with the same underlying tech, where each property's target fidelity should be judged against ITS OWN reference rather than a single house default"
+  ],
+  "non_use_cases": [
+    "an original property with no specific external source convention to match, where the studio's own general house style is the only relevant target (this source's own prior, higher-subtlety project, in the comparison)",
+    "a property whose own fans specifically expect or want visibly upgraded fidelity in a new adaptation, where matching the OLD limitation would read as a missed opportunity rather than authenticity"
+  ],
+  "interactions": [
+    "stepped_keyframes_replace_interpolation_for_2d_read (video 51, this batch) — that entry is the mechanism (turn off interpolation); this entry is a further, comparative claim about WHICH density/subtlety level to target, which can mean deliberately choosing a LOWER value than a studio's own established default for a DIFFERENT prior project using the identical mechanism",
+    "pose_hold_density (W01) — that card measures how long a pose holds within one project; this entry is the decision of what EXTERNAL reference that duration should be judged against, a level of judgment `pose_hold_density` does not itself address",
+    "physical_reference_timing_method (W01) — a sibling case of judging a project's own timing against something OUTSIDE the project itself, there a filmed human performance, here a whole franchise's established animation convention"
+  ],
+  "style_variations": {
+    "anime": "the specific franchise being adapted, not 'anime' as a single bucket, is shown here to be the real target — two anime-styled projects from the same studio can and should differ",
+    "realistic": "not applicable — this is a stylized-fidelity-matching decision with no realism analogue"
+  },
+  "cadence_representation": "Not directly representable as a declared target today, but closer than it first looks. `ai/style.js`'s five style buckets (`realistic`/`anime`/`cartoon`/`game_combat`/`mechanical`) are one level too coarse for what this entry describes: both games in this comparison would simply be `anime` under Cadence's current vocabulary, yet the source shows the same studio deliberately targeting two measurably different hold-duration/subtlety levels within that one bucket. The closer existing mechanism is Part 36's reference profile (`ai/reference.js`): `buildReferenceProfile` already extracts timing characteristics from an in-project reference clip, and `profileDistance`/`relativeDistance` already compare a project's own motion against it numerically. If a reference clip captured FROM a target franchise were imported and profiled this way, comparing a new animation's own hold density against that profile is a real, mostly-already-built path — nothing currently seeds a profile from an external, non-project description the way 'match this franchise's own economy' would need, but the numeric comparison machinery already exists.",
+  "control_surface": "None directly; `import_animation_file` plus `add_to_library`/reference-profile tooling could in principle be pointed at a captured reference clip from the target franchise, but no tool currently frames this as a declared fidelity TARGET the way `ai/style.js` frames a style choice.",
+  "detection_and_measurement_methods": "Partially buildable today: `keyDensity`/pose-hold duration is already measured per `ai/motion.js`; comparing it against a stored reference profile's own measured hold duration (via `profileDistance`) is a real, close-to-buildable check, contingent on a reference profile existing for the target franchise in the first place.",
+  "generation_or_modification_methods": "None currently declares or enforces a fidelity ceiling relative to an external reference; ordinary keyframe authoring can already produce lower fidelity, it is simply not measured against any declared target.",
+  "failure_modes": [
+    "applying a studio's own single 'best' fidelity level uniformly across every property it works on, regardless of what each property's own source material established",
+    "judging a lower-fidelity adaptation as a quality regression rather than a deliberate, evidenced authenticity choice, without checking what the source material's own convention actually was"
+  ],
+  "roblox_considerations": "No different from any other pose-hold/fidelity decision — directly reachable with ordinary keyframe authoring at whatever density is chosen; the judgment of WHICH density is right for a given IP is a creative-direction question outside any engine's own scope.",
+  "performance_implications": "A lower-fidelity target plausibly costs less animator time per shot, though this is inferred rather than stated by the source.",
+  "examples": [
+    "'the animation in this game has slightly lower fidelity than the previous game in order to feel more true to the source material... the Dragonball Fighters hold their poses for seconds at a time with only their mouths moving... they'll hold on a single frame longer than the Guilty Gear Xrd fighters will' (video @ 14:41–14:57)",
+    "the direct counter-example proving it is a deliberate choice, not a capability limit: 'look at Sol Badguy's idle animation... look at his breathing, you see that expansion in the chest, the way it stretches out that buckle strap on his clothes — that is a level of subtle motion fidelity that you are not gonna see very often in a show like Dragon Ball, and you won't see it in Dragon Ball Fighters either, because it just wouldn't look right' (video @ 14:57–15:21)"
+  ],
+  "evidence_status": "video: https://youtu.be/kZsboyfs-L4 @ 14:41–15:21 — Dan (New Frame Plus) states the direct same-studio comparison and its evidenced reasoning; transcript-only, no frames extracted this session; experimental until validated"
+}

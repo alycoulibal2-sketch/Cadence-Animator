@@ -1,0 +1,42 @@
+{
+  "concept": "nonuniform_scale_keys_drive_2d_exaggeration_tricks",
+  "category": "advanced",
+  "definition": "Keyframing non-uniform SCALE on individual bones/parts (not just rotation/position) as a primary animation channel in its own right — used for hiding/revealing elements, exaggerating a limb's perspective, and a pose-based equivalent of traditional squash & stretch — implemented as a custom addition specifically because the target engine did not support scale animation natively.",
+  "purpose": "Add a whole additional vocabulary of 2D-style tricks (perspective exaggeration, elements appearing/disappearing, squash & stretch) that rotation and position keys alone cannot produce, borrowed directly from 2D animation's own use of non-rigid deformation.",
+  "visible_effect": "Limbs, hands, feet, and other bones stretch or compress independently of the rest of the rig at specific keys — most concretely, limbs/hands/feet scaled up to exaggerate perspective foreshortening on dynamic poses, and elements scaled toward zero to make them disappear or from zero to make them appear.",
+  "psychological_or_gameplay_effect": "Produces the same 'dynamic composition' read 2D animation gets from non-rigid deformation, applied to an otherwise-rigid 3D character — the source frames this as essential enough that it justified building new engine capability specifically to get it.",
+  "physical_interpretation": "Explicitly non-physical — a direct borrowing of 2D animation's squash-and-stretch/exaggeration vocabulary onto a 3D skeleton, not a simulation of anything.",
+  "use_cases": [
+    "exaggerating a limb's perspective foreshortening on a dynamic action pose beyond what rotation alone can sell",
+    "making a small element (a prop, a detail) appear or disappear at a specific key by animating its scale to/from zero, without a separate visibility system",
+    "a pose-based equivalent of squash & stretch on a rigid rig, matching this build's own compiled `squash_stretch` card's stated need for exactly this kind of substitute"
+  ],
+  "non_use_cases": [
+    "a realistic style aiming for anatomically consistent proportions, where visible non-uniform scaling would read as a model error",
+    "any target pipeline whose rig format has no native non-uniform bone scale channel to receive it — the source needed custom engine work specifically because this was NOT a given capability"
+  ],
+  "interactions": [
+    "squash_stretch (compiled principle) — that card's own `roblox_considerations` already names literal scale-keying as 'a real, not merely theoretical, extension' since Roblox parts CAN be scaled; this entry is concrete, shipped, professional evidence for exactly that claim, at the scale of a whole ~500-bone character rather than a single prop item",
+    "per_key_pose_imperfection_defeats_rigid_3d_read (this same video) — non-uniform limb scale is the one specific, named vocabulary that broader per-key-imperfection principle uses in this source; that entry is the general principle, this one is its concrete mechanism",
+    "material_properties_via_spacing_alone (W01) — a different existing card about conveying material through spacing rather than deformation; this entry is the case where the source's pipeline chose to build literal deformation capability instead of relying on spacing alone"
+  ],
+  "style_variations": {
+    "anime": "a stated core tool in this source's own production, used across the whole cast",
+    "realistic": "contraindicated — visible non-uniform limb scale reads as a model error rather than a stylistic choice"
+  },
+  "cadence_representation": "Not available through the pose/joint authoring path today: a rig's limbs move via `ai/pose.js`'s rotation-based FK/IK, and Cadence has no mesh deformation, matching the compiled `squash_stretch` card's own stated limitation exactly. The underlying PRIMITIVE this would need already exists generically elsewhere in this build, though: `renderer/js/propTracks.js`'s `BasePart` class already lists `Size` (a Vector3) as an animatable property, and `Model` lists a uniform `Scale`, both reachable via `add_property_track` on a prop/item — just not confirmed wired to a rig's OWN limb parts through the normal pose-authoring workflow. This is a real, not merely theoretical, gap between a generic capability that exists and a specific application (a rig's own limbs) that does not yet use it.",
+  "control_surface": "`add_property_track` already exposes `Size`/`Scale` on BasePart/Model-classed items generically; no tool currently offers it as a per-bone channel on a rig's own limb parts, and nothing compiles the `squash_stretch` vocabulary dimension to a literal scale key the way it currently compiles to rotation amplitude.",
+  "detection_and_measurement_methods": "Not measurable in this build: `ai/motion.js` measures no scale/volume signal on any track today, the same gap `motion_smear_readability` (W01) and the compiled `squash_stretch` card already name — this is corroborating evidence for an existing, already-documented capability gap rather than a new one.",
+  "generation_or_modification_methods": "None currently reaches a rig's own limb parts; `add_property_track` could in principle be pointed at a prop/attached item's `Size`, which is the closest existing generation path.",
+  "failure_modes": [
+    "scaling a limb enough to break silhouette continuity with the rest of a rigid rig it is attached to, if the attachment/weld system does not follow the scale",
+    "applying visible non-uniform scale under a style that does not want it, undermining a realistic or grounded read"
+  ],
+  "roblox_considerations": "Confirmed real and reachable in principle: Roblox `BasePart.Size` (and by extension a Motor6D-jointed rig's individual parts) can be scaled per-part, which is exactly the primitive this technique needs and exactly what the compiled `squash_stretch` card's `roblox_considerations` already anticipated as a future, not merely theoretical, extension.",
+  "performance_implications": "None measured by the source beyond the one-time engineering cost of building the scale system itself, which is a production/tooling cost rather than a runtime one.",
+  "examples": [
+    "'Scale animation was used a lot because it lets us do many sorts of tricks. Exaggerations of actions let things hide or appear. Traditional squash and stretch and more. We knew we needed it, but the engine didn't support it. So, we had to implement the scale system by ourselves.' (video @ 31:15–31:43)",
+    "'Limbs, hands, and feet get a lot of scale animation to exaggerate the perspective' as one named example within the broader per-key-imperfection technique (video @ 33:15–33:24)"
+  ],
+  "evidence_status": "video: https://youtu.be/yhGjCzxJV3E @ 31:15–31:43, 33:15–33:24 — Junior Christopher Motoa states the custom scale-animation system and its purpose directly, as the studio's own engineering/production account; transcript-only, no frames extracted this session; experimental until validated"
+}
