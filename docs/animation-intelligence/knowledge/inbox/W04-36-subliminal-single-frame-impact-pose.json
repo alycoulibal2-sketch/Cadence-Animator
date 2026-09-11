@@ -1,0 +1,42 @@
+{
+  "concept": "subliminal_single_frame_impact_pose",
+  "category": "advanced",
+  "definition": "An impact pose (the drawing where a strike actually connects) held for only a single frame's exposure - short enough that the viewer cannot consciously register it as a held pose at all - deliberately, because the impact's job is to be FELT as a shock/discontinuity in the surrounding motion rather than SEEN and studied the way the wind-up and follow-through poses are.",
+  "purpose": "Sell an impact's force through the disruption it causes to everything around it, rather than through the impact drawing's own visibility - freeing the frame budget to go almost entirely to the anticipation (to be read) and the follow-through (to be understood) instead.",
+  "visible_effect": "The connecting drawing itself flashes past too quickly to be consciously studied - close-up framing on the point of contact, at a single frame's exposure - while the poses immediately before and after it are each held for many frames by comparison.",
+  "psychological_or_gameplay_effect": "Stated directly by the source: this kind of drawing is 'meant to be felt not seen' - the audience registers a sudden, sharp discontinuity (a hit landed) without their eye ever settling on the connecting pose itself, which reads as MORE sudden and forceful than a pose held long enough to actually be studied would.",
+  "physical_interpretation": "An analogue of how a real, instantaneous impact is genuinely too fast for the eye to resolve into a still image - a single-frame exposure approximates that perceptual reality rather than the deliberately-slowed, legible reference footage the same source studies elsewhere for the wind-up.",
+  "use_cases": [
+    "the exact connecting frame of a fast, forceful strike, where the point is impact itself rather than the shape of the pose at that instant",
+    "a shot whose frame budget is deliberately concentrated on a long, readable anticipation and a clear, digestible follow-through, with almost nothing left over for the connecting moment itself"
+  ],
+  "non_use_cases": [
+    "a pose the audience actually needs to read or study (an anticipation pose, a follow-through/reaction pose, any pose meant to communicate information rather than a shock) - this technique is specifically for the one frame that should NOT be consciously seen",
+    "a slow, deliberate, or controlled contact (a touch, a block) where there is no sudden force to sell this way"
+  ],
+  "interactions": [
+    "motion_smear_readability (W01, video 4) - a related but distinct fast-motion technique: a smear bridges a large positional gap so fast TRAVEL stays trackable; this entry is about the single ARRIVAL frame itself being too brief to register, a different point in the same fast action",
+    "implied_zero_frame_anticipation (W01, video 3) - the anticipation-side sibling of the same 'compress to near-nothing' family, applied there to the WIND-UP instead of the impact",
+    "dps_floor_for_short_actions (W02, video 11) - an apparent tension worth naming rather than hiding: that card warns against a hold density so low a short action stops reading; this entry deliberately embraces exactly that for ONE frame within an otherwise normally-posed sequence, because that one frame is not meant to read as a pose at all",
+    "startup_frame_budget - the connecting frame's near-zero exposure is the extreme end of the same startup-budget dial, paired here with an unusually LONG budget on the anticipation side of the same action"
+  ],
+  "style_variations": {
+    "anime": "the source's own convention - a long, telegraphed wind-up and a clear follow-through bracketing a near-subliminal connecting frame",
+    "realistic": "a real high-speed camera would still resolve a genuine impact into several usable frames; this technique is a stylistic choice about perceived instantaneousness, not a claim about real exposure times"
+  },
+  "cadence_representation": "Not represented, and only partly expressible: Cadence can hold a key for a single frame (an ordinary key density choice, measurable via `key_density`), so the MECHANICAL side of this technique is already reachable - but nothing distinguishes 'a pose held for one frame because it genuinely is not meant to be seen' from an ordinary sparse pose, and Cadence's rigid Motor6D rig has no way to add the deliberate blur/motion-smear rendering a real single-frame anime drawing at this point often also carries (per `motion_smear_readability`'s own cadence_representation).",
+  "control_surface": "Ordinary `set_keyframe` density already permits a single-frame hold; nothing marks it as intentionally subliminal versus accidentally sparse.",
+  "detection_and_measurement_methods": "Partially real: `ai/motion.js key_density`/`keyDensity` already reports how many frames a pose is held for, so a single-frame hold at a declared contact/impact marker is directly identifiable from existing data - what cannot be measured is whether that single frame was a DELIBERATE subliminal choice versus an accidental under-posing (the same distinction `dps_floor_for_short_actions` already cannot make automatically).",
+  "generation_or_modification_methods": "None dedicated - authoring a one-frame hold at a contact marker is already possible with ordinary keyframing; nothing packages it as this specific named technique.",
+  "failure_modes": [
+    "holding the connecting frame long enough that it IS consciously seen, undercutting the sudden, felt-not-seen quality the technique depends on",
+    "applying near-zero exposure to a pose the audience actually needed to read, mistaking this technique for a general 'make everything faster' rule rather than a choice specific to the one frame that should not be studied"
+  ],
+  "roblox_considerations": "A one-frame hold is directly expressible in Roblox's Animation Editor at any frame rate the rig supports; the motion-smear/blur rendering some real single-frame impact drawings also carry has no equivalent on a rigid rig, the same gap `motion_smear_readability` already names.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"there are a couple drawings here that are only exposed for a single frame - this drawing especially where [Tsukasa] literally punches you in the face is meant to be felt not seen\" (video @ 04:50-04:59), the close-up impact drawing directly confirmed in this session's frame at t=04:33, showing a fist filling the frame with visible motion-streak marks",
+    "the companion long-windup framing for the same shot: \"the large amount of frames given to the wind-up... and the follow-through allows us to be set up and prepared for the attack and gives us time to digest what we saw after\" (video @ 05:05-05:15)"
+  ],
+  "evidence_status": "video: https://youtu.be/-HXx1fK415I @ 04:50-05:15 - Dong Chang (a working animator in the Japanese animation industry) states this directly while breaking down his own rough layout work on Dr. Stone; the specific single-frame impact drawing is directly confirmed in this session's frame at t=04:33; experimental until validated"
+}

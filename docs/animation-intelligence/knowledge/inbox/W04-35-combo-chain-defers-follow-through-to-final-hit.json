@@ -1,0 +1,39 @@
+{
+  "concept": "combo_chain_defers_follow_through_to_final_hit",
+  "category": "advanced",
+  "definition": "In a multi-hit combo, the anticipation-action-follow-through cycle is not repeated in full for every individual hit - intermediate hits chain anticipation directly into action and then straight into the NEXT hit's anticipation, with a full follow-through beat reserved for only the LAST hit in the chain, where its 'what happened after' role (staggering, flying back, a finishing move) actually has room to play out uninterrupted.",
+  "purpose": "Keep a combo's pacing fast and continuous while still giving the sequence exactly one point (its end) where the audience gets a beat to register the outcome, rather than either omitting follow-through everywhere or awkwardly pausing after every single hit to give each one its own.",
+  "visible_effect": "A rapid anticipation-action, anticipation-action... cadence through the body of the combo with no dedicated recovery pose between hits, followed by one clearly held follow-through pose (or an escalated finishing beat, e.g. a suplex) only after the final hit lands.",
+  "psychological_or_gameplay_effect": "Keeps a combo reading as one continuous, escalating exchange rather than a series of separate, individually-punctuated attacks - the payoff and reaction are concentrated where they matter most (the combo's outcome) instead of being diluted across every hit.",
+  "physical_interpretation": "A pacing convention rather than a physical claim - real consecutive strikes do have some recovery between them, but this technique compresses or omits drawing it explicitly for every intermediate hit in favour of pacing.",
+  "use_cases": [
+    "any planned multi-hit attack sequence (a combo, a flurry) where continuous pacing across the whole sequence matters more than punctuating every individual hit",
+    "a finishing move or escalated final beat (the source's own example: ending a punch combo with a suplex) that specifically needs the follow-through's held reaction time to land"
+  ],
+  "non_use_cases": [
+    "a combo where each individual hit's outcome needs to be independently readable (a fighting game where each hit can be independently blocked, countered, or reacted to by the player) - there, at least a minimal follow-through/recovery cue per hit may be needed for fairness or readability, not only at the end",
+    "a single, non-chained attack, where the full three-part cycle applies normally with no deferral"
+  ],
+  "interactions": [
+    "layered_anticipation / startup_frame_budget / recovery_weight_substitution / implied_zero_frame_anticipation / follow_through_backfill_hold (W01's own anticipation ladder) - that chain already runs from 'spend frames before the action' to 'spend them after it instead' for a SINGLE action under a tight budget; this entry is the analogous compression applied across a whole MULTI-HIT SEQUENCE rather than within one action",
+    "overshoot_recoil_settle_pose_sequence (this batch, video 31) - the deferred final follow-through this entry describes is exactly where that card's overshoot/recoil/settle triad would play out in full, since it is the one beat in the combo actually given room for it"
+  ],
+  "style_variations": {
+    "game_combat": "a player-facing combo system may need to relax this compression per hit specifically so each hit stays independently reactable - noted directly under non_use_cases"
+  },
+  "cadence_representation": "Not represented as a named pattern: `ai/plan.js segmentPhases`/`TEMPLATES` name a single action's own phase order (anticipation, action, follow_through, recovery, settle) but has no concept of a MULTI-ACTION sequence where an intermediate action's own follow_through/recovery phases are omitted or compressed because another action immediately follows. Authoring a five-hit combo today would mean five separate `authorMotion` calls with no shared awareness that only the last one should get a full settle.",
+  "control_surface": "None - each `authorMotion` call is independent; nothing currently coordinates phase omission across a sequence of calls.",
+  "detection_and_measurement_methods": "Partially buildable: given a declared sequence of actions with markers, `ai/events.js` could in principle check whether intermediate actions' follow_through/recovery phases are indeed compressed relative to the final one's, but nothing currently reasons across multiple authored motions as one combo unit.",
+  "generation_or_modification_methods": "None - no strategy authors a multi-hit sequence as a single unit with this deferral rule built in.",
+  "failure_modes": [
+    "giving every intermediate hit in a combo its own full follow-through, breaking the sequence's continuous pacing and making it feel like separate attacks rather than one escalating exchange",
+    "deferring follow-through so completely that even the FINAL hit lacks one, leaving the whole combo's outcome unclear"
+  ],
+  "roblox_considerations": "None beyond the general timing/phase model already in place.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"I'm planning on animating this guy landing at least five blows before ending this animation. So, I just keep using those principles to animate, anticipation, action, anticipation, action, and follow-through\" - follow-through named only once, after naming two full anticipation-action pairs (video @ 03:45-03:59)",
+    "the combo's actual ending is escalated beyond an ordinary follow-through into a full finishing move (a suplex), preceded by its own dedicated anticipation (\"before the suplex... I'm going to animate him go lower to get a better grip... this is our anticipation pose\") (video @ 04:01-04:26)"
+  ],
+  "evidence_status": "video: https://youtu.be/4uvQytZ3DmA @ 03:45-04:26 - Besty Animates states the repeated anticipation-action cadence and the single deferred follow-through directly while narrating a five-hit combo's construction in Clip Studio Paint; the specific combo frames themselves fall in an unsampled stretch of this session's 100-frame sample (dominated by unrelated B-roll and channel bumpers), so this rests on the transcript's explicit description rather than a directly-viewed sequence; experimental until validated"
+}

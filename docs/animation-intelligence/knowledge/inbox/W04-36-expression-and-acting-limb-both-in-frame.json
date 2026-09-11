@@ -1,0 +1,37 @@
+{
+  "concept": "expression_and_acting_limb_both_in_frame",
+  "category": "advanced",
+  "definition": "A strong key pose keeps the character's face/expression AND the limb or object doing the acting (a raised fist, a weapon) both simultaneously visible within the same silhouette or camera framing, rather than letting the pose or camera angle hide either one - both are needed together to make the pose's intention immediately legible.",
+  "purpose": "Give 'make the intention clear' a specific, checkable composition rule (are both the expression and the acting part visible at once) rather than leaving pose clarity to be judged by feel alone.",
+  "visible_effect": "A key pose framed so the face reads clearly AND the fist, weapon, or other acting limb is not cropped out, obscured behind the body, or turned away from camera - both land in the same glance rather than requiring the eye to search the frame or the pose to be held longer to register both pieces of information.",
+  "psychological_or_gameplay_effect": "Named directly as making a character's intention 'crystal clear' - the expression supplies the emotional/intent read while the visible acting limb supplies the physical/action read, and losing either one leaves the pose only half-communicating.",
+  "physical_interpretation": "Not physical - a composition/readability rule about what a single pose or frame needs to keep visible, not a claim about the motion itself.",
+  "use_cases": [
+    "any key pose meant to be read quickly and clearly - a wind-up, a strong action extreme, a reaction pose",
+    "choosing a camera angle or body orientation for a dynamic pose, specifically checking that it does not sacrifice either the face or the acting limb to get a better silhouette on the other"
+  ],
+  "non_use_cases": [
+    "a pose whose intention is deliberately ambiguous or withheld (hiding the face or the weapon on purpose, for a reveal or a surprise beat)",
+    "a pose with no specific acting limb to keep visible (a pure stance or idle with no object or gesture doing the communicating)"
+  ],
+  "interactions": [
+    "silhouette_readability_diagnostic_pass (W03, video 25) - a related but distinct check: that technique strips a pose to a flat outline to test overall shape readability; this entry is a narrower, specific checklist item (are these two particular things both visible) rather than a full silhouette test",
+    "line_of_action_shape_and_scope (W03, video 23) - both are pose-composition checks applied alongside each other in the same source material (the video cites strong lines of action and straight arms in the same breath as this expression-plus-limb rule)"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: this is a camera-and-pose COMPOSITION judgement (does a given viewpoint keep two specific things visible at once), which needs a camera/projection model Cadence does not yet have (the same MOT-006 gap `ai/motion.js`'s own `screen_space_velocity`/`screen_space_acceleration` entries already name as `implemented: false`) - without a camera, there is no 'in frame' to check against at all, only a pose's own joint values in world space.",
+  "control_surface": "None - blocked on the same missing active-camera model other screen-space measurements already cite.",
+  "detection_and_measurement_methods": "Not measurable in this build: confirming a face and a limb are both 'in frame' requires a camera projection (MOT-006, not implemented) plus a face-visibility/occlusion judgement this build has no model for at all - a compound gap, not a single missing measurement.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "a pose whose face is obscured by an arm, hair, or camera angle, losing the expression half of the intention even if the action itself reads clearly",
+    "a pose whose acting limb is cropped, foreshortened into ambiguity, or hidden behind the torso, losing the action half even if the expression reads clearly"
+  ],
+  "roblox_considerations": "The same missing-camera-model gap applies identically on Roblox - this is a composition judgement made relative to a specific camera, which neither this build nor a generic engine-side check can evaluate without one declared.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"I really like this drawing which assumes strong expression and her fist both in frame. It makes your intention crystal clear\" (video @ 02:29-02:36, Natsume's wind-up pose)",
+    "the same rule restated independently later for a second character: \"look at this pose, Tsukasa's expression and his fists are both in frame, and I think this makes his intention very clear\" (video @ 05:24-05:33), directly confirmed in this session's frames at t=04:51 and t=05:15 showing the expression and raised fist together in frame"
+  ],
+  "evidence_status": "video: https://youtu.be/-HXx1fK415I @ 02:29-02:36 and 05:24-05:33 - Dong Chang states this exact rule twice, independently, for two different characters in two different source productions (Decadence and Dr. Stone) in the same video; both poses are directly confirmed in this session's frame sample (t=04:51, t=05:15 for the Tsukasa case); experimental until validated"
+}

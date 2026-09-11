@@ -1,0 +1,36 @@
+{
+  "concept": "low_frame_rate_draft_pass_for_fast_iteration",
+  "category": "optional",
+  "definition": "Blocking out a shot's key poses at a deliberately low frame count first, specifically to keep each mistake cheap to redo and each iteration fast - a wrong pose costs seconds to fix rather than the much larger cost of reworking a shot that was already drawn or keyed densely.",
+  "purpose": "Reduce the cost of being wrong during the exploratory blocking stage, so an animator iterates on staging and timing choices freely before committing to the frame count a finished shot will actually need.",
+  "visible_effect": "A rough blocking pass with only a handful of held poses per phase, each easy to redraw or re-key from scratch, rather than a densely inbetweened pass from the very first attempt.",
+  "psychological_or_gameplay_effect": "None directly on a viewer - this is a production-cost technique, not a property of the finished motion.",
+  "physical_interpretation": "Not physical - a production-pipeline technique.",
+  "use_cases": [
+    "the initial blocking/key-pose pass on any new shot, especially one whose staging or timing is still being decided",
+    "a long or multi-beat sequence (the source's own example: a five-hit combo) where redrawing a densely-inbetweened early mistake would be especially costly"
+  ],
+  "non_use_cases": [
+    "a final polish pass, where the low frame count blocking has already served its purpose and the shot needs its real frame density",
+    "a shot whose staging and timing are already fully decided and unlikely to change, where the iteration-speed benefit has little left to offer"
+  ],
+  "interactions": [
+    "pose_workflow - this is a specific, practical refinement of the pose-to-pose half of that card's choice: block key poses first, and specifically at LOW frame density, before committing to a denser pass",
+    "staged_keyframe_then_straight_ahead_workflow (W02, video 15) - a related but distinct production-sequencing idea; this entry is about the FRAME COUNT of the first pass specifically, not the order of keyed-vs-straight-ahead work"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a distinct workflow stage: Cadence's project model stores whatever keys a caller writes, with no notion of a deliberately sparse 'draft' pass versus a 'final' pass, and no tool currently marks or tracks which stage a given set of keys belongs to.",
+  "control_surface": "None dedicated - any tool that sets keyframes could be used at low density; nothing distinguishes a draft pass from a final one.",
+  "detection_and_measurement_methods": "Partial: `ai/motion.js`'s existing `key_density` measurement could describe how sparse a given pass currently is, but nothing classifies a measured density as 'draft-stage sparse' versus 'a genuinely finished low-key-count style choice' - those look identical in project data alone.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "blocking too densely on a first pass, losing the fast-iteration benefit this technique is specifically for",
+    "shipping the low-frame-rate draft pass as if it were finished, rather than following it with the density a finished shot actually needs"
+  ],
+  "roblox_considerations": "None specific - a pure authoring-workflow technique independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"when animating, don't forget to animate in really low frame rates. That way, you're able to animate faster without getting tired. Mistakes are also really easy to fix when you have a low frame count. It wouldn't feel like wiping away 5 hours of hard work cuz you did it in way less time\" (video @ 02:56-03:10)"
+  ],
+  "evidence_status": "video: https://youtu.be/4uvQytZ3DmA @ 02:56-03:10 - Besty Animates states this directly as a stated production habit while beginning to block a five-hit fight combo in Clip Studio Paint; the rough boxing-stance blocking pose itself is confirmed directly in this session's frame at t=05:02; experimental until validated"
+}

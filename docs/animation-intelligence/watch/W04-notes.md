@@ -6,8 +6,8 @@
 - [x] 32. Body Mechanics: Jumping and Landing — Animation Mentor (11:02) — https://youtu.be/VjRCxm8nrNE
 - [x] 33. How To Improve Idle Animations In Games — Libby Pete (6:11) — https://youtu.be/tYwNSm8Q3l8
 - [x] 34. Punch Tutorial — Greg Marlow Learning (11:45) — https://youtu.be/tcBT-6wdSC8
-- [ ] 35. How to Animate Fight Scenes (Part 1): Punches — Besty Animates (6:02) — https://youtu.be/4uvQytZ3DmA
-- [ ] 36. Fisticuffs: Tips for animating action and fight scenes — Dong Chang (6:07) — https://youtu.be/-HXx1fK415I
+- [x] 35. How to Animate Fight Scenes (Part 1): Punches — Besty Animates (6:02) — https://youtu.be/4uvQytZ3DmA
+- [x] 36. Fisticuffs: Tips for animating action and fight scenes — Dong Chang (6:07) — https://youtu.be/-HXx1fK415I
 - [ ] 37. How to ANIMATE SWORD COMBAT Part 1 — Gogan (77:15) — https://youtu.be/sBNDzqO8ZT8
 - [ ] 38. How to Animate a Sword Fight: Full Creative Process — Winged Canvas (15:40) — https://youtu.be/ZTH3meW3o4E
 - [ ] 39. Breaking Down Attack Animations [Animation] — Masahiro Sakurai on Creating Games (3:35) — https://youtu.be/LewXWM7HDd8
@@ -302,4 +302,133 @@ real content beyond a restatement).
 **Entries written:** `W04-34-proximal-to-distal-power-sequencing.json`,
 `W04-34-reach-pose-calibrated-against-placeholder-target.json`,
 `W04-34-peak-spacing-immediately-before-impact.json` — all three pass `validateProposedEntry` and
+`validateEvidenceSource` cleanly.
+
+### 35. How to Animate Fight Scenes (Part 1): Punches — Besty Animates
+
+2026-09-11. Watched at `balanced` detail (100 frames from a 305-candidate pass across the full
+06:02 run). The lightest video of the batch so far — a beginner-level 2D (Clip Studio Paint)
+tutorial that mostly restates anticipation/action/follow-through at a generic level, already deeply
+covered by the compiled `anticipation` principle and the W01 anticipation-ladder cards. Two genuine,
+specific production points stood out from the generic restatement.
+
+**What it teaches, specifically:**
+1. Block the initial key-pose pass at a deliberately LOW frame count, specifically so a wrong
+   choice costs seconds to redo rather than hours: "animate in really low frame rates... mistakes
+   are also really easy to fix when you have a low frame count. It wouldn't feel like wiping away
+   5 hours of hard work" (02:56–03:10). A simple but genuinely distinct production-cost technique
+   from the pose-to-pose/straight-ahead workflow choice or the staged-keyframe ordering question
+   the corpus already covers — this is specifically about the FRAME COUNT of the first pass. Wrote
+   **`low_frame_rate_draft_pass_for_fast_iteration`**.
+2. A specific combo-structure claim: across a planned five-hit combo, the full anticipation-action-
+   follow-through cycle is NOT repeated per hit — "anticipation, action, anticipation, action, and
+   follow-through" (03:51–03:59), follow-through named only once, after two full anticipation-action
+   pairs — with a full follow-through/reaction beat reserved for the combo's end, there escalated
+   into a finishing move (a suplex) with its own dedicated anticipation (04:01–04:26). This is the
+   multi-hit-SEQUENCE-level analogue of the W01 anticipation ladder's single-action frame-budget
+   compression — a genuinely different scope than anything currently in the corpus. Wrote
+   **`combo_chain_defers_follow_through_to_final_hit`**.
+3. A closing-the-gap plausibility check before animating an attack: "there's a not-so-small gap
+   between them, meaning if any of them were to throw a punch right now, it wouldn't land cuz the
+   gap is too big... except for Monkey D. Luffy" (02:36–02:48), resolved by animating the attacker
+   closing the distance first. A nice, concrete complement to this batch's own video-34 entry
+   `reach_pose_calibrated_against_placeholder_target` — logged as a **cross-check** on that entry
+   rather than a new one, since it's the same reach-vs-target-distance judgement approached from the
+   opposite direction (a pre-check gate, not a pose-calibration technique).
+4. Anticipation's definition (a wind-up pose, opposite the action's direction, giving the SECOND
+   character "a chance to block or dodge the attack," 00:51–01:07) is a clean, entirely generic
+   restatement of the compiled `anticipation` principle and the existing W01 anticipation-ladder
+   cards — logged as a **cross-check**, not a new entry. Follow-through's definition ("tells us what
+   happened after the action... whether the attack was successful or whether it was blocked,"
+   01:31–01:40) is likewise a plain restatement of `follow_through_overlap` /
+   `overshoot_recoil_settle_pose_sequence` (this batch) — also a **cross-check**.
+
+**Contradicted an existing card:** none.
+
+**Cross-checks:** `reach_pose_calibrated_against_placeholder_target` (this batch, video 34 — the
+gap/reach plausibility check), `anticipation` (compiled principle, generic restatement),
+`follow_through_overlap` (compiled principle, generic restatement).
+
+**Capture candidate:** none — 2D drawn animation throughout, no filmed or rigged 3D performance.
+
+**Checks for the queue:** none from this video — both new entries are combo/production-workflow
+patterns (sequencing across multiple authored actions, or a draft-vs-final authoring stage) rather
+than a property of one finished motion `ai/motion.js` could measure directly.
+
+**Entries written:** `W04-35-low-frame-rate-draft-pass-for-fast-iteration.json`,
+`W04-35-combo-chain-defers-follow-through-to-final-hit.json` — both pass `validateProposedEntry`
+and `validateEvidenceSource` cleanly.
+
+### 36. Fisticuffs: Tips for animating action and fight scenes — Dong Chang
+
+2026-09-11. Watched at `balanced` detail (100 frames from a 199-candidate pass across the full
+06:06 run). Dong Chang is already cited twice in this corpus from two OTHER videos
+(`asymmetric_spacing_preference`, `physical_reference_timing_method`) — this is a third,
+independent video from the same working Japanese-animation-industry animator, breaking down his
+own professional work (Decadence, Dr. Stone) frame by frame. The densest, most professionally
+evidenced video since video 36's neighbours — real boxing and taekwondo reference footage studied
+on screen, then compared directly against the shipped anime frames it informed.
+
+**What it teaches, specifically:**
+1. A precise, named technique for a strike's connecting frame: held for a single frame's exposure,
+   short enough to never be consciously registered, because "meant to be felt not seen"
+   (04:50–04:59) — the impact's force comes from the DISRUPTION it causes to the surrounding
+   motion, not from the connecting pose's own visibility. Directly confirmed in this session's
+   frame at t=04:33: a fist filling the frame with visible motion-streak marks. A genuinely
+   distinct idea from either `motion_smear_readability` (bridges a travel gap) or
+   `implied_zero_frame_anticipation` (compresses the WIND-UP, not the impact) — and worth naming
+   the tension with `dps_floor_for_short_actions` explicitly rather than hiding it: that card warns
+   against under-posing a short action, and this technique deliberately does exactly that for ONE
+   frame, on purpose. Wrote **`subliminal_single_frame_impact_pose`**.
+2. The explicit design reasoning for why screen combat should depart from studied reference
+   footage's own timing: "a slow powerful punch gets dodged easily in real life but looks great on
+   the screen... we want to strive beyond reality" (01:53–02:03), stated immediately after a
+   frame-by-frame study of real boxing footage (confirmed in this session's frames at t=00:56 and
+   t=01:52). Names a specific SHAPE for the exaggeration (much longer wind-up, much faster connect)
+   with a stated reason, which `startup_frame_budget` states as a genre dial but without this
+   particular real-vs-screen justification. Wrote
+   **`anti_realism_readability_tradeoff_for_screen_combat`**.
+3. A specific, twice-repeated composition checklist item — independently for two different
+   characters in two different productions in the same video: "I really like this drawing which
+   assumes strong expression and her fist both in frame. It makes your intention crystal clear"
+   (02:29–02:36), and again for Tsukasa: "his expression and his fists are both in frame... this
+   makes his intention very clear" (05:24–05:33, confirmed directly in this session's frames at
+   t=04:51 and t=05:15). Wrote **`expression_and_acting_limb_both_in_frame`**.
+4. **A strong, independent third and fourth confirmation of this batch's own
+   `proximal_to_distal_power_sequencing`** (video 34) — and it extends that entry's scope: "throughout
+   all this his whole body is moving forward even though his left arm is still pulling backwards"
+   (01:06–01:12) for the punch, and for a taekwondo spin kick specifically during the WIND-UP (not
+   only the arrival at contact, which is all video 34's own entry covered): "he leads with the
+   shoulder and head and the kicking leg follows... the kicking leg lags behind" (01:30–01:40).
+   Logged as a **cross-check** with the scope extension noted explicitly for whoever merges this
+   batch to consider folding in.
+5. The smear-for-large-gaps rule is reinforced twice more: "the distance moved in that one draw is
+   so huge that I will need to make it a smear drawing" (04:02–04:08), and earlier for the punch
+   itself (02:57–02:59) — a third and fourth confirmation of `motion_smear_readability`. Logged as a
+   **cross-check**.
+6. A same-side counter-rotation detail (the non-striking arm swings backward as the body turns into
+   the punch, 01:17–01:21) is a nice specific biomechanical note but not distinct enough from
+   existing counterbalance content for its own entry — folded into this paragraph rather than a
+   card.
+
+**Contradicted an existing card:** none.
+
+**Cross-checks:** `proximal_to_distal_power_sequencing` (this batch, video 34 — two independent
+confirmations, scope extended to the anticipation/wind-up phase), `motion_smear_readability` (two
+more confirmations).
+
+**Capture candidate:** none — the video's own footage is either real boxing/taekwondo B-roll (not
+this project's to capture, and not demonstrating a Cadence-relevant novel motion beyond what's
+already in the queue) or finished 2D anime frames, neither of which Roblox Studio's Animation
+Capture applies to.
+
+**Checks for the queue:**
+- `check: connecting_frame_exposure_vs_neighbours — compare a declared contact frame's own hold
+  duration (key_density) against the hold durations of its immediately preceding and following
+  poses; flag a connecting frame held as long as or longer than its neighbours on a fast strike —
+  buildable directly from existing key_density data — video 36 @ 04:50–04:59`
+
+**Entries written:** `W04-36-subliminal-single-frame-impact-pose.json`,
+`W04-36-anti-realism-readability-tradeoff-for-screen-combat.json`,
+`W04-36-expression-and-acting-limb-both-in-frame.json` — all three pass `validateProposedEntry` and
 `validateEvidenceSource` cleanly.

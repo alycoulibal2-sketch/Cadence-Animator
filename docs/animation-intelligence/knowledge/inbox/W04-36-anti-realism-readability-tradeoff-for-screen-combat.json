@@ -1,0 +1,40 @@
+{
+  "concept": "anti_realism_readability_tradeoff_for_screen_combat",
+  "category": "advanced",
+  "definition": "A named, explicit design justification for why a screen fight's timing should deliberately depart from a physically-plausible reference rather than copy it exactly: a realistically slow, powerful strike would be dodged easily in real life, so studied reference footage is exaggerated toward a much longer wind-up (to sell the coming force and stay readable) paired with a much faster, less-dodgeable connecting strike (to feel powerful and immediate) - reality is the starting reference, not the target.",
+  "purpose": "Give 'exaggerate the reference' a concrete, reasoned direction (which way to push timing, and why) rather than leaving exaggeration as an unquantified instruction.",
+  "visible_effect": "The wind-up phase is stretched far longer than a real strike's own wind-up would be, while the strike itself is compressed to as few as two drawings covering a very large distance (needing a smear to bridge it) - the opposite proportion from the real reference footage, which is studied for its STRUCTURE (which parts move when, relative to each other) rather than copied for its timing.",
+  "psychological_or_gameplay_effect": "A strike timed exactly like the real reference would, in the source's own words, 'get dodged easily in real life but' - stretched into this shape - 'looks great on the screen': the long wind-up reads as clearly threatening and gives the audience time to register it, while the fast connect reads as overwhelming and unreactable, which is the intended feeling even though it is the physical opposite of what would actually connect against a real opponent.",
+  "physical_interpretation": "A deliberate DEPARTURE from physical plausibility, stated as such rather than disguised as realism - the technique's whole point is that copying real timing exactly would undersell the fight, not that the exaggerated version is somehow more physically correct.",
+  "use_cases": [
+    "adapting real reference footage (sports footage, martial arts) for a stylised fight scene, where the reference's STRUCTURE (which body parts lead, in what order) is worth keeping but its TIMING is not",
+    "any screen combat wanting to read as more powerful and less reactable than a real equivalent exchange would be"
+  ],
+  "non_use_cases": [
+    "a simulation, training tool, or any context where matching real timing accurately is the actual goal rather than a screen-combat read",
+    "a genre or scene deliberately going for grounded realism over spectacle, where the reference's own timing may be the better choice to keep"
+  ],
+  "interactions": [
+    "startup_frame_budget (W01, video 2) - this entry supplies the REASONING for pushing that dial toward a long, telegraphed startup specifically for stylised screen combat, where the existing card states the dial's two genre extremes without this particular real-vs-screen justification",
+    "physical_reference_timing_method (W01, video 9) - a direct, named contrast in how reference is used: that technique grounds a motion's timing IN the measured reference; this entry explicitly studies reference for structure and then departs from its timing on purpose",
+    "subliminal_single_frame_impact_pose (this batch, video 36) - the companion technique for the compressed, fast side of this same tradeoff: an almost-zero-exposure connecting frame is what the 'much faster strike' half of this entry's timing shift actually looks like in practice"
+  ],
+  "style_variations": {
+    "anime": "the source's own convention, explicitly named and reasoned through",
+    "realistic": "the excluded case by definition - see non_use_cases"
+  },
+  "cadence_representation": "Not represented: this is a pre-authoring judgement call about how far to depart from a studied reference's own timing, made before any project data exists for this build to measure - the same category of gap `physical_reference_timing_method` already names for reference-gathering generally, here specifically about the DECISION to diverge from the reference rather than follow it.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "None directly - this is a judgement call, not a property of finished project data. Once authored, the RESULT is measurable: `ai/motion.js sampleMotion`'s frame timing already shows the startup-to-connect ratio, which is what `startup_frame_budget`'s own existing measurement approach already covers.",
+  "generation_or_modification_methods": "None dedicated.",
+  "failure_modes": [
+    "copying a real reference's timing exactly for a stylised screen fight, producing a technically-plausible but visually underwhelming exchange the source explicitly warns against",
+    "exaggerating timing with no reasoning behind the direction of the change, rather than the specific 'longer wind-up, faster connect' shape this entry names"
+  ],
+  "roblox_considerations": "None specific - a pre-authoring design judgement independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"as artists we want to take this and really exaggerate it with both timing and posing... in the same way movie fight scenes look way cooler than real fights we want to strive beyond reality. We want to sell that wind up or anticipation motion to give the resulting punch more force. A slow powerful punch gets dodged easily in real life but looks great on the screen\" (video @ 01:40-02:03), stated directly after studying real boxing footage frame by frame"
+  ],
+  "evidence_status": "video: https://youtu.be/-HXx1fK415I @ 01:40-02:03 - Dong Chang states this reasoning directly immediately after a frame-by-frame study of real boxing reference footage, which is confirmed in this session's own frames at t=00:56 and t=01:52 (BT Sport boxing broadcast footage); experimental until validated"
+}
