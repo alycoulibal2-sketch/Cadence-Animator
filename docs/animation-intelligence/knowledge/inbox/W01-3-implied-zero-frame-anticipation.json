@@ -1,0 +1,42 @@
+{
+  "concept": "implied_zero_frame_anticipation",
+  "category": "advanced",
+  "definition": "Communicating anticipation's readability function with zero or near-zero dedicated frames, either by snapping instantly to a recognizable wind-up POSE with no transition, or, when even that is unaffordable, using a deformation (a stretch) on the departing frame itself to imply a preparatory motion that never actually happened.",
+  "purpose": "Keep an action reading as intentional and prepared-for even under an input-to-effect budget too tight for any dedicated anticipation phase at all.",
+  "visible_effect": "Either an instant cut from idle straight to a held, recognizable wind-up silhouette (no in-between frames), or — with no frame budget for even that — an exaggerated stretch on the character's departing pose that reads as implying a crouch or coil that was never actually drawn.",
+  "psychological_or_gameplay_effect": "The snapped-pose version still delivers anticipation's cueing/readability benefit (the audience recognizes the pose) while sacrificing its power-communication benefit (there is no duration to sell force with); the stretch-only version delivers a WEAKER version of both, working almost subconsciously — the video's own description is that it \"sort of feels like there was\" a crouch, not that the player consciously registers one.",
+  "physical_interpretation": "None in the snapped-pose case (there is no transition to interpret physically); in the stretch case, it borrows squash-and-stretch's own physical vocabulary (implied compression/release) to stand in for a preparatory motion that is not actually present.",
+  "use_cases": [
+    "an input-to-effect window of only a few frames, too tight for any dedicated anticipation phase, where a snap-to-pose still preserves some readability",
+    "a near-zero-frame window (a single frame of input-to-airborne, for example), where even a snapped pose cannot fit and only a departure-frame deformation is left as an option",
+    "a highly responsive action-platformer or similar genre where input lag of any kind is unacceptable but the action still benefits from feeling prepared rather than abrupt"
+  ],
+  "non_use_cases": [
+    "any action with enough of a frame budget for a real anticipation phase — this is a fallback for when that budget does not exist, not a general substitute for anticipation",
+    "an action where the player needs enough time to actually react to the cue (an opponent-facing telegraph) — a one-frame snap or a departure-frame stretch gives a human observer no reaction window at all, unlike a proper anticipation phase"
+  ],
+  "interactions": [
+    "Anticipation — the limiting case of it: this is what is left of anticipation's own two functions (power-selling, readability-cueing) when the frame budget is driven to zero",
+    "Squash & stretch — the departure-frame-stretch variant is literally squash & stretch's own deformation vocabulary borrowed to do anticipation's job with no dedicated frames of its own",
+    "Startup frame budget — the zero end of that same dial"
+  ],
+  "style_variations": {
+    "game_combat": "the pose-snap variant fits any twitch-responsive action genre; the departure-stretch variant is specifically suited to a 2D/sprite-based game where squash & stretch is already part of the visual language"
+  },
+  "cadence_representation": "Not represented. Both variants require inserting a pose or a deformation cue INTO an existing near-zero window without adding perceptible duration — `ai/plan.js` strategies edit values at existing keys and do not add or remove keys (per CLAUDE.md), and Cadence has no mesh deformation at all (see the existing `squash_stretch` card's own cadence_representation), so even the pose-based equivalent that card names would need to be created manually here, not generated.",
+  "control_surface": "None dedicated. A caller could manually set a single held key to a recognizable wind-up pose at the very start of an action; nothing automates the choice or the departure-frame-stretch fallback.",
+  "detection_and_measurement_methods": "None. Detecting whether a single-frame pose is \"recognizable enough\" to read as anticipation is a readability judgement this build does not attempt anywhere (the same honestly-stated gap the existing `staging` card already names for readability in general).",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "a snapped pose that is not actually recognizable as a wind-up within a single frame, which wastes the one thing this technique could still deliver",
+    "relying on the departure-frame-stretch variant for an action where the player genuinely needed reaction time, since it provides essentially none",
+    "adding perceptible extra frames while attempting this \"zero-frame\" technique, which defeats its entire purpose and would have been better served by ordinary anticipation or the recovery-substitution technique instead"
+  ],
+  "roblox_considerations": "The departure-frame-stretch variant assumes mesh or sprite deformation, which — like squash & stretch generally — has no literal equivalent on Cadence's rigid Motor6D rigs; the pose-snap variant is a plain single held key and is fully representable.",
+  "performance_implications": "None.",
+  "examples": [
+    "a jump input snapping instantly to a held crouch pose for only a few frames before launch, adding a springy read without costing meaningful response time (video 3 @ 5:57–6:07)",
+    "a jump animation with literally zero frames of anticipation, where an exaggerated stretch on the lift-off pose itself implies a crouch that was never actually drawn (video 3 @ 6:27–6:53)"
+  ],
+  "evidence_status": "video: https://youtu.be/28s1Hv3Zqlo @ 5:47–6:53 — Dan describes both variants explicitly by name, citing a specific jump input's crouch-snap and a specific platformer's zero-anticipation jump stretch; the exact frames of both games' cited animations were not distinctly captured in this session's frame sample, so the description rests on the transcript rather than a directly-viewed frame; experimental until validated"
+}

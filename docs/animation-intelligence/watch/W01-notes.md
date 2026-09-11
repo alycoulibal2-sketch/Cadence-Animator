@@ -4,7 +4,7 @@
 
 - [x] 1. 12 Principles of Animation (Official Full Series) — AlanBeckerTutorials (24:03) — https://youtu.be/uDqjIdI4bF4
 - [x] 2. TIMING - The 12 Principles of Animation in Games — New Frame Plus (9:38) — https://youtu.be/rHEJZXvFc5I
-- [ ] 3. ANTICIPATION - The 12 Principles of Animation in Games — New Frame Plus (7:52) — https://youtu.be/28s1Hv3Zqlo
+- [x] 3. ANTICIPATION - The 12 Principles of Animation in Games — New Frame Plus (7:52) — https://youtu.be/28s1Hv3Zqlo
 - [ ] 4. SQUASH & STRETCH - The 12 Principles of Animation in Games — New Frame Plus (8:19) — https://youtu.be/1kFRU_xBZnE
 - [ ] 5. SLOW IN & SLOW OUT - The 12 Principles of Animation in Games — New Frame Plus (7:24) — https://youtu.be/3jNiNctcQ4c
 - [ ] 6. ARCS - The 12 Principles of Animation in Games — New Frame Plus (7:47) — https://youtu.be/lOzgxMgAnxQ
@@ -66,4 +66,26 @@ Watched at `balanced` detail (89 scene-aware frames over 9:38, all 89 read direc
 
 **Entries written:** 2 (`W01-2-startup-frame-budget.json`, `W01-2-global-timing-register.json`), both passed `validateProposedEntry` cleanly.
 
-**Next video: 3** (ANTICIPATION - The 12 Principles of Animation in Games, `balanced` detail).
+### 3. ANTICIPATION - The 12 Principles of Animation in Games — 2026-09-11
+
+Watched at `balanced` detail (92 scene-aware frames over 7:52, all 92 read) plus the full 208-segment caption transcript. Another New Frame Plus deep-dive, illustrated with a wide montage (God of War, Smash Ultimate, Bugs Bunny, Shadow of the Colossus, Horizon Zero Dawn, Hollow Knight, Sekiro, Dark Souls III, Monster Hunter World, XCOM 2, Animal Crossing, Anthem, Super Mario Odyssey, Celeste, Cuphead, Dragon Ball FighterZ, Sayonara Wild Hearts) confirming which example each spoken point refers to.
+
+**Cross-check:** confirms the existing `anticipation` card fully — the "coiled spring" analogy, "the more powerful the action, the more exaggerated the anticipation needs to be," and the readability/cueing function are all restated near-verbatim. No contradictions. The video's `game_combat` framing (responsiveness competing with anticipation time) matches the existing card's own `style_variations.game_combat` note ("compressed toward pose over frames, to protect responsiveness") — direct confirmation, and this video is the evidentiary source that note was presumably drawing on.
+
+**Two new entries — both specific to what happens when a player-controlled action CANNOT afford real anticipation time, which the existing card names as a pressure but doesn't resolve into named techniques:**
+1. **Recovery-weight substitution** (`W01-3-recovery-weight-substitution.json`) — sell an action's power through its RECOVERY (the vulnerable window after the hit) instead of its wind-up, when responsiveness rules out a long startup. Named directly as a common strategy, and as a deliberate risk/reward design lever (a stronger move leaves the player exposed longer afterward) (video @ 5:16–5:44).
+2. **Implied zero-frame anticipation** (`W01-3-implied-zero-frame-anticipation.json`) — two named fallback techniques for when even a short anticipation phase doesn't fit: snapping instantly to a held, recognizable wind-up pose with zero transition frames (still delivers anticipation's readability function, not its power-communication function), and — when there is truly zero frame budget — an exaggerated stretch on the departure pose itself that implies a crouch that was never actually drawn. The video's own words for the second case are worth keeping verbatim: "there isn't one but it sort of feels like there was" (video @ 5:47–6:53).
+
+Both new entries interact directly with video 2's `startup_frame_budget` (they are what happens at the low end of that same dial) and with `recovery_weight_substitution`/`implied_zero_frame_anticipation` interacting with each other as adjacent fallback rungs on one ladder: layered anticipation (video 1, when there's extra time) → ordinary anticipation → recovery substitution or a pose-snap (when time is tight) → a departure-frame stretch (when there is none at all).
+
+**Other observations, no new entry:** Sekiro's demand for a precisely-timed parry (not just a dodge) is a sharper version of the existing card's general readability use case, not a structurally new concept — kept as a confirming example. The turn-based/RTS/Animal Crossing point (responsiveness stops being the binding constraint, so anticipation gets "a lot more wiggle room") is the direct converse of `startup_frame_budget`'s genre axis, already covered by that entry from video 2's side.
+
+**Capture candidates:** none beyond what videos 1–2 already named — this video's examples are either 2D/sprite games (no 3D rig to reference) or the same real-game footage already covered.
+
+**Checks for a later session to implement:**
+- `check: recovery_duration_vs_startup_duration — for a player-controlled action, the ratio of post-contact recovery duration to pre-contact startup duration (both already derivable from existing markers) — a "responsive" action is expected to show a startup budget near the low end of its genre convention (see startup_frame_budget) with recovery bearing more of the weight-communication load instead — video 3 @ 5:16–5:44`
+- `check: anticipation_pose_recognizability_at_snap — whether a single held frame at an action's start matches a declared "wind-up" pose shape for that action (would need a pose-similarity measure this build does not have) — a snap-anticipation technique is only working if this holds — video 3 @ 5:57–6:07`
+
+**Entries written:** 2 (`W01-3-recovery-weight-substitution.json`, `W01-3-implied-zero-frame-anticipation.json`), both passed `validateProposedEntry` cleanly.
+
+**Next video: 4** (SQUASH & STRETCH - The 12 Principles of Animation in Games, `balanced` detail).

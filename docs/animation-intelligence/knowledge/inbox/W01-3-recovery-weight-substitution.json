@@ -1,0 +1,43 @@
+{
+  "concept": "recovery_weight_substitution",
+  "category": "advanced",
+  "definition": "Selling an action's power and exertion by extending its RECOVERY (the vulnerable window after the effect lands) rather than its anticipation/wind-up, when a responsive player action cannot afford a long startup.",
+  "purpose": "Preserve near-instantaneous input responsiveness on a player-controlled action while still communicating that the action is powerful and costly, by moving the \"this takes real effort\" signal to after the hit instead of before it.",
+  "visible_effect": "A near-instant transition from idle to the effect-connecting frame (little or no visible wind-up), followed by a comparatively long hold, stagger, or slow return-to-idle after the action lands.",
+  "psychological_or_gameplay_effect": "Preserves the feel of an immediately-responsive control scheme while still reading as a heavy, costly action; as a side effect, creates a player-facing risk/reward decision (a longer recovery leaves the player vulnerable for longer), which a short anticipation-based wind-up does not.",
+  "physical_interpretation": "Not a substitute for real physicality in the anticipation sense — the video is explicit that this is a game-feel trick, not a physically accurate stand-in for a proper wind-up.",
+  "use_cases": [
+    "a player-controlled action in a genre where responsiveness is the priority (most action games' core moveset)",
+    "a design that wants a deliberate risk/reward tradeoff on powerful moves — commit to a big hit, pay for it in exposed recovery time",
+    "any move where anticipation time has already been minimized for feel and further power communication is still needed"
+  ],
+  "non_use_cases": [
+    "a non-player-controlled action (an enemy or environmental hazard), where anticipation time exists specifically so the PLAYER can react to it — recovery time serves the acting character's own risk, not the opponent's ability to read the attack coming",
+    "a genre where responsiveness is not the binding constraint in the first place (turn-based, RTS, or other non-directly-controlled contexts), where ordinary anticipation is simply affordable and this substitution is unnecessary",
+    "treating this as free — it still costs the player time and exposure, just after the hit rather than before it"
+  ],
+  "interactions": [
+    "Anticipation — explicitly a substitute for it, trading WHERE the \"this costs something\" signal sits in the timeline, not eliminating the cost",
+    "Startup frame budget — the same responsiveness pressure that pins startup low is exactly what motivates shifting the weight-selling job to recovery instead",
+    "Timing — a pure relative-duration decision: recovery duration versus startup duration for the same total \"this move is costly\" budget"
+  ],
+  "style_variations": {
+    "game_combat": "the primary context this technique exists for; a purely non-interactive medium (film, a cutscene) has no reason to prefer recovery over anticipation, since nothing is waiting on a player input"
+  },
+  "cadence_representation": "Not represented as a named tradeoff. The underlying editable quantity is ordinary phase timing — lengthening the keys/hold after a contact marker versus before it — fully reachable through existing key placement and `ai/events.js` markers, but nothing frames \"recovery duration\" as an alternative lever to \"anticipation duration\" for the same design goal the way this entry does.",
+  "control_surface": "Indirect, through ordinary key/marker placement after a contact event; no vocabulary dimension distinguishes recovery-as-weight-signal from any other post-contact motion.",
+  "detection_and_measurement_methods": "Real and directly available: the duration from a contact/impact marker to the next actionable/idle state is exactly as measurable as startup duration is (same marker-to-marker distance computation, the other direction) — `ai/events.js` and existing key timestamps already carry what is needed; nothing currently reports it as its own named quantity.",
+  "generation_or_modification_methods": "None dedicated. Extending recovery today means moving or adding keys after the contact point directly; no strategy trades startup budget for recovery budget as a single declared decision.",
+  "failure_modes": [
+    "applying long recovery to a non-player character's attack, where the player needed anticipation time to react and a long recovery afterward does not help them read the attack coming in the first place",
+    "recovery so long it stops feeling like weight and starts feeling like unresponsive lag, the same failure slow_in_slow_out already names for an overused ease",
+    "using this as a free substitute rather than acknowledging it still costs the player something — exposure time — which needs to be balanced like any other risk/reward lever"
+  ],
+  "roblox_considerations": "None specific — a pure keyframe-timing/game-design concept independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "a player character's powerful attack connecting almost immediately on input, then leaving them momentarily unable to act while recovering — named directly as a common strategy for selling power without costing anticipation time (video 3 @ 5:16–5:44)",
+    "the same design also cited as a deliberate risk/reward lever: a more powerful move leaves the player vulnerable for longer afterward, as a built-in cost for its strength (video 3 @ 5:40–5:44)"
+  ],
+  "evidence_status": "video: https://youtu.be/28s1Hv3Zqlo @ 5:16–5:44 — Dan states the technique and its risk/reward design consequence directly, over generic gameplay b-roll rather than one named, identifiable example; experimental until validated"
+}
