@@ -1,0 +1,36 @@
+{
+  "concept": "jump_pushes_off_leading_foot_for_forward_momentum",
+  "category": "advanced",
+  "definition": "A jump launched with forward momentum (running or stepping into an attack) pushes off the FRONT foot - the one nearer the direction of travel - not the back/trailing foot; pushing off the trailing foot while moving forward is named directly as physically impossible for a real body to do.",
+  "purpose": "Name a specific, common animator mistake at its physical root (which foot can actually generate force in the direction of travel) rather than leaving 'the jump looks wrong' unexplained.",
+  "visible_effect": "The leading/front foot is the last part of the body in contact with the ground at liftoff, extending and pushing as the trailing foot has already left the ground earlier in the stride - not the reverse.",
+  "psychological_or_gameplay_effect": "A jump launched off the wrong (trailing) foot reads as physically implausible even when a viewer cannot immediately articulate why - the source names it as one of the most common mistakes it sees in jump-attack animation.",
+  "physical_interpretation": "A real body's forward-moving momentum is carried onto and through the leading foot; that foot is the one still positioned to push against the ground in the direction of travel at the moment of liftoff, while the trailing foot has already left the ground earlier in the same stride and has nothing left to push against.",
+  "use_cases": [
+    "any jump, leap, or hop launched WHILE already moving forward (a running jump-attack, a step into a leaping strike)",
+    "diagnosing a jump-attack that reads as physically wrong despite an otherwise strong pose"
+  ],
+  "non_use_cases": [
+    "a jump launched from a stationary, symmetric stance with no forward run-up (a standing vertical jump) - there is no leading/trailing foot distinction to apply",
+    "a jump where the trailing leg is used for a stylised or acrobatic push specifically because the character is NOT moving forward at that moment (a backflip, a lateral dodge-jump)"
+  ],
+  "interactions": [
+    "continuous_horizontal_momentum_through_jump_apex (this batch, video 37) - the companion rule for the rest of the SAME jump: correct foot selection at launch and continuous horizontal travel through the arc are two halves of one physically-plausible forward jump",
+    "foot_lock_duration_scales_with_weight_before_launch (W03, video 26) - a related but distinct wind-up rule about a VERTICAL jump's foot-lock duration; this entry is about WHICH foot launches a forward-momentum jump, not how long either foot stays planted"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a named check: `ai/motion.js measureContactDrift` (MOT-008) already reports which declared contact effector is active and when it releases, which is exactly the data a 'did the trailing or leading foot release last' check would need - nothing currently classifies a jump's launch by which foot released last relative to the character's own direction of travel.",
+  "control_surface": "None dedicated - contact/release timing is already reachable per effector via `analyze_contacts`; no tool classifies launch-foot correctness against travel direction.",
+  "detection_and_measurement_methods": "Buildable: given a declared forward travel direction and two foot contacts, compare which one's `measureContactDrift` release frame is LATER (a real, existing measurement) and confirm it is the leading (not trailing) foot relative to the direction of travel - a real, computable check from data this build already produces.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "launching a forward-momentum jump off the trailing/back foot, named directly as a common mistake and physically impossible for a real body to do",
+    "correcting the foot but not the body's own facing/lean at launch, which the source notes may also need to angle slightly downward/forward on the initial jump to read correctly"
+  ],
+  "roblox_considerations": "None beyond the existing contact/effector model already shared across this corpus's other contact-timing entries.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"he's going to push, he's going to jump off with this front foot okay, not the back foot - that's another big thing that I see a mistake animators make... it's physically impossible to jump up right off of the back foot\" (video @ 20:06-20:19)"
+  ],
+  "evidence_status": "video: https://youtu.be/sBNDzqO8ZT8 @ 20:06-20:19 - Gogan states this directly as a named, commonly-observed mistake while live-posing a Link rig's jump-attack launch in Maya; the leading-foot-forward launch pose is directly confirmed in this session's own frame sample at t=20:22 and t=23:00 (front leg extended forward in a lunging stride); experimental until validated"
+}

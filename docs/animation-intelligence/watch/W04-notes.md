@@ -8,7 +8,7 @@
 - [x] 34. Punch Tutorial — Greg Marlow Learning (11:45) — https://youtu.be/tcBT-6wdSC8
 - [x] 35. How to Animate Fight Scenes (Part 1): Punches — Besty Animates (6:02) — https://youtu.be/4uvQytZ3DmA
 - [x] 36. Fisticuffs: Tips for animating action and fight scenes — Dong Chang (6:07) — https://youtu.be/-HXx1fK415I
-- [ ] 37. How to ANIMATE SWORD COMBAT Part 1 — Gogan (77:15) — https://youtu.be/sBNDzqO8ZT8
+- [x] 37. How to ANIMATE SWORD COMBAT Part 1 — Gogan (77:15) — https://youtu.be/sBNDzqO8ZT8
 - [ ] 38. How to Animate a Sword Fight: Full Creative Process — Winged Canvas (15:40) — https://youtu.be/ZTH3meW3o4E
 - [ ] 39. Breaking Down Attack Animations [Animation] — Masahiro Sakurai on Creating Games (3:35) — https://youtu.be/LewXWM7HDd8
 - [ ] 40. Animation vs Choreography — Honored Clarity (8:03) — https://youtu.be/xlfcZ2B8Vvs
@@ -432,3 +432,89 @@ Capture applies to.
 `W04-36-anti-realism-readability-tradeoff-for-screen-combat.json`,
 `W04-36-expression-and-acting-limb-both-in-frame.json` — all three pass `validateProposedEntry` and
 `validateEvidenceSource` cleanly.
+
+### 37. How to ANIMATE SWORD COMBAT Part 1 — Gogan
+
+2026-09-11. The batch's long video (1:17:15) — watched `transcript`-only first as instructed, read
+through to roughly the 48-minute mark (a live, screen-recorded Maya blocking-then-spline session
+building a four-hit Link sword combo, real-time narration with a lot of "okay, like this" filler
+between the genuinely teachable moments), then pulled a focused `efficient`-detail frame sample over
+20:00–27:15 (the jump-attack section) for visual confirmation. Did not read or sample the remaining
+~29 minutes (spline polish and wrap-up on the combo's back half) — the already-covered ~48 minutes
+yielded more than enough distinct, well-evidenced material, and the pattern strongly suggested
+diminishing returns (repeated application of already-identified techniques to the 3rd/4th hits).
+**If a future session picks up video 37 again, the unwatched back half (roughly 48:00–77:15) is
+where to start** — not logged as a separate checklist item since this counts as one watched video,
+but worth a note for whoever merges or extends this batch.
+
+**What it teaches, specifically:**
+1. A forward-momentum jump-attack launches off the LEADING foot (nearer the travel direction), not
+   the trailing one — "it's physically impossible to jump up right off of the back foot" (20:06–
+   20:19), confirmed visually in this session's own frames (a lunging, front-leg-forward stride at
+   t=20:22 and t=23:00). Wrote **`jump_pushes_off_leading_foot_for_forward_momentum`**.
+2. The companion rule for the rest of the same jump: horizontal momentum must stay continuous
+   through the apex — "nobody can just jump up, stop at air, and then go straight down... keep that
+   momentum and create this nice arc" (26:09–26:39) — a real, precisely measurable projectile-motion
+   claim (constant horizontal velocity, reversing vertical velocity) that's directly checkable from
+   `sampleMotion`'s existing per-axis series. Wrote **`continuous_horizontal_momentum_through_jump_apex`**.
+3. A specific, well-reasoned rig-method choice: the sword arm is posed in IK rather than FK
+   specifically so the blade's contact/aim point stays stable while the torso performs its own
+   recoil/overlap around it — "I don't want that arm to follow completely with the chest... we want
+   the sword to stick and stay there... if the chest is going and then coming back, the sword would
+   end up rotating" (39:57–40:41). Connects directly to Cadence's own `solve_ik` and
+   `measureContactDrift` (MOT-008) — the exact failure this technique prevents is already a real,
+   named measurement in this build. Wrote **`weapon_ik_decoupled_from_torso_overlap`**.
+4. A specific, non-obvious game-production requirement stated directly rather than assumed: an
+   action's FINAL pose must closely match the declared idle pose, because the engine automatically
+   blends back to idle with no dedicated transition — "you don't have a choice, otherwise it's going
+   to go back to idle by itself and look like complete garbage" (32:50–33:29). A genuine gap in the
+   corpus — distinct from, and the mirror-image companion to, this batch's own
+   `idle_pose_as_blend_hub_constrains_extremity` (video 33). Wrote
+   **`action_end_pose_must_match_idle_for_automatic_blend`**.
+5. Easing INTO a fast strike was live-demonstrated (tried both ways on screen) to weaken it —
+   "space equals speed equals power... if we ease into that it's going to completely diminish it...
+   [tries it]... that just weakens it" (41:56–42:27) — a strong third confirmation of this batch's
+   own `peak_spacing_immediately_before_impact` (video 34), this time with a direct A/B demonstration
+   rather than just a stated rule. Logged as a **cross-check**.
+6. "Something people miss a lot is the elbow" and a repeated insistence on full arm extension for a
+   powerful stab (04:27–05:05, 17:41–17:44) reinforces `proximal_to_distal_power_sequencing` /
+   `reach_pose_calibrated_against_placeholder_target` (video 34) — a fourth+ confirmation across the
+   batch. Logged as a **cross-check**.
+7. The classic "go opposite before you commit" anticipation principle, restated memorably for a
+   weight shift ("before you can go back on a weight shift you have to go forward a little bit...
+   turn right to go left," 45:19–46:14) — a clean confirmation of the compiled `anticipation`
+   principle and this batch's own `overshoot_recoil_settle_pose_sequence`. Logged as a
+   **cross-check**.
+8. Two workflow-efficiency habits — reusing an already-working pose via copy/paste rather than
+   rebuilding it ("that's like a pro tip... if you have a pose that is working, use it," 15:19–15:38)
+   and trusting Maya's own default interpolation across a large cross-pose gap as a free rough
+   breakdown to refine rather than reject (24:29–24:50) — are genuine, sensible production habits
+   but close enough in spirit to this batch's own `low_frame_rate_draft_pass_for_fast_iteration`
+   (video 35) that they're recorded here in prose rather than as separate entries.
+
+**Contradicted an existing card:** none.
+
+**Cross-checks:** `peak_spacing_immediately_before_impact` (video 34, live A/B-demonstrated),
+`proximal_to_distal_power_sequencing` / `reach_pose_calibrated_against_placeholder_target` (video
+34), `anticipation` (compiled) / `overshoot_recoil_settle_pose_sequence` (video 31).
+
+**Capture candidate:** none — a Maya viewport screen recording throughout.
+
+**Checks for the queue:**
+- `check: horizontal_velocity_continuity_at_apex — find the frame where a tracked root's vertical
+  linear_velocity crosses zero (the apex) and confirm horizontal linear_velocity at that frame is
+  non-zero and sign-consistent with its neighbours — buildable directly from sampleMotion's
+  existing per-axis series — video 37 @ 26:09–26:39`
+- `check: launch_foot_matches_travel_direction — given a declared forward travel direction and two
+  foot contacts, confirm the LATER-releasing foot (via measureContactDrift) is the leading one
+  relative to that direction — buildable from existing contact-drift data — video 37 @ 20:06–20:19`
+- `check: weapon_contact_drift_during_parent_overlap — for an IK-held weapon effector declared in
+  contact, confirm measureContactDrift stays near zero across a span where the parent chain (torso)
+  is itself in a recoil/overlap phase — buildable directly from existing MOT-008 data — video 37 @
+  39:57–40:41`
+
+**Entries written:** `W04-37-jump-pushes-off-leading-foot-for-forward-momentum.json`,
+`W04-37-continuous-horizontal-momentum-through-jump-apex.json`,
+`W04-37-weapon-ik-decoupled-from-torso-overlap.json`,
+`W04-37-action-end-pose-must-match-idle-for-automatic-blend.json` — all four pass
+`validateProposedEntry` and `validateEvidenceSource` cleanly.

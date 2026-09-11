@@ -1,0 +1,36 @@
+{
+  "concept": "action_end_pose_must_match_idle_for_automatic_blend",
+  "category": "advanced",
+  "definition": "A game action clip's final pose must closely match the character's declared idle pose, because a game engine automatically blends back to idle once an action animation finishes, usually with no dedicated hand-authored transition - if the final pose differs too much from idle, that automatic blend pops or reads as broken, and there is no way to opt out of the engine doing this.",
+  "purpose": "Name a specific, non-obvious game-production requirement (why an action's LAST pose matters as much as any of its others) rather than leaving 'return to idle' as a generic wrap-up instruction with no stated reason.",
+  "visible_effect": "An action animation's closing pose is deliberately built close to idle - a specific foot position kept rather than deleted, a similar overall stance - so that whatever blend the engine performs afterward is small and unnoticeable, rather than a large, visible snap.",
+  "psychological_or_gameplay_effect": "Skipping this consideration makes the engine's own automatic idle-return blend visible as a pop or a brief broken-looking pose immediately after every use of the action - a repeating, structural problem rather than a one-off animation mistake, since it happens on every single play of that action.",
+  "physical_interpretation": "Not physical - a game-engine integration requirement independent of the motion's own physical plausibility.",
+  "use_cases": [
+    "any action clip (attack, ability, reaction) that plays from and returns to an idle-driven state machine, which is the default assumption for most game character controllers",
+    "deciding which specific pose elements (a foot's exact position, an arm's rest angle) to deliberately carry through to an action's final frame rather than letting them drift arbitrarily"
+  ],
+  "non_use_cases": [
+    "an action with its own dedicated, hand-authored transition-out clip back to idle, where the engine's automatic blend is not what actually plays",
+    "a game whose character controller does not automatically return to idle after an action (a fully state-driven or animation-event-driven system) - the constraint this entry names does not apply there"
+  ],
+  "interactions": [
+    "idle_pose_as_blend_hub_constrains_extremity (this batch, video 33) - the idle-side half of the same blend relationship: that entry is about keeping the IDLE pose moderate enough to blend well FROM; this entry is about keeping an ACTION's final pose close enough to idle to blend well INTO it - together they describe the same automatic-blend seam from both directions",
+    "pose_workflow - a production consideration that applies regardless of which authoring workflow (pose-to-pose or straight-ahead) produced the action clip"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and out of scope for the same reason named elsewhere in this corpus: Cadence has no animation-graph or blend-tree concept (per `idle_pose_as_blend_hub_constrains_extremity`'s own cadence_representation), so there is no data this build could compare an action's final pose against a declared idle to check for blend risk, even in principle.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "Partially buildable in principle, blocked on a missing declaration: if a project declared WHICH item/pose is 'idle', `ai/pose.js measurePose` could compare an action's final key pose against it (a per-joint rotation/position distance) to flag a large mismatch - but no such declaration exists in this build, and no animation-graph concept exists to know which actions even return to idle automatically.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "letting an action's final pose drift arbitrarily far from idle, producing a visible pop on every single play of that action once the engine's automatic blend kicks in",
+    "deleting a carried-through element (the source's own near-mistake: almost deleting a foot-position key that was actually needed to preserve the correct final rotation) without checking what it was actually holding in place"
+  ],
+  "roblox_considerations": "Roblox's own Animator plays a default/idle track and blends into it via priority and fade time when another track stops, the same automatic-blend behaviour this entry describes - directly applicable on the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"to end it off we are going to go back, we're going to go back to idle - this is our idle pose - we're going to go back to idle. In traditional game sense this is what you want to do, you want to return back to idle. You don't have a choice - otherwise it's going to go back to idle by itself and look like complete garbage. And really we just want to have this foot stay where it's at\" (video @ 32:50-33:29)"
+  ],
+  "evidence_status": "video: https://youtu.be/sBNDzqO8ZT8 @ 32:50-33:29 - Gogan states this directly as a stated game-production requirement (not merely a stylistic choice) while closing out the combo's final pose in Maya, including the specific near-mistake of almost deleting a foot key that needed to stay; no frame in this session's focused sample falls in this exact window, so this rests on the transcript's specific, concrete reasoning rather than a directly-viewed pose; experimental until validated"
+}

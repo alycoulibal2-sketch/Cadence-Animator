@@ -1,0 +1,36 @@
+{
+  "concept": "weapon_ik_decoupled_from_torso_overlap",
+  "category": "advanced",
+  "definition": "A weapon-wielding arm is deliberately posed in IK rather than FK specifically so the weapon's tip stays stable and independent while the torso performs its own overlap/overshoot secondary motion (recoiling, settling) after a strike - in FK the arm would inherit the chest's rotation directly, dragging an already-planted or already-aimed weapon off its intended point.",
+  "purpose": "Keep a weapon's contact or aim point exactly where it was placed through a beat where the rest of the body is still moving, by choosing the rig method (IK) that decouples the two, rather than fighting FK inheritance after the fact.",
+  "visible_effect": "The sword tip holds its stuck-in/aimed position steadily while the chest and torso visibly recoil, settle, or overshoot around it, instead of the sword rotating and drifting away from its contact point in lockstep with the chest's own secondary motion.",
+  "psychological_or_gameplay_effect": "A weapon that drifts off its own contact point while the body recoils around it reads as unintentional and rubbery; a weapon that holds its point while the body's own overlap plays out around it reads as a deliberate, grounded hit.",
+  "physical_interpretation": "Once a bladed weapon is lodged in or aimed at a target, its tip is physically constrained by that contact - the wielder's body can recoil and resettle around that fixed point, but the blade itself should not, which is exactly what decoupling the arm's rotation from the torso's own motion approximates.",
+  "use_cases": [
+    "any weapon-wielding limb during a beat where the weapon needs to hold a contact or aim point (a lodged blade, a held stab) while the rest of the body continues moving",
+    "any limb whose end-effector position matters more than following its parent chain's own rotation during a specific beat"
+  ],
+  "non_use_cases": [
+    "a limb whose whole point IS to follow the torso directly (a non-weapon-bearing arm swinging naturally with the body's own rotation)",
+    "a beat where the weapon is NOT in contact with anything and free deviation from a fixed point is not a problem"
+  ],
+  "interactions": [
+    "measureContactDrift (`ai/motion.js`, MOT-008) - this entry's whole justification is exactly what that measurement already reports: how far a declared contact effector drifts from its own first-frame position over a span; an FK-driven weapon arm during a torso recoil is precisely the failure case that measurement would catch",
+    "drag_overlap_follow_through_sequence (W02, video 14) / chain_reversal_lag_on_landing_recovery (this batch, video 32) - the torso's own recoil/overlap this entry protects the weapon FROM is the same kind of secondary motion those entries describe; this entry is about preventing one chain's overlap from propagating into a DIFFERENT, IK-driven chain that should stay independent"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly representable with an existing tool, though not as a named rule: Cadence already has `solve_ik` (analytic two-bone IK onto a target in studs), which is exactly the mechanism this technique asks for - nothing currently states WHEN to reach for IK over FK specifically to protect a contact point from a parent chain's own secondary motion, the way this entry names it as a deliberate choice rather than an incidental rig setting.",
+  "control_surface": "`solve_ik` already exists and could hold an effector at a declared target independent of a parent joint's own rotation; no documented rule connects that capability to this specific 'protect the contact point from torso overlap' use case.",
+  "detection_and_measurement_methods": "Real and direct: `ai/motion.js measureContactDrift` (MOT-008) already measures exactly the failure this technique prevents - drift of a declared contact effector from its own held position over a span - so an FK-chained weapon that drifts during a torso recoil is already detectable with an existing measurement, once the weapon tip is declared as a contact.",
+  "generation_or_modification_methods": "`solve_ik` already generates a pose that holds an effector at a declared target; choosing it over an FK chain for a weapon arm during a held-contact beat is a modelling decision this build does not currently make automatically - a caller has to choose IK deliberately.",
+  "failure_modes": [
+    "posing a weapon arm in FK during a beat where the weapon needs to hold a contact point, letting the torso's own recoil or overshoot drag the weapon tip off that point",
+    "over-decoupling the arm so completely that it no longer reads as attached to the body at all - the source's own framing is that the BODY recoils around a held weapon, not that the arm ignores the body entirely"
+  ],
+  "roblox_considerations": "Roblox's own IK API can hold an effector at a declared world target independent of its parent's own animated rotation the same way `solve_ik` does, so this technique is directly reachable on the target engine.",
+  "performance_implications": "None beyond the general cost of an IK solve versus an FK chain, not quantified by the source.",
+  "examples": [
+    "\"his his ik arm - I didn't do it in FK because I don't want that arm to follow completely with the chest, because I was doing a ton of stuff with the chest and I wanted it to be its own little separate thing... the sword hand, we want the sword to stick and stay there, but if the chest is going and then coming back, the sword would end up rotating and [drifting], and we don't want that, we want it to stick and feel nice\" (video @ 39:57-40:41)"
+  ],
+  "evidence_status": "video: https://youtu.be/sBNDzqO8ZT8 @ 39:57-40:41 - Gogan states this rig-method choice and its exact reasoning directly while building the torso recoil after the first jab; cross-checked against this session's own read of `ai/pose.js solve_ik` and `ai/motion.js measureContactDrift`; no frame in this session's sample falls in this exact window, so this rests on the transcript's specific, concrete reasoning rather than a directly-viewed rig setup; experimental until validated"
+}

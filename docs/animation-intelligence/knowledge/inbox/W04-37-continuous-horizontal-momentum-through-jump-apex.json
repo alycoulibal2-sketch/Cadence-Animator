@@ -1,0 +1,36 @@
+{
+  "concept": "continuous_horizontal_momentum_through_jump_apex",
+  "category": "advanced",
+  "definition": "A jump launched with forward momentum keeps travelling in that direction continuously through its entire arc, including the apex - the horizontal component of motion never pauses or resets to zero at the top of the jump, unlike the vertical component, which does reverse there. A common mistake is animating the character rising straight up, holding at the peak, then dropping straight down, which no real forward-moving body can do.",
+  "purpose": "Give 'the jump arc looks wrong' a specific, physically-grounded and directly measurable cause (horizontal velocity incorrectly reaching zero at the apex) rather than an unquantified feeling.",
+  "visible_effect": "The character's horizontal position keeps advancing at a roughly steady rate throughout the jump - rising and falling in a smooth parabolic arc - rather than rising straight up, stalling at the peak, and falling straight back down along the same vertical line it went up.",
+  "psychological_or_gameplay_effect": "A jump that stalls horizontally at its peak reads as physically wrong even to a viewer who cannot name why - the source names it directly as a common animator mistake, fixable either in the initial blocking poses or afterward in the graph editor's curves.",
+  "physical_interpretation": "A direct real-projectile-motion claim: under gravity alone, horizontal velocity stays constant (nothing decelerates it) while vertical velocity decelerates, reverses, and re-accelerates - the two axes are independent, so the vertical reversal at the apex has no reason to also pause the horizontal one.",
+  "use_cases": [
+    "any jump, leap, or hop with forward (or any lateral) momentum at launch",
+    "diagnosing a jump whose arc reads as floaty, stiff, or physically wrong despite correct-looking individual poses"
+  ],
+  "non_use_cases": [
+    "a jump launched with zero horizontal momentum (a straight vertical jump from a stationary stance), where there is no horizontal component to keep continuous",
+    "a stylised or physically-impossible jump (a hover, a double-jump with a mid-air direction change) where the departure from real projectile motion is the deliberate point"
+  ],
+  "interactions": [
+    "jump_pushes_off_leading_foot_for_forward_momentum (this batch, video 37) - the companion rule for the START of the same jump; this entry covers the arc's CONTINUATION through to landing",
+    "overshoot_recoil_settle_pose_sequence (this batch, video 31) - a different jump, that entry's own six-keypose taxonomy does not itself state this horizontal-continuity requirement, which applies across the whole action phase rather than at one named keypose"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly measurable today: `ai/motion.js sampleMotion` already reports per-frame position and `linear_velocity` for any tracked part, from which the horizontal component's continuity through the vertical apex frame (the frame where vertical velocity crosses zero) is a real, computable check - nothing currently runs it, but no new measurement primitive is needed.",
+  "control_surface": "`analyze_motion` (`sampleMotion`) already reports the full position/velocity series; nothing currently isolates the horizontal axis specifically or checks its continuity against the vertical axis's own zero-crossing.",
+  "detection_and_measurement_methods": "Real and buildable: find the frame where the tracked root/hips' VERTICAL velocity crosses zero (the apex) and confirm the HORIZONTAL velocity at that same frame is non-zero and consistent in sign with the frames immediately before and after it - directly computable from `sampleMotion`'s existing per-axis position series.",
+  "generation_or_modification_methods": "None dedicated - fixing a stalled horizontal arc today means manually adjusting keys or graph-editor tangents; no vocabulary dimension addresses horizontal-through-apex continuity as its own lever.",
+  "failure_modes": [
+    "animating the character rising straight up, holding at the peak, then dropping straight back down along the same vertical line - named directly by the source as a common mistake",
+    "correcting the launch pose's direction but leaving the apex itself stalled in the graph editor's curves, which produces the same visible pause even with a well-posed launch and landing"
+  ],
+  "roblox_considerations": "None beyond the existing keyframe/position model already shared across this corpus.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"no matter what on the jump - this is another mistake that I see a lot - is animators will jump straight up, or they'll jump up and stop going forward and just kind of jump up, come here, and then go straight down. You have to maintain that forward jumping momentum, right, nobody can just jump up, stop at air, and then go straight down. They need to jump, go, keep that momentum, and create this nice arc\" (video @ 26:09-26:39), followed by a live correction pulling the apex and landing poses further forward in the graph editor"
+  ],
+  "evidence_status": "video: https://youtu.be/sBNDzqO8ZT8 @ 26:09-26:39 - Gogan states this directly as a named, commonly-observed mistake and demonstrates the fix live by pulling the jump's mid-air poses forward; no frame in this session's focused 20:00-27:15 sample falls in the exact 26:09-26:39 window (nearest sampled frames are around t=25:05 and later), so the specific graph-editor correction itself rests on the transcript rather than a directly-viewed curve; experimental until validated"
+}
