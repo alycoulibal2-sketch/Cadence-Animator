@@ -1,0 +1,40 @@
+{
+  "concept": "spacing_subdivision_method_ladder",
+  "category": "advanced",
+  "definition": "Three named methods for choosing where a new in-between drawing sits between two existing keys — halves (bisect the remaining space), thirds (take a third of the remaining space), and favors (move a small, unmeasured amount toward the destination with no fixed fraction) — ordered from most frames required to fewest.",
+  "purpose": "Match the METHOD used to place an in-between to how many frames are actually available and how snappy the transition should read, rather than using one subdivision method for every situation.",
+  "visible_effect": "Halves produces a smooth, evenly-graduated approach; thirds produces a visibly snappier build or loss of momentum; favors produces the snappiest read of the three, since the in-between sits close to one of the two keys rather than partway between them.",
+  "psychological_or_gameplay_effect": "Lets an animator hit a target \"snappiness\" deliberately rather than by accident — the video frames favors specifically as the rescue technique when there are almost no frames left to work with (\"in a pinch... just favor both keyframes\").",
+  "physical_interpretation": "None of the three is claimed as more physically correct than another — this is a practical drawing-order convention, not a physics model.",
+  "use_cases": [
+    "many available in-between frames and a desire for an even, textbook ease — halves",
+    "quickly building or shedding momentum with a moderate number of frames — thirds",
+    "very few frames available (the video's own example: four frames for a full ease-in/ease-out) — favors on both keyframes"
+  ],
+  "non_use_cases": [
+    "a transition that should read as perfectly uniform/mechanical, where any of these three would introduce unwanted ease",
+    "treating the three as interchangeable regardless of the actual frame budget — the video's own point is that the right method depends on how many frames are available"
+  ],
+  "interactions": [
+    "Slow in/slow out — these are three concrete METHODS for authoring the spacing that principle already covers at a conceptual level",
+    "Asymmetric spacing preference (W01 video 8) — a sibling entry naming the same \"favor\" technique as a deliberate unbalanced-distribution preference; this entry adds the two other rungs of the same ladder (halves, thirds) and the frame-budget logic for choosing between all three",
+    "DPS floor for short actions (this batch, video 11) — the fewer frames a phase has to begin with, the further down this ladder (toward favors) the choice is pushed"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not directly represented. `acceleration_contrast`/`spacing_evenness` already choose an EASING CURVE on the two keys that already bound a phase (continuous, not a discrete subdivision choice), which can approximate the SHAPE these methods produce but not the underlying method of placing a specific new in-between key at a fractional time — the same \"cannot add a key\" limitation the `hold_length` dimension already states honestly.",
+  "control_surface": "None directly; `acceleration_contrast`/`spacing_evenness` are the nearest existing levers for the resulting curve shape, not the placement method itself.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s per-frame velocity/acceleration curve could in principle distinguish a halves-shaped curve (graduated, symmetric-feeling) from a favors-shaped one (a sharp, late spike close to one key) after the fact, but nothing in this build currently classifies a measured curve into one of these three named categories.",
+  "generation_or_modification_methods": "None — every strategy in `ai/plan.js` edits a rotation value or easing style at a key that already exists; none of the three methods described here can be authored by inserting a NEW key at a chosen fractional position, since no strategy in this build may add a key at all (the same limitation named under `hold_length`).",
+  "failure_modes": [
+    "using halves (many in-betweens) inside a frame budget too small to support it, producing the exact \"only three poses for a run cycle\" problem named under `dps_floor_for_short_actions`, for a different underlying reason (too little DPS)",
+    "using favors when there is actually room for a fuller, graduated ease, leaving the transition snappier/rougher than intended"
+  ],
+  "roblox_considerations": "None specific — a pure 2D-drawing-authoring vocabulary; the resulting CURVE SHAPE is what would cross into Roblox's own Animation Editor easing, not the subdivision method itself.",
+  "performance_implications": "None.",
+  "examples": [
+    "an ease-in from key A to breakdown C computed by repeated bisection, walked through with exact frame numbers (video @ 6:42–6:53)",
+    "a hammer-slam's wind-up given one \"favor\" in-between rather than a measured fraction, described as wanting the wind-up \"a little slower\" with \"just one in-between\" (video @ 9:44–9:52)",
+    "the video's own rescue case: an ease-in/ease-out built from only four total frames by favoring both keyframes (video @ 7:56–8:01)"
+  ],
+  "evidence_status": "video: https://youtu.be/6UXjRCORV44 @ 6:59–8:01 — the three methods (halves, thirds, favors) are named and defined verbatim in the transcript; the numeric halves demonstration (@ 6:42–6:53) and the hammer-slam favor demonstration (@ 9:44–9:52) both fall inside this session's uncaptured 1:32–8:18 and 8:18–12:18 stretches (only 22 scene-change frames were selected across this 12:41 video, per the tool's own sparse-coverage warning for videos this length) — the software timeline WAS glimpsed once at t=8:18 showing a real multi-row exposure sheet, consistent with but not direct proof of the specific frame numbers spoken; experimental until validated"
+}

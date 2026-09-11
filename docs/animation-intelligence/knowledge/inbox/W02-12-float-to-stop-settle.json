@@ -1,0 +1,37 @@
+{
+  "concept": "float_to_stop_settle",
+  "category": "advanced",
+  "definition": "A two-stage arrival: the motion reaches a near-final pose relatively directly, then continues drifting almost imperceptibly slowly (\"floats\") the remaining short distance into the true final pose, rather than a single continuous deceleration curve all the way to rest.",
+  "purpose": "Give a settle a soft, alive quality distinct from either a hard stop or an ordinary single-curve ease-out.",
+  "visible_effect": "The motion appears to arrive, then keeps creeping very slightly for a noticeably longer stretch afterward before truly stopping — two visually distinct speeds within what reads as one continuous settle, rather than one smooth decelerating curve.",
+  "psychological_or_gameplay_effect": "Reads as a softer, more organic finish than a single-rate ease; avoids the \"dead stop\" feeling of arriving and immediately holding.",
+  "physical_interpretation": "Loosely analogous to a real damped system's long, barely-perceptible final approach to equilibrium (compare a pendulum's last, tiny swings) — presented here as a deliberate two-stage authoring choice, not a simulated physical property.",
+  "use_cases": [
+    "a held pose that should feel alive and settling rather than mechanically arriving and stopping dead",
+    "a turn or reach where a small remaining adjustment (the last few degrees) should read as passive drift rather than active motion"
+  ],
+  "non_use_cases": [
+    "a mechanical or robotic style, which should stop decisively at the extreme with no residual drift",
+    "an action needing a hard, readable stop (e.g. a game-combat hit landing) where any lingering drift would blur the contact moment"
+  ],
+  "interactions": [
+    "Slow in/slow out — a float is a specific two-stage refinement of a single ease-out curve, not a replacement for the concept",
+    "Overshoot — a sibling but distinct settle shape: overshoot passes BEYOND the target and returns, a float never passes the target at all, it just arrives in two speeds",
+    "Settle duration (`ai/vocabulary.js`, not yet implemented) — the nearest existing dimension in spirit (lengthening the time between the last action key and true rest), though that dimension is a single uniform lengthening, not a two-speed profile"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not directly represented, and more specific than the nearest existing dimension: `settle_duration` (`ai/vocabulary.js`) already names lengthening the post-action recovery span but is `implemented: false`, and even if it were, would lengthen a single easing curve uniformly — a float's two-distinct-speeds shape (a normal approach, then a much slower residual drift) is a curve SHAPE this build has no vocabulary for at all, beyond the general easing styles a key already carries.",
+  "control_surface": "None — `settle_duration` (the closest concept) is not implemented; no existing dimension authors a two-stage curve.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion` measures per-frame velocity directly, which is sufficient in principle to detect a float's signature (a velocity curve with two distinct low-speed regions rather than one smooth decay to zero) — a real, buildable check from data already computed, though nothing currently runs it.",
+  "generation_or_modification_methods": "None — authoring a float means placing an additional key at the near-final pose plus a slow easing segment to the true final key, which needs the same \"insert a new key\" capability this build does not have anywhere in `ai/plan.js`.",
+  "failure_modes": [
+    "a float applied so slowly or for so long it reads as an unintended drift or a rig error rather than a deliberate finish",
+    "confusing a float with overshoot and passing beyond the target, when the source technique never does"
+  ],
+  "roblox_considerations": "None specific — expressible in Roblox's Animation Editor as an ordinary two-key easing sequence once a rig has two keys to place; the gap is entirely on Cadence's own key-insertion side, not the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "Carl the raccoon's head-turn revised live on screen: originally a straight ease from the breakdown (frame 5) to the final drawing (frame 15), changed mid-demonstration to hit the main pose at frame 11 and then float to a stop by frame 19 (video @ 3:41–4:28)"
+  ],
+  "evidence_status": "video: https://youtu.be/thDT-4RjAeo @ 3:41–4:28 — Russ Edmonds states the exact frame numbers and his own reasoning live while revising his chart, directly in the transcript; no frame in this session's 9-frame sample falls near this timestamp (nearest are at 2:04 and 9:45), so this rests on the spoken frame numbers rather than a directly-viewed drawing; experimental until validated"
+}

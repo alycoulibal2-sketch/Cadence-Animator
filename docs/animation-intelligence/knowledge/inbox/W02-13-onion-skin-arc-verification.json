@@ -1,0 +1,38 @@
+{
+  "concept": "onion_skin_arc_verification",
+  "category": "advanced",
+  "definition": "Overlaying many drawings (the video's own convention: five frames ahead and five behind the current one, all shown at reduced opacity at once) on top of the current frame specifically to visually reveal the path a part traces over time — used here as a verification/diagnostic step on a nearly-finished shot, not as a drawing aid.",
+  "purpose": "Catch arcs (or their absence) that are too subtle to notice one frame at a time, by making the accumulated path itself visible as a single image.",
+  "visible_effect": "A dense tangle of faded, overlapping line drawings in which the shape traced by any one part (a hand, an ear, a head) becomes visible as a continuous curve rather than a series of disconnected poses.",
+  "psychological_or_gameplay_effect": "Turns \"does this read as an arc\" from a guess made one drawing at a time into something checked directly against an image of the whole path at once.",
+  "physical_interpretation": "The onion-skin image approximates the same thing a strobe photograph or long-exposure motion trail would show: the actual path traced through space, made visible all at once.",
+  "use_cases": [
+    "a verification pass on a nearly-finished shot, checking that every important part's path is a clean arc rather than a straight line or an unintended wobble",
+    "diagnosing a shot that \"feels clunky\" without an obvious cause — the video's own claim that forgetting arcs is a common, hard-to-self-diagnose mistake"
+  ],
+  "non_use_cases": [
+    "a first drawing pass, where the technique would show mostly noise rather than a settled path",
+    "a rig or medium where the equivalent path data can be read directly and exactly instead (see cadence_representation)"
+  ],
+  "interactions": [
+    "Arcs — this is a verification METHOD for the same principle that card already covers conceptually",
+    "the existing arcs card's own measurement/generation split — onion-skinning is a human's version of exactly the measurement half of that split"
+  ],
+  "style_variations": {},
+  "cadence_representation": "A real case where Cadence's own existing measurement is already a strictly better version of the source technique, not merely an equivalent: `ai/motion.js` computes `bow_studs` (MOT-005) — the path's greatest perpendicular departure from the straight chord between its endpoints, in exact studs, for ANY part, over any frame range — directly from the FK solve. A 2D animator has to build and visually interpret an onion-skin overlay to estimate the same thing, and a human eye can misjudge it; Cadence can report the exact number for every part at once, including points a human wouldn't think to check. What Cadence's measurement does NOT do (and onion-skinning, via a human eye, effectively attempts) is judge whether a given `bow_studs` value is the RIGHT amount of arc for the action — `distance_to_expected_arc` is explicitly `implemented: false` for exactly this reason: no expected-arc model exists.",
+  "control_surface": "`analyze_motion` reports `bow_studs` per part directly; nothing judges whether the reported value is appropriate.",
+  "detection_and_measurement_methods": "`ai/motion.js` (`bow_studs`, MOT-005) computes this exactly and directly — the clearest case in this batch of a manual verification habit that a real, already-implemented measurement fully subsumes.",
+  "generation_or_modification_methods": "None — `bow_studs` is read-only; nothing corrects an arc found lacking (the same `arc_smoothness` gap the existing `arcs` card already states).",
+  "failure_modes": [
+    "trusting a single still frame's silhouette rather than the accumulated path, and missing an arc problem the way the video says is a common beginner mistake",
+    "over-trusting a raw `bow_studs` number as a verdict rather than a description — the same conflation `ai/motion.js`'s own source comments explicitly warn against"
+  ],
+  "roblox_considerations": "None specific — the underlying measurement is already engine-independent.",
+  "performance_implications": "None.",
+  "examples": [
+    "onion skin set to 5 drawings ahead and 5 behind, turned on specifically to reveal arcs across an already-posed shot rather than while first drawing it (video @ 2:35–2:48)",
+    "a dense, clearly-curved tangle of overlaid lines around the bear's raised arm and head, confirmed directly on screen (video @ 2:47, 3:12, 4:00)",
+    "the same technique revealing arcs in the DEPTH axis, not just the screen plane, as the bear turns and moves toward/away from camera (video @ 2:59–3:11, 4:55–5:05)"
+  ],
+  "evidence_status": "video: https://youtu.be/GHf8ie4Nq9Y @ 2:35–4:00 — Aaron Blaise names and demonstrates the onion-skin technique directly in the transcript, and the resulting overlaid-arc imagery is directly confirmed on screen in this session's own frames at t=2:47, 3:12, and 4:00; the depth-axis (3D arc) claim at 2:59–3:11 is transcript-only, no frame falls close enough to confirm it visually; experimental until validated"
+}

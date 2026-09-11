@@ -1,0 +1,37 @@
+{
+  "concept": "obscure_arcs",
+  "category": "advanced",
+  "definition": "Named category for arcs traced by secondary tracked points on a turning 3D-posed head or body (cheek tips, ear tips, eyebrows) that do NOT follow the same smooth curve as the main action arc, because those points are also subject to foreshortening and perspective change as the form rotates in three dimensions — an apparent irregularity that is actually necessary for the turn to read as a believable 3D form rather than a flat cutout.",
+  "purpose": "Prevent a well-intentioned \"smooth out every arc\" pass from flattening exactly the perspective-driven irregularities a convincing 3D turn actually needs.",
+  "visible_effect": "Secondary points on a turning head (cheek, ear tip, eyebrow) trace paths that look uneven or slightly off compared to the clean main arc (the nose/eye line), even though the overall motion reads correctly.",
+  "psychological_or_gameplay_effect": "Without these controlled irregularities, a head turn reads as a flat 2D cutout rotating rather than a solid form turning in space — the obscure arcs are part of what sells the third dimension.",
+  "physical_interpretation": "A real consequence of perspective and foreshortening: as a 3D form rotates, points off the rotation's own axis do not trace the same curve the axis-aligned point (the nose) traces, and their apparent path compresses exactly as foreshortening compresses real geometry.",
+  "use_cases": [
+    "any turn or rotation of a solid, 3D-read head or body where secondary landmark points (ears, cheeks, brows) must be tracked individually rather than assumed to share the main arc",
+    "a believability pass on a 3D turn where a \"flatness\" problem is being diagnosed"
+  ],
+  "non_use_cases": [
+    "a genuinely flat, 2D-cutout style character where no 3D-form illusion is intended",
+    "correcting what actually IS an unintentional wobble on the MAIN action arc itself — this entry is specifically about secondary points diverging from the main arc, not the main arc's own quality"
+  ],
+  "interactions": [
+    "Arcs — a specific, named refinement of the existing arcs card's own path-fidelity concern, for points OTHER than the one carrying the main arc",
+    "Structural understanding — the underlying cause (foreshortening on a rotating 3D form) is the same physical fact that card's balance/volume concerns are adjacent to, though neither card currently connects arc curvature to perspective foreshortening explicitly"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly measurable in principle, and arguably easier for Cadence than for a 2D draftsperson: `ai/motion.js` already computes real per-frame path curvature (MOT-005) for ANY tracked part from the FK solve, including secondary points like an ear or brow bone, because Cadence's poses are genuine 3D rotations rather than drawn approximations of one — nothing currently distinguishes \"a secondary point's arc differs from the main arc because of real foreshortening\" (expected, healthy) from \"a secondary point's arc differs because of an authoring error\" (a defect), the same judgement gap `ai/motion.js classifyVariation` already states plainly for jitter versus intentional detail.",
+  "control_surface": "`analyze_motion` per-part curvature (MOT-005) for any declared secondary point; no tool judges whether a divergence from the main arc is expected or a defect.",
+  "detection_and_measurement_methods": "`ai/motion.js` computes path curvature and chord deviation per frame for any part — a real, existing, working measurement that already covers secondary points, not just a single tracked effector.",
+  "generation_or_modification_methods": "None — like `arcs` itself, this build measures curvature but cannot edit a path (no strategy in `ai/plan.js` changes where a part IS at an intermediate frame, only its rotation at an existing key).",
+  "failure_modes": [
+    "\"fixing\" a secondary point's legitimately divergent arc into matching the main arc, which would flatten the 3D-turn illusion the divergence was creating",
+    "the opposite failure named directly in the source: failing to track a secondary point's arc at all and letting it wobble for real, which reads as an actual error rather than intentional foreshortening"
+  ],
+  "roblox_considerations": "A genuine, real advantage for a rigid 3D rig over hand-drawn animation: Cadence never has to manually reconstruct foreshortening on a secondary point the way a 2D animator does, since every part's rotation already comes from a real 3D FK solve — the obscure arc a 2D animator labors to draw by hand falls out for free here.",
+  "performance_implications": "None.",
+  "examples": [
+    "a raccoon head-turn where the nose and eyes (the main action arc) trace one clean curve while the cheeks, ear tips, and eyebrows are named directly as tracking different, less regular curves because of 3D perspective (video @ 8:36–9:12)",
+    "the video's own explicit reassurance that this looks \"wrong\" at first glance but is required for 3D believability (video @ 9:12–9:18)"
+  ],
+  "evidence_status": "video: https://youtu.be/thDT-4RjAeo @ 8:36–9:18 — Russ Edmonds names and explains \"obscure arcs\" directly in the transcript; no frame in this session's 9-frame sample falls near this timestamp (nearest frames are at 2:04 and 9:45), so the specific on-screen character motion is not directly confirmed visually, only the spoken explanation; experimental until validated"
+}

@@ -1,0 +1,38 @@
+{
+  "concept": "dps_floor_for_short_actions",
+  "category": "advanced",
+  "definition": "The number of distinct drawings per second (DPS) a hold-density choice (ones/twos/threes/...) produces must not drop so low, relative to a short action's own total frame count, that too few distinct poses remain to read the action at all.",
+  "purpose": "Prevent a fixed hold-density habit (e.g. always animating on twos) from silently under-serving an action too short to afford it.",
+  "visible_effect": "A very short action animated at a hold density chosen for longer actions shows too few distinct poses in sequence, reading as an incomplete or jerky approximation of the intended motion rather than a smooth one.",
+  "psychological_or_gameplay_effect": "The action reads as \"strange\" or under-drawn — not because the individual poses are wrong, but because there are too few of them for the eye to reconstruct the intended motion.",
+  "physical_interpretation": "FPS (the fixed display rate) sets a hard ceiling on DPS (how many distinct drawings can appear per second); a hold-density choice divides that ceiling down, and a short action has too few total frames for a coarse division to leave enough poses behind.",
+  "use_cases": [
+    "a fast or very short action (the video's own example: a five-frame run cycle) — favor ones, or as few frames held per pose as the budget allows",
+    "any action whose total frame count is already close to the minimum number of poses the eye needs to read it"
+  ],
+  "non_use_cases": [
+    "a longer action with frames to spare, where twos or threes remain the more economical default (per the existing pose-hold-density guidance from W01 video 1)",
+    "a style that deliberately wants a choppy, under-posed look — here a sparse pose count is the intended effect rather than a defect"
+  ],
+  "interactions": [
+    "Pose hold density (W01 video 1) — this is the specific breaking case at the SHORT end of that same ones/twos/threes dial: hold density has to shrink as available frame count shrinks",
+    "Startup frame budget (W01 video 2) — the genre-level fast-action case (a roughly 3-frame fighting-game hit) is exactly the regime this entry's floor applies to hardest",
+    "Timing — DPS is a direct, computable function of an action's own frame count and the declared hold density, not a separate quantity"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly computable from data this build already has: an item's key density over a frame range (`ai/motion.js keyDensity`) already reports how many distinct keys exist in a span; nothing currently compares that count against the span's own duration to flag an under-posed short action, but both numbers this check would need already exist.",
+  "control_surface": "`analyze_motion` (`keyDensity`) reports the raw count; no tool currently flags a shortfall against the action's own duration.",
+  "detection_and_measurement_methods": "`ai/motion.js keyDensity` measures distinct keys over a frame range directly — a real, existing measurement this check could be built from without any new instrumentation.",
+  "generation_or_modification_methods": "None — this is a diagnostic check, not an edit; fixing a flagged shortfall means adding poses, which no strategy in `ai/plan.js` can do (no strategy may add a key).",
+  "failure_modes": [
+    "defaulting to twos or threes out of habit on an action too short to afford it, producing the exact under-posed \"only three poses for a run cycle\" case the video names directly",
+    "flagging a deliberately sparse, stylized action as a defect when the low pose count was the intended look"
+  ],
+  "roblox_considerations": "None specific — a pure frame-count/pose-count relationship independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "a five-frame run cycle animated on twos yields poses only on frames one, three and five — three poses total, described as looking \"strange\" (video @ 4:20–4:29)",
+    "the same five frames animated on ones yields five distinct poses, enough to read the run cycle naturally (video @ 4:29–4:33)"
+  ],
+  "evidence_status": "video: https://youtu.be/6UXjRCORV44 @ 4:14–4:39 — stated and reasoned through directly in the transcript, audio-only (this segment falls inside the session's large 1:32–8:18 uncaptured stretch — the presenter is speaking to camera about a hypothetical example rather than showing a run cycle on screen at this point, so no frame from this batch confirms it visually); experimental until validated"
+}

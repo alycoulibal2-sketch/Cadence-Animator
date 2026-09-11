@@ -1,0 +1,38 @@
+{
+  "concept": "staged_keyframe_then_straight_ahead_workflow",
+  "category": "advanced",
+  "definition": "A hybrid authoring workflow that blends the two pure methods: block out sparse, planned key poses first (pose-to-pose/keyframing) for the trickiest or most structurally important sections, then fill in the remaining motion straight-ahead (one frame after another) for sections that benefit from spontaneous, exploratory detail — rather than committing to one pure method for an entire shot.",
+  "purpose": "Capture keyframing's efficiency and revisability where planning matters most, while still allowing straight-ahead's fluidity and discovery where a planned route would only add rigidity.",
+  "visible_effect": "Some sections of a finished shot show the deliberate, evenly-planned character of keyframed work; other sections (commonly follow-through on hair/cloth, or effects elements) show the looser, more continuous character of straight-ahead work, within the same shot.",
+  "psychological_or_gameplay_effect": "Avoids both named failure modes at once: keyframing's tendency to feel rigid or robotic, and straight-ahead's tendency to get lost or require extensive backtracking.",
+  "physical_interpretation": "None — a production-method choice, not a physical property.",
+  "use_cases": [
+    "a character shot where the main body performance is keyframed/planned first, then hair, cloth, or props are animated straight-ahead afterward, once the timing they must follow already exists",
+    "stop-motion, where professionals commonly shoot a rough keyframe pass first to test timing and posing, then commit to the required straight-ahead final shoot with that plan already validated"
+  ],
+  "non_use_cases": [
+    "a shot simple enough that one pure method already works well, where switching between two methods only adds process overhead",
+    "3D character animation specifically, where the video recommends keyframing for MOST of the work regardless, because per-frame keys make a keyed graph editor unmanageable — the straight-ahead half of this hybrid is a poor fit for that specific medium"
+  ],
+  "interactions": [
+    "Pose workflow — this is a specific, staged combination of the same two methods that card frames as a single either/or choice",
+    "Drag/overlap/follow-through sequence (this batch, video 14) and the repeated \"finish the primary pass before the secondary pass\" pattern independently observed across videos 11, 12 and 14 — this hybrid workflow is the explicit named version of that same repeated pattern, specifically pairing \"primary = keyframed first\" with \"secondary = straight-ahead afterward\""
+  ],
+  "style_variations": {},
+  "cadence_representation": "Sharpens, rather than fills, the existing `pose_workflow` card's stated absence: Cadence's architecture is not merely undecided between the two pure methods, it is structurally committed to the KEYFRAME half of this hybrid only — every strategy in `ai/plan.js` edits a value or easing style at a key that already exists, and no strategy may add a key at all (the same limitation named under `hold_length`). Cadence could in principle represent \"plan the important poses first,\" but has no way to represent \"then fill in additional detail straight-ahead,\" since that half depends on inserting new keys progressively. This is a sharper, more specific way to state the existing card's gap than \"not represented at all.\"",
+  "control_surface": "None — the same absence `pose_workflow` already names, now stated specifically against the half of this hybrid Cadence's key-editing model could never reach.",
+  "detection_and_measurement_methods": "None — like `pose_workflow`, this is an authoring-process property, not something `ai/motion.js` could recover by measuring a finished result.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "forcing one pure method across an entire shot when different sections would each benefit from a different one — the exact failure both pure methods risk on their own (rigid keyframing, or a lost/backtracking straight-ahead pass)",
+    "attempting the straight-ahead half of this hybrid in a tool (like Cadence) that has no way to insert new keys progressively — the workflow itself assumes a capability this build does not have"
+  ],
+  "roblox_considerations": "None specific — a pure production-method concept independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "professional stop-motion animators shooting a rough keyframe pass first to test timing/posing, then committing to the required straight-ahead final shoot (video @ 3:38–3:49)",
+    "the video's own general rule: follow-through motion on hair and clothes animated straight-ahead specifically AFTER the character animation itself is already done (video @ 3:16–3:24)",
+    "a real 3D-rigged character (a bird/chicken) shown in a Maya-style viewport with its graph editor visible below, confirmed directly on screen, illustrating exactly the \"keep the graph editor clean\" reasoning given for why 3D character work should default to keyframing (video @ 3:51, animation credited to Ben Hubbard)"
+  ],
+  "evidence_status": "video: https://youtu.be/ABCUjauQBI4 @ 2:46–3:56 — Alex Grigg states the hybrid workflow, the stop-motion example, and the 3D-specific graph-editor reasoning directly and explicitly throughout the transcript; the 3D/graph-editor claim is directly corroborated on screen by a frame at t=3:51 showing a real rigged 3D character with its graph editor open; the stop-motion and hair/cloth claims are transcript-only, no frame in this session's sample falls at those exact moments; experimental until validated"
+}

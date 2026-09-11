@@ -1,0 +1,40 @@
+{
+  "concept": "drag_stretch_coupling",
+  "category": "advanced",
+  "definition": "On a flexible appendage (ears, cape, hair), the same inertial lag that causes drag/overlap/follow-through is often expressed not just as a rotational or positional delay but ALSO as a visible stretch along the direction of relative motion, since the appendage's base moves with the body while its tip resists.",
+  "purpose": "Make a dragging appendage's lag read as a real physical consequence of the body's own motion (inertia acting on a flexible material) rather than as a separate, merely-delayed copy of the body's motion.",
+  "visible_effect": "The appendage elongates along its own lag direction while dragging (e.g. a falling character's ears or cape stretching upward, opposite the fall direction), then compresses or relaxes back toward its rest length as it catches up and follows through.",
+  "psychological_or_gameplay_effect": "Reads as the appendage RESISTING the body's motion (real inertia) rather than merely arriving late — the stretch is what makes the drag feel like a force acting on material, not just a timing offset.",
+  "physical_interpretation": "An approximation of a flexible material's own inertia: the base accelerates with the body, the tip lags, and material connecting the two under tension visibly elongates in between — the same volume-preserving logic squash & stretch already states, applied here to explain WHY a dragging part often stretches rather than just lagging.",
+  "use_cases": [
+    "a falling or fast-moving character with flexible trailing parts (ears, cape, hair, a tail) where the drag phase specifically should read as tension, not just delay",
+    "any moment the existing follow-through/overlap card already calls for drag, where squash & stretch is available as a style"
+  ],
+  "non_use_cases": [
+    "a rigid or mechanical trailing part (a rigid antenna, an armored plate) that should lag WITHOUT stretching",
+    "a realistic style where visible elongation would read as unnaturally elastic rather than merely delayed"
+  ],
+  "interactions": [
+    "Follow through & overlap — this names a concrete case of drag co-occurring with a SECOND principle rather than acting alone, on the same appendage at the same moment",
+    "Squash & stretch — the existing card's pose-based equivalent (`motion_amplitude`/`weight_transfer`) is the same lever this entry would need; the existing INTERACTION_GRAPH has no edge between `follow_through_overlap` and `squash_stretch` at all yet, though both individual cards exist — this entry is direct video evidence such an edge is warranted"
+  ],
+  "style_variations": {
+    "anime": "may be exaggerated further than the source example",
+    "mechanical": "excluded — a rigid part should drag without stretching, same as squash & stretch's own mechanical exclusion"
+  },
+  "cadence_representation": "Reachable only through the SAME pose-based route squash & stretch itself already uses, combined with `secondary_delay`'s existing lag mechanism: since Cadence has no mesh deformation, a literal stretch is unavailable, but `secondary_delay` (lag timing) plus `motion_amplitude`/`weight_transfer` (the pose-based equivalent of stretch) on the SAME trailing item's own rotation could jointly approximate the coupled effect this video shows — nothing currently coordinates the two dimensions together for this specific purpose.",
+  "control_surface": "`secondary_delay` for the lag half; `motion_amplitude`/`weight_transfer` for the pose-based stretch-equivalent half; no tool currently applies both together as one declared technique.",
+  "detection_and_measurement_methods": "`ai/motion.js analyseChain` measures the lag half directly; no scale/volume signal exists to measure an actual stretch (the same gap `squash_stretch`'s own card already states — no track in Cadence stores mesh scale over time).",
+  "generation_or_modification_methods": "None jointly — the two halves would have to be authored as two separate dimension calls today, with no single control expressing the coupled technique.",
+  "failure_modes": [
+    "authoring only the lag (`secondary_delay`) and skipping the pose-based stretch-equivalent, losing the tension read the source example relies on",
+    "applying visible stretch to a rigid/mechanical trailing part, which should drag without any stretch at all"
+  ],
+  "roblox_considerations": "A literal scale-based stretch IS representable in Roblox (Motor6D parts can be scaled), the same real, non-theoretical extension already named under `squash_stretch`'s own `roblox_considerations`.",
+  "performance_implications": "None beyond the two existing dimensions' own costs, which are already accounted for.",
+  "examples": [
+    "super bunny's ears explicitly stretching while dragging during a fall — \"the ear should be stretching\" — named as squash & stretch applied to the same drag moment (video @ 11:19–12:03)",
+    "the cape's edge described as starting to curve while part of it \"is still dragging,\" a softer version of the same coupled effect (video @ 16:36–16:51)"
+  ],
+  "evidence_status": "video: https://youtu.be/t_gH-OADlSw @ 11:13–12:03 — Arree Chung states the squash-and-stretch-during-drag connection directly and explicitly in the transcript; a frame at t=11:46 in this session's sample shows the super-bunny figure with ears trailing at an angle during a fall pose, consistent with but not sharp enough to confirm an actual stretched (elongated) ear shape; experimental until validated"
+}

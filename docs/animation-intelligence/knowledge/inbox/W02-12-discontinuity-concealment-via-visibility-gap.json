@@ -1,0 +1,36 @@
+{
+  "concept": "discontinuity_concealment_via_visibility_gap",
+  "category": "advanced",
+  "definition": "Hiding an otherwise-awkward discontinuous change (in the source example, an eye-direction change mid-turn) by making the changing element briefly not visible — e.g. closing the eyes — rather than attempting to animate the discontinuity smoothly.",
+  "purpose": "Avoid having to smoothly animate a change that has no good continuous path (a redirected eye target mid-turn has no natural in-between), by removing the need for one instead.",
+  "visible_effect": "The element in question (eyes, in the source example) is briefly hidden or closed at the exact moment its underlying value changes discontinuously, then reappears already at its new value.",
+  "psychological_or_gameplay_effect": "The viewer never sees the discontinuity at all, so nothing needs to read as smooth — the concealment IS the solution, not a smoothing trick.",
+  "physical_interpretation": "None — an authoring trick, not a physical model.",
+  "use_cases": [
+    "an eye-direction or gaze-target change mid-turn, closing the eyes across the change (the source example)",
+    "generalizes to any hard-to-interpolate value change — a prop swap, a costume change, a rig retarget — hidden behind a blink, a fast pass, a hit-flash, or a brief occlusion"
+  ],
+  "non_use_cases": [
+    "a change the audience is specifically meant to see happen — this technique is for changes that would otherwise be a distracting or unconvincing pop",
+    "overusing the concealment itself to the point the blink, flash, or occlusion becomes its own distraction"
+  ],
+  "interactions": [
+    "Staging — this is a staging technique in miniature: controlling what the viewer is allowed to see, and when",
+    "Secondary action — closing the eyes IS itself a secondary action performing double duty as the concealment mechanism"
+  ],
+  "style_variations": {},
+  "cadence_representation": "No representation, and Cadence is further from having one than the source medium: this build has no facial or eye rig concept at all (already named under `secondary_action` as out of scope for this Roblox-body-rig build), so even the specific source example has no Cadence equivalent yet — the GENERALIZED version (concealing any hard-to-interpolate change behind a visibility gap) is representable in principle through ordinary item visibility/property tracks, but nothing in this build authors or reasons about a \"conceal the pop\" plan.",
+  "control_surface": "None directly; a generalized version would ride on ordinary property-track visibility toggling, which exists as a track type but is not driven by any planning tool for this purpose.",
+  "detection_and_measurement_methods": "None — this build has no discontinuity-classification step that would ask \"was this pop concealed by a visibility gap\" versus \"is this an unintended pop\", the same open judgement `ai/motion.js classifyVariation` already states for other kinds of discontinuity.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "a value change with no concealment at all, which reads as a visible, unintended pop",
+    "a concealment that is itself too long or too obvious, drawing exactly the attention it was meant to avoid"
+  ],
+  "roblox_considerations": "Directly usable once declared: a Roblox rig's visibility or transparency property is an ordinary animatable value, so the mechanism itself needs nothing engine-specific — only a Cadence-side facial/eye or prop-swap model to apply it to, which does not exist yet.",
+  "performance_implications": "None.",
+  "examples": [
+    "Carl the raccoon's eyes closed at the start of his head turn specifically so his eye direction/target can change without an awkward mid-turn eye redraw (video @ 5:09–5:12)"
+  ],
+  "evidence_status": "video: https://youtu.be/thDT-4RjAeo @ 5:09–5:12 — stated directly and specifically in the transcript; no frame in this session's 9-frame sample falls near this timestamp (nearest are at 2:04 and 9:45); experimental until validated"
+}

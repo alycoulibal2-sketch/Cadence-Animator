@@ -1,0 +1,37 @@
+{
+  "concept": "drag_overlap_follow_through_sequence",
+  "category": "advanced",
+  "definition": "A three-stage temporal decomposition of one secondary-motion event on a trailing part: DRAG (the part barely moves while the primary action begins), OVERLAP (the part starts catching up while the primary action is still traveling), and FOLLOW-THROUGH (after the primary action stops, the trailing part continues moving and settles, sometimes overshooting briefly).",
+  "purpose": "Give an animator three distinct, sequential named beats to hit when authoring one lag event, rather than treating \"the ears lag behind\" as a single undifferentiated note.",
+  "visible_effect": "The trailing part is nearly still at first (drag), then visibly catching up while the primary part is still moving (overlap), then still moving after the primary part has already stopped, occasionally overshooting before settling (follow-through).",
+  "psychological_or_gameplay_effect": "Reads as a single continuous, physically coherent lag rather than either a flat, uniform offset or a single delayed copy of the primary motion.",
+  "physical_interpretation": "A named breakdown of what a single inertia-lag curve actually looks like over time: low relative velocity at the start (drag), catching-up velocity during the middle (overlap), and continued motion or decay after the driving force has stopped (follow-through/settle).",
+  "use_cases": [
+    "any flexible trailing part (ears, cape, hair, cloth, tail) reacting to a primary body motion",
+    "teaching or checking a lag/delay animation stage by stage rather than as one offset value"
+  ],
+  "non_use_cases": [
+    "a mechanical/rigid style, where the trailing part should move in lockstep with no drag phase at all (per the existing follow-through/overlap card's own non_use_cases)",
+    "a trailing part under a locked contact or timing aspect, the same restriction the existing card already states for `secondary_delay`"
+  ],
+  "interactions": [
+    "Follow through & overlap — this is a temporal refinement of that same principle, naming three sequential sub-phases within what that card currently treats as a single lag/trail concept",
+    "Chain lead/lag measurement (`ai/motion.js analyseChain`) — the three named stages correspond to three recognizable REGIONS of a single measured lag curve over time, not three separate measurements"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Partially reachable through existing measurement, not through generation: `ai/motion.js analyseChain` already measures onset and peak timing per joint along a chain and reports lead/lag directly (MOT-009/010) — the raw data needed to identify drag/overlap/follow-through as three REGIONS of that curve already exists, but nothing currently segments a measured lag curve into these three named stages, the same kind of labelling gap `ai/plan.js segmentPhases` fills for the primary action's own phases but does not yet do for a secondary item's lag curve.",
+  "control_surface": "`analyze_motion` (`analyseChain`) reports the raw lead/lag curve; no tool currently segments it into drag/overlap/follow-through regions.",
+  "detection_and_measurement_methods": "`ai/motion.js analyseChain` measures onset and peak per joint along a declared chain — real, existing data a three-stage classifier could be built from without new instrumentation.",
+  "generation_or_modification_methods": "`secondary_delay` (implemented) offsets keys on parts with no contact role, which is how Cadence already authors the OVERALL lag this three-stage model describes — it produces a single offset rather than three independently-shaped stages, so the finer three-stage shape itself is not directly authorable yet.",
+  "failure_modes": [
+    "a uniform, undifferentiated delay that skips the drag stage entirely, reading as a simple copy-and-offset rather than a lag with real character",
+    "an overlap stage that never resolves into a following-through settle, leaving the trailing part looking like it is still catching up forever"
+  ],
+  "roblox_considerations": "None specific — the underlying keyframe-offset mechanism (`secondary_delay`) is already engine-independent.",
+  "performance_implications": "None.",
+  "examples": [
+    "a labelled diagram drawn directly on screen showing a bunny head-turn sequence marked \"① DRAG\", \"① overlapping\", and \"② followthrough\" across successive poses (video @ 2:08–3:50, diagram visible at t≈4:13)",
+    "the same three-stage pattern re-demonstrated independently on a cape during a jump-and-land sequence (video @ 16:20–17:26)"
+  ],
+  "evidence_status": "video: https://youtu.be/t_gH-OADlSw @ 2:08–4:04 — Arree Chung names and defines all three stages directly and sequentially in the transcript while drawing them, AND a frame at t=4:13 in this session's own sample directly shows the finished diagram labelled \"DRAG\", \"overlapping\", \"followthrough\" in the presenter's own handwriting; experimental until validated"
+}
