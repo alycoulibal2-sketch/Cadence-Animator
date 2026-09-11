@@ -11,7 +11,7 @@
 - [x] 7. FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games — New Frame Plus (16:53) — https://youtu.be/rYtrV1lChsA
 - [x] 8. The most important animation principle: An introduction on animation spacing and timing — Dong Chang (11:04) — https://youtu.be/vSJ5lT_ma-E
 - [x] 9. 3 Easy Ways to Master Animation Timing — Dong Chang (13:58) — https://youtu.be/13QIh7vsCpQ
-- [ ] 10. Animation basics: The art of timing and spacing - TED-Ed — TED-Ed (6:42) — https://youtu.be/KRVhtMxQWRs
+- [x] 10. Animation basics: The art of timing and spacing - TED-Ed — TED-Ed (6:42) — https://youtu.be/KRVhtMxQWRs
 
 ## Per-video notes
 
@@ -205,4 +205,33 @@ Watched at `balanced` detail (99 scene-aware frames over 13:58, ~25 read directl
 
 **Entries written:** 2 (`W01-9-physical-reference-timing-method.json`, `W01-9-vibe-timing-anti-pattern.json`), both passed `validateProposedEntry` cleanly.
 
-**Next video: 10** (Animation basics: The art of timing and spacing - TED-Ed, `balanced` detail — the final video in this batch).
+### 10. Animation basics: The art of timing and spacing - TED-Ed — 2026-09-11
+
+Watched at `balanced` detail (the scene detector found the video too gradual/low-contrast to key off directly and fell back to 60 uniformly-spaced frames at ~5s intervals over 6:42, all read) plus the full 152-segment transcript. TED-Ed's own polished, professionally-animated explainer — exactly what W01.md's own note predicted ("the shortest correct explanation, for the knowledge card's definition").
+
+**Cross-check:** thoroughly confirms `timing` and `slow_in_slow_out`, including real archival grounding for the Norman McLaren quote that opens the video ("animation is not the art of drawings that move, but the art of movements that are drawn") — confirmed on screen with actual clips from McLaren's own films, *Hen Hop* (1942) and *Pas de Deux* (1968), not just a text citation. No contradictions.
+
+**One new entry — the video's central demonstration, and arguably the single most Cadence-relevant technique in the whole ten-video batch:**
+- **Material properties via spacing alone** (`W01-10-material-properties-via-spacing-alone.json`) — four real, filmed balls (golf, rubber, beach, bowling — small/large, hard/soft) each bounce with a completely distinct, recognizable rhythm purely from timing and spacing, confirmed directly on screen with live footage and an overlaid graph comparing all four bounce-decay curves at once (video @ 2:19–3:08). Rebuilding one ball's bounce from mechanically even spacing to physically accurate spacing (labeled "slower" at each peak, "faster" at each impact) transforms its read with zero change to timing, only spacing (video @ 3:34–5:04). This matters more here than the general principle already would, because Cadence has NO mesh deformation at all — meaning spacing/timing isn't one tool among several for selling an object's material on a rigid rig, it's close to the *only* one, and `acceleration_contrast`/`ai/motion.js` already have everything needed to apply and measure it.
+
+**Other observations, no new entry:** the video's four-quadrant closing summary ("timing: more frames/fewer frames; spacing: less change/more change") is a clean restatement of the timing/spacing distinction already established independently by videos 2, 6, and 8 — good triple-confirmation across three completely different sources (New Frame Plus, Dong Chang, TED-Ed), no new content.
+
+**Capture candidates:** none — every reference in this video is either archival hand-drawn footage or real-world filmed objects, not a 3D character motion to source a Roblox capture from.
+
+**Checks for a later session to implement:**
+- `check: bounce_decay_rate_matches_declared_material — successive bounce-height ratio (derivable from existing position-key data) — a "hard/bouncy" object expected to retain more height per bounce than a "soft/heavy" one, consistently across the whole decay sequence — video 10 @ 2:19–3:08`
+
+**Entries written:** 1 (`W01-10-material-properties-via-spacing-alone.json`), passed `validateProposedEntry` cleanly.
+
+---
+
+## End of session — all ten videos watched
+
+All ten videos in this batch are complete. Summary for the merge session (per `docs/animation-intelligence/watch/README.md`):
+
+- **Videos watched:** all 10 of 10, in order, single session, 2026-09-11.
+- **Entries written:** 19 total, one file per video listed above — `layered_anticipation`, `pose_hold_density`, `twinning` (v1); `startup_frame_budget`, `global_timing_register` (v2); `recovery_weight_substitution`, `implied_zero_frame_anticipation` (v3); `motion_smear_readability` (v4); `external_force_easing_override` (v5); `arc_camera_angle_robustness`, `arc_trail_vfx_readability`, `cross_clip_arc_continuity` (v6); `follow_through_backfill_hold`, `physics_sim_blend_seam_mitigation` (v7); `asymmetric_spacing_preference`, `mixed_hold_pacing_within_phase` (v8); `physical_reference_timing_method`, `vibe_timing_anti_pattern` (v9); `material_properties_via_spacing_alone` (v10). Every entry was checked directly against the live `ai/knowledge.js` module's `validateProposedEntry` and passed cleanly (0 problems, no extra/missing fields) before being committed.
+- **Capture candidates written:** 7 total, across videos 2 (×3), 6 (×1), 7 (×1) — see each video's section above for exact timestamps and reasoning; videos 1, 3, 4, 5, 8, 9, 10 had none (either 2D/archival source material, or no motion distinct enough from what earlier videos already covered).
+- **What contradicted an existing card:** nothing, in any of the ten videos. Every video confirmed the relevant existing `ai/knowledge.js` cards, several with unusually precise or concrete evidence (exact frame counts, filmed reference footage, archival source clips) that the existing directive-text-only entries didn't have. This is itself worth flagging to the merge session as a positive signal: the twelve existing essential cards held up against ten independent, cross-genre sources without a single correction needed.
+- **Recurring cross-references worth the merge session's attention:** several new entries explicitly build on or resolve each other across videos — `layered_anticipation` → `startup_frame_budget` → `recovery_weight_substitution`/`implied_zero_frame_anticipation` → `follow_through_backfill_hold` form one connected "what to do when there's no time for anticipation" ladder (videos 1, 2, 3, 7); `cross_clip_arc_continuity` (v6) is directly resolved, for the loosely-attached-element case, by `physics_sim_blend_seam_mitigation` (v7); `motion_smear_readability` (v4) and `arc_trail_vfx_readability` (v6) are sibling fast-motion-readability techniques via two different mechanisms (mesh deformation Cadence lacks, vs. VFX trails Cadence has); `pose_hold_density` (v1) is refined into `mixed_hold_pacing_within_phase` (v8) and cross-confirmed by `asymmetric_spacing_preference` (v8).
+- **Next session:** no unwatched video remains in this batch. A new session should either merge this batch (per `README.md`'s merge-step instructions) or pick up a different batch (W02–W10) or a different row from `requirements-matrix.md` entirely, per the programme's own ACTIVE PRIORITY memory note.

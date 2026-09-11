@@ -1,0 +1,43 @@
+{
+  "concept": "material_properties_via_spacing_alone",
+  "category": "advanced",
+  "definition": "Communicating an object's size, weight, hardness, and softness entirely through the timing and spacing of its motion — with no change to its shape, texture, color, or deformation — demonstrated with four visually near-identical balls (a golf ball, a rubber ball, a beach ball, a bowling ball) that read as convincingly different materials purely from how each one bounces.",
+  "purpose": "Prove that spacing and timing alone are sufficient to sell an object's physical identity, which matters most exactly when no other channel (deformation, texture, color) is available to do that job.",
+  "visible_effect": "Visually similar balls produce clearly distinct bounce rhythms: a hard, light ball bounces high and fast with quick, sharp impacts and slow decay in bounce height across successive bounces; a heavy, hard ball bounces low with a heavy-feeling impact and fast height decay; a large, soft ball has a softer, more lingering hang time at the top of its arc; each combination of size, hardness and weight producing its own timing-and-spacing signature.",
+  "psychological_or_gameplay_effect": "The viewer infers material properties they were never told and never shown directly — purely from the rhythm of the motion, which is a remarkably efficient communication channel once isolated from every other visual cue.",
+  "physical_interpretation": "A direct, honest physical mapping: momentum versus gravity, contact stiffness, and mass are all read off from how quickly a ball leaves the ground, how long it hangs at its peak, how fast it falls, and how much height each successive bounce loses — no artistic license needed, just accurate spacing for the physics actually in play.",
+  "use_cases": [
+    "any rigid object whose material needs to read clearly without deformation being available (exactly Cadence's own situation, per the existing `squash_stretch` card's \"no mesh deformation exists in Cadence at all\")",
+    "differentiating otherwise visually-identical objects (same mesh, same rig) purely by how they move",
+    "a first, cheap pass at selling weight or material before considering any other technique, since it costs only keyframe placement"
+  ],
+  "non_use_cases": [
+    "an object whose material is already conveyed by strong visual cues (obviously distinct meshes, textures, or colors), where spacing carries comparatively less of the identification burden",
+    "a purely stylized or cartoon physics context where deliberately wrong spacing is the intended joke or effect"
+  ],
+  "interactions": [
+    "Slow in/slow out — this is that principle's own \"sell weight\" purpose, sharpened into a specific, tested four-way comparison rather than a general statement",
+    "Squash & stretch — explicitly the alternative channel for the same goal (material/weight communication); this entry is what is left of that goal when squash & stretch is unavailable, which is Cadence's actual situation on its rigid Motor6D rigs",
+    "External-force easing override — the \"slow at the peak, fast at impact\" pattern this video demonstrates is itself an application of that entry's momentum-vs-gravity reasoning, applied continuously across a whole bounce cycle rather than at one single event"
+  ],
+  "style_variations": {
+    "realistic": "the primary context — physically accurate spacing IS the technique",
+    "cartoon": "exaggerating beyond the physically accurate spacing is itself exaggeration (the existing card) layered on top of this entry's baseline"
+  },
+  "cadence_representation": "The most directly applicable technique in this whole batch to Cadence specifically: since Cadence has no mesh deformation (the existing `squash_stretch` card's own `cadence_representation` states this plainly), spacing and timing are not merely AN option for communicating material on a rigid rig — they are close to the ONLY option. `acceleration_contrast`/`spacing_evenness` already compile exactly the kind of curve this technique needs (slow at a peak, fast at impact), and `ai/motion.js` already measures the resulting velocity/acceleration curve and successive-bounce-height decay directly.",
+  "control_surface": "`acceleration_contrast`/`spacing_evenness` vocabulary dimensions for the per-bounce curve shape; ordinary key placement for successive bounce height decay.",
+  "detection_and_measurement_methods": "Real and already available: `ai/motion.js sampleMotion` measures the actual per-frame velocity/acceleration curve (peak-hang duration, impact speed), and successive bounce heights are directly readable from position keys — both of the signals this technique depends on are already measured by this build, just not yet connected to a \"does this read as the intended material\" judgement.",
+  "generation_or_modification_methods": "`acceleration_contrast`/`spacing_evenness` already generate the needed curve shape per bounce; nothing currently composes a multi-bounce sequence with a deliberately decaying height/energy pattern as a single declared unit.",
+  "failure_modes": [
+    "even, mechanical spacing across a bounce cycle, which the video explicitly shows reads as an artificial, floaty motion rather than a ball obeying gravity at all",
+    "a bounce-height decay rate that does not match the claimed material (a \"heavy\" ball whose bounces barely decay, or a \"bouncy\" ball that dies out immediately)",
+    "relying on this alone for an object whose primary identification should come from a completely different channel, when spacing effort would be better spent elsewhere"
+  ],
+  "roblox_considerations": "None beyond the general FK/keyframe model already shared across Cadence — this technique needs nothing Roblox-specific.",
+  "performance_implications": "None.",
+  "examples": [
+    "four real, filmed balls — a small hard golf ball, a small soft rubber ball, a large soft beach ball, and a large hard bowling ball — each bouncing with a distinct, recognizable rhythm purely from timing and spacing, confirmed directly on screen with live-action footage and an overlaid graph comparing all four bounce-height-decay curves at once (video 10 @ 2:19–3:08)",
+    "a single ball's bounce rebuilt from mechanically even spacing to physically accurate spacing (labeled directly on screen as \"slower\" at each peak and \"faster\" at each impact), transforming its read with no change to timing, only spacing (video 10 @ 3:34–5:04)"
+  ],
+  "evidence_status": "video: https://youtu.be/KRVhtMxQWRs @ 2:19–5:04 — TED-Ed narrates and shows this four-ball comparison (real filmed footage) and the mechanical-vs-physical spacing rebuild directly on screen, confirmed in this session's frame sample; experimental until validated"
+}
