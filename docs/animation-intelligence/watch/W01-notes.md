@@ -10,7 +10,7 @@
 - [x] 6. ARCS - The 12 Principles of Animation in Games — New Frame Plus (7:47) — https://youtu.be/lOzgxMgAnxQ
 - [x] 7. FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games — New Frame Plus (16:53) — https://youtu.be/rYtrV1lChsA
 - [x] 8. The most important animation principle: An introduction on animation spacing and timing — Dong Chang (11:04) — https://youtu.be/vSJ5lT_ma-E
-- [ ] 9. 3 Easy Ways to Master Animation Timing — Dong Chang (13:58) — https://youtu.be/13QIh7vsCpQ
+- [x] 9. 3 Easy Ways to Master Animation Timing — Dong Chang (13:58) — https://youtu.be/13QIh7vsCpQ
 - [ ] 10. Animation basics: The art of timing and spacing - TED-Ed — TED-Ed (6:42) — https://youtu.be/KRVhtMxQWRs
 
 ## Per-video notes
@@ -187,4 +187,22 @@ Watched at `balanced` detail — only 27 scene-change frames over 11:03 (all rea
 
 **Entries written:** 2 (`W01-8-asymmetric-spacing-preference.json`, `W01-8-mixed-hold-pacing-within-phase.json`), both passed `validateProposedEntry` cleanly.
 
-**Next video: 9** (3 Easy Ways to Master Animation Timing — Dong Chang, `balanced` detail).
+### 9. 3 Easy Ways to Master Animation Timing — 2026-09-11
+
+Watched at `balanced` detail (99 scene-aware frames over 13:58, ~25 read directly, with good coverage this time — unlike video 8, this one mixes real B-roll (a physical stopwatch, a filmed clapperboard-style reference with on-screen timecode) with the screen-share, so scene detection worked much better) plus the full 352-segment transcript. Another working Japanese TV animator (Dong Chang again), structured explicitly around three named timing methods, exactly as the title promises.
+
+**Cross-check:** confirms `timing` and `slow_in_slow_out` thoroughly, with real specifics (a "breakdown drawing" labeled with a triangle, confirmed matching video 1's keys/extremes/breakdowns vocabulary from a second, independent professional source; a person blinking specifically while turning their head to look at something — a nice concrete micro-behavior fitting `secondary_action`, not added as its own entry). No contradictions.
+
+**Two new entries — the video's own "3 ways," reduced to two once the redundancy between methods 2 and 3 is accounted for:**
+1. **Physical reference timing method** (`W01-9-physical-reference-timing-method.json`) — combines Dong Chang's "stopwatch method" and "filmed reference method" (the same underlying idea at two levels of precision): ground a new phase's duration and internal key placement in a REAL, externally-measured performance rather than guessing. Directly confirmed on screen: a physical stopwatch reset to 0:00.00, then a filmed reference object with an on-screen timecode read at each sub-beat (video @ 5:28–9:11). Named as a real, adjacent gap next to `ai/reference.js` (Part 36), which only builds a reference profile from a motion ALREADY inside a Cadence project — nothing in this build grounds a brand-new motion's timing from an external physical performance.
+2. **"Vibe timing" anti-pattern** (`W01-9-vibe-timing-anti-pattern.json`) — Dong Chang's own explicit named term for guessing in-between placement "until it looks right" with no reference or rule. Warned against directly for beginners ("you really shouldn't be guessing... don't do it," video @ 5:01–5:27), then — importantly — the SAME animator applies the SAME named technique later to a simple action, explicit that years of experience is what makes it reliable rather than reckless (video @ 11:36–13:22). Connected directly to the user's own stated Cadence constraint ("exact, computed, never estimated") as the tool-level version of exactly the failure this entry names.
+
+**Other observations, no new entry:** the spacing-chart notation and dope-sheet workflow shown here match video 8's exactly, from a second independent source — good cross-confirmation, no new content. "Book"/overlay layer terminology (background elements painted on a separate layer, like a moving train) is production vocabulary, not an animation technique.
+
+**Capture candidates:** none — all reference material in this video is either 2D drawn frames or the animator's own un-retained camera test footage, not something to source a Roblox capture from.
+
+**Checks for a later session to implement:** none beyond what videos 1–8 already cover — this video's contribution is a pre-authoring METHOD (how to arrive at a number) rather than a property of the resulting motion a Cadence-side check could measure.
+
+**Entries written:** 2 (`W01-9-physical-reference-timing-method.json`, `W01-9-vibe-timing-anti-pattern.json`), both passed `validateProposedEntry` cleanly.
+
+**Next video: 10** (Animation basics: The art of timing and spacing - TED-Ed, `balanced` detail — the final video in this batch).

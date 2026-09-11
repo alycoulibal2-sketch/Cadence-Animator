@@ -1,0 +1,38 @@
+{
+  "concept": "vibe_timing_anti_pattern",
+  "category": "advanced",
+  "definition": "Deciding in-between count and placement by repeatedly adding drawings or keys \"until it looks right,\" with no grounding in a measured reference or a stated rule — explicitly named and warned against for a beginner, but reframed as a legitimate, fast shortcut once an animator has enough experience to judge correctly by instinct.",
+  "purpose": "Name a specific, common workflow mistake so it can be recognized and avoided by someone without the experience to safely skip a grounded timing method — and to state honestly that the same workflow stops being a mistake once real judgement backs it.",
+  "visible_effect": "No single visible signature — the failure mode is in the AUTHORING PROCESS (guessing and iterating without a reference), not a specific pose or curve shape, so its symptom is whatever an ungrounded guess happens to produce: sometimes fine, sometimes wrong, inconsistently.",
+  "psychological_or_gameplay_effect": "For a beginner, produces inconsistent, unreliable results because there is no way to tell whether an iteration \"looks right\" for a principled reason or by accident; for an expert, the same fast iteration is reliable because their instinct has already internalized what a grounded method would have measured anyway.",
+  "physical_interpretation": "None directly — a judgement and workflow distinction, not a physical property of the resulting motion.",
+  "use_cases": [
+    "a simple, well-understood movement for an animator experienced enough to time it correctly on instinct, where a full stopwatch or recording pass would be redundant effort",
+    "a rapid rough/preview pass where precision does not yet matter and will be revisited later with a grounded method"
+  ],
+  "non_use_cases": [
+    "a beginner or anyone without demonstrated instinct for the specific type of movement being timed — the video is explicit that this is the wrong place to start",
+    "a complex, multi-beat action where even an experienced animator would benefit from a grounded reference — the video's own example uses the recording method specifically because that cut \"is a bit on the complex side\""
+  ],
+  "interactions": [
+    "Physical reference timing method — this is the exact failure mode that method exists to prevent for anyone not yet experienced enough to skip it; the two entries describe the same decision from opposite ends of the experience curve",
+    "Timing — the existing card already treats timing as the most semantically loaded of the twelve principles; this entry names the specific process failure that produces an unreliably loaded result rather than a deliberately chosen one",
+    "Certainty / evidence (Part 13) — vibe timing is the animation-authoring equivalent of an unevidenced claim: it may happen to be correct, but nothing about the process itself justifies trusting it"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not directly represented as a named anti-pattern, but closely related to a standing constraint on this build: the user's own stated requirement for Cadence is \"exact (computed, never estimated)\" — this entry is the human-animator-workflow version of exactly the failure that constraint exists to rule out. Nothing in Cadence currently distinguishes a grounded key placement from an ungrounded one; every key is stored identically regardless of how its value was decided.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "None, and likely none possible: whether a given key placement was \"vibed\" or grounded in a reference is a fact about the AUTHORING PROCESS, not something recoverable from the resulting project data alone.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "a beginner repeatedly guessing in-between placement with no reference, producing inconsistent results with no principled way to diagnose why a given attempt felt wrong",
+    "an experienced animator over-trusting instinct on a movement type they do NOT actually have deep experience with, applying the \"expert exception\" where it does not actually apply"
+  ],
+  "roblox_considerations": "None specific — a pure authoring-workflow concept independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "explicitly named and warned against for beginners early in the video (\"you really shouldn't be guessing at timing when you are a beginner... don't do it\") (video 9 @ 5:01–5:27)",
+    "the same animator later applying what he calls the same \"vibe timing\" by name to a simple head-lift action, explicitly because years of experience let him place the exact same kind of spacing diagram from instinct rather than needing a fresh measurement (video 9 @ 11:36–13:22)"
+  ],
+  "evidence_status": "video: https://youtu.be/13QIh7vsCpQ @ 5:01–5:27 and 11:36–13:22 — Dong Chang names \"vibe timing\" explicitly in both the warning and the later expert-exception passage, using the same term deliberately in both places; experimental until validated"
+}

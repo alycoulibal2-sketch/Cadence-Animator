@@ -1,0 +1,40 @@
+{
+  "concept": "physical_reference_timing_method",
+  "category": "advanced",
+  "definition": "Grounding a new phase or cut's total duration and internal key placement in a real, externally-sourced timing measurement — physically acting out the intended motion and timing it with a stopwatch, or filming the performance and reading exact frame numbers off the recording's own timecode — rather than guessing or iterating blindly.",
+  "purpose": "Replace guesswork with an actual measured timing reference before placing a single key, so the resulting animation's duration and internal beats are evidenced rather than estimated.",
+  "visible_effect": "A cut's total duration (in frames, at the target frame rate) and the placement of each major pose within it are derived directly from a measured performance, rather than adjusted after the fact until it \"looks right.\"",
+  "psychological_or_gameplay_effect": "A timing decision grounded in a real physical performance tends to read as more natural than an arbitrary guess, since human motion timing is exactly what a viewer's own body intuitively judges against.",
+  "physical_interpretation": "As direct as this gets without motion capture: the reference IS the physical motion itself, measured (by stopwatch) or recorded (by camera) rather than approximated.",
+  "use_cases": [
+    "a new cut or phase with no existing timing reference to work from",
+    "a complex, multi-beat action (the video's own example: a hand reaching for, gripping, lifting, and removing an object) where several internal sub-timings all need grounding, not just a single total duration",
+    "combining reference-gathering with timing measurement in one pass, by filming a physical performance for both purposes at once"
+  ],
+  "non_use_cases": [
+    "a simple, well-understood movement an experienced animator can time correctly by instinct without needing a fresh measurement each time (see the companion entry on experience-gated timing)",
+    "a stylized or physically impossible motion with no real-world equivalent to act out or measure"
+  ],
+  "interactions": [
+    "Timing — this is a concrete METHOD for arriving at the phase durations the existing `timing` card already treats as the most semantically loaded of the twelve principles, without naming how a duration should actually be chosen",
+    "Reference (Part 36, `ai/reference.js`) — that system builds a motion profile from an ALREADY-EXISTING in-project item; this technique grounds a motion's timing from an EXTERNAL, not-yet-in-project physical performance — a real, adjacent gap the existing reference system does not cover",
+    "Asymmetric spacing / mixed hold pacing (video 8) — this technique supplies the raw measured numbers (a stopwatch or recording's timecodes) those spacing techniques then shape into a chart"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and a genuine, nameable gap: `ai/reference.js`'s Part 36 system builds a motion profile from an item ALREADY inside the current Cadence project — there is no path in this build for importing or grounding a NEW motion's timing from an external physically-performed reference (a stopwatch reading, or a recorded video's timecodes). A caller wanting to apply this technique today would have to derive frame numbers manually outside Cadence and then key them in by hand.",
+  "control_surface": "None dedicated. Ordinary `set_keyframe` placement once frame numbers have already been derived externally.",
+  "detection_and_measurement_methods": "None — this is a pre-authoring research step that happens before any Cadence project data exists to measure.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "skipping this step and guessing a duration instead, which is exactly the \"vibe timing\" anti-pattern the video warns beginners against",
+    "measuring only the total duration and not the internal sub-beats of a complex multi-part action, losing the nuance a full recorded reference would have captured",
+    "applying a real-world physical timing directly to an exaggerated or stylized action without adjustment, when the style calls for something faster or slower than a literal real performance"
+  ],
+  "roblox_considerations": "None specific — a pre-authoring research method independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "acting out a head-turn motion and timing it with a stopwatch at roughly 0.7–0.8 seconds, converted to about 18 frames at 24fps, confirmed on screen with a real stopwatch reading 0:00.00 before the act-out (video 9 @ 5:28–5:58)",
+    "filming a more complex hand-reaching-for-a-bill action and reading exact sub-beat frame numbers directly off the recording's own on-screen timecode (00:00:00:00 at rest, 00:00:00:18 as the hand reaches the object) for each stage of the action (video 9 @ 8:10–9:11)"
+  ],
+  "evidence_status": "video: https://youtu.be/13QIh7vsCpQ @ 5:28–9:11 — Dong Chang demonstrates both the stopwatch and the filmed-reference variants directly on screen, with exact frame numbers stated for each and a visible timecode overlay confirmed in this session's frame sample; experimental until validated"
+}
