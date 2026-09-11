@@ -1,0 +1,40 @@
+{
+  "concept": "deliberate_frame_removal_with_followthrough_fill_communicates_move_strength",
+  "category": "advanced",
+  "definition": "Deliberately removing the middle frames of an already-well-formed fast action (leaving a large gap between an early key and a late key) as a positive stylistic CHOICE from the start — not a fix for over-animation — relying on the viewer's own perception plus a follow-through pass on loose secondary elements to retroactively fill in the missing motion; the resulting sparser coverage reads as a genuinely different feel from the same beat with a smear, multiples, or an overshoot added instead, and can itself communicate how strong or weak a given move is relative to others in the same moveset.",
+  "purpose": "Vary the feel of otherwise-similar fast actions across a moveset by choosing DIFFERENT information-density strategies (remove vs. add) for the same underlying gap, using frame count itself as an expressive, comparative signal of relative move strength.",
+  "visible_effect": "A fast action (a headbutt, a punch) shows only its early and late key with nothing readable in between, yet reads clearly as one continuous quick movement because loose secondary elements are shown catching up to the main motion afterward, filling the gap retroactively rather than the gap being covered directly.",
+  "psychological_or_gameplay_effect": "The source's own framing: sparser coverage 'keeps things fresh' compared to always reaching for a smear/multiple/overshoot on every similar gap, and 'may even help you remember how strong or weak a move is' — i.e. the DEGREE of information removed (versus a heavier move's fuller coverage) becomes a comparative signal across a moveset, not merely a per-move stylistic flourish.",
+  "physical_interpretation": "None — a deliberate information-density and perceptual-fill technique, not a physical property.",
+  "use_cases": [
+    "varying otherwise-similar fast actions within one moveset so they do not all read identically, using frame-removal as one available strategy alongside smears/multiples/overshoot",
+    "communicating a move's relative weight/strength across a cast or moveset through how much visual information is present versus deliberately withheld"
+  ],
+  "non_use_cases": [
+    "an action already under-covered to the point that even follow-through cannot retroactively supply enough information to read — this is the failure mode `subtractive_frame_deletion_de_bloats_over_animated_moves` (W05) addresses from the OPPOSITE direction (fixing an over-dense move, not choosing sparseness for an already-adequate one)",
+    "a move whose strength/weight is meant to read as consistent with its visual siblings, where a deliberately different information-density strategy would create an unwanted inconsistency instead of a meaningful contrast"
+  ],
+  "interactions": [
+    "subtractive_frame_deletion_de_bloats_over_animated_moves (W05, video 50) — an important distinction to keep separate: that entry is a FIX (removing EXCESS frames from a move that already has too many, discovered as a corrective pass); this entry is a DELIBERATE DESIGN CHOICE made from the start (choosing sparse coverage over a fast beat specifically to vary feel and signal relative strength), not a correction of anything",
+    "multiples_vs_smear_for_differently_weighted_fast_motion and limb_length_violation_during_arc_reads_as_extra_strength (both this same video) — three parallel strategies for the identical underlying problem (a fast arc's gap needs to read), each producing a different specific feel; this entry is explicitly framed by the source as an ALTERNATIVE to the other two on the same gap, not a replacement for them project-wide",
+    "follow_through_overlap (compiled principle) — this entry is a specific, deliberate USE of follow-through's own retroactive-fill capability as the primary readability mechanism for a gap, rather than follow-through being a secondary polish pass"
+  ],
+  "style_variations": {
+    "game_combat": "directly applicable — this source's own native context, a fast-paced fighting game moveset",
+    "realistic": "the underlying follow-through mechanism still applies physically; the DELIBERATE, comparative frame-removal-for-effect framing is a stylized choice independent of realism"
+  },
+  "cadence_representation": "Directly and fully buildable today: `ai/motion.js`'s existing `keyDensity` measurement already reports frame/key density per phase, so comparing declared key density ACROSS a moveset's different actions — flagging which moves are deliberately sparser than others — is a real, checkable signature of exactly this technique, contingent only on a declared grouping of 'these clips are the same moveset' this build does not yet store anywhere.",
+  "control_surface": "Ordinary keyframe deletion already reaches the sparse coverage this technique needs; nothing currently frames deliberate sparseness as a comparative, cross-clip style choice.",
+  "detection_and_measurement_methods": "Buildable today via `ai/motion.js keyDensity`, comparing key density across a project's different clips/actions — the same measurement this batch's other entries already point to for related cross-clip comparisons (see the already-queued `global_timing_register_consistency`, LESSONS.md #6).",
+  "generation_or_modification_methods": "Ordinary keyframe deletion already reaches this; nothing automates choosing WHICH frames to remove for the intended perceptual effect.",
+  "failure_modes": [
+    "removing so much information that even follow-through cannot retroactively supply a coherent read — the gap becomes a genuine cut rather than a felt fast motion",
+    "applying this technique inconsistently across a moveset without the comparative-strength payoff the source describes, reading as arbitrary sparseness rather than a meaningful signal"
+  ],
+  "roblox_considerations": "No different from any other keyframe density decision — directly reachable with ordinary `AnimationTrack` authoring; a moveset-wide comparison would need the same declared-grouping capability this build itself lacks.",
+  "performance_implications": "Fewer authored frames for the affected moves, a real (if minor) authoring-cost saving alongside the stylistic payoff.",
+  "examples": [
+    "'sometimes to give a real punchy effect, what you can often do is remove frames altogether... for instance the movement could be a headbutt or a punch, or something, with these two frames having a big gap in the middle — when it's played back, it's a very quick movement and reads fine. We can emphasize the move even more by having loose things catch up with the movement once it's over, and this is called follow-through... sometimes removing information... not only keeps things fresh, but can give an entirely different feel to the attack — it may even help you remember how strong or weak a move is' (video @ 05:07–05:56)"
+  ],
+  "evidence_status": "video: https://youtu.be/WYCjmVhiLaM @ 05:07–05:56 — the presenter states the technique, its mechanism (follow-through retroactively filling the gap), and its comparative-strength payoff directly; transcript-only, no frames extracted this session; experimental until validated"
+}

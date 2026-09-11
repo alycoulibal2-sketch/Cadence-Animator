@@ -1,0 +1,41 @@
+{
+  "concept": "limb_length_violation_during_arc_reads_as_extra_strength",
+  "category": "advanced",
+  "definition": "During a very fast arcing limb motion, deliberately posing the limb as bent or stretched beyond what its own fixed length/joint constraints would allow in real anatomy ('breaking the joint', credited to Richard Williams' Animator's Survival Kit) for one or two frames — an impossible extreme no real limb could reach — to sell the speed and force of the arc, with the effect reading as MORE pronounced added strength on an already-rigid, non-bendy character than on a character whose design is already elastic.",
+  "purpose": "Sell the speed and force of a fast arcing motion using a single deliberately-impossible extreme frame, rather than only relying on spacing, smears, or multiples.",
+  "visible_effect": "A limb (commonly an arm, in a punch or swing) appears momentarily bent or elongated past its own real range for one or two frames at the peak of a fast arc, then returns to a normal range immediately after.",
+  "psychological_or_gameplay_effect": "Reads as extra speed and force; the effect's strength is context-dependent on the character's own established design — applied to an ALREADY elastic/bendy character it reads as consistent with that character's existing appearance, but applied to a character whose design is otherwise rigid and non-bendy, the same violation reads as an even GREATER sense of strength, since the contrast against that character's own established rigidity is what sells it.",
+  "physical_interpretation": "An explicit, deliberate departure from anatomical/physical plausibility for one or two frames only — the same category of technique as squash & stretch's own extremes, but applied to a limb's LENGTH along an arc rather than to a whole body's volume under impact.",
+  "use_cases": [
+    "a fast arcing limb attack (a punch, a swing) wanting maximum perceived speed/force from a minimal number of frames",
+    "a rigid, non-bendy, or mechanical-feeling character specifically, where the technique's contrast against that character's own established rigidity produces a stronger effect than on an already-elastic character"
+  ],
+  "non_use_cases": [
+    "a slow, deliberate, or precise motion where selling raw speed/force is not the point",
+    "a character or style whose whole appeal depends on strict anatomical consistency, where even a single-frame violation would be immediately noticed and read as an error rather than a technique",
+    "a rig with declared, enforced joint limits meant to be authoritative, where this technique's whole mechanism (deliberately exceeding a limit) directly conflicts with that declaration"
+  ],
+  "interactions": [
+    "squash_stretch (compiled principle) — a closely related but distinct mechanism: that principle deforms VOLUME under compression/extension for a weight/force purpose; this entry violates a limb's own LENGTH along an arc specifically, for a speed/force purpose during fast motion rather than at rest or on contact",
+    "the R15 reach-limit honesty already documented in this build's own CLAUDE.md, and `fixed_camera_licenses_invisible_pose_cheats` (W05, video 43) / `per_key_pose_imperfection_defeats_rigid_3d_read` (video 51, this batch) — this is a THIRD independent instance of the same family of tension: a deliberate, informed departure from physical/reach correctness that a solver built to report shortfalls honestly (`ai/pose.js solveTwoBone`) would refuse to fake silently"
+  ],
+  "style_variations": {
+    "cartoon": "a native, expected technique, explicitly sourced from a canonical hand-drawn animation reference (Richard Williams)",
+    "realistic": "directly contraindicated — an immediately visible anatomical violation in a realistic style"
+  },
+  "cadence_representation": "In direct tension with this build's own rigid-solver honesty, in exactly the way this batch's other 'deliberate cheat vs. honest solver' entries already name: `ai/pose.js boneGeometry`/`solveTwoBone` derives a FIXED bone length from the rig's own C0/C1 offsets and reports a reach shortfall honestly rather than faking an out-of-range target (CLAUDE.md's own R15 reach-limit pitfall). This technique's entire mechanism is deliberately posing a limb PAST its own fixed length for a stylistic payoff — something direct keyframe authoring (setting rotation/position values by hand, bypassing a solve) could still express, since `joint_limits: null` means nothing currently stops a user from authoring exactly this, but no solver-assisted tool would ever produce it, and nothing distinguishes a deliberate use of this technique from a modeling/rigging error.",
+  "control_surface": "Direct keyframe authoring (bypassing `solve_ik`/`solveTwoBone`) already permits this; no tool assists, suggests, or validates it as a deliberate technique versus an error.",
+  "detection_and_measurement_methods": "Partially reachable: `ai/pose.js` already computes a rig's fixed bone lengths from C0/C1 offsets, so a frame where an effector's distance from its parent joint EXCEEDS that fixed length by a wide margin is a detectable, flaggable state — currently nothing in this build performs that comparison or reports it as a candidate deliberate extreme rather than an error.",
+  "generation_or_modification_methods": "None assists this deliberately; it is reachable only via direct value authoring outside any solver path.",
+  "failure_modes": [
+    "applying the violation for too many frames, turning a fast, barely-perceptible extreme into an obviously broken-looking hold",
+    "applying it to a character/style where anatomical consistency is itself part of the appeal, reading as an error rather than a technique",
+    "no tool in this build being able to tell this deliberate technique apart from an unintended rigging mistake, since both produce identical stored keyframe data"
+  ],
+  "roblox_considerations": "Directly reachable in Roblox's Motor6D system, which enforces no inherent joint-length limits either — a `C0`/`C1` offset can be authored to place an effector past its rig's normal reach for exactly this technique, with the same detectability gap this build has.",
+  "performance_implications": "None.",
+  "examples": [
+    "'Richard Williams... suggests you can break the leg to show an extreme movement, and like we've seen with multiples, it can give an extra heavy sense to an attack, making that impact read a little clearer... Necro here bends his arms throughout this motion, which, although gives him a very elastic appearance, is a great example of how this helps the feel of quick arcing movement — apply this to a less bendy character and you can get an even greater sense of strength' (video @ 04:26–05:07)"
+  ],
+  "evidence_status": "video: https://youtu.be/WYCjmVhiLaM @ 04:26–05:07 — the presenter states the technique, its canonical source (Richard Williams' Animator's Survival Kit), and the character-rigidity-dependent effect directly, illustrated with a named in-game example (Necro from Street Fighter 3); transcript-only, no frames extracted this session; experimental until validated"
+}

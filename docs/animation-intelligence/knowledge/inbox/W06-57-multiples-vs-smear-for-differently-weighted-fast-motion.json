@@ -1,0 +1,39 @@
+{
+  "concept": "multiples_vs_smear_for_differently_weighted_fast_motion",
+  "category": "advanced",
+  "definition": "Rendering several distinct, offset copies of a fast-moving object simultaneously ('multiples' — a stop-motion-photography-like multi-exposure effect) is a DIFFERENT technique from a single elongated/blurred smear shape for the same underlying problem (a fast arc needs to read clearly in very few frames), and the choice between them is not arbitrary: multiples read as slower and heavier ('weight and devastation'), where a smear on the same motion would read faster and lighter.",
+  "purpose": "Choose deliberately between two different fast-motion-readability techniques based on which perceived quality (weight vs. speed) the specific action should communicate, rather than treating them as interchangeable.",
+  "visible_effect": "Several distinct, separated copies of the same moving object (e.g. a swung shield) appear at once along its arc, like a multi-exposure photograph or a strobe-lit capture, rather than one single elongated/blurred shape.",
+  "psychological_or_gameplay_effect": "The source's own direct A/B: the same shield swing rendered as multiples 'gives a different effect than if he were to have a smear instead — it slows it down enough to give it that weight and devastation,' i.e. multiples are the heavier-reading choice of the two for an identical underlying fast motion.",
+  "physical_interpretation": "An imitation of multi-exposure/strobe photography, not a claim about the object's own physical behavior — the same non-physical status `motion_smear_readability` already assigns to a smear.",
+  "use_cases": [
+    "a fast weapon swing or strike specifically wanting to read as heavy/devastating rather than merely fast",
+    "any fast arc where a production's established visual language already favors a stroboscopic/multiple-exposure look over a stretched-smear look"
+  ],
+  "non_use_cases": [
+    "an action wanting to read as light and fast rather than heavy — a smear (or no readability aid at all, if the spacing is already tight enough) is the better-suited choice per this entry's own distinction",
+    "a style where mesh deformation (a smear) is available and preferred, and the discrete-copies look of multiples would read as inconsistent with the rest of the production's visual language"
+  ],
+  "interactions": [
+    "motion_smear_readability (W01) — the direct sibling/alternative technique for the identical underlying problem; this entry adds the specific WEIGHT-based reason to choose one over the other, which that card does not itself state",
+    "arc_trail_vfx_readability (W01) — the existing card noting Cadence CAN solve the smear-alternative problem via a VFX trail rather than mesh deformation; this entry's 'multiples' is a DISCRETE, separated-copies effect rather than a continuous ribbon, a meaningfully different visual result from what a standard continuous VFX trail would produce"
+  ],
+  "style_variations": {
+    "game_combat": "both techniques are native fighting-game vocabulary per this source's own examples; the choice between them is a per-move weight decision",
+    "realistic": "neither technique applies — both are explicitly non-physical readability aids"
+  },
+  "cadence_representation": "Closer to reachable than a smear, via a different existing capability: Cadence has no mesh deformation at all (ruling out a literal smear, per the existing `motion_smear_readability` card), but `ai/vfxspec.js`'s emitter/trail capability (already noted by `arc_trail_vfx_readability` as the smear-alternative path) could in principle be configured to spawn DISCRETE, sparse ghost copies at fixed intervals rather than a continuous ribbon — closer to genuine 'multiples' than a standard continuous trail would be. This is a real, meaningful distinction to flag for whoever builds a smear/multiples equivalent: a continuous trail and discrete multiples are not the same visual technique, even though both currently route through the same underlying VFX capability gap.",
+  "control_surface": "None directly; `vfx_add_layer`/`vfx_new_effect` could in principle be configured toward a sparse, discrete-copy emitter pattern, but nothing currently distinguishes this from a standard continuous trail as a named preset.",
+  "detection_and_measurement_methods": "Not measurable in this build: no track or measurement represents a rendered multi-exposure/discrete-copies visual effect; this is a rendering/VFX-authoring technique, not a property of keyframe motion data itself.",
+  "generation_or_modification_methods": "None currently distinguishes discrete multiples from a continuous trail as a VFX authoring preset.",
+  "failure_modes": [
+    "choosing multiples for an action that should read as fast and light, accidentally making it read as heavier/slower than intended",
+    "mixing multiples and smears inconsistently across similar moves without a clear weight-based reason, reading as arbitrary rather than deliberate"
+  ],
+  "roblox_considerations": "A discrete-copies 'multiples' effect is reachable in Roblox via a `ParticleEmitter`/`Beam` configured to spawn sparse, low-lifetime ghost copies of the moving part's mesh, or via several cloned, fading `MeshPart`s placed along the arc — a different configuration from a standard continuous trail effect.",
+  "performance_implications": "Likely cheaper than a continuous trail if implemented as a small fixed number of discrete copies rather than a dense continuous emitter, though this is inferred rather than stated by the source.",
+  "examples": [
+    "'Captain America, when using his shield as a weapon, will swing it, resulting in this pocket of information where several shields are shown, giving a high shutter-speed effect, which gives a different effect than if he were to have a smear instead — it slows it down enough to give it that weight and devastation' (video @ 04:09–04:26)"
+  ],
+  "evidence_status": "video: https://youtu.be/WYCjmVhiLaM @ 04:09–04:26 — the presenter (Video Game Animation Study) states the direct comparison and its perceptual difference explicitly, illustrated with a named in-game example (Marvel vs. Capcom's Captain America); transcript-only, no frames extracted this session; experimental until validated"
+}

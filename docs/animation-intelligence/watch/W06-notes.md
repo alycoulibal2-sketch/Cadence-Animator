@@ -8,7 +8,7 @@
 - [x] 54. The Overanimation of Zenless Zone Zero — New Frame Plus (24:03) — https://youtu.be/1yH4Qz23FqM
 - [x] 55. The Brilliant Animation in Metroid Dread — Video Game Animation Study (38:26) — https://youtu.be/1B1beXTnvEI
 - [x] 56. The Animation of Cuphead — Video Game Animation Study (10:57) — https://youtu.be/pOBKGcehi8U
-- [ ] 57. How 2D Fighter Games are Animated — Video Game Animation Study (7:13) — https://youtu.be/WYCjmVhiLaM
+- [x] 57. How 2D Fighter Games are Animated — Video Game Animation Study (7:13) — https://youtu.be/WYCjmVhiLaM
 - [ ] 58. The Effects Animation of Hollow Knight — New Frame Plus (7:19) — https://youtu.be/SIJtfr-PO4Y
 - [ ] 59. How to add IMPACT frames to your animation — Howard Wimshurst Animation (18:42) — https://youtu.be/6UaUi5fBmJc
 - [ ] 60. Animate action with SMEAR FRAMES — Kuzillon (6:37) — https://youtu.be/5v0IZSr9-j0
@@ -447,3 +447,68 @@ against `validateProposedEntry`/`validateEvidenceSource`; all pass. Also UPDATED
 entry) `W06-55-noninterruptible-linear-clips-with-decision-hitch-read-as-complex-ai.json` with this
 video's independent corroborating evidence. A full-corpus concept-name sweep (156 JSON files: 50
 compiled/merged + 23 W03 + 24 W04 + 42 W05 + this batch's 17 so far) found zero collisions.
+
+### 57. How 2D Fighter Games are Animated — Video Game Animation Study
+
+2026-09-11. Watched at `transcript` detail (74 caption segments, clean on first pull, full 7:13 read
+in full — the second-shortest video in the batch). Matches W06.md's framing exactly ("frame counts as
+game design"). This video covers heavily-trodden ground (keyframing, anticipation, follow-through,
+smears, overshoot, exaggeration) already extensively documented across this whole programme, so most
+of it is logged as cross-checks; three genuinely fresh, specific technique-comparisons earned entries.
+
+**What it teaches, specifically:**
+1. 'Multiples' (several distinct, offset copies of a fast-moving object shown at once, a
+   multi-exposure/strobe-photograph effect) is presented as a DIFFERENT technique from a smear for
+   the identical underlying problem, chosen deliberately because multiples read as heavier and slower
+   ("weight and devastation") where a smear on the same motion would read faster and lighter
+   (04:09–04:26). Wrote **`multiples_vs_smear_for_differently_weighted_fast_motion`**.
+2. "Breaking the joint" (Richard Williams, Animator's Survival Kit): deliberately bending/stretching a
+   limb past its own real length for one or two frames during a fast arc, with the effect reading as
+   MORE added strength on an already-rigid character than on an already-elastic one (04:26–05:07).
+   Checked this against this build's own R15 reach-limit honesty (CLAUDE.md) and the two existing
+   "deliberate cheat vs. honest solver" entries (`fixed_camera_licenses_invisible_pose_cheats` W05,
+   `per_key_pose_imperfection_defeats_rigid_3d_read` video 51 this batch) — this is a clean THIRD
+   instance of the same family, named as such in the entry's own interactions. Wrote
+   **`limb_length_violation_during_arc_reads_as_extra_strength`**.
+3. Deliberately removing an action's middle frames from the START (not as a bloat-fix) and relying on
+   follow-through to retroactively fill the gap, chosen as an alternative to smears/multiples/overshoot
+   specifically to vary feel across a moveset and signal a move's relative strength through information
+   density itself (05:07–05:56). Carefully distinguished in this entry's own interactions from
+   `subtractive_frame_deletion_de_bloats_over_animated_moves` (W05, video 50), which is a CORRECTIVE
+   pass on an already-over-dense move rather than a deliberate choice made from the start. Wrote
+   **`deliberate_frame_removal_with_followthrough_fill_communicates_move_strength`**.
+
+**Cross-checks** (this video's remaining content, confirming existing cards with fresh quotes/examples
+rather than new mechanism): the "you don't see it, but you feel it" one-frame-anticipation claim
+(02:48–03:05) is a near-verbatim restatement of the existing `subliminal_single_frame_impact_pose`
+(W04, video 36) card's own "felt not seen" framing, generalized here from impact poses specifically to
+anticipation as well — worth attaching as fresh evidence at merge time rather than a new card. The
+direct overshoot A/B comparison ("one has the overshoot and one doesn't... more of an impact... without
+making the action seem any longer", 03:12–03:36) reconfirms `shared_mechanism_anticipation_overshoot`
+(W02) with a sharp, quotable framing (zero extra frame-count cost) worth the same treatment. Dragon
+Ball FighterZ's cel-shaded 3D mimicking a specific limited-animation host material's whole style
+(06:06–06:32) directly reconfirms this same batch's own video 52 findings
+(`matching_own_fidelity_down_to_source_material_budget`) with no new mechanism.
+
+**Not written as entries** (real content, kept to notes): the opening framing (instant response,
+heavier moves take longer, 00:48–01:06) restates `startup_frame_budget`/the W01 anticipation ladder
+with no new specifics. The closing "style and substance need to work together" statement (06:32–06:48)
+is a values statement rather than a technique.
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — a 2D sprite/shipped-footage analysis across many fighting games, no
+filmed reference performance.
+
+**Checks for the queue:**
+- `check: cross_clip_key_density_comparison_within_moveset — compare declared key density
+  (ai/motion.js keyDensity) across a project's different clips within one declared moveset, as a
+  proxy for the deliberate strength-signaling frame-removal this video describes — buildable today
+  from an existing measurement, contingent on a declared 'these clips are one moveset' grouping this
+  build does not yet store — video 57 @ 05:07–05:56`
+
+**Entries written:** `W06-57-multiples-vs-smear-for-differently-weighted-fast-motion.json`,
+`W06-57-limb-length-violation-during-arc-reads-as-extra-strength.json`,
+`W06-57-deliberate-frame-removal-with-followthrough-fill-communicates-move-strength.json` — all three
+checked directly against `validateProposedEntry`/`validateEvidenceSource`; all pass; a full-corpus
+concept-name sweep (159 JSON files: 156 prior + this video's 3) found zero collisions.
