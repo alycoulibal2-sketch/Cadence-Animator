@@ -9,7 +9,7 @@
 - [x] 5. SLOW IN & SLOW OUT - The 12 Principles of Animation in Games — New Frame Plus (7:24) — https://youtu.be/3jNiNctcQ4c
 - [x] 6. ARCS - The 12 Principles of Animation in Games — New Frame Plus (7:47) — https://youtu.be/lOzgxMgAnxQ
 - [x] 7. FOLLOW THROUGH & OVERLAPPING ACTION - The 12 Principles of Animation in Games — New Frame Plus (16:53) — https://youtu.be/rYtrV1lChsA
-- [ ] 8. The most important animation principle: An introduction on animation spacing and timing — Dong Chang (11:04) — https://youtu.be/vSJ5lT_ma-E
+- [x] 8. The most important animation principle: An introduction on animation spacing and timing — Dong Chang (11:04) — https://youtu.be/vSJ5lT_ma-E
 - [ ] 9. 3 Easy Ways to Master Animation Timing — Dong Chang (13:58) — https://youtu.be/13QIh7vsCpQ
 - [ ] 10. Animation basics: The art of timing and spacing - TED-Ed — TED-Ed (6:42) — https://youtu.be/KRVhtMxQWRs
 
@@ -167,4 +167,24 @@ Watched at `balanced` detail. This is a 16:53 video — well beyond the tool's "
 
 **Entries written:** 2 (`W01-7-follow-through-backfill-hold.json`, `W01-7-physics-sim-blend-seam-mitigation.json`), both passed `validateProposedEntry` cleanly.
 
-**Next video: 8** (The most important animation principle: An introduction on animation spacing and timing — Dong Chang, `balanced` detail).
+### 8. The most important animation principle: An introduction on animation spacing and timing — 2026-09-11
+
+Watched at `balanced` detail — only 27 scene-change frames over 11:03 (all read), because this is a screen-recorded Clip Studio Paint tutorial with a mostly-static canvas; a ~6-minute stretch (3:29–9:19) registered almost no scene changes at all despite covering the video's two most important demonstrations (the spacing-chart build-up and the dope-sheet mixed-pacing build-up), so both new entries below rest on the transcript rather than a directly-viewed playback — noted honestly in each `evidence_status` rather than claimed as seen. Full 267-segment transcript read. This is a working Japanese TV animator (Dong Chang), and by far the most technically precise video in the batch — exact fractional in-between positions (halves, quarters, eighths, sixteenths), a real spacing-chart notation, and a real dope-sheet/exposure-sheet workflow.
+
+**Cross-check:** this video is explicitly the source W01.md flagged for `spacing_contrast`'s reference, and it delivers: the graduated "add finer subdivisions near the ends → stronger ease" progression is a precise, numeric grounding for exactly what `acceleration_contrast`/`spacing_evenness` already claim to control, and the explicit timing-vs-spacing distinction ("these charts have all to do with spacing and nothing to do with timing... we will talk about timing later") is the clearest possible restatement of `INTERACTION_GRAPH`'s own `{a: 'timing', b: 'slow_in_slow_out'}` note. No contradictions.
+
+**Two new entries — both precision refinements beyond what the existing spacing/easing cards state:**
+1. **Asymmetric spacing preference** (`W01-8-asymmetric-spacing-preference.json`) — a stated professional preference for UNBALANCED in-between distribution (detail concentrated on one side, commonly the arrival, rather than a matched symmetric ease) — "unbalanced moves often look and feel better," with a named common pro pattern of stripping nearly all middle in-betweens and keeping only a single ease-in at the very end (video @ 3:55–7:09).
+2. **Mixed hold pacing within one phase** (`W01-8-mixed-hold-pacing-within-phase.json`) — varying hold length (ones/twos/threes) at DIFFERENT points inside a single continuous phase to combine several local pacing reads at once (e.g. "faster AND starts slower"), rather than one uniform hold or one smooth ease curve for the whole phase. A precision, within-phase refinement of video 1's `pose_hold_density`, which was framed as a whole-phase/style-wide dial (video @ 8:41–10:12).
+
+**Other observations, no new entry:** the spacing-chart notation itself (a line with perpendicular ticks and connecting arcs, always drawn on the ENDING pose) is a human-to-human authoring/communication convention for a two-person key-animator/in-betweener pipeline Cadence has no equivalent of (Cadence has no separate in-betweener role) — interesting production context, not a technique to encode. The dope-sheet/exposure-sheet workflow is likewise a production-notation detail, not a measurable animation property.
+
+**Capture candidates:** none — this video has no 3D reference motion at all (2D drawn keyframes and screen-recorded software only).
+
+**Checks for a later session to implement:**
+- `check: spacing_curve_asymmetry — compare the shape of the measured velocity/acceleration curve (ai/motion.js sampleMotion) on either side of a phase's midpoint — a large, deliberate asymmetry is a signal of this technique being applied, not itself a defect — video 8 @ 3:55–7:09`
+- `check: multi_segment_pacing_signature — count local extrema/inflections in a phase's measured velocity curve (existing sampleMotion data) — more than one signals a mixed-hold-pacing phase rather than a single ease curve — video 8 @ 8:41–10:12`
+
+**Entries written:** 2 (`W01-8-asymmetric-spacing-preference.json`, `W01-8-mixed-hold-pacing-within-phase.json`), both passed `validateProposedEntry` cleanly.
+
+**Next video: 9** (3 Easy Ways to Master Animation Timing — Dong Chang, `balanced` detail).

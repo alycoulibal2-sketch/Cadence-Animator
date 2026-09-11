@@ -1,0 +1,42 @@
+{
+  "concept": "asymmetric_spacing_preference",
+  "category": "advanced",
+  "definition": "A professional preference for unevenly-distributed (\"unbalanced\") in-between spacing over a textbook-symmetric ease — concentrating detail heavily on one side of a motion (commonly the arrival) while leaving the rest sparse or linear — stated as reading better than an evenly-balanced ease in and ease out.",
+  "purpose": "Make a motion feel more dynamic and less \"textbook\" by deliberately breaking left-right symmetry in how in-betweens are distributed, rather than defaulting to a matched ease-in/ease-out pair.",
+  "visible_effect": "A motion that starts fast or loose (few or no in-betweens near the start) and only slows or eases heavily near one end, rather than an evenly-mirrored slow-fast-slow curve.",
+  "psychological_or_gameplay_effect": "Professionally stated to read as more interesting and less flat than a symmetric ease — the named alternative pattern (all detail concentrated at the very end, everything else sparse or a single large jump) is called out as a common pattern experienced animators use, not a shortcut.",
+  "physical_interpretation": "Real motion is rarely symmetric either — most physical accelerations and decelerations have different magnitudes and durations on each side, so an asymmetric spacing choice can be closer to how many real motions actually move than a matched, textbook-symmetric ease is.",
+  "use_cases": [
+    "a motion wanting a confident, dynamic read rather than a soft, \"balanced\" ease",
+    "reducing authoring effort by collapsing most of a phase into few or no in-betweens while still landing cleanly, via detail concentrated only at the arrival",
+    "any professional-grade polish pass on an already-working, but visually flat, symmetric ease"
+  ],
+  "non_use_cases": [
+    "a motion where a matched, symmetric ease genuinely IS the correct physical or stylistic read (a pendulum, a smoothly decelerating object under even braking)",
+    "a first pass while still learning the basic mechanism — the video frames this as a refinement on top of understanding symmetric spacing first, not a replacement for learning it"
+  ],
+  "interactions": [
+    "Slow in/slow out — this is a refinement of that principle's own curve-shape choice, preferring an asymmetric curve over spacing_evenness's more neutral default",
+    "Pose hold density / mixed hold pacing — asymmetric spacing is most visible specifically when combined with varied hold density across a phase, per this video's own progression from \"add in-betweens near the ends\" to \"remove nearly everything but the ends\"",
+    "Exaggeration — an intentional imbalance is itself a selective-amplification choice (emphasize the arrival, restrain everywhere else), the same selectivity the existing `exaggeration` card asks for"
+  ],
+  "style_variations": {
+    "anime": "the professional convention this entry is sourced from is explicitly Japanese TV animation production practice",
+    "realistic": "a matched, symmetric ease may read as more correct for genuinely symmetric real-world motion"
+  },
+  "cadence_representation": "Partially reachable: `acceleration_contrast` and `spacing_evenness` already pick an easing style/DIRECTION on the keys bounding a phase (per the existing `slow_in_slow_out` card), which can already express an asymmetric ease-in-only or ease-out-only curve — what is not represented is this as a named PREFERENCE (\"unbalanced often reads better\") a caller could deliberately reach for, rather than an incidental possible value of an existing dimension.",
+  "control_surface": "`acceleration_contrast` / `spacing_evenness` vocabulary dimensions, set asymmetrically (a different value or direction on each side of a phase) rather than matched.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion` already measures the actual velocity/acceleration curve per frame, which is sufficient to detect asymmetry directly (comparing the shape of the curve on either side of a phase's midpoint) — a real, buildable check from data this build already computes; nothing currently runs that specific comparison.",
+  "generation_or_modification_methods": "`acceleration_contrast`/`spacing_evenness` already generate a curve; setting DIFFERENT values on the two bounding keys of one phase (rather than the same value mirrored) is how this build would already express asymmetry, if a caller chose to.",
+  "failure_modes": [
+    "defaulting to symmetric spacing out of habit when an asymmetric read was actually wanted, producing the \"flat,\" \"boring,\" \"too mechanical\" result the video explicitly warns against",
+    "pushing asymmetry so far the motion reads as broken or unintentional rather than deliberately dynamic"
+  ],
+  "roblox_considerations": "None specific — a pure keyframe-spacing concept independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "a ball's movement built up from a flat, evenly-spaced pass (called explicitly \"flat,\" \"boring,\" \"too mechanical\") to a version with extra in-betweens concentrated only near the two ends (video 8 @ 3:55–6:39)",
+    "a \"common spacing chart pattern that pro animators use\": removing nearly all the middle in-betweens and keeping only a single ease-in at the very end (video 8 @ 6:56–7:09)"
+  ],
+  "evidence_status": "video: https://youtu.be/vSJ5lT_ma-E @ 3:55–7:09 — Dong Chang builds this progression live on screen with a visible spacing chart, describing a played-back result at each step; the specific played-back ball animation itself fell within a long static-screen stretch (3:29–9:19) that this session's sparse 27-frame sample for an 11-minute video did not capture distinctly, so this rests on the transcript's description rather than a directly-viewed play back; experimental until validated"
+}

@@ -1,0 +1,40 @@
+{
+  "concept": "mixed_hold_pacing_within_phase",
+  "category": "advanced",
+  "definition": "Deliberately varying how many frames each individual in-between drawing is held (ones, twos, threes) at DIFFERENT points within a single phase, rather than applying one uniform hold length throughout, to sculpt a compound, non-monotonic pacing within one motion.",
+  "purpose": "Create a more complex, dynamic-feeling motion than a single uniform hold length or a single smooth ease curve can produce, by combining several different local pacing choices within one continuous action.",
+  "visible_effect": "Different segments of the same phase visibly move at different local speeds or densities — for example the first drawing held on threes (a slow start), the next on ones (a sudden fast beat), the following two on twos, and the rest back on threes — rather than one consistent ease shape throughout.",
+  "psychological_or_gameplay_effect": "Reads as more interesting and dynamic than either a uniform hold length or a single smooth ease, because it can combine effects (e.g. \"fast AND starts slower\") that a single monotonic curve cannot represent at once.",
+  "physical_interpretation": "Not a single physical model — closer to a composed sequence of several different small physical reads (a slow start, a sudden snap, a settle) stitched into one continuous motion, which is exactly why it can read as more dynamic than any single one of them alone.",
+  "use_cases": [
+    "a phase that needs to combine two different reads at once (e.g. weight at the start, snap in the middle) that a single ease curve cannot express",
+    "polishing an already-working, single-ease-curve motion into something more distinctive",
+    "any motion complex enough that professional animators would treat it as worth this level of manual authoring attention"
+  ],
+  "non_use_cases": [
+    "a short, simple phase where the extra complexity would not be visible or worth the authoring cost",
+    "a mechanical/robotic style, where the whole point is uniform, unvaried spacing (the existing `slow_in_slow_out` card's own mechanical note)"
+  ],
+  "interactions": [
+    "Pose hold density (video 1) — this is that entry's STYLE-WIDE dial applied at finer grain: instead of one hold-density choice for a whole phase or project, a different value at each local segment within one phase",
+    "Slow in/slow out — a single ease curve is the SIMPLE case this technique generalizes past; the result could still be described as \"a curve,\" just a more complex one than the two-key-bounded curves this build already compiles",
+    "Asymmetric spacing preference — the two techniques compose directly in this video's own examples, mixing uneven density with uneven hold length in the same passes"
+  ],
+  "style_variations": {
+    "anime": "the sourced convention, drawn from Japanese TV animation production practice"
+  },
+  "cadence_representation": "Not represented: `acceleration_contrast`/`spacing_evenness` compile to an easing style/direction on the keys BOUNDING a phase (per the existing `slow_in_slow_out` card) — a single curve shape for the whole phase. Nothing in this build varies the effective hold/spacing density at several different INTERIOR points within one phase; achieving this today would require placing several manually-timed keys by hand rather than any single vocabulary dimension.",
+  "control_surface": "Manual key placement only; no vocabulary dimension addresses more than one hold-density value per phase.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion` measures the actual per-frame velocity/acceleration curve, which would show this technique's signature directly (a curve with more than one local extremum or inflection within a single phase) — a real, buildable detection from existing data; nothing currently looks for a multi-segment pattern specifically.",
+  "generation_or_modification_methods": "None dedicated. `acceleration_contrast`/`spacing_evenness` only address the two ends of one phase; achieving a mixed internal pattern needs direct key placement outside those dimensions.",
+  "failure_modes": [
+    "a mixed pattern applied without a clear intent, reading as inconsistent or accidental rather than deliberately composed",
+    "over-using this on every phase in a project, which would undercut its own value as a targeted polish technique rather than a default"
+  ],
+  "roblox_considerations": "None specific — a pure keyframe-timing technique independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "a single phase timed with the first in-between on threes, the second on ones, the third and fourth on twos, and the rest on threes, described directly as making the first half of the motion \"both faster but also starts slower,\" giving both ends a feeling of weight (video 8 @ 9:46–10:12)"
+  ],
+  "evidence_status": "video: https://youtu.be/vSJ5lT_ma-E @ 8:41–10:12 — Dong Chang builds this progressively on screen (uniform threes, uniform twos, first three on twos, first three on ones with the fourth on twos, then the final mixed pattern), describing the played-back result at each step; the played-back demos themselves fell within a long static-screen stretch this session's sparse 27-frame sample did not capture distinctly, so this rests on the transcript rather than a directly-viewed playback; experimental until validated"
+}
