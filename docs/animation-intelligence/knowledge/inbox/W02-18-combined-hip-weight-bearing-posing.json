@@ -1,0 +1,38 @@
+{
+  "concept": "combined_hip_weight_bearing_posing",
+  "category": "advanced",
+  "definition": "Two combined hip-posing defaults for an appealing weight-bearing stance: (1) weight is deliberately NOT split 50/50 between the legs — one leg is favored as the default, not an occasional choice — and (2) hip rotation is composed from all three axes at once (tilt, twist, AND bend together) rather than adjusting a single axis.",
+  "purpose": "Make a weight-bearing pose read as organic and appealing rather than flat or robotic, using the hips as the single joint that carries most of a pose's sense of weight and intention.",
+  "visible_effect": "The hips sit visibly higher on one side than the other (tilt), rotated toward the leg or direction taking the weight (twist), and leaning toward or away from camera (bend) — all three at once — rather than square, level, and facing forward.",
+  "psychological_or_gameplay_effect": "An evenly-split, single-axis hip pose reads as neutral-to-robotic; a favored leg combined with multi-axis hip rotation reads as a real person committing their weight somewhere, which is described as \"far more appealing from a posing standpoint.\"",
+  "physical_interpretation": "Real standing humans essentially never distribute weight perfectly evenly between both legs at once, and a hip free to tilt/twist/bend simultaneously (a ball-and-socket-adjacent joint region) is how the body actually redistributes weight and prepares to move.",
+  "use_cases": [
+    "any standing or weight-bearing key pose, not only extreme action poses",
+    "a kicking, reaching, or off-balance action where the hips must clearly show which leg is carrying the weight"
+  ],
+  "non_use_cases": [
+    "a genuinely symmetric, evenly-balanced stance the design specifically calls for (e.g. a formal idle, a mechanical stance)",
+    "a style where hip posing is intentionally minimal or restrained"
+  ],
+  "interactions": [
+    "Hip rotation as the primary balance-correction lever (this batch, video 17) — that entry covers hip rotation CORRECTING for an already-extended limb's balance; this entry covers hip posing as a default APPEAL choice even before any limb extension is involved",
+    "Structural understanding — the existing card's balance/volume concern; this is a concrete, actionable pair of hip-posing defaults in service of that same concern",
+    "Asymmetry (`ai/vocabulary.js`, not implemented — \"blocked_by: needs a mirror-aware pose editor\") — this video is direct evidence for exactly that dimension: a deliberately uneven left/right weight split is named as the more appealing default, not an edge case"
+  ],
+  "style_variations": {},
+  "cadence_representation": "The multi-axis half is fully representable today: hip rotation in Cadence is an ordinary joint rotation with three real rotational degrees of freedom, so tilt+twist+bend together is no different mechanically from rotating any other joint — nothing prevents composing all three right now via `set_keyframe`. The weight-asymmetry half is blocked exactly where the existing `asymmetry` dimension already says: `ai/vocabulary.js`'s `asymmetry` dimension is `implemented: false`, needing a mirror-aware pose editor this build does not have, so a caller cannot currently ask Cadence to \"favor the left leg\" as a declared intent — only pose each hip value directly and manually.",
+  "control_surface": "Direct joint rotation (`set_keyframe`) can already combine all three hip axes; the `asymmetry` vocabulary dimension exists as a named concept for the weight-favoring half but compiles to nothing yet.",
+  "detection_and_measurement_methods": "None dedicated — `ai/pose.js measurePose`'s balance/centre-of-mass measurement (against a declared support) could in principle confirm which leg is bearing more weight in a given pose, but nothing currently reads hip rotation values across all three axes and reports whether they are being used in combination versus on a single axis.",
+  "generation_or_modification_methods": "Hip rotation across all three axes can already be authored directly through `authorMotion`'s pose-per-phase mechanism; nothing derives a \"favor this leg\" instruction into hip values automatically.",
+  "failure_modes": [
+    "posing the hips level and square (an even 50/50 weight split) out of habit or caution, producing the flat, less appealing default this video argues against",
+    "adjusting only one hip rotation axis (commonly just twist) and leaving tilt and bend at rest, losing most of the appeal the combination produces"
+  ],
+  "roblox_considerations": "None specific — an ordinary joint-rotation concept applicable to any Roblox rig's hip/waist joint.",
+  "performance_implications": "None.",
+  "examples": [
+    "Hector's ball-kick pose: the hips twist toward the kicking leg (taking the weight, letting the other leg stretch out), tilt to roughly a 45-degree angle, AND lean back away from camera, all at once — named directly as \"using all these together creates better arcs, poses and weight\" (video @ 3:54–4:23)",
+    "the general framing that a character's weight should never default to an even 50/50 split between legs, illustrated with Hector's and Miguel's own weight-shift moments in the soccer clip (video @ 2:59–3:32)"
+  ],
+  "evidence_status": "video: https://youtu.be/fFf8EsPC_ws @ 2:59–4:23 — Rusty Animator states both defaults directly over paused and slow-motion clips from Pixar's *Coco*; frames in this session's sample confirm the surrounding scene setup (t=4:04, Hector and Miguel beside the soccer ball) but the specific multi-axis hip rotation itself plays between sampled frames rather than landing on one directly; experimental until validated"
+}

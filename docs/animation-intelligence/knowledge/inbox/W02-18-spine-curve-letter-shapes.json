@@ -1,0 +1,38 @@
+{
+  "concept": "spine_curve_letter_shapes",
+  "category": "advanced",
+  "definition": "A named vocabulary of whole-spine curvature shapes — described by the letter they resemble (a C-shape, an S-shape breakdown, a reverse-C-shape) — used across the extreme-breakdown-extreme structure of one shape-changing beat: a slight C-shape building before impact, a full C-shape at the impact extreme, an S-shape breakdown in the recovery, and a reverse-C-shape at the recovery extreme.",
+  "purpose": "Give the whole spine a visible, contrasting shape at each phase of an impact-and-recovery beat, so the body reads as flexible and physically affected rather than a rigid rod that merely relocates.",
+  "visible_effect": "The torso's silhouette curves noticeably to one side (C), reverses through a mild S-curve, then curves the other way (reverse-C), rather than staying straight while only the limbs and overall position change.",
+  "psychological_or_gameplay_effect": "Without any spine curvature at all, a character \"feels robotically stiff\" even if the limbs and timing are otherwise correct — the shape change is what sells that the body itself absorbed and is recovering from the impact.",
+  "physical_interpretation": "An approximation of how a flexible spine actually bends under an off-center impact and then rebounds — contrasting extreme shapes make the before/after states of that bend legible even at a glance.",
+  "use_cases": [
+    "any impact-and-recovery beat (a landing, a hit reaction, a fall) where contrasting body shapes at the extremes would sell the physical effect",
+    "a breakdown between two contrasting extreme shapes, where an S-curve intermediate shape helps carry the weight of the transition"
+  ],
+  "non_use_cases": [
+    "a mechanical or rigid-spine character where the torso should not curve at all",
+    "a subtle, low-key beat where a strong C/S/reverse-C contrast would read as overacted"
+  ],
+  "interactions": [
+    "Squash & stretch — the video pairs this same beat with squash (compressing down into the C-shape at impact) and stretch (extending back out of the reverse-C on recovery); the two techniques are applied to the SAME beat but are structurally different: squash/stretch is a volume/scale effect Cadence cannot represent directly, while a spine curve is pure joint rotation Cadence already fully supports",
+    "Structural understanding — spine shape is a direct, visible expression of that card's balance/volume concern, specific to the torso chain",
+    "Exaggeration — the two contrasting extreme shapes (C, then reverse-C) are themselves a selective-amplification choice: the spine is exaggerated at the extremes and settles between them"
+  ],
+  "style_variations": { "realistic": "curvature kept subtle — a slight, physically plausible bend rather than a graphic C/S shape", "cartoon": "the letter-shapes can be pushed further and held longer, closer to the source example" },
+  "cadence_representation": "A genuinely strong fit, unlike squash & stretch's own mesh-deformation problem: a whole-spine curve is nothing more than a coordinated sequence of ordinary joint rotations down the spine chain (however many spine joints the rig provides), which Cadence's rigid Motor6D rig already represents natively — no mesh deformation is needed at all, unlike the compression/extension half of the same beat. Nothing currently names \"C-shape / S-shape / reverse-C-shape\" as a posing vocabulary a caller could request, but every rotation needed to build one is already an ordinary keyframe.",
+  "control_surface": "Direct per-joint rotation down a spine chain via `set_keyframe`/`authorMotion`'s pose-per-phase mechanism; no named \"spine curve shape\" vocabulary term exists to request one declaratively.",
+  "detection_and_measurement_methods": "None dedicated — `ai/pose.js`'s line-of-action measurement is the closest existing concept (a single sweeping curve summarizing a pose's dominant visual line) but nothing specifically measures spine-chain curvature as its own quantity or classifies it against a named letter-shape.",
+  "generation_or_modification_methods": "None declaratively — a spine curve can already be hand-authored as a sequence of joint rotations through `authorMotion`, but no strategy derives a C/S/reverse-C shape from a higher-level request.",
+  "failure_modes": [
+    "keeping the spine straight through an impact-and-recovery beat, producing the \"robotically stiff\" read this video names directly",
+    "using the same shape at both extremes (no contrast between the impact and recovery shapes), losing the visual legibility the contrast is meant to provide"
+  ],
+  "roblox_considerations": "Directly exportable: any Roblox rig with more than one spine/torso joint (R15's `LowerTorso`/`UpperTorso` split, or a custom multi-bone spine) can carry a real spine curve; an R6/single-torso rig has no chain to curve at all, which is worth naming as a real rig-dependent limitation distinct from anything about Cadence itself.",
+  "performance_implications": "None.",
+  "examples": [
+    "Miguel's spine curling into a C-shape as he slides into Hector's hip, flipping into a reverse-C-shape on landing, with an S-shape breakdown between them (video @ 4:59–5:34, a C-shaped landing pose directly confirmed on screen at t=5:06)",
+    "the same beat's squash (compressing down at the C-shape impact) and stretch (extending back out of the reverse-C on recovery) layered on top of the spine-curve shapes themselves (video @ 5:48–6:12)"
+  ],
+  "evidence_status": "video: https://youtu.be/fFf8EsPC_ws @ 4:59–5:34 — Rusty Animator names the C-shape, S-shape breakdown, and reverse-C-shape explicitly while stepping through the Pixar *Coco* clip; a frame at t=5:06 in this session's sample directly confirms a visible C-shaped spine curve on Miguel mid-landing; experimental until validated"
+}

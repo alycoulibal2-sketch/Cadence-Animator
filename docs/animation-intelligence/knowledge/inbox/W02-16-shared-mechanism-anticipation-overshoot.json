@@ -1,0 +1,39 @@
+{
+  "concept": "shared_mechanism_anticipation_overshoot",
+  "category": "advanced",
+  "definition": "Anticipation (a wind-up bump before departing a pose) and overshoot (a bounce-past bump after arriving at a pose) can be produced by the exact same mechanism — duplicating a key at the SAME pose value a few frames to one side, then giving it a smooth/automatic tangent handle — applied on the departure side for anticipation and the arrival side for overshoot.",
+  "purpose": "Get both anticipation and overshoot from one repeatable recipe, rather than treating them as two unrelated techniques needing separate curve shapes.",
+  "visible_effect": "A short bump away from a pose's own value just before or after the pose is held, produced by the spline's own tangent continuity across the same-valued duplicate key rather than by a hand-shaped curve.",
+  "psychological_or_gameplay_effect": "Produces a springy, elastic-feeling motion cheaply — the tutorial's own framing is this is a \"very low-effort way... to get something a little more satisfying,\" explicitly aimed at beginners.",
+  "physical_interpretation": "An approximation of a spring or elastic system settling past and back to its rest value, or winding back before release — the same S-shaped elastic motion applied symmetrically on either side of the held pose.",
+  "use_cases": [
+    "quickly adding overshoot to an existing pose-to-pose (constant-interpolation) animation with minimal manual curve work",
+    "adding anticipation the same way, by applying the identical technique on the departure side of a pose instead of the arrival side"
+  ],
+  "non_use_cases": [
+    "a contact-capable effector that is planted during the span — the existing `overshoot` strategy already refuses this case (measured via MOT-008), since passing a contact point and returning breaks the plant",
+    "a mechanical/robotic style wanting a hard, non-elastic stop with no bump on either side"
+  ],
+  "interactions": [
+    "Overshoot (`ai/vocabulary.js`, implemented) — the arrival-side half of this same mechanism, already compiled by the edit-path `overshoot` strategy via a different route (a Back-easing formula, not a literal duplicate key)",
+    "Anticipation — the departure-side half; the existing `anticipation_depth` dimension currently only SCALES an already-segmented anticipation phase's amplitude, it does not insert a same-mechanism bump",
+    "`authorMotion`'s settle step (generation path) — already inserts a literal overshoot key past the final pose before resting, mechanically much closer to this video's technique than the edit-path's Back-easing formula is"
+  ],
+  "style_variations": { "mechanical": "excluded — no elastic bump on either side" },
+  "cadence_representation": "Represented asymmetrically, and more precisely than the existing dimension cards state: the GENERATION path (`authorMotion`'s `settle` step, in `ai/plan.js`) already inserts a literal extra key past the final pose before resting — mechanically close to this video's technique (an added key, not a curve formula) — but `authorMotion`'s own `AUTHOR_STEP_KINDS` list (`start, key_pose, breakdown, hold, settle`) has no matching ANTICIPATION step that would insert the same kind of bump before a departure. The EDIT path's `overshoot` dimension takes a third, different route entirely: a named `Back`/`Out` easing formula applied to the arriving key (no new keys at all, `set_easing` with `es:'Back', ed:'Out'`), not a duplicate key with an automatic tangent. All three are real but are three different mechanisms for a visually similar result — this entry is evidence they could be unified, or at minimum cross-referenced, rather than treated as unrelated.",
+  "control_surface": "`overshoot` vocabulary dimension (edit path, Back-easing route); `authorMotion`'s `settle` parameter (generation path, added-key route); nothing currently offers the anticipation-side added-key route on either path.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion` measures the resulting velocity/acceleration curve directly, which would show the same signature (a brief reversal or overshoot past the eventual rest value) regardless of which of the three mechanisms produced it — the measurement does not currently distinguish which mechanism was used, only that a bump exists.",
+  "generation_or_modification_methods": "`overshoot` dimension (Back easing, edit path) and `authorMotion`'s `settle` step (added key, generation path) each implement one arrival-side route; no tool implements the departure-side (anticipation) added-key route on either path.",
+  "failure_modes": [
+    "applying the edit-path Back-easing overshoot to a planted contact-capable effector, which the existing strategy already refuses for good reason",
+    "assuming anticipation and overshoot need fundamentally different authoring tools, when a single added-key-plus-tangent mechanism (already proven for overshoot in `authorMotion`) covers both"
+  ],
+  "roblox_considerations": "The `Back` easing style this build's edit-path overshoot already compiles to is a real, native Roblox `Enum.EasingStyle` — direct, no translation needed. Roblox's own Animation Editor also supports the added-key-plus-automatic-tangent route the video demonstrates, so both mechanisms already have a home on the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "duplicating a key at the same pose value 3 frames after arrival, setting its handle to Automatic, producing a natural overshoot-and-settle without hand-shaping a curve (video @ 1:51–2:18)",
+    "the identical technique applied 3 frames BEFORE a pose's own key, producing a wind-up/anticipation bump instead (video @ 4:15–4:43)",
+    "a real graph-editor curve confirmed directly on screen showing exactly this shape: a small dip (anticipation) before the rise, and a small bump past the plateau (overshoot) before settling flat (video @ 9:55, on a rigged 3D character)"
+  ],
+  "evidence_status": "video: https://youtu.be/DLzcSSzVjeI @ 1:51–4:43 — Joey Carlino demonstrates both the overshoot and anticipation versions of this technique directly on screen in Blender's graph editor and dope sheet, narrating each step exactly; a frame at t=9:55 in this session's own sample directly confirms the resulting curve shape (a small pre-dip and a small post-bump around a held plateau) on a real animated 3D character; experimental until validated"
+}

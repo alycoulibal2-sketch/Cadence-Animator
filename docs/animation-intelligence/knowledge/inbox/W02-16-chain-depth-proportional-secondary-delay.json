@@ -1,0 +1,37 @@
+{
+  "concept": "chain_depth_proportional_secondary_delay",
+  "category": "advanced",
+  "definition": "A secondary-motion lag whose offset increases by a fixed step per joint further from the root along a kinematic chain — e.g. torso +0 frames, neck +1, head +2; or the rest of the arm +0, hand +1 — rather than one uniform lag value applied equally to every trailing joint.",
+  "purpose": "Make a chain's trailing lag read as a real physical consequence of distance from the driving body, rather than as a single flat offset applied to everything downstream at once.",
+  "visible_effect": "Joints further from the torso visibly fall further behind the primary motion than joints closer to it, producing a graduated, cascading lag down the chain instead of a uniform one.",
+  "psychological_or_gameplay_effect": "Reads as real inertia propagating down a chain (the tutorial's own framing: \"the further you move away from the torso, you want it to take longer to catch up\") rather than an arbitrary global delay.",
+  "physical_interpretation": "An approximation of how inertia actually propagates through a linked chain: each successive joint has to wait for the one before it to move before it can react, so delay accumulates additively down the chain.",
+  "use_cases": [
+    "a head/neck chain, or an arm chain (shoulder to elbow to wrist/hand), reacting to a primary body turn or motion",
+    "any multi-joint trailing chain where a single uniform lag value would read as too mechanical"
+  ],
+  "non_use_cases": [
+    "a mechanical/robotic style, where no lag at all is correct regardless of chain depth",
+    "a single, non-chained trailing part with no meaningful \"depth\" to scale against"
+  ],
+  "interactions": [
+    "Body lead (`ai/vocabulary.js`, implemented) — the mirror-image case: that dimension already orders per-joint key offsets by chain depth for INITIATING a motion (proximal first); this entry names the same chain-depth-ordering principle applied to TRAILING a motion instead",
+    "Secondary delay (`ai/vocabulary.js`, implemented) — the existing dimension already offsets keys on trailing parts, but as a single scalar; this entry is video evidence for scaling that offset BY chain depth rather than applying one flat value"
+  ],
+  "style_variations": {},
+  "cadence_representation": "A direct, specific refinement of an already-implemented dimension: `secondary_delay` already offsets keys on parts with no contact role (implemented: true), and `body_lead` already orders per-joint offsets by chain depth for the INITIATION case — but `secondary_delay`'s own compile step applies its offset without reference to chain depth. This video is concrete evidence the same chain-depth-ordering logic `body_lead` already uses should also scale `secondary_delay`'s per-joint offset, rather than the two dimensions using unrelated logic for what is, evidentially, the same physical idea applied in two directions.",
+  "control_surface": "`secondary_delay` and `body_lead` vocabulary dimensions exist independently; nothing currently shares chain-depth logic between them.",
+  "detection_and_measurement_methods": "`ai/motion.js analyseChain` already measures onset/peak per joint along a chain and could directly verify whether a measured lag increases monotonically with chain depth, exactly as this technique describes — a real, buildable check from existing data.",
+  "generation_or_modification_methods": "`secondary_delay` offsets keys on trailing parts today as a single value; scaling that offset by each joint's measured chain depth (the same depth `body_lead`'s compiler already computes) is not currently implemented.",
+  "failure_modes": [
+    "applying one flat `secondary_delay` value to an entire chain, producing the same undifferentiated lag effect this technique is specifically meant to avoid",
+    "over-scaling the per-joint step so far down a long chain that the most distal joint's delay becomes implausibly large"
+  ],
+  "roblox_considerations": "None specific — the underlying keyframe-offset mechanism is already engine-independent.",
+  "performance_implications": "None.",
+  "examples": [
+    "torso and neck moved together first, then the head moved an additional frame later, for a total two-frame lag on the head relative to the torso (video @ 6:53–7:29)",
+    "the same additive-per-joint-depth pattern applied independently to an arm chain: the hand offset one frame beyond the rest of the arm (video @ 7:29–8:03)"
+  ],
+  "evidence_status": "video: https://youtu.be/DLzcSSzVjeI @ 6:23–8:03 — Joey Carlino states the chain-depth-proportional rule directly (\"the further you move away from the torso, we push those keyframes forward... I like to do this for chains where I select all of them and slowly move them down\") and demonstrates it step by step in Blender's dope sheet; a frame at t=7:37 in this session's sample shows the dope sheet with only the arm-chain bones selected, consistent with but not sharp enough to confirm the exact per-joint frame offsets; experimental until validated"
+}

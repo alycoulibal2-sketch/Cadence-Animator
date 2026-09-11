@@ -1,0 +1,38 @@
+{
+  "concept": "deliberate_lead_choice_for_acting",
+  "category": "advanced",
+  "definition": "Which body part leads a lead-and-follow action is a deliberate acting choice with its own emotional effect, not fixed to always be the physically-default leader (usually the hips) — leading with a different part (e.g. the head) is often equally physically valid but produces a noticeably different feeling.",
+  "purpose": "Use the CHOICE of which joint initiates a motion as an acting tool in its own right, rather than always defaulting to the same chain-depth-first order regardless of the intended performance.",
+  "visible_effect": "The same overall action (e.g. a turn) shows a different joint moving first depending on the choice — the hips shifting weight first and the rest catching up, versus the head snapping around first and pulling the body along behind it.",
+  "psychological_or_gameplay_effect": "A hips-led turn reads as physically initiated, grounded, weight-driven; a head-led turn on the same action reads as a sharper, more decisive, more emotionally pointed choice — named directly as giving \"a completely different feeling for both the acting and the mechanics\" despite the hips-led version being just as physically correct.",
+  "physical_interpretation": "Both orders are physically plausible ways a body can initiate a turn; neither is more \"correct\" than the other in a physical sense, so the choice between them is available as a free acting variable rather than constrained by mechanics alone.",
+  "use_cases": [
+    "any lead-and-follow action where the default (hip- or torso-first) order would work physically but a different emotional read is wanted",
+    "a character reversing an action or changing intent suddenly, where switching the lead to a more expressive part (head, eyes, a hand) can sharpen the beat"
+  ],
+  "non_use_cases": [
+    "an action where the physical setup makes only one lead order plausible (e.g. a reactive stumble genuinely initiated by a foot losing footing)",
+    "a style favoring pure physical simulation over deliberate acting choices, where the \"technically correct\" default order is preferred throughout"
+  ],
+  "interactions": [
+    "Body lead (`ai/vocabulary.js`, implemented) — that dimension currently only pulls a single chain-depth-ordered DEFAULT (proximal joints initiate before distal ones); this entry is evidence for treating WHICH joint is the chain's own root of initiation as a separate, deliberate choice rather than always the anatomical hips",
+    "Timing — the existing card already notes timing carries meaning independent of speed; this entry is the same idea applied specifically to WHICH joint carries the initiating role",
+    "Appeal — a deliberately chosen lead joint is a character- and moment-specific acting decision, the same kind of judgement that card already states this build cannot measure"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Sharpens a real gap in the existing `body_lead` dimension: `body_lead`'s `compiles_to` is \"per-joint key offsets ordered by chain depth\" — it assumes the root/hips is always the initiator and orders everything else by DISTANCE from it. Nothing in this build lets a caller declare a DIFFERENT joint (e.g. the head) as the initiating root for a specific action, with the rest of the chain reordered relative to that choice instead. This is a real, specific extension the existing dimension does not cover, not merely a restatement of it.",
+  "control_surface": "`body_lead` vocabulary dimension exists but assumes hip/root-first ordering; no control surface lets a caller declare an alternate lead joint.",
+  "detection_and_measurement_methods": "`ai/motion.js analyseChain` already measures onset/peak per joint and could directly report WHICH joint's onset is earliest along a declared chain — a real, existing measurement that could confirm which part actually led, once a chain is declared.",
+  "generation_or_modification_methods": "None for an alternate-lead case — `body_lead`'s existing compiler always orders offsets by anatomical chain depth from the root, so it cannot currently produce a head-initiates-then-hips-follow pattern even if requested.",
+  "failure_modes": [
+    "defaulting to hip-first initiation on every action out of habit, missing the acting opportunity a different lead choice would offer",
+    "choosing an alternate lead joint that is not actually physically plausible for the action, which would read as wrong rather than as a deliberate choice"
+  ],
+  "roblox_considerations": "None specific — a pure timing/ordering concept independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "Hector talking to Ernesto: hips lead a turn to walk away, chest follows, head follows a few frames after that — the physically default order (video @ 7:04–7:24)",
+    "Hector reversing to come back and make a point: the head leads instead, pulling the shoulder, arm, chest, and finally the hips along behind it — named directly as a deliberate choice that \"technically\" could have been hips-led instead, made specifically for a different feeling (video @ 7:25–7:49)"
+  ],
+  "evidence_status": "video: https://youtu.be/fFf8EsPC_ws @ 7:04–7:49 — Rusty Animator states the deliberate-choice framing directly while stepping through the Pixar *Coco* dialogue scene; a frame at t=7:06 in this session's sample confirms the surrounding scene (Hector and another character in dialogue with Miguel), though the specific lead-order motion itself plays between sampled frames; experimental until validated"
+}

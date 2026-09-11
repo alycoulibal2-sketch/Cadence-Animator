@@ -1,0 +1,38 @@
+{
+  "concept": "hip_rotation_balance_correction",
+  "category": "advanced",
+  "definition": "In a polish/spline-adjustment pass, hip rotation is treated as the primary lever for correcting a pose's balance against an extending limb — when a leg reaches or kicks out in a direction, the hips are rotated to tweak toward that same direction — and hip balance is checked and fixed FIRST, before working outward through the chest, spine, neck, head, arms and legs.",
+  "purpose": "Restore a pose's balance and readability after blocking and in-betweening are done, by correcting the one joint (the hips) whose rotation most directly compensates for an extending limb's effect on the body's overall balance.",
+  "visible_effect": "The hips visibly rotate or shift toward the side a reaching or kicking limb extends, rather than staying square or rotating the opposite way, keeping the pose looking balanced rather than off-kilter.",
+  "psychological_or_gameplay_effect": "A pose with correctly balanced hips reads as physically grounded and intentional; an uncorrected pose (hips left neutral while a limb reaches far from center) reads as tipping or unbalanced even if every other joint is posed correctly.",
+  "physical_interpretation": "An approximation of how a real body keeps its centre of mass over its base of support: extending a limb shifts mass away from centre, and the hips (the body's own centre of mass region) compensate by rotating or shifting toward the extension.",
+  "use_cases": [
+    "a polish pass on an already-blocked reference-driven animation (running, jumping, vaulting), checking hip rotation against each extending limb",
+    "any pose where a limb reaches, kicks, or extends noticeably far from the body's centerline"
+  ],
+  "non_use_cases": [
+    "a pose or style that deliberately wants an off-balance, falling, or unstable read — correcting hip balance would undo the intended effect",
+    "a limb motion small enough that it does not meaningfully shift the body's balance"
+  ],
+  "interactions": [
+    "Structural understanding — this is a concrete, actionable version of that card's balance concern, naming the SPECIFIC joint (hips) and the specific rule (rotate toward the extending limb) rather than balance in the abstract",
+    "Body lead — the same chain-depth-outward order this dimension already encodes for INITIATING motion (hips/root first) reappears here as the order for a REVIEW/polish pass: check and fix hip balance first, then chest, spine, neck, head, arms and legs outward from there",
+    "Physical reference timing method (W01 video 9) — this video's key-pose contact timing is taken directly from a real reference clip's exact frame numbers, a second independent confirmation of that technique, applied specifically to CONTACT points rather than the whole action's duration"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly checkable with a capability that did not exist when the `structural_understanding` card was written: `ai/pose.js measurePose` now computes a volume-proxy centre of mass and balance against a DECLARED support polygon (`balanceOf`) — exactly the measurement this hip-correction rule is informally approximating by eye. This is worth flagging plainly: the existing `structural_understanding` knowledge card still states \"Cadence models neither\" balance nor volume, and `appeal`'s card still claims no line-of-action measurement exists — both are now stale relative to `ai/pose.js`, which measures line of action, a centre-of-mass proxy, and balance against a declared support polygon at every authored key. A hip-rotation balance rule like this one could be checked directly against real `balanceOf` output rather than left to a human's eye, once support is declared.",
+  "control_surface": "`ai/pose.js measurePose` (`centre_of_mass`, `balance`) already computes the needed measurement when `support` is declared; nothing currently applies a HIP-ROTATION CORRECTION based on a measured imbalance — the measurement exists, the corrective edit does not.",
+  "detection_and_measurement_methods": "`ai/pose.js measurePose`'s `balanceOf` function reports whether the centre-of-mass proxy falls inside the convex hull of declared support effectors — a real, working measurement, though it requires the caller to declare which effectors are planted (MOT-016: nothing infers a contact automatically).",
+  "generation_or_modification_methods": "None yet — no strategy in `ai/plan.js` adjusts hip rotation specifically in response to a measured balance shortfall; `authorMotion` can place a hip rotation value as part of an authored pose, but nothing derives that value FROM a balance measurement.",
+  "failure_modes": [
+    "leaving the hips neutral or square while a limb reaches far from the body's centerline, producing a pose that reads as tipping regardless of how well the reaching limb itself is posed",
+    "correcting hip balance so strongly it reads as an exaggerated lean rather than a natural weight shift"
+  ],
+  "roblox_considerations": "None specific — a pure pose-balance concept independent of the target engine, directly applicable to any Roblox rig's hip/waist joint.",
+  "performance_implications": "None.",
+  "examples": [
+    "a running-jump-vault sequence where, after blocking and in-betweening are complete, hip rotation is added specifically \"according to the legs and body movements to have a better balance of the pose\" — when the extending leg kicks out toward a direction, the hips are rotated toward the same direction (video @ 20:31–20:48)",
+    "the same polish pass then working outward from the hips through chest, spine, neck, head, arms and legs, in that stated order (video @ 21:01–21:15)"
+  ],
+  "evidence_status": "video: https://youtu.be/7CBcvu8HLEQ @ 20:31–21:15 — stated directly in the transcript; a frame at t=20:41 in this session's sample directly confirms the corresponding stage on screen: a Maya viewport showing the rigged character mid-vault pose with the graph editor open on a hip/root controller's curves, alongside a small reference-video inset; experimental until validated"
+}

@@ -7,9 +7,9 @@
 - [x] 13. Animating with Arcs — The Art of Aaron Blaise (6:03) — https://youtu.be/GHf8ie4Nq9Y
 - [x] 14. 12 Principles of Animation - Follow Through and Overlapping Action Tutorial — Arree Chung (19:54) — https://youtu.be/t_gH-OADlSw
 - [x] 15. Should you PLAN your animation? — Alex Grigg // Animation for Anyone (5:01) — https://youtu.be/ABCUjauQBI4
-- [ ] 16. Easy animation with overshoot and anticipation - Blender Tutorial — Joey Carlino (10:27) — https://youtu.be/DLzcSSzVjeI
-- [ ] 17. Body Mechanics - Maya Beginner's Animation Tutorial | In 5 simple steps — Learn CGI with Yawyee (23:22) — https://youtu.be/7CBcvu8HLEQ
-- [ ] 18. 3 Coco Animation Tips [On Body Mechanics] — Rusty Animator (10:26) — https://youtu.be/fFf8EsPC_ws
+- [x] 16. Easy animation with overshoot and anticipation - Blender Tutorial — Joey Carlino (10:27) — https://youtu.be/DLzcSSzVjeI
+- [x] 17. Body Mechanics - Maya Beginner's Animation Tutorial | In 5 simple steps — Learn CGI with Yawyee (23:22) — https://youtu.be/7CBcvu8HLEQ
+- [x] 18. 3 Coco Animation Tips [On Body Mechanics] — Rusty Animator (10:26) — https://youtu.be/fFf8EsPC_ws
 - [ ] 19. Animating HEAVY Weight (Objects, Punches, Throwing) — Sir Wade Neistadt (10:16) — https://youtu.be/ZYKAMCZq2UI
 - [ ] 20. Weight in Animation (Tutorial) — Alessandro Camporota (12:39) — https://youtu.be/b3oIxjzdMqY
 
@@ -272,3 +272,155 @@ empty) representation would need — this video sharpens the WHY of an existing 
 a new measurable quantity.
 
 **Entries written:** 1 (`W02-15-staged-keyframe-then-straight-ahead-workflow.json`), passed `validateProposedEntry` cleanly (0 problems, 20/20 fields).
+
+### 16. Easy animation with overshoot and anticipation - Blender Tutorial — 2026-09-11
+
+Watched at `balanced` detail (54 frames after 46 near-duplicates were dropped, uniformly sampled every ~6s
+over 10:26 — scene detection fell back to uniform since this is a continuous Blender screen-recording — all
+54 read) plus the full 285-segment caption transcript. Joey Carlino demonstrating a fast, exact, purely
+graph-editor-based recipe for overshoot and anticipation on a rigged 3D character in Blender. The single
+most directly Cadence-relevant video in this batch so far — I checked the actual compile targets in
+`ai/plan.js` and `ai/vocabulary.js` before writing these entries rather than assuming the existing dimension
+cards' text was current.
+
+**Cross-check, with a real finding:** confirms `overshoot` and `body_lead`/`secondary_delay` conceptually,
+but checking the LIVE `ai/plan.js` against this video surfaced a genuine three-way mechanism split that no
+existing card states. The edit-path `overshoot` strategy compiles to a named `Back`/`Out` easing FORMULA on
+the arriving key (`set_easing` with `ep:{Overshoot: amount}`, GAIN.overshoot=1.7 — the standard Penner
+back-easing constant, confirmed in `ai/plan.js` `CAL` config) — no new key at all. But the newer GENERATION
+path, `authorMotion`'s `settle` step, already does something much closer to this video's own technique: it
+inserts a literal extra key PAST the final pose before resting ("a settle overshoots BEFORE it rests," per
+that function's own comment) — mechanically an added key, not a formula. Neither the `overshoot` dimension
+card nor `anticipation_depth`'s card states this split. Filed as new-entry evidence rather than a silent
+correction, since editing `ai/knowledge.js` itself is out of scope for this batch.
+
+**Two new entries:**
+1. **Shared mechanism: anticipation/overshoot via a same-valued extra key** (`W02-16-shared-mechanism-anticipation-overshoot.json`)
+   — the video's core technique: duplicate a key at the SAME pose value a few frames to one side, set its
+   handle to Automatic, and the spline's own tangent continuity produces a natural bump — overshoot on the
+   arrival side, anticipation on the departure side, from the identical mechanism (video @ 1:51–4:43).
+   Directly confirmed on screen: a frame at t=9:55 shows a real animation curve with exactly this shape (a
+   small pre-dip, a plateau, a small post-bump) on a rigged 3D character. States the three-way mechanism
+   split from the cross-check above as the entry's central point: `authorMotion`'s settle step already has
+   the arrival-side (overshoot) added-key mechanism; nothing has the departure-side (anticipation) added-key
+   mechanism on either path — `authorMotion`'s own `AUTHOR_STEP_KINDS` list has no anticipation step.
+2. **Chain-depth-proportional secondary delay** (`W02-16-chain-depth-proportional-secondary-delay.json`) —
+   an explicit, quantified rule: a trailing chain's lag offset should increase by a fixed step per joint
+   further from the root (torso +0, neck +1, head +2; separately, arm +0, hand +1), not one flat lag value
+   for the whole chain (video @ 6:23–8:03). This is the TRAILING-side mirror of what `body_lead` already
+   does for INITIATING motion (chain-depth-ordered offsets) — direct video evidence the same chain-depth
+   logic should also scale `secondary_delay`, which currently applies as a single scalar with no chain-depth
+   awareness.
+
+**Other observations, no new entry:** the "Push" tool (Ctrl+E, a percentage-based manual overshoot control)
+is a Blender-specific UI alternative to the same underlying technique — noted inside the main entry's
+`interactions` rather than filed separately. "Auto Clamped" vs. "Automatic" handle types are Blender
+vocabulary, not general animation principles.
+
+**Capture candidates:** none — a rigged 3D character exists on screen, but every pose is a static, generic
+placeholder mid-turn rather than a distinct performed action worth a Roblox Studio capture reference.
+
+**Checks for a later session to implement:**
+- `check: overshoot_anticipation_mechanism_consistency — flag when `authorMotion`'s settle step (added-key overshoot) and the edit-path `overshoot` dimension (Back-easing) are both present in one project without a stated reason for using two different mechanisms — video 16 @ 1:51–4:43`
+- `check: secondary_delay_chain_depth_gradient — for a declared trailing chain, compare each joint's measured lag (ai/motion.js analyseChain) against its chain depth and flag a lag that does NOT increase monotonically with depth — video 16 @ 6:23–8:03`
+
+**Entries written:** 2 (`W02-16-shared-mechanism-anticipation-overshoot.json`, `W02-16-chain-depth-proportional-secondary-delay.json`), both passed `validateProposedEntry` cleanly (0 problems, 20/20 fields each).
+
+### 17. Body Mechanics - Maya Beginner's Animation Tutorial | In 5 simple steps — 2026-09-11
+
+Watched at `efficient` detail (50 keyframes over 23:21, 58 near-duplicates dropped, all 50 read) plus the
+full 345-segment caption transcript. Learn CGI with Yawyee's five-step Maya workflow (reference → key
+poses → in-betweens → spline/graph-editor cleanup → final adjustment) animating a running-jump-vault
+sequence ("Bonnie") tracked against a real reference clip. Long stretches are pure Maya UI mechanics
+(building a quick-select set, modeling placeholder boxes) with no animation-principle content — skipped
+rather than forced into entries.
+
+**Cross-check, with a significant finding worth flagging prominently to the merge/maintenance session:**
+this video's hip-balance technique is directly checkable against a Cadence capability that postdates two
+existing knowledge cards, which are now STALE. `structural_understanding`'s card still states "Cadence
+models neither" balance nor volume, and `appeal`'s card still claims "there is no line-of-action
+measurement" — but `renderer/js/ai/pose.js`'s `measurePose` (confirmed by reading the live source this
+session) already computes a volume-proxy centre of mass, a line of action, AND balance against a DECLARED
+support polygon at every authored key — this is the Slice A "generate from an empty rig" capability the
+programme's own ACTIVE PRIORITY memory note refers to. Both existing cards were accurate when written and
+are not anymore. Not corrected here (editing `ai/knowledge.js` is out of scope for this batch, and this
+session only writes to `inbox/`), but stated as plainly as possible for whoever next touches those two
+cards. Beyond that: the reference-driven contact-point timing (exact frame numbers taken straight from a
+real reference clip: heel-strike at frame 19, off-ground at 35, etc.) is a second independent confirmation
+of `physical_reference_timing_method` (W01 video 9), here applied specifically to CONTACT timing rather
+than overall shot duration.
+
+**One new entry:**
+- **Hip rotation as the primary balance-correction lever** (`W02-17-hip-rotation-balance-correction.json`)
+  — in the polish pass, hip rotation is adjusted specifically "according to the legs and body movements to
+  have a better balance of the pose": when an extending leg kicks toward a direction, the hips rotate toward
+  that same direction, and the review order works outward from the hips (chest, spine, neck, head, arms,
+  legs) rather than joint-by-joint at random (video @ 20:31–21:15, directly confirmed on screen at t=20:41:
+  the rigged character mid-vault with the graph editor open on a hip/root controller). This is a concrete,
+  actionable version of `structural_understanding`'s abstract balance concern, and — per the finding above —
+  is now directly checkable against `ai/pose.js`'s real `balanceOf`/`centre_of_mass` measurement rather than
+  left entirely to a human's eye, once a support effector is declared.
+
+**Other observations, no new entry:** the "quick select set" (grouping all controllers under one named
+shelf button to key the whole pose at once) is a Maya-specific production convenience, no Cadence angle.
+The five-step workflow itself (reference → key poses → in-betweens → spline cleanup → adjustment) is a
+specific instance of `pose_workflow`'s pose-to-pose method, not a structurally new concept.
+
+**Capture candidates:** the reference clip itself ("Ethelred male vault reference", named directly in the
+video) is a real filmed human performance already being used as the animation's own grounding — not this
+session's to capture, but worth naming as an existing, findable reference clip if the merge session wants
+one for a vault/parkour-style capture candidate list.
+
+**Checks for a later session to implement:**
+- `check: hip_balance_vs_limb_extension — cross-reference a declared support polygon's balance verdict (ai/pose.js measurePose) against hip rotation at frames where a limb effector is furthest from the body's centerline — video 17 @ 20:31–20:48`
+
+**Entries written:** 1 (`W02-17-hip-rotation-balance-correction.json`), passed `validateProposedEntry` cleanly (0 problems, 20/20 fields).
+
+### 18. 3 Coco Animation Tips [On Body Mechanics] — 2026-09-11
+
+Watched at `balanced` detail (60 scene-aware frames over 10:26, all 60 read) plus the full 249-segment
+caption transcript. Rusty Animator (5+ years professional, VFX/games/TV) breaking down three named
+insights from Pixar's *Coco* — bouncing hips, shape change, lead and follow — over paused/slow-motion clips
+from the actual film plus a promotional soccer short. The richest, most precisely-worded video in this
+batch's body-mechanics section, and directly complementary to video 17's hip-balance finding.
+
+**Cross-check:** confirms `arcs`, `timing`, `squash_stretch`, and `body_lead` thoroughly — every hip move
+needing vertical ups/downs and an arc, impact-and-recovery squash/stretch, and "nothing ever moves at the
+same time" all match directly. No contradictions.
+
+**Three new entries, all specific and well-evidenced:**
+1. **Combined hip weight-bearing posing** (`W02-18-combined-hip-weight-bearing-posing.json`) — two paired
+   defaults: never split weight 50/50 between the legs (favor one, always), and compose hip rotation from
+   all three axes at once (tilt, twist, AND bend together) rather than one axis at a time — named directly
+   on Hector's ball-kick pose (~45° tilt plus a twist toward the kicking leg plus a lean from camera, video
+   @ 3:54–4:23). Complements video 17's `hip_rotation_balance_correction` (that one is CORRECTIVE, reacting
+   to an already-extended limb; this one is a DEFAULT posing choice made before any limb extension) and is
+   direct video evidence for the existing `asymmetry` vocabulary dimension, which is real but
+   `implemented: false`.
+2. **Spine-curve letter-shapes** (`W02-18-spine-curve-letter-shapes.json`) — a named vocabulary for
+   whole-spine curvature across an impact-and-recovery beat: a C-shape at impact, an S-shape breakdown, a
+   reverse-C-shape at recovery, directly confirmed on screen (a visible C-shaped spine at t=5:06, Miguel's
+   landing). Flagged as a genuinely strong Cadence fit, unlike squash & stretch's own mesh-deformation
+   problem: a spine curve is pure sequential joint rotation down a chain, which Cadence's rigid rig already
+   represents natively with no deformation gap at all (video @ 4:59–5:34).
+3. **Deliberate lead-choice for acting** (`W02-18-deliberate-lead-choice-for-acting.json`) — which joint
+   leads a lead-and-follow action is a free acting variable, not fixed to the physically-default leader: the
+   video contrasts a hips-led turn (physically default) against a head-led reversal moments later, stating
+   directly that the hips-led version would have been "technically correct" too, but the head-led choice
+   was made specifically for a different feeling (video @ 7:04–7:49). Sharpens `body_lead`, whose current
+   compiler always orders offsets by anatomical chain depth FROM the root — nothing lets a caller declare an
+   alternate joint as the chain's own initiating root.
+
+**Other observations, no new entry:** the practice advice (master one insight fully before adding the
+next; keep practice animations under 3 seconds) is a learning-methodology tip, not a Cadence-representable
+property.
+
+**Capture candidates:** none — every example is existing Pixar film footage, not a reference this session
+or the user could capture fresh.
+
+**Checks for a later session to implement:**
+- `check: hip_weight_split_asymmetry — measure declared support-leg weight distribution (once ai/pose.js's balance measurement and a per-leg weight-bearing declaration both exist) and flag a pose sitting at or near an even 50/50 split — video 18 @ 2:59–3:32`
+- `check: spine_curve_contrast_at_extremes — measure spine-chain joint rotation curvature (comparable to ai/motion.js MOT-005's chord-deviation approach, applied along the spine chain rather than a single effector path) at each extreme of an impact-recovery beat, and flag two extremes with near-identical shape — video 18 @ 4:59–5:34`
+- `check: lead_joint_matches_declared_intent — cross-reference which joint's onset is earliest (ai/motion.js analyseChain) against a declared intended "lead" joint, flagging a mismatch as worth a deliberate look rather than an automatic error — video 18 @ 7:04–7:49`
+
+**Entries written:** 3 (`W02-18-combined-hip-weight-bearing-posing.json`, `W02-18-spine-curve-letter-shapes.json`, `W02-18-deliberate-lead-choice-for-acting.json`), all passed `validateProposedEntry` cleanly (0 problems, 20/20 fields each).
