@@ -1,0 +1,37 @@
+{
+  "concept": "blend_tree_locomotion_replaces_state_machine",
+  "category": "advanced",
+  "definition": "A continuous, parametrized blend space (inputs like speed, height-above-ground, or turn angle map smoothly onto blended poses) used in place of a state machine's discrete named states (idle/walk/run as separate nodes joined by transition edges) for a character's locomotion set, so the character can exist at any point BETWEEN states rather than only in one state or a scripted transition between two.",
+  "purpose": "Remove both the visual and CONTROL cost of a state machine's binary states — instead of authoring and debugging a distinct transition for every state pair, blend continuously along shared axes (speed, fall height, turn rate) with foot-phase and timing kept in sync automatically across the whole space.",
+  "visible_effect": "No visible 'transition animation' moment between, say, walking and running — the pose changes continuously as the driving parameter (speed) changes, and footfalls never pop or resync because the blend space itself keeps them phase-aligned.",
+  "psychological_or_gameplay_effect": "A state machine's discrete states read as binary snap points even when a transition is animated across them; a blend space reads as one continuous, responsive movement capability, which the speaker frames explicitly as a controls problem, not only a visual one.",
+  "physical_interpretation": "None directly — a runtime data-structure and authoring choice, not a physical property of the motion itself.",
+  "use_cases": [
+    "a locomotion set with more than two or three related speeds/states, where authoring a hand-placed transition for every pair does not scale",
+    "any parameter that is naturally continuous at runtime (movement speed, fall distance, lean angle) rather than a small fixed set of named states"
+  ],
+  "non_use_cases": [
+    "a small number of truly discrete, mutually exclusive states with no meaningful in-between (e.g. 'dead' vs 'alive') — a blend space has nothing to interpolate along for a boolean-like state",
+    "a one-off scripted transition where a specific hand-authored curve IS the design intent (see `procedural_movement_precedes_cosmetic_animation`'s own non-use-case for the same reasoning)"
+  ],
+  "interactions": [
+    "cycle_phase_driven_root_translation (this batch, video 41) — both are runtime locomotion architectures solving related problems (phase/footfall consistency) from two different angles: root-translation computation versus blend-space authoring",
+    "state_driven_frame_selection_instead_of_playback (this batch, video 42) — a blend space is the continuous-multi-clip sibling of that entry's single-clip scrub: both replace 'play something on a timer' with 'compute the right pose from a live variable'"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and outside a single-clip authoring tool's scope by construction: Cadence's project model is `renderer/js/state.js`'s per-item track set for ONE clip at a time (CLAUDE.md), with nothing resembling a multi-clip parametrized blend graph, and no runtime at all to evaluate one against a live input. The honest statement is that Cadence authors the individual poses/clips a blend space would sit BETWEEN, not the blend space itself, which is exported-game-engine machinery (Roblox `AnimationController`/`Animator` blending, or a custom system) outside this tool.",
+  "control_surface": "None — a blend tree is runtime infrastructure this build does not build or export.",
+  "detection_and_measurement_methods": "None. A blend tree's behaviour only exists at runtime against a live input parameter; nothing about it is present in any single exported clip `ai/motion.js` could sample.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "building a blend space from source clips whose foot-phase is not already aligned at the shared blend axis, which reproduces the exact popping/desync problem a blend space is meant to solve",
+    "using a blend space for states that are not actually continuous with each other (see non_use_cases), producing meaningless in-between poses at intermediate blend weights"
+  ],
+  "roblox_considerations": "Closest built-in analogue is an `AnimationController`/`Animator` playing multiple weighted tracks (`AnimationTrack:AdjustWeight`) — Roblox has no first-party 1D/2D blend-space asset, so this pattern would need to be hand-built by driving several `AnimationTrack` weights from a script, which is exactly the kind of exported-game-code territory outside a `.cadence` project.",
+  "performance_implications": "A blend space evaluates every contributing clip's weight each frame it is active, which costs more per-frame CPU than a single played state-machine clip, in exchange for removing authored transition clips entirely — a real runtime-cost/authoring-cost tradeoff the talk does not quantify.",
+  "examples": [
+    "landing-to-crouch blended dynamically by impact speed rather than snapping to a single crouch state, within one shared blend tree so footfalls stay in phase (video @ 01:30–02:22)",
+    "a falling character blended progressively through 'slow falling walk' → 'traditional falling loop' → a high-fall 'about to die' pose purely by distance-to-ground, inside the same blend space, guaranteeing feet resync on landing regardless of which sub-state was active (video @ 02:04–02:35)"
+  ],
+  "evidence_status": "video: https://youtu.be/o1tti636Kag @ 00:52–02:56 — James Benson (In the Valley of Gods, ex-Firewatch/Ori) states the mechanism and its controls-not-just-visual framing directly; no frames extracted (transcript-only); experimental until validated"
+}

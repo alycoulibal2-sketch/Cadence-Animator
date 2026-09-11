@@ -1,0 +1,37 @@
+{
+  "concept": "state_driven_frame_selection_instead_of_playback",
+  "category": "advanced",
+  "definition": "Treat a keyframed clip as a lookup table addressed by a live game-state variable (distance to ground, orientation delta from a target heading) rather than as something played forward on a timer — the game computes which FRAME corresponds to the current state each tick and displays that frame directly, so the clip never actually \"plays\" in the ordinary sense.",
+  "purpose": "Guarantee an authored clip's result (e.g. a landing pose, a turn pose) always matches the CURRENT physical state exactly, even when that state varies continuously and unpredictably (arbitrary fall speed, arbitrary turn amount) in a way no fixed playback rate could track.",
+  "visible_effect": "A landing sequence whose feet never clip through the ground regardless of how fast the character was falling, because the displayed frame is chosen by measured distance-to-ground rather than elapsed time; a turn-in-place that can reverse direction mid-turn because it is scrubbed by current heading delta rather than played forward.",
+  "psychological_or_gameplay_effect": "Removes an entire class of foot-through-floor and turn-animation-stitching defects that are otherwise fought per-case with hand-tuned blend timings, by making the animation a deterministic function of physical state instead of an independent timeline racing against it.",
+  "physical_interpretation": "The clip's frame axis is reinterpreted as a proxy for a physical quantity (height above ground, angular displacement) rather than for time — playback becomes a lookup, not a simulation.",
+  "use_cases": [
+    "any canned clip whose correctness depends on a continuously-variable physical quantity the clip cannot know in advance (impact height, momentum, turn amount)",
+    "collapsing many near-duplicate stitched clips (e.g. many discrete turn-in-place animations) into one clip addressed by a continuous parameter"
+  ],
+  "non_use_cases": [
+    "a clip whose content is not meaningfully parametrized by any single live variable — most performance/acting clips have no natural scrub axis to drive them by",
+    "a clip meant to always play at a fixed, predictable rate (a UI flourish, a fixed-length attack) — turning it into a lookup adds complexity with no benefit"
+  ],
+  "interactions": [
+    "blend_tree_locomotion_replaces_state_machine (this batch, video 42) — the continuous-multi-clip sibling of this same idea: both replace 'play something on a timer' with 'compute the right pose from a live variable', one across a blend space and one within a single clip",
+    "planted_foot_float_track_eliminates_transition_clips (this batch, video 42) — the same speaker's related technique; both let a small, fixed set of authored clips cover states that would otherwise need many more hand-authored variants"
+  ],
+  "style_variations": {},
+  "cadence_representation": "The MECHANISM already exists in this build, though nothing wires it to a live variable: `scrub_to_frame` / `render_frame` already let a caller jump directly to an arbitrary frame of a clip by external request, which is structurally the same operation ('display the frame that corresponds to X') this technique performs every tick at runtime. What Cadence does not have is the runtime half — nothing exports a clip alongside a declared 'scrub axis' (e.g. 'frame N corresponds to N% of a 100-stud fall'), so a game consuming a Cadence export would have to hand-build that mapping itself from the clip's known length and the designer's own intent.",
+  "control_surface": "`scrub_to_frame` (authoring-time only) is the same primitive; no tool declares or exports a frame-to-physical-quantity mapping for runtime use.",
+  "detection_and_measurement_methods": "None directly measurable from a finished clip in isolation — whether a clip is intended to be SCRUBBED by a state variable rather than played is an authorial intent, not a property `ai/motion.js` could recover from the keys themselves; the clip's keys look identical either way.",
+  "generation_or_modification_methods": "None — declaring a clip's intended scrub axis and exporting that declaration alongside it is not something any tool in this build does.",
+  "failure_modes": [
+    "scrubbing past the clip's authored range (a fall deeper than the clip's authored maximum height) with no clamp, which would read the same as an out-of-range array index — the talk's own example clamps by construction (a hundred units mapped to the clip's full length) but does not name what happens beyond that range",
+    "using a scrub axis that is not monotonic with the clip's actual pose progression, which would make the mapping ambiguous or cause visible popping as the state variable moves back and forth"
+  ],
+  "roblox_considerations": "Roblox's `AnimationTrack.TimePosition` property supports exactly this: a script can set `TimePosition` directly from a computed value every frame instead of calling `Play()` and letting it run, which is the direct Roblox-side implementation of this technique — no engine limitation stands in the way of the pattern the video describes.",
+  "performance_implications": "Effectively free — setting a track's time position each tick is far cheaper than evaluating a blend tree, and replaces what would otherwise be several separately-triggered clips with state-change logic around a single `TimePosition` write.",
+  "examples": [
+    "a landing clip authored starting 100 units above the ground; at runtime the game divides current height-above-ground by 100 and plays that fraction through the clip, so 'her feet will never penetrate through the ground' regardless of actual fall velocity (video @ 28:27–29:20)",
+    "a single 360-degree turn-in-place clip scrubbed by the character's live world-space orientation delta, playable forwards or backwards depending on turn direction, replacing what is usually 'a lot of different... animations butting together in some kind of hot mess' (video @ 29:37–30:15)"
+  ],
+  "evidence_status": "video: https://youtu.be/o1tti636Kag @ 28:27–30:15 — Gwen Frey (The Molasses Flood) demonstrates and narrates both the landing-by-distance and turn-by-orientation frame-selection techniques directly, with exact numbers (100 units); no frames extracted (transcript-only); experimental until validated"
+}

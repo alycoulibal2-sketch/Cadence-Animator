@@ -1,0 +1,37 @@
+{
+  "concept": "layered_independent_look_targets_read_as_awareness",
+  "category": "advanced",
+  "definition": "Rather than rotating a single rigid chain toward an attention target, split the responding body into several independently-timed layers (eyes, head, chest, held equipment) that each turn toward the SAME target but with different delay/offset, so the target-tracking response itself carries overshoot and overlap instead of arriving as one rigid snap.",
+  "purpose": "Make a character's attention read as alive and deliberate — a single stiff full-body-chain rotation toward a target has \"no overshoot or overlap\" and reads as robotic even when the target-tracking itself is functionally correct.",
+  "visible_effect": "Eyes arrive at a new attention target first, then head, then chest/equipment, each with its own timing and often its own settle — rather than the whole upper body snapping to face the target in one uniform motion.",
+  "psychological_or_gameplay_effect": "The presenter frames this directly as what makes an NPC read as \"aware of the environment\" and able to signal (\"look back... to sort of signal look at this interesting thing\") rather than merely oriented — attention timing communicates intent, not just direction.",
+  "physical_interpretation": "An application of ordinary chain lead/lag (the fastest/lightest part — the eyes — leads; the slowest/heaviest — the chest or held equipment — lags) to an ATTENTION response specifically, rather than to a locomotive or impact motion.",
+  "use_cases": [
+    "an NPC or companion character whose perceived awareness/intelligence matters to the player (a first-person companion, a stealth-game guard)",
+    "any look-at/aim-layer system already planning to split eyes from head from body for range-of-motion reasons, where adding independent timing per layer is a small additional step with a disproportionate readability payoff"
+  ],
+  "non_use_cases": [
+    "a background NPC whose attention is not gameplay- or narrative-relevant, where the extra layered timing is cost with no perceptible benefit",
+    "a snap-reaction (a jump-scare flinch) that specifically WANTS a rigid, instantaneous full-body response — the layered delay would blunt exactly the abruptness the moment needs"
+  ],
+  "interactions": [
+    "chain_depth_proportional_secondary_delay (W02) — the same lead/lag-scales-with-chain-position relationship, applied here to independently-targeted layers responding to one external target rather than to a single driven root's own follow-through",
+    "deliberate_lead_choice_for_acting (W02) — both are about choosing WHICH part leads a response for acting/readability reasons rather than letting the rig's default hierarchy decide"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Partially representable, honestly split: Cadence has no dedicated look-at/aim-layer control (no tool declares 'these parts track this target with these offsets'), so the TARGETING half is not represented at all. But the TIMING half — several tracks reaching a shared eventual state with different per-part delay — is exactly what `analyseChain`'s lead/lag measurement (`relation_to_motion_graph_parent`) already reads off any finished set of keys, so if a look-response were hand-keyed with staggered timing, its result would already be measurable; nothing generates that staggering from a single target automatically.",
+  "control_surface": "None for generating the staggered response; `analyseChain` (read-only) could measure one after the fact if hand-authored.",
+  "detection_and_measurement_methods": "`analyseChain`'s lead/lag-per-link measurement would show exactly this signature (eyes/head/chest reaching the target orientation at increasingly later frames) on a hand-keyed example — the same primitive W02's chain-depth findings already use, applied to an attention response instead of a locomotive one.",
+  "generation_or_modification_methods": "None — nothing in `ai/plan.js`/`ai/pose.js` targets multiple parts at one shared external point with independent per-part delay; each would need to be keyed separately by hand today.",
+  "failure_modes": [
+    "layering delay on a part that should read as instantaneous (a startled full-body flinch), which blunts the very immediacy the moment needs",
+    "offsetting so many layers, or by so much, that the parts visibly disagree about where the character is looking for an uncomfortably long span"
+  ],
+  "roblox_considerations": "A Roblox R15 head/neck/upperTorso hierarchy already provides the joints this technique would target; nothing built-in provides the multi-target independent-timing layer itself, which would need custom per-frame CFrame driving (or several independently-timed `AnimationTrack`s) in the exported game.",
+  "performance_implications": "None beyond authoring more tracks; no simulation or particle cost.",
+  "examples": [
+    "eyes, head, chest and held equipment each turning toward the same point of interest with different timings, described as preventing the 'very rigid... no overshoot or overlap' result of a single chained rotation (video @ 02:58–03:41)",
+    "a character dynamically looking back over their shoulder while walking backwards, combining this layered attention response with locomotion to suggest forethought (video @ 03:55–04:10)"
+  ],
+  "evidence_status": "video: https://youtu.be/o1tti636Kag @ 02:58–04:10 — James Benson describes the layered, independently-timed look-target split directly and its effect on perceived character awareness; no frames extracted (transcript-only); experimental until validated"
+}

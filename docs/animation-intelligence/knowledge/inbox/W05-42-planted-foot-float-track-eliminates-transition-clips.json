@@ -1,0 +1,37 @@
+{
+  "concept": "planted_foot_float_track_eliminates_transition_clips",
+  "category": "advanced",
+  "definition": "Author a 0-to-1 \"planted\" float track per foot inside every locomotion loop (walk, run, idle, stop), where 1 means that foot is grounded and 0 means airborne; at runtime, multiply the relevant per-foot tracks together (e.g. against a stop-animation's own \"remaining planted\" track) to decide which foot the game should treat as fixed and drive an IK blend from, removing the need to hand-author a dedicated transition clip between any pair of loops.",
+  "purpose": "Let a small, fixed set of loops (the speaker ships four: idle, walk, run, one hard-stop) cover every locomotion transition with zero dedicated transition animations, which the speaker names as the direct cause of slow iteration (\"you have to update it every time you update either loop\") that this technique removes.",
+  "visible_effect": "Whichever foot is grounded when a loop is interrupted stays visually planted (via IK) while the character blends into the next state, with no separate authored 'catch' animation — the character's weight visibly settles onto the correct foot automatically.",
+  "psychological_or_gameplay_effect": "Removes an entire authored-content category (transition clips) and its maintenance cost, at the cost of the transition's exact look being computed rather than hand-posed.",
+  "physical_interpretation": "The float tracks are a direct proxy for ground contact state, multiplied together the way independent gates combine — a foot is 'the one to drive from' only when both 'this foot is the one that was planted' AND 'we are still within the stop clip's own planted window' are simultaneously true.",
+  "use_cases": [
+    "a small locomotion set (idle/walk/run/stop) that must interrupt cleanly at any point without a combinatorial number of hand-authored transition clips",
+    "any system that already runs IK on the feet at all times, since this technique's blend signal is designed specifically to drive that IK's weight"
+  ],
+  "non_use_cases": [
+    "a locomotion set with few enough states, or transitions rare/important enough, that hand-authored transitions read noticeably better and the cost is acceptable",
+    "a rig or pipeline with no runtime IK on the feet — the whole mechanism exists specifically to drive an IK blend weight, and has nothing to attach to without one"
+  ],
+  "interactions": [
+    "state_driven_frame_selection_instead_of_playback (this batch, video 42) — the same speaker's sibling technique; both replace an authored transition/lookup with a value computed from live state",
+    "foot_lock_duration_scales_with_weight (W03) — both concern how long/whether a foot is treated as locked, but that entry describes authoring a hold WITHIN a fixed clip while this one describes a runtime signal spanning MULTIPLE clips"
+  ],
+  "style_variations": {},
+  "cadence_representation": "The DATA CONTAINER already exists: `add_property_track` authors exactly this shape — a named, keyed float value over time, independent of the joint rotation tracks — so a 'left foot planted' / 'right foot planted' curve is directly authorable in a Cadence project today, per clip. What Cadence does NOT have is any of the runtime half: nothing multiplies two clips' property tracks together, nothing drives an IK blend weight from one, and nothing detects ground contact automatically to GENERATE the track — a Cadence user would have to hand-key the 0/1 values by eye, the same as any other property track, then wire the runtime consumption entirely in exported Luau.",
+  "control_surface": "`add_property_track` / `set_keyframe` on a property track — usable today to author the float curve itself; no tool reads two tracks together or exports a cross-clip multiplication.",
+  "detection_and_measurement_methods": "`measureContactDrift` (MOT-008) already detects ground-contact state from a rig's actual foot position within ONE clip, which is close to but not the same signal this technique hand-authors as a declared property track — a future check could compare the two (does the declared planted-track agree with what MOT-008 measures?) but no code in this build runs that comparison today.",
+  "generation_or_modification_methods": "`add_property_track`/`set_keyframe` can author the curve by hand; nothing generates it FROM a measured contact state (the natural pairing with `measureContactDrift` above) or exports the cross-clip multiplication a runtime consumer would need.",
+  "failure_modes": [
+    "authoring the planted track slightly out of sync with the actual visual contact frame in each loop, which would make the IK blend it drives pick the wrong foot or the wrong moment",
+    "relying on this technique without an IK system to consume its output, in which case the authored track has no effect at all"
+  ],
+  "roblox_considerations": "Roblox's `IKControl` instance is the natural consumer of the blend weight this technique computes; property-track values exported from Cadence would need a small runtime script multiplying the relevant tracks and feeding the result into `IKControl.Weight` or an equivalent custom blend.",
+  "performance_implications": "Negligible — reading and multiplying a couple of scalar curves per foot per frame is far cheaper than either a hand-authored transition clip's evaluation cost or a full blend-tree evaluation.",
+  "examples": [
+    "two float tracks per locomotion loop (one per foot), 1 when planted and 0 when airborne, queried at the moment the character stops to determine which foot is already grounded (video @ 25:34–26:19)",
+    "a 'remain planted' float track on the hard-stop clip itself, multiplied against the loop's own planted track, driving the IK blend that slides the previously-airborne foot into its idle position with zero dedicated transition clip authored (video @ 26:19–27:00)"
+  ],
+  "evidence_status": "video: https://youtu.be/o1tti636Kag @ 25:06–27:00 — Gwen Frey (The Molasses Flood) states directly that her character 'had absolutely no transition animations at all' and demonstrates the per-foot planted float-track mechanism and its multiplication with the stop clip's own track; no frames extracted (transcript-only); experimental until validated"
+}
