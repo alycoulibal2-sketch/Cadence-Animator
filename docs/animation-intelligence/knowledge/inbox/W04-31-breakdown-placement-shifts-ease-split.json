@@ -1,0 +1,38 @@
+{
+  "concept": "breakdown_placement_shifts_ease_split",
+  "category": "advanced",
+  "definition": "A breakdown pose's TIME position, chosen by estimating when a specific physical event will occur (e.g. the instant a jumping character's knees will be fully straightened, or a landing's deepest compression), becomes the anchor a combined ease-out-in is built from - replacing the arithmetic midpoint between the two flanking key poses, so a bisection-based inbetweening method (the halves method) allocates a different number of frames to each side depending on where that estimated moment falls.",
+  "purpose": "Explain WHERE within a phase to place a breakdown's frame, and why that choice - not the geometric middle - determines how many inbetween frames should fall on each side of it.",
+  "visible_effect": "The inbetweens on one side of the breakdown are visibly denser (more frames, a slower build) than the other side, in proportion to how far the breakdown's estimated frame sits from the span's arithmetic middle - rather than a symmetric ease-out-in with matched frame counts on each side.",
+  "psychological_or_gameplay_effect": "Lets a specific anatomical or physical event (legs fully straightening before liftoff, a landing's deepest compression) land on its own readable frame instead of being smeared across a generic symmetric ease, and lets the surrounding spacing honestly reflect how much of the phase happens before versus after that event.",
+  "physical_interpretation": "A breakdown placed by physical estimation stands in for an unmeasured real-world event - the animator's best guess at when a joint reaches a particular configuration - used as a hard constraint the surrounding spacing must then respect, a lower-rigor sibling of grounding a phase's timing in an actual stopwatch or filmed measurement.",
+  "use_cases": [
+    "a transition where two flanking key poses cannot be interpolated directly into each other without passing through an intermediate, physically-necessary configuration (the video's own case: interpolating straight from a bent-knee anticipation crouch to a bent-knee action pose skips the moment the knees are actually straight, which is physically what has to happen for a real leg to generate upward force)",
+    "deciding, once a breakdown's frame is chosen, how many of the phase's available inbetween frames should go on each side of it, rather than splitting them evenly by default"
+  ],
+  "non_use_cases": [
+    "a transition where the two flanking poses ARE directly interpolable with no missing intermediate configuration - inserting a breakdown here only adds authoring work for no visible benefit",
+    "a phase where the actual timing of the physical event is known precisely (measured by stopwatch or filmed timecode, per `physical_reference_timing_method`) rather than estimated - the estimation method this entry describes is the fallback when no such measurement exists, not a replacement for one"
+  ],
+  "interactions": [
+    "`ai/plan.js authorMotion`'s breakdown step (`AUTHOR_STEP_KINDS`) already computes a breakdown as a POSE BIAS at a declared frame `bd.at` - this entry is real-world evidence for how a professional animator actually chooses that `at` value (physical-event estimation) and for why it is deliberately NOT the span's time midpoint, matching the source code comment ('A breakdown is a POSE BIAS, not a time fraction') from the opposite direction: this video shows the TIME placement also departing from the midpoint, on top of the POSE value already documented as doing so",
+    "physical_reference_timing_method (W01, video 9) - the measured, higher-rigor sibling of this technique: that card grounds timing in a stopwatch reading or a filmed timecode, while this entry's placement is explicitly an estimate ('let's estimate... it's probably here') with no measurement behind it",
+    "spacing_subdivision_method_ladder (W02, video 11) - this entry names WHERE the ladder's halves method should be anchored from when a breakdown is present, which that card's own halves/thirds/favors description does not address"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Partially represented, with a genuine gap: `authorMotion` already accepts a breakdown's frame (`bd.at`) as an arbitrary caller-supplied number and computes its POSE from a declared `bias`, but nothing in `ai/plan.js` derives or suggests an `at` value from a physical-event estimate the way this video's presenter does by eye - a caller must already know or guess the frame before calling `authorMotion`, the same 'this compiler will not invent durations' boundary the module's own header comment states for phase timing generally.",
+  "control_surface": "`authorMotion`'s `phases[].breakdown.at` (frame) and `.bias` (pose fraction) together are the existing surface; no tool derives `at` from anything resembling a physical-event estimate.",
+  "detection_and_measurement_methods": "Not measurable as stated - 'when the knees will be fully straightened' is a property of a physical performance this build has no access to, not of project data. What IS measurable, given an already-authored breakdown, is whether the resulting inbetween DENSITY is in fact asymmetric across it (`key_density` per side, already computed by `ai/motion.js`), which would at least confirm the redistribution effect even though it cannot verify the estimate itself was physically correct.",
+  "generation_or_modification_methods": "None - `authorMotion` compiles a breakdown already supplied with `at` and `bias`; nothing generates either value from an estimate or a measurement.",
+  "failure_modes": [
+    "anchoring the ease-out-in split at the phase's arithmetic middle by default when a breakdown is present, producing the exact 'knees stay bent throughout' problem the video shows and then corrects",
+    "an estimate placed with too little care, landing the breakdown's frame far enough from the true physical event that the surrounding spacing still looks arbitrary rather than motivated"
+  ],
+  "roblox_considerations": "None beyond the general keyframe/easing model; Roblox's Animation Editor has no notion of a physically-estimated breakdown either - the estimation step happens in the animator's judgment before any keys are placed, on either platform.",
+  "performance_implications": "None.",
+  "examples": [
+    "the anticipation-to-action breakdown: 'let's estimate when that last point of contact would happen, it's probably here where we'll have the knees straighten up' - placed such that the resulting ease-out from anticipation needed only one inbetween while the ease-in to action kept the rest (video @ 09:27-10:11)",
+    "the action-to-overshoot breakdown, placed 'at the end, and not the middle' specifically because the phase's physics call for a pure easing-out (continuous acceleration under gravity, no possible deceleration partway) rather than a symmetric easing out-in (video @ 10:50-11:58)"
+  ],
+  "evidence_status": "video: https://youtu.be/n29cFugfM_c @ 09:27-11:58 - Plainly Simple states the estimation reasoning and its effect on frame distribution directly and explicitly in the transcript for both the anticipation-to-action and action-to-overshoot transitions; this session's own focused re-extraction at t=08:27-08:30 directly shows the real-footage crouch-then-explosive-extension reference consistent with the presenter's estimate; cross-checked against `ai/plan.js AUTHOR_STEP_KINDS`/breakdown-bias implementation read directly from source in this session; experimental until validated"
+}

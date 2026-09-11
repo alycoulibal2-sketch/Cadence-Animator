@@ -1,0 +1,39 @@
+{
+  "concept": "chain_reversal_lag_on_landing_recovery",
+  "category": "advanced",
+  "definition": "During a landing's recovery bounce, the root/hips reach their lowest compression and begin rising again BEFORE the head does - so for a short span the hips are already travelling upward while the head is still travelling downward, in opposite directions at once - after which the head performs its own smaller, separately-timed ricochet (a brief overshoot) before both converge and hold the final settle pose.",
+  "purpose": "Give a landing's secondary motion a specific choreography beyond generic 'the head lags the hips' offset: name the moment the two ends of the spine are briefly moving in OPPOSITE directions, and the head's own follow-up ricochet, as two distinct events in sequence.",
+  "visible_effect": "At the bottom of a landing's compression, the hips visibly reverse and start rising while the head/chest is still sinking - a brief opposite-direction stretch through the spine - followed a few frames later by the head overshooting slightly past its own final position and ricocheting back before the whole body holds.",
+  "psychological_or_gameplay_effect": "Reads as the impact's energy visibly travelling up through the body from the ground contact rather than the whole torso rebounding as one rigid unit - the presenter's own name for it is 'a nice offset', distinct from a uniform bounce.",
+  "physical_interpretation": "An approximation of an impulse propagating up a real spine: the pelvis (closest to the ground contact, least inertia to overcome first) reverses direction first, while the head (furthest from the contact, most inertia/delay) continues its original direction of travel briefly before the same reversal reaches it.",
+  "use_cases": [
+    "any landing or hard-impact recovery where the whole body should not rebound as one rigid unit",
+    "a root-driven impact (feet, a hand catch) where the energy visibly needs to travel up the spine before reaching the head"
+  ],
+  "non_use_cases": [
+    "a mechanical/rigid style where the whole body should reverse in lockstep with no chain lag at all",
+    "an impact absorbed by a part OTHER than the root/hips (e.g. a hand-first catch where the arm chain, not the spine, carries the primary reversal)"
+  ],
+  "interactions": [
+    "chain_depth_proportional_secondary_delay (W02, video 16) - the general rule (lag increases with chain depth) that this entry's opposite-direction moment is a specific, sharper CASE of: the lag here is large enough, relative to the reversal's own speed, that the two ends are briefly moving opposite ways rather than merely at different speeds in the same direction",
+    "drag_overlap_follow_through_sequence (W02, video 14) - that entry's three temporal stages (drag/overlap/follow-through) describe ONE trailing part relative to ONE primary part; this entry adds that the primary part (hips) and the trailing part (head) can be on OPPOSITE sides of their shared direction of travel during the drag stage specifically, which that entry's definition does not state",
+    "overshoot_recoil_settle_pose_sequence (this batch, video 31) - the head's own small ricochet here is that entry's overshoot/recoil pair playing out on a single body part, nested inside the larger whole-body landing recovery this entry describes"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and a real gap in what `analyseChain` currently reports: `ai/motion.js analyseChain` already measures per-joint onset and peak timing along a declared chain (MOT-009/010), which is sufficient in principle to detect two joints briefly moving in opposite directions (a local velocity-sign mismatch between the root and a distal joint) - but nothing currently classifies a measured lag as 'same-direction, delayed' versus 'opposite-direction, reversed-early', which is the distinction this entry is about.",
+  "control_surface": "`analyze_motion` (`analyseChain`) reports the raw per-joint lead/lag timing; nothing compares direction (sign), only timing (onset/peak frame).",
+  "detection_and_measurement_methods": "Buildable: given `analyseChain`'s per-joint position/rotation series, comparing the SIGN of each joint's velocity at a shared frame (root already rising, distal joint still falling) is a direct, computable check from data this build already produces; nothing currently runs it.",
+  "generation_or_modification_methods": "None - `secondary_delay` (implemented) offsets keys uniformly and does not model a direction reversal at all, only a time shift.",
+  "failure_modes": [
+    "rebounding the whole torso and head as one rigid unit at the bottom of a landing, losing the impulse-travelling-up-the-spine read entirely",
+    "delaying the head so much that its own ricochet reads as a separate, disconnected wobble rather than a continuation of the same recovery"
+  ],
+  "roblox_considerations": "None beyond the general Motor6D chain structure already modelled.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"he hits the low point, he kind of cushions in with the hips, but then they go up, and what creates this nice offset here is that as his butt is going up, his head's still going down, and then it has a kind of a ricochet offset where it comes up\" (video @ 05:18-05:33)",
+    "\"at the very end, it's just the head overshooting and the arm overshooting a little bit just settling into that last hero pose\" (video @ 05:34-05:38)",
+    "a related texture detail from the same landing: the leg that led the launch (raised earlier/higher during hang time) is also the leg that leads the landing and contacts the ground first (video @ 04:56-05:03)"
+  ],
+  "evidence_status": "video: https://youtu.be/VjRCxm8nrNE @ 05:18-05:38 - Jason Martinson (animator, Animation Mentor) narrates this sequence live while stepping through his own shot's key poses; the graph-editor frames in this session's sample fall in an overexposed, unreadable stretch of the recording (frames at t=06:13-06:48 are blown out to white), so this rests on the transcript's specific description rather than a directly-viewed curve; experimental until validated"
+}

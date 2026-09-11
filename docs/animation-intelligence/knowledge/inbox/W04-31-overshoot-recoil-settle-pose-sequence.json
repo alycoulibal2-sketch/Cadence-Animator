@@ -1,0 +1,45 @@
+{
+  "concept": "overshoot_recoil_settle_pose_sequence",
+  "category": "advanced",
+  "definition": "A named six-keypose taxonomy for a brief ballistic or impactful action - starting, anticipation, action, overshoot, recoil, settle - in which the three poses AFTER the action are each a distinct, directional correction relative to the FINAL settle value, rather than one undifferentiated 'follow-through' blob: overshoot passes beyond the settle pose's value on one side, recoil passes beyond the settle pose's value on the OPPOSITE side, and settle is the final held value both corrective bounces converge toward.",
+  "purpose": "Give an animator three separately-posed, separately-timed corrective beats to draw after an action's extreme, instead of easing straight from the action pose to the final rest pose in one curve.",
+  "visible_effect": "After the action pose, the character's pose passes beyond the eventual rest value on one side (overshoot), then swings past it again on the OTHER side (recoil), then arrives and holds (settle) - three distinct silhouettes either side of the final pose in sequence, not a single decelerating approach straight into it.",
+  "psychological_or_gameplay_effect": "Reads as an elastic, spring-like absorption of momentum rather than an instant stop; the video's own physical framing is that skipping straight from action to settle 'is going to be painful' for a landing - the two-sided correction is what makes a hard arrival read as absorbed rather than rigid.",
+  "physical_interpretation": "Approximates one and a half cycles of a damped oscillation around the final rest value: a swing past it on one side, a swing back past it on the other, then convergence - the same shape a real spring or a body absorbing momentum through its joints would trace, without simulating it.",
+  "use_cases": [
+    "any brief action with a clear extreme pose that then needs to settle - landings, punches, hard stops, catches",
+    "distinguishing, when revising a rough pass, whether a 'follow-through' phase should read as travelling further (overshoot) or swinging back (recoil), rather than leaving both lumped into one adjustment",
+    "cartoony/game-combat timing where the two corrective bounces are compressed into very few frames but still keep their own side of the settle value"
+  ],
+  "non_use_cases": [
+    "a mechanical/robotic style that should stop dead at the action pose with no corrective bounce at all",
+    "a soft, non-impactful arrival (e.g. a slow reach) where a single ease into the final pose is correct and an added bounce would read as an unintended wobble",
+    "a contact-capable effector that is planted through this span - an overshoot or recoil that drags a planted foot breaks the plant the same way `shared_mechanism_anticipation_overshoot`'s non_use_cases already state for its own mechanism"
+  ],
+  "interactions": [
+    "Cadence's own `TEMPLATES` phase order in `ai/plan.js` names `follow_through` and `recovery` as two separate phases between `action` and `settle` - a genuine structural echo of this video's overshoot/recoil split - but `authorMotion`'s own phase descriptions ('carry the inertia past the action' for follow_through, 'return toward a controlled state' for recovery) do not state which side of the eventual settle value each phase's pose should fall on; this entry supplies exactly that missing directional definition for both. (Cadence's separate `preparation` phase and `start` step do not map as cleanly onto this video's starting/anticipation split - `preparation`'s own `poseRoleFor` resolves to 'breakdown', not a plain key pose - and this entry does not claim that part of the mapping.)",
+    "shared_mechanism_anticipation_overshoot (W02) - that entry gives ONE keyframe-level mechanism (a duplicate key plus an automatic tangent) capable of producing either the overshoot or recoil bump individually; this entry is the higher-level POSE STRUCTURE naming why a real sequence needs both bumps in order, not just one",
+    "float_to_stop_settle (W02) - a sibling but distinct settle shape: a float never passes the target at all, while this sequence's overshoot and recoil each explicitly pass it, once on each side",
+    "`EASE_DIRECTION_BY_PHASE` in `ai/plan.js` already assigns 'Out' easing to follow_through, recovery AND settle alike (all three ease OUT, i.e. depart their previous held value) - consistent with, and indirect corroboration of, each of these three being its own distinct departure-then-arrival beat rather than one long curve"
+  ],
+  "style_variations": {
+    "anime": "the two corrective bounces are often compressed to very few or even zero inbetween frames each, read almost as a single snap-settle, while keeping the same order and sides",
+    "realistic": "a heavier character's recoil and settle each take measurably longer and travel further, consistent with W03's `foot_lock_duration_scales_with_weight_before_launch` finding for the wind-up side of a jump"
+  },
+  "cadence_representation": "A direct, more precise reading of an existing mechanism: `ai/plan.js AUTHOR_STEP_KINDS` already compiles a `settle` step that overshoots past the final pose before resting (`scaleAbout`, a declared ratio of the last transition's travel), and `TEMPLATES`'s six-phase order already NAMES `follow_through` and `recovery` as separate phases before `settle` - but neither `poseRoleFor` nor the phase `why` strings currently say that `follow_through` and `recovery` should fall on opposite sides of the eventual settle value. Today a caller supplying `phases:[{name:'follow_through', pose:[...]}, {name:'recovery', pose:[...]}]` has to know this directional rule themselves; nothing in `ai/plan.js` derives or checks it.",
+  "control_surface": "`authorMotion`'s `phases` array (`follow_through` and `recovery` phase entries) and its `settle: {overshoot_at, ratio, easing}` option are the existing surfaces; none of them currently enforces or suggests the opposite-side relationship between a `follow_through`/overshoot pose and a `recovery`/recoil pose.",
+  "detection_and_measurement_methods": "Buildable, not yet built: given a declared settle/rest value for a tracked joint or effector, `ai/motion.js sampleMotion`'s position or rotation series already carries enough data to classify the two corrective peaks after an action's extreme - a peak on one side of the rest value is an overshoot signature, a peak on the OPPOSITE side is a recoil signature, and this build could flag a sequence missing either side's peak. Nothing currently runs this classification.",
+  "generation_or_modification_methods": "`authorMotion`'s `settle` option already inserts one overshoot key past the final pose (`ratio` of the last transition's travel) before resting; there is no equivalent named parameter for a RECOIL key on the opposite side - a caller wanting recoil today has to author it as an ordinary `phases` entry with a hand-chosen pose, not through a declared ratio the way `settle`'s own overshoot is.",
+  "failure_modes": [
+    "authoring only one corrective bounce (an overshoot OR a recoil) when the action's weight and impact call for both in sequence, leaving the arrival feeling incomplete",
+    "giving the recoil pose the SAME side of the settle value as the overshoot pose instead of the opposite one, which reads as a stutter or a repeated bounce rather than a spring-like two-sided absorption",
+    "skipping straight from the action pose to settle with a single ease, which the source video frames explicitly as physically implausible for a hard landing ('if you don't straighten your legs when you land, that's going to be painful')"
+  ],
+  "roblox_considerations": "None beyond the general keyframe/easing model already in place - R15's joint reach limits (CLAUDE.md's own documented reach-limit pitfalls) bound how far a recoil pose can physically travel past a planted foot's rest position before the solver reports it unreachable.",
+  "performance_implications": "None.",
+  "examples": [
+    "the six keyposes named and defined in order, each with its own short definition, including the explicit directional contrast between overshoot ('a little bit over' the settle target) and recoil ('a little bit backwards' compared to the settle target) (video @ 00:14-01:15)",
+    "the presenter's own physical justification for needing a corrective bounce at all rather than a single ease into the final pose, framed as an instinctive spring-like leg-bend after landing (video @ 11:24-11:48)"
+  ],
+  "evidence_status": "video: https://youtu.be/n29cFugfM_c @ 00:14-01:15 and 11:24-11:48 - Plainly Simple defines and visually diagrams all six keyposes directly (a frame at t=15:02 in this session's sample shows the finished six-pose timeline labelled starting/anticipation/action/overshoot/recoil/settle with colour-coded keys), and states the landing's physical justification directly in the transcript; cross-checked against `ai/plan.js`'s own `TEMPLATES`/`AUTHOR_STEP_KINDS` phase order read directly from source in this session; experimental until validated"
+}

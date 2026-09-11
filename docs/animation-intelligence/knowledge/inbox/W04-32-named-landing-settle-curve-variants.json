@@ -1,0 +1,37 @@
+{
+  "concept": "named_landing_settle_curve_variants",
+  "category": "advanced",
+  "definition": "A landing's settle is not one shape but a small set of distinct, nameable curve variants producing different weight/energy reads from the same arrival point: soft overshoot (a gentle pass beyond the final value), hard overshoot (a larger, sharper pass beyond it), overshoot-plus-slow-in (a pass beyond the value followed by a decelerating approach back), and slow-in only (a direct decelerating approach with no pass beyond the value at all) - each independently applied per body part (stomach, chest, shoulders, head) rather than uniformly across the whole figure.",
+  "purpose": "Give an animator a small, named menu of settle shapes to choose from per body part, rather than treating 'add some overshoot' as a single undifferentiated instruction.",
+  "visible_effect": "The same arrival at a final pose looks noticeably different depending on which of the four variants is used - a bigger or smaller pass beyond the final value, or none at all - and different body parts of the same pose can each use a different one of the four at once.",
+  "psychological_or_gameplay_effect": "The choice reads as texture: hard overshoot feels bouncier/heavier, a pure slow-in feels more controlled/restrained, and mixing variants across body parts (the source's own instruction: 'offset everything - stomach, chest, shoulders, head') is what keeps a multi-part landing from looking like it moves as one rigid block.",
+  "physical_interpretation": "All four are simplified stand-ins for how much elastic energy a given body part's landing absorption carries - more remaining energy reads as a bigger overshoot, less reads as a pure slow-in - without simulating the underlying physics.",
+  "use_cases": [
+    "choosing a settle's exact shape deliberately per body part on a landing or any hard arrival, instead of copying one curve shape onto every part",
+    "matching a settle's variant to a character's weight or energy - heavier/bouncier characters toward the overshoot end, more controlled or careful characters toward pure slow-in"
+  ],
+  "non_use_cases": [
+    "a mechanical/robotic style wanting a hard stop with none of the four variants (no pass beyond, no decelerating approach either)",
+    "an arrival with no energy left to absorb (e.g. a slow, controlled reach rather than a landing), where even the mildest variant (slow-in) may overstate the amount of correction needed"
+  ],
+  "interactions": [
+    "overshoot_recoil_settle_pose_sequence (this batch, video 31) - that entry names overshoot and recoil as two SEPARATE, opposite-sided poses; this entry adds that the OVERSHOOT half alone already comes in at least two named strengths (soft/hard) before recoil is even considered, and that a full recoil is not always present (the slow-in variant has none)",
+    "float_to_stop_settle (W02, video 12) - a float (two distinct approach speeds, never passing the target) is effectively a close cousin of this entry's 'slow-in' variant, named from an independent source",
+    "shared_mechanism_anticipation_overshoot (W02, video 16) - that entry's single added-key-plus-tangent mechanism is capable of producing this entry's soft/hard overshoot variants by varying how far past the final value the duplicate key sits; it is not, on its own, capable of the slow-in variant (no pass at all), which is an ordinary decelerating ease with no added key"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a named choice: `authorMotion`'s `settle` option (`{overshoot_at, ratio, easing}`) already parameterises exactly the soft/hard overshoot axis (`ratio`, a declared fraction of the last transition's travel - a small ratio is 'soft', a larger one 'hard') and omitting the option entirely already produces the plain slow-in variant (an ordinary eased arrival with no overshoot key) - but nothing currently offers these as a small NAMED menu per body part, or applies a different `ratio` to different joints on the same authored motion the way the source's own 'offset everything' instruction calls for.",
+  "control_surface": "`authorMotion`'s `settle: {overshoot_at, ratio, easing}` already covers the overshoot axis numerically; per-joint variation of `ratio` (rather than one value for the whole authored motion) is not currently exposed.",
+  "detection_and_measurement_methods": "Buildable: given a declared settle/rest value, `ai/motion.js sampleMotion`'s position series can already classify a joint's arrival into one of the four variants directly - whether it passes the rest value at all (an overshoot present or absent), how far past (soft vs hard), and whether a decelerating approach follows. Nothing currently runs this classification.",
+  "generation_or_modification_methods": "`authorMotion`'s `settle.ratio` already generates the soft/hard overshoot axis numerically for a single authored motion; it is not currently exposed per-joint, and there is no dedicated parameter for the 'overshoot-plus-slow-in' compound variant beyond composing `settle` with an easing choice by hand.",
+  "failure_modes": [
+    "applying the same settle variant uniformly to every body part, losing the per-part offset the source's own 'offset everything' instruction is specifically about",
+    "choosing hard overshoot for a character or moment that calls for restraint (or vice versa), mismatching the settle's energy read to the character's implied weight"
+  ],
+  "roblox_considerations": "None beyond the existing keyframe/easing model - all four variants are expressible as ordinary Roblox Animation Editor keys and easing curves once the `ratio` per joint is decided.",
+  "performance_implications": "None.",
+  "examples": [
+    "the four variants named and diagrammed side by side with a vertical offset scale per body part (stomach/chest/shoulders/head): soft overshoot, hard overshoot, overshoot + slow in, and slow in, captioned 'Offset everything! Stomach Chest Shoulders Head' (video @ 00:31-01:11, confirmed directly in this session's frame at t=00:28)"
+  ],
+  "evidence_status": "video: https://youtu.be/VjRCxm8nrNE @ 00:31-01:11 - Jason Martinson presents and explains a reference chart credited to animator Lerm Arthurnal (linked on-screen to a Vimeo page) as 'a really good example' and 'a very helpful explanation'; the four-variant chart is directly confirmed in this session's own frame at t=00:28; the underlying claim originates with a THIRD-PARTY source cited approvingly rather than demonstrated first-hand by this video's own presenter, which is why it is recorded as a citation rather than a live demonstration; experimental until validated"
+}
