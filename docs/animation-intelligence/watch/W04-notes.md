@@ -4,8 +4,8 @@
 
 - [x] 31. Jump Animation: The Complete Beginner's Guide — Plainly Simple (16:15) — https://youtu.be/n29cFugfM_c
 - [x] 32. Body Mechanics: Jumping and Landing — Animation Mentor (11:02) — https://youtu.be/VjRCxm8nrNE
-- [ ] 33. How To Improve Idle Animations In Games — Libby Pete (6:11) — https://youtu.be/tYwNSm8Q3l8
-- [ ] 34. Punch Tutorial — Greg Marlow Learning (11:45) — https://youtu.be/tcBT-6wdSC8
+- [x] 33. How To Improve Idle Animations In Games — Libby Pete (6:11) — https://youtu.be/tYwNSm8Q3l8
+- [x] 34. Punch Tutorial — Greg Marlow Learning (11:45) — https://youtu.be/tcBT-6wdSC8
 - [ ] 35. How to Animate Fight Scenes (Part 1): Punches — Besty Animates (6:02) — https://youtu.be/4uvQytZ3DmA
 - [ ] 36. Fisticuffs: Tips for animating action and fight scenes — Dong Chang (6:07) — https://youtu.be/-HXx1fK415I
 - [ ] 37. How to ANIMATE SWORD COMBAT Part 1 — Gogan (77:15) — https://youtu.be/sBNDzqO8ZT8
@@ -166,4 +166,140 @@ choice, not a correction of either.
 
 **Entries written:** `W04-32-chain-reversal-lag-on-landing-recovery.json`,
 `W04-32-named-landing-settle-curve-variants.json` — both pass `validateProposedEntry` and
+`validateEvidenceSource` cleanly.
+
+### 33. How To Improve Idle Animations In Games — Libby Pete
+
+2026-09-11. Watched at `balanced` detail (100 frames from a 211-candidate scene-change pass across
+the full 6:11 run) plus a focused local re-extraction of 04:15–05:35 to check the before/after
+pose-comparison demo. **Same structural surprise as video 31**: a large share of the full-video
+frames are a rapid B-roll montage of unrelated games and film clips (Zelda, a Halloween-themed
+indie game, a hand-drawn Ariel/Little Mermaid rough, a horror game, two different RPG combat
+scenes) shown as generic illustration while the presenter talks over them in general terms — the
+actual "Jack" character demo the whole video is building toward is concentrated in the last 90
+seconds, which the full-range pass under-sampled. The video is entirely about POSING (not motion) —
+despite the title, there is no discussion of idle breathing, sway, or looping motion at all.
+
+**What it teaches, specifically:**
+1. Posing improvements to an existing idle are authored as a separate ADDITIVE layer stacked on
+   top of the base animation, never by re-keying it directly — "I'm not going to override it. I'm
+   just going to do an additive layer and add a new pose on top" (04:15–04:29), demonstrated live by
+   deleting the layer on screen for an exact A/B comparison (05:18–05:30, frames confirmed at
+   t=04:37 and t=05:29 in a two-panel Unreal-Engine-style viewport). A genuine, confirmed gap in
+   Cadence: a repo-wide search for "additive" finds it used only for VFX particle blend modes, never
+   for a stackable pose layer over an existing animation track. Wrote
+   **`additive_pose_layer_over_base_idle`**.
+2. A games-specific reason an idle's pose must stay moderate and balanced, distinct from a film
+   pose: it is the hub every other animation blends from and into, so "if you have some crazy pose
+   that's going to be hard to flow in and out of... you're going to have a hard time creating nice
+   fluid animations" (01:22–01:40). Names the DOWNSTREAM COST of an extreme idle explicitly, which
+   no existing card states. Wrote **`idle_pose_as_blend_hub_constrains_extremity`**.
+3. The same multi-source, non-copying reference pattern video 32 used for motion timing, now
+   independently applied to POSE/silhouette design ("I usually find reference from real life and
+   from other animated works... you don't want to plagiarize ever... you also want to come up with
+   something new," 03:21–03:38, sources named as Bucky from Marvel Rivals and Green Beret photos,
+   confirmed on screen at t=01:56–01:58). Seeing this pattern independently, twice, from two
+   presenters for two different purposes in the same batch crossed the bar for its own entry. Wrote
+   **`multi_source_reference_blend_not_measured`**, citing both videos 32 and 33.
+4. The specific silhouette fix made to Jack's pose (elbows repositioned so they read clearly against
+   the torso, "hands are much more easily visible," 04:44–04:51) is a direct, concrete application
+   of the existing `silhouette_readability_diagnostic_pass` card's limb-separation technique — logged
+   as a **cross-check**, not a new entry.
+5. Glen Keane's "tilt, rhythm, and twist" posing framework is name-dropped (01:48–02:18) but the
+   auto-captions garble the individual definitions badly enough (tilt and twist both described via
+   near-identical "side to side... rotation" language) that I could not confidently state what
+   distinguishes the three from the transcript alone — deliberately NOT written up as an entry to
+   avoid guessing at a taxonomy the source itself didn't clearly render; worth another session
+   picking up from a cleaner source on Glen Keane's own framework specifically.
+6. Standard line-of-action and balance principles are restated and illustrated (a spine-to-head line
+   traced through the Bucky reference at 04:02–04:08; balance/weight-support at 01:22–01:26) —
+   consistent with existing `appeal`/`line_of_action_shape_and_scope` cards, not written up again.
+
+**Contradicted an existing card:** none.
+
+**Cross-checks:** `silhouette_readability_diagnostic_pass` (elbow/hand silhouette fix, video @
+04:44–04:51).
+
+**Capture candidate:** none — an Unreal-Engine-style viewport screen recording throughout, no
+filmed human performance, and the actual pose change is a static hold rather than a motion.
+
+**Checks for the queue:** none from this video — both new entries are authoring/workflow patterns
+(where data lives, why a constraint exists) rather than a property of a finished motion
+`ai/motion.js` could measure.
+
+**Entries written:** `W04-33-additive-pose-layer-over-base-idle.json`,
+`W04-33-idle-pose-as-blend-hub-constrains-extremity.json`,
+`W04-33-multi-source-reference-blend-not-measured.json` — all three pass `validateProposedEntry`
+and `validateEvidenceSource` cleanly.
+
+### 34. Punch Tutorial — Greg Marlow Learning
+
+2026-09-11. Watched at `balanced` detail — only 9 frames selected from a static Maya screen
+recording across the full 11:44 run, so most of this video's very concrete, specific content rests
+on the transcript rather than directly-viewed poses (flagged honestly in each entry's
+evidence_status rather than glossed over). Despite the sparse frames, this was the single densest,
+most concretely-evidenced video of the batch so far — a working animator narrating exact technique
+while live-editing a punch in Maya with AnimBot and a motion-trail tool.
+
+**What it teaches, specifically — exactly the "hips first, wrist last" the batch's own list line
+promised:**
+1. The core mechanic: at a breakdown frame, the torso/hips and the stepping foot are ALREADY posed
+   at their final contact configuration while the arm/fist is deliberately posed still short of
+   full extension — cross-domain-corroborated with a slow-motion baseball pitch ("that baseball is
+   always one of the last things... all of that energy from his body moving forward... he is
+   transferring into this arm and eventually out through that ball," 02:57–03:24, reference clip
+   confirmed in this session's frame at t=03:42). This is structurally the SAME default `body_lead`
+   already compiles (chain-depth-first, proximal before distal) — logged with that connection made
+   explicit rather than hidden, since the genuinely new part is the PURPOSE (force/velocity
+   amplification down the chain, not just organic feel) and the direct tie to the checks-queue's
+   already-noted "declared lead joint" gap (#26). Also names the root cause of a weak punch
+   directly: taking the idle pose and just extending the arm, with no body-mass sequencing behind
+   it at all. Wrote **`proximal_to_distal_power_sequencing`**.
+2. A concrete pose-calibration workflow: place a throwaway target object just out of reach, then
+   push every available joint (spine twist, clavicle, arm stretch) toward it until the pose is
+   close to breaking, rather than choosing a reach's extent by eye alone (04:58–05:33). Connects
+   directly to Cadence's existing `solve_ik`, and to CLAUDE.md's own documented exact reach-limit
+   numbers (a leg chain's 1.85-stud maximum, an arm's 1.6888-stud maximum) — the video's manual,
+   iterative "how close to breaking can I get" process is exactly what a margin-to-limit report on
+   top of the existing analytic solve would answer directly. Wrote
+   **`reach_pose_calibrated_against_placeholder_target`**.
+3. A specific, checkable spacing rule verified with a motion-trail tool showing per-frame position
+   markers: the fist's WIDEST frame-to-frame gap must sit immediately BEFORE the contact frame, not
+   earlier in the swing — "in the same way we have a bouncing ball we want that spacing right
+   before the ball hits the floor to be the biggest distance it travels" (09:17–09:57), with the
+   stated result: "now we get this big spacing right before the impact... that punch has much more
+   force to it" (10:29–10:39). This is directly measurable today from `sampleMotion`'s existing
+   `linear_velocity` series joined against a contact marker — nothing currently runs that specific
+   join. It's the anticipation-side mirror of the existing `external_force_easing_override` card
+   (that one says don't ease OUT of an impact; this says don't decelerate INTO one either). Wrote
+   **`peak_spacing_immediately_before_impact`**.
+4. A fist-path-straightening pass ("I want my arm... to be going kind of in a straight line,"
+   09:15–09:24) is a second, independent source for checks-queue item #11
+   (`single_axis_attack_flag`, originally from video 6) — noted as corroboration, not a new entry.
+5. The counterbalancing arm used to fix an off-balance forward-leaning pose is explicitly credited
+   with improving BOTH balance and silhouette in the same move (05:48–05:56) — a nice practical
+   synthesis point, not distinct enough from existing balance/silhouette cards for its own entry.
+
+**Contradicted an existing card:** none.
+
+**Cross-checks:** none formally logged this video (the closest matches — `body_lead`,
+`external_force_easing_override`, checks-queue #11 and #26 — are all cited as direct interactions
+inside the three new entries above rather than as separate confirmations, since each new entry adds
+real content beyond a restatement).
+
+**Capture candidate:** none — a Maya viewport screen recording, no filmed human performance.
+
+**Checks for the queue:**
+- `check: proximal_distal_arrival_gap — given a declared strike chain, compare the frame each
+  joint reaches its own peak completion (analyseChain onset/peak) between the proximal end (hip/
+  torso) and the distal end (fist); the proximal end should peak measurably earlier — buildable
+  directly from analyseChain's existing per-joint series — video 34 @ 07:28–07:49`
+- `check: peak_velocity_frame_vs_contact_marker — locate the frame of maximum linear_velocity for
+  a striking effector and compare its distance from a declared contact/impact marker; expect
+  near-zero distance for a forceful strike — buildable from sampleMotion + ai/events.js markers,
+  both already real — video 34 @ 09:17–10:39`
+
+**Entries written:** `W04-34-proximal-to-distal-power-sequencing.json`,
+`W04-34-reach-pose-calibrated-against-placeholder-target.json`,
+`W04-34-peak-spacing-immediately-before-impact.json` — all three pass `validateProposedEntry` and
 `validateEvidenceSource` cleanly.

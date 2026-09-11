@@ -1,0 +1,38 @@
+{
+  "concept": "peak_spacing_immediately_before_impact",
+  "category": "advanced",
+  "definition": "A strike's effector (a fist, a weapon tip) should reach its LARGEST frame-to-frame spacing in the frames immediately BEFORE contact, not at some earlier point in the swing - i.e. the strike keeps accelerating (or at minimum does not decelerate) all the way into the hit, verified directly by visualizing the path with per-frame position markers and checking that the widest gap between consecutive markers sits right next to the impact frame, the same way a bouncing ball's largest per-frame drop is the one immediately before it hits the floor.",
+  "purpose": "Give 'the punch needs more force' a specific, checkable target (where the curve's peak spacing sits relative to the contact frame) instead of an unquantified feeling.",
+  "visible_effect": "The visualized motion path shows its widest gap between consecutive frame markers adjacent to the contact pose, with the gaps on either side of it smaller - rather than the widest gap sitting in the middle of the swing with the final approach to contact narrowing (decelerating) instead.",
+  "psychological_or_gameplay_effect": "A strike whose peak spacing sits well before contact reads as running out of energy right before the hit lands, even if the overall swing looks fast; moving that peak spacing to be adjacent to the contact frame is what the video credits for taking the same punch from feeling weak to feeling like it 'has much more force to it'.",
+  "physical_interpretation": "A direct analogue of a real accelerating object under constant or increasing force (the video's own comparison: a bouncing ball's largest per-frame drop is the one right before it hits the floor) - peak spacing next to the moment of contact is the spacing signature of something that never stopped speeding up before it hit.",
+  "use_cases": [
+    "any strike, throw, or swing whose contact needs to read as maximally forceful",
+    "a diagnostic check on an already-blocked strike: does the widest spacing gap sit next to the contact frame, or does it sit somewhere earlier in the swing"
+  ],
+  "non_use_cases": [
+    "a controlled, non-forceful touch or tap, where a decelerating approach into contact is the correct read",
+    "a strike that is deliberately intercepted, parried, or otherwise does not connect at full extension - the peak-spacing-at-contact expectation assumes an unobstructed hit"
+  ],
+  "interactions": [
+    "external_force_easing_override (W01, video 5) - the companion rule for the OTHER side of the same impact moment: that card says don't ease OUT of an externally-caused stop; this entry says don't ease INTO the impact either (don't decelerate on approach) - together the two describe an impact frame that is abrupt on both sides, not smoothly connected to either neighbour",
+    "single_axis_attack_flag (checks queue #11, video 6) - this video's own fist-path-straightening pass (\"I want my arm... to be going kind of in a straight line\", video @ 09:15-09:24) is a second, independent source for that queued check's underlying claim",
+    "spacing_subdivision_method_ladder / asymmetric_spacing_preference - this entry is a specific, contact-anchored case of an asymmetric spacing curve, naming WHERE the asymmetry's peak must sit (immediately pre-contact) rather than leaving the asymmetry's direction unstated"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly measurable today: `ai/motion.js sampleMotion` already computes per-frame `linear_velocity` (studs/frame, from central difference of position) for any tracked effector, which is exactly the spacing curve this technique is checking - finding the frame of maximum velocity and comparing it against a declared contact/impact marker (`ai/events.js`) is a real, buildable check from data this build already produces. Nothing currently runs that specific comparison.",
+  "control_surface": "`analyze_motion` (`sampleMotion`) already reports the velocity curve; `ai/events.js` markers already carry contact/impact timing; nothing joins the two into this specific check.",
+  "detection_and_measurement_methods": "Real and buildable: locate the frame of maximum `linear_velocity` for the striking effector within the swing's frame range, and compare its distance from the declared contact/impact marker - a near-zero distance confirms this technique, a large distance flags a strike that peaked too early and decelerated into contact.",
+  "generation_or_modification_methods": "`acceleration_contrast`/`spacing_evenness` already shape a phase's easing curve; authoring a curve whose peak velocity sits adjacent to a specific declared frame (rather than at the phase's midpoint or elsewhere) is not a named, dedicated option today, though it is expressible by hand-choosing the right easing direction on the keys bounding the phase.",
+  "failure_modes": [
+    "a strike whose widest spacing gap sits in the middle of the swing, decelerating into the actual contact frame - the exact problem the video diagnoses and fixes live",
+    "over-reading this rule onto a deliberately soft or controlled touch, where a decelerating approach is the physically correct choice"
+  ],
+  "roblox_considerations": "None beyond the existing keyframe/easing model - directly checkable the same way in Roblox's Animation Editor once a contact frame is marked.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"in the same way we have a bouncing ball we want that spacing right before the ball hits the floor to be the biggest distance it travels... this frame right here a big space\" (video @ 09:17-09:57), demonstrated using a motion trail with visible per-frame markers (\"frame crosses\") on the fist specifically to check this",
+    "the stated result of pushing the peak spacing next to the contact frame: \"now we get this big spacing right before the impact and we're kind of easing into that... that punch has much more force to it\" (video @ 10:29-10:39)"
+  ],
+  "evidence_status": "video: https://youtu.be/tcBT-6wdSC8 @ 09:17-10:39 - Greg Marlow states the bouncing-ball analogy directly and demonstrates checking it live with a Maya motion-trail tool showing per-frame position markers on the fist; no frame in this session's 9-frame sample falls in this exact window (the video's sparse 9-frame sample missed this section entirely, per its own sparse-coverage warning for an 11:44 video), so this rests on the transcript's specific, concrete description rather than a directly-viewed motion trail; experimental until validated"
+}

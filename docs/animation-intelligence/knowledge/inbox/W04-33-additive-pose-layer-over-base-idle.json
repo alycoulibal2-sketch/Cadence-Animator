@@ -1,0 +1,39 @@
+{
+  "concept": "additive_pose_layer_over_base_idle",
+  "category": "advanced",
+  "definition": "Improving an existing idle animation's posing (stance width, elbow/hand silhouette, spine arc, head tilt) by authoring the changes as a separate ADDITIVE layer stacked on top of the original animation, rather than re-keying or overriding the base animation directly - the base loop is left completely intact underneath, and the additive layer's pose offsets are what a reviewer or later editor can isolate, disable, or delete independently to compare against the unmodified original.",
+  "purpose": "Let a posing polish pass be made, reviewed by direct before/after comparison, and reverted without touching or re-authoring the original animation data at all.",
+  "visible_effect": "The character's pose changes (wider stance, clearer limb silhouette, spine arc, head tilt) while the underlying base idle loop's own keys are provably unchanged - toggling the additive layer off instantly and exactly restores the original, with no re-keying needed to do so.",
+  "psychological_or_gameplay_effect": "None directly on the player; the effect is entirely on the AUTHORING process - a reviewer can A/B the change with a single toggle rather than by comparing two saved versions of the same clip.",
+  "physical_interpretation": "Not physical - a data-layering convention, not a property of the motion itself.",
+  "use_cases": [
+    "posing polish on an already-shipped or already-approved base animation, where the original must remain recoverable exactly",
+    "any revision an animator wants to demonstrate as a clean before/after A/B comparison, as this video's own presenter does by deleting the layer live on screen",
+    "iterating on a character-specific pose (silhouette, stance, line of action) without repeatedly re-keying the same base loop by hand each time"
+  ],
+  "non_use_cases": [
+    "a change that must affect the base loop's own timing or keys, not just its pose values (an additive layer only offsets pose, it does not retime)",
+    "a final, permanent revision where keeping the original recoverable underneath has no value and merging the layer into the base data is simpler"
+  ],
+  "interactions": [
+    "pose_workflow - this is a specific AUTHORING-ORGANIZATION technique orthogonal to the pose-to-pose vs straight-ahead choice that card already covers; either workflow's result could be stored as a base clip plus an additive layer",
+    "silhouette_readability_diagnostic_pass (W03, video 25) - the elbow/hand silhouette fix this video's presenter makes is a direct application of that card's technique; the additive-layer packaging is this entry's own, separate contribution",
+    "structural_understanding / appeal - the pose changes made inside the additive layer (line of action, balance) are exactly what those cards already discuss measuring; this entry is about WHERE the resulting keys live, not what they should contain"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and a genuine, confirmed gap: Cadence's own codebase has no additive-POSE-layer concept anywhere - a repo-wide search for \"additive\" finds it used only for VFX particle blend modes (`effectLibrary.js`/`effectExport.js`'s `blendMode: 'additive'`, a rendering concept), never for stacking a pose offset on top of an existing animation track. `renderer/js/state.js`'s project model keys a single value per property per frame; there is no second, stackable offset layer a caller could add and later disable independently of the base track.",
+  "control_surface": "None - `set_keyframe` and every `ai/plan.js` strategy write directly to the single existing track for a property; there is no parallel additive-track concept to write to instead.",
+  "detection_and_measurement_methods": "Not applicable - this is an authoring/data-organization pattern, not a property of a finished motion `ai/motion.js` would measure.",
+  "generation_or_modification_methods": "None - authoring an additive layer distinct from the base track is not something any existing `ai/plan.js` strategy or `authorMotion` step does; every write lands on the same track the base animation already occupies.",
+  "failure_modes": [
+    "re-keying the base loop directly for a posing polish pass, losing the ability to instantly and exactly A/B against the original the way this video's presenter demonstrates",
+    "stacking multiple additive layers with no clear ordering or review process, making it unclear which layer is responsible for which visible change"
+  ],
+  "roblox_considerations": "Roblox's own `Animator`/`AnimationTrack` API supports additive animation priority and layered tracks directly, so this technique is directly reachable on the target engine even though Cadence's own project model has no equivalent yet.",
+  "performance_implications": "An extra blended track evaluated per frame at runtime - the same general cost class as any additional animation layer, not named or quantified by the source.",
+  "examples": [
+    "\"I'll create a new pose with nice line of action, nice silhouette and personality... on top of the current animation. I'm not going to override it. I'm just going to do an additive layer and add a new pose on top\" (video @ 04:15-04:29)",
+    "the reviewer's own use of the layer for direct comparison: \"I will quickly delete what I did so you can see the difference... Delete. This is what it was before\" (video @ 05:18-05:30), confirmed in this session's own focused frame sample (t=04:37 and t=05:29) showing the character's pose in a two-panel viewport comparison either side of that edit"
+  ],
+  "evidence_status": "video: https://youtu.be/tYwNSm8Q3l8 @ 04:15-05:30 - Libby Pete states the additive-layer, not-override choice directly and demonstrates the resulting A/B comparison live in an Unreal-Engine-style viewport; this session's own focused re-extraction at t=04:37-05:29 confirms the surrounding viewport and character context but does not, on its own, prove the underlying data is layered rather than merely re-keyed and reverted - that specific claim rests on the presenter's own stated workflow description; experimental until validated"
+}

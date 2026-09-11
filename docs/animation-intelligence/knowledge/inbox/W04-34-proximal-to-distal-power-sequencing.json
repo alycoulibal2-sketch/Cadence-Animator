@@ -1,0 +1,40 @@
+{
+  "concept": "proximal_to_distal_power_sequencing",
+  "category": "advanced",
+  "definition": "For a forceful strike (a punch, a throw), the body's proximal mass (hips, torso, the stepping foot) reaches its own final contact-pose configuration EARLIER, within the same travel, than the distal limb (arm, fist) does - the limb is deliberately posed still trailing behind at the moment the torso/foot have essentially arrived, so the body's accumulated momentum reads as funnelling through the limb and releasing at its tip, rather than the limb making the whole journey on a uniform, undifferentiated schedule.",
+  "purpose": "Give a strike its force specifically through WHEN each part of the body arrives at the shared final pose, naming the root cause of a common beginner mistake (posing a stronger-looking extreme while every part of the body arrives on the same timing) rather than leaving 'make it feel powerful' unexplained.",
+  "visible_effect": "At a breakdown frame partway through the strike, the hips/torso and the stepping foot are already essentially at their final contact configuration while the arm is still visibly short of full extension and the fist has not yet reached the target - the two ends of the same chain are at visibly different completion fractions of the same transition.",
+  "psychological_or_gameplay_effect": "The video names the failure mode directly: taking an idle pose and simply extending the arm 'doesn't feel like it hurts and it doesn't feel like it has any energy behind it', because every part arrives together with nothing to fall through; sequencing proximal-before-distal is what makes the strike read as the body's own mass driving the fist rather than the arm acting alone.",
+  "physical_interpretation": "An approximation of the real kinetic-chain / summation-of-speed principle in human strikes and throws - a real baseball pitcher's body moves out in front while the ball stays back until last, so the whole body's momentum has already been committed by the time the hand releases, maximizing what that hand can be given.",
+  "use_cases": [
+    "any strike, throw, or swing whose force is meant to read as coming from the whole body rather than from the limb alone",
+    "diagnosing a punch, throw, or swing that reads as weak despite an extreme-looking end pose - checking whether every part arrived on the same schedule is the video's own first thing to look for",
+    "scaling how MUCH proximal-before-distal offset to use to a declared punch/throw power, rather than a single fixed amount for every strike"
+  ],
+  "non_use_cases": [
+    "a weak, dismissive, or intentionally low-effort strike, where uniform arrival (or even distal-leads-proximal) is the correct read",
+    "a strike whose power source is external rather than the character's own body (a weapon swing driven mostly by the weapon's own momentum once released)"
+  ],
+  "interactions": [
+    "Body lead (`ai/vocabulary.js`, implemented) - `body_lead`'s existing default (per-joint key offsets ordered by chain depth, root/proximal first) already compiles the STRUCTURE this entry describes; what that dimension's own documentation frames as serving organic/acting feel, this entry gives a second, specific PURPOSE for (force/velocity amplification down the chain) and a case for scaling the offset amount to a declared strike power, which the existing dimension's docs do not mention",
+    "deliberate_lead_choice_for_acting (W02, video 18) and lead_joint_matches_declared_intent (checks queue #26, W02 video 18) - both are about a DECLARED lead joint for acting/emotional reasons; this entry is the same underlying missing capability (a declared lead, not always the anatomical root) applied to POWER delivery instead, adding a ninth real case to the structural note W02 already left for whoever builds a declared-lead-joint capability",
+    "weight_then_strength_formula (this batch, video 34's own baseball-pitch comparison is a different beat of a related idea) - that card's two-beat struggle-then-release formula is about a HEAVY OBJECT read; this entry is about a STRIKE'S own internal sequencing, a related but distinct claim about force, not weight"
+  ],
+  "style_variations": {},
+  "cadence_representation": "The STRUCTURE is already representable via `body_lead`'s existing chain-depth-first default (proximal initiates, distal follows) - but nothing currently scales the offset amount to a declared strike power, and nothing currently authors this as a BREAKDOWN pose specifically (one frame where different joints sit at different completion fractions of the same transition), which is exactly what `authorMotion`'s breakdown mechanism (`AUTHOR_STEP_KINDS`, POSE BIAS at a declared frame) is built to do but is not currently wired to a declared power value.",
+  "control_surface": "`body_lead` vocabulary dimension (edit path); `authorMotion`'s `phases[].breakdown` (`at`, `bias`) (generation path) - both already exist; neither currently takes a declared power/force value to scale the offset by.",
+  "detection_and_measurement_methods": "Real and buildable: `ai/motion.js analyseChain` already measures per-joint onset and peak timing along a declared chain, which is exactly the data needed to confirm the hips/torso reach their own peak completion before the fist reaches its own peak completion - the same measurement `lead_joint_matches_declared_intent` (checks queue #26) already names, applied here to a power-strike case specifically.",
+  "generation_or_modification_methods": "`authorMotion`'s breakdown step already computes a POSE BIAS at a declared frame for any named phase; using it to place the torso/foot ahead of the arm at the SAME breakdown frame is already mechanically possible today, it is just not the pattern any existing template or documentation calls out for a strike specifically.",
+  "failure_modes": [
+    "posing every part of the body to arrive at the final strike pose on the same schedule, which the video names directly as the single most common mistake it sees - visually indistinguishable from an idle pose with the arm extended",
+    "sequencing distal-before-proximal (the fist arrives first, the body catches up after), which reads as an arm-only strike with no body weight behind it"
+  ],
+  "roblox_considerations": "None beyond the general keyframe/chain model already in place.",
+  "performance_implications": "None.",
+  "examples": [
+    "the baseball-pitch cross-domain comparison, watched in slow motion: \"that baseball is always one of the last things... the rest of his body is out in front... all of that energy from his body moving forward... he is transferring into this arm and eventually out through that ball\" (video @ 02:57-03:24, the reference clip confirmed directly in this session's frame at t=03:42)",
+    "the authored fix, stated directly while working in the graph/pose editor: \"I'll go ahead and make this pose here to where the foot contacts already right... my body is going to get there early but I want the rest of my upper torso... I want that to take a little while longer\" (video @ 07:28-07:49)",
+    "the named failure mode: a punch pose made by taking the idle pose and extending the arm, called out directly as looking weak with \"no energy behind it\" (video @ 04:17-04:38)"
+  ],
+  "evidence_status": "video: https://youtu.be/tcBT-6wdSC8 @ 02:57-07:49 - Greg Marlow states the principle directly via the baseball-pitch analogy and then demonstrates the authored breakdown pose live in a Maya viewport using AnimBot/tween-machine tools; the Maya viewport with a posed punch is directly confirmed in this session's frame at t=03:43, though the specific breakdown-frame edit itself falls in an unsampled stretch (only 9 scene-change frames were selected across this 11:44 video); cross-checked against `ai/vocabulary.js body_lead` and `ai/plan.js authorMotion` breakdown mechanism read directly from source in this session; experimental until validated"
+}

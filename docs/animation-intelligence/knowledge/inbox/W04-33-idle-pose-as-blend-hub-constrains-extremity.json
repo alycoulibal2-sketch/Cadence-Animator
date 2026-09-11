@@ -1,0 +1,36 @@
+{
+  "concept": "idle_pose_as_blend_hub_constrains_extremity",
+  "category": "advanced",
+  "definition": "A game idle's pose must stay balanced and mechanically moderate specifically BECAUSE it is the animation every other state blends into and out of - an extreme, off-balance, or structurally awkward idle pose is harder to blend cleanly into a large connected set of other animations, so the idle's own posing is constrained by its role as a shared transition hub, not only by how it looks held in isolation.",
+  "purpose": "Explain WHY an idle pose has a stricter balance/moderation requirement than a one-off cinematic pose: name the downstream blending cost of an extreme idle explicitly, rather than leaving 'keep it balanced' as an unexplained rule of thumb.",
+  "visible_effect": "An idle pose kept close to a neutral, weight-supported stance blends smoothly into locomotion, combat, and reaction states; a more extreme or off-balance idle pose produces a visibly awkward or discontinuous transition wherever another animation blends from or into it.",
+  "psychological_or_gameplay_effect": "The player never consciously notices a well-chosen idle's blend-friendliness, but a badly-chosen one surfaces as visible popping or awkward transitions across many DIFFERENT gameplay moments at once, since the idle sits at the hub of the whole animation graph rather than being seen in only one context.",
+  "physical_interpretation": "Not physical - a production-pipeline constraint specific to how a real-time animation graph blends between states, with no equivalent in a single, non-interactive shot.",
+  "use_cases": [
+    "posing or reviewing any idle, or other frequently-blended-from state (a base locomotion pose, a common combat stance), in a real-time game's animation graph",
+    "deciding how far a character-specific posing pass (stance width, limb offset, spine curve) can be pushed before it starts to cost blend quality elsewhere"
+  ],
+  "non_use_cases": [
+    "a pose used in exactly one context with no blending in or out to protect (a single cinematic shot, a non-interactive cutscene pose)",
+    "a deliberately extreme idle where blend smoothness is intentionally sacrificed for a stronger held-pose read (a boss or a stylised one-off character with few or no blended transitions)"
+  ],
+  "interactions": [
+    "structural_understanding / appeal - balance and line-of-action are exactly what those cards already discuss measuring on a single pose; this entry adds the REASON an idle specifically needs to stay moderate on both, which those single-pose-focused cards do not state",
+    "additive_pose_layer_over_base_idle (this batch, video 33) - the additive-layer technique that entry describes is itself a way to push an idle's posing further (and revert cleanly) while checking it against exactly this blend-hub constraint before committing"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and outside what Cadence currently models at all: Cadence has no animation-graph or blend-tree concept - `ai/motion.js`/`ai/pose.js` measure and author ONE clip at a time, with no notion of which other clips a given animation blends from or into, so there is no data this build could check an idle's 'blend cost' against even in principle.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "Not measurable in this build: judging whether a pose is 'moderate enough to blend well' requires knowing the SET of other poses it blends with, which is an animation-graph concept this build does not represent at all - a different and larger gap than an unmeasured single-pose property.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "posing an idle as if it were a one-off cinematic shot, pushing balance or extremity further than its role as a shared blend hub can actually support",
+    "discovering a blend problem only after wiring the idle into the full animation graph, rather than accounting for its hub role during the initial posing pass"
+  ],
+  "roblox_considerations": "Roblox's own Animator blends between AnimationTracks using their own priority/fade settings, so the same hub-constraint reasoning applies directly there; Cadence has no blend-tree model to check it against on either engine.",
+  "performance_implications": "None measured; a real animation graph's blend cost itself is a runtime concern the source does not quantify.",
+  "examples": [
+    "\"we also want to make sure that our poses are well balanced and mechanically sound, especially for games because you need this pose to flow into a bunch of other animations. So if you have some crazy pose that's going to be hard to flow in and out of... you're going to have a hard time creating nice fluid animations that the player will resonate with\" (video @ 01:22-01:40)"
+  ],
+  "evidence_status": "video: https://youtu.be/tYwNSm8Q3l8 @ 01:22-01:40 - Libby Pete states the blend-hub reasoning directly and explicitly as the reason idle posing has a games-specific constraint beyond film posing; no frame in this session's sample corresponds to this specific spoken passage (it is stated over a talking-head shot with no supporting diagram), so this rests on the transcript alone; experimental until validated"
+}

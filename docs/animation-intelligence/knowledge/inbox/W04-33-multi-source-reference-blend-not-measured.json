@@ -1,0 +1,38 @@
+{
+  "concept": "multi_source_reference_blend_not_measured",
+  "category": "advanced",
+  "definition": "A distinct, common reference-gathering pattern: collecting SEVERAL existing sources (real-life photos/footage and other animated or game works) as inspiration for a new pose or motion, explicitly not copying or measuring any single one exactly, and filtering the blend through the animator's own prior understanding of the subject - contrasted with grounding a motion in ONE measured, physically-performed or filmed reference (`physical_reference_timing_method`).",
+  "purpose": "Name a second, equally legitimate reference workflow distinct from the measured/filmed-self-performance one already documented, so 'gather reference' is not treated as a single technique with one correct method.",
+  "visible_effect": "The resulting pose or motion resembles no single cited source exactly - it carries a design language or physical quality recognisably drawn from several sources at once (a wide stance and forward-leaning arm-drive common across multiple athletic reference photos/clips; a head-tilt and serious expression common across multiple character reference images) without reproducing any one of them.",
+  "psychological_or_gameplay_effect": "Produces a result that reads as informed and grounded (because it echoes real or well-designed sources) while still reading as original to the character or shot at hand, rather than as a copy of one identifiable source.",
+  "physical_interpretation": "Not a physical measurement - an explicitly qualitative synthesis step that depends on the animator's own existing understanding of the underlying physics or design language to filter and combine multiple sources sensibly, rather than reading any single number off any one of them.",
+  "use_cases": [
+    "designing a character-specific pose or silhouette where a single reference source would risk reading as a copy of that one source",
+    "a motion the animator already understands the physics of well enough to combine several partial inspirations into one coherent result without measuring any of them",
+    "situations where filming a personal, measured performance (`physical_reference_timing_method`) is unavailable, impractical, or simply not how the animator chose to work for that shot"
+  ],
+  "non_use_cases": [
+    "a motion whose exact timing or spacing needs to be GROUNDED in a real measurement - this technique explicitly supplies inspiration, not numbers, and should not be cited as if it had measured anything",
+    "a case where blending multiple sources risks reproducing one of them closely enough to raise a plagiarism concern - the sources in both cited videos are used explicitly to avoid this, not to invite it"
+  ],
+  "interactions": [
+    "physical_reference_timing_method (W01, video 9) - the measured, single-source sibling of this entry: that technique grounds a phase's exact duration or key placement in a stopwatch reading or filmed timecode; this entry is the qualitative, multi-source alternative used when no such measurement is taken",
+    "line_of_action_shape_and_scope (W03, video 23) - one of this entry's own cited sources (video 33's Bucky reference image) is explicitly read for its line of action, connecting the two techniques: multi-source reference gathering is often IN SERVICE OF spotting a specific principle like line of action in several places at once"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and out of scope for the same reason `physical_reference_timing_method` already states: this is a pre-authoring research step using material entirely outside any Cadence project, before any project data exists for this build to read or measure.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "None - a qualitative, pre-authoring judgement call about which of several external sources to draw from and how, not a property of finished project data.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "leaning so heavily on one of several cited sources that the result reads as a copy of it rather than as an original blend - both source videos explicitly warn against this",
+    "blending sources the animator does not actually understand the underlying physics or design intent of, producing a result that looks referenced but does not hold together mechanically"
+  ],
+  "roblox_considerations": "None specific - a pre-authoring research method independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"I just went online... found some references of people jumping high. Now, I'm not going to copy any of these exactly. I'm just going to use them all as a bit of inspiration... because I do understand the basics of the physics of the jump\" (video 32 @ 01:19-01:39)",
+    "\"I usually find reference from real life and from other... animated works cuz I find that having inspiration with clean line of action and design language from animated works can be very helpful, but you don't want to plagiarize ever obviously. And you also want to come up with something new\" (video 33 @ 03:21-03:38), followed by naming the specific sources used - Bucky from Marvel Rivals and Green Beret reference photos (video 33 @ 03:41-03:48)"
+  ],
+  "evidence_status": "video: https://youtu.be/VjRCxm8nrNE @ 01:19-01:39 (Jason Martinson) and https://youtu.be/tYwNSm8Q3l8 @ 03:21-03:48 (Libby Pete) - both presenters state this same multi-source, non-copying, understanding-filtered reference pattern directly and independently, for two different purposes (motion timing/texture vs. pose/silhouette design) in the same batch; this session's frame sample confirms the Green Beret and Bucky reference images on screen in video 33 (t=01:56-01:58) and a basketball jump-shot reference clip in video 32 (t=05:54); experimental until validated"
+}

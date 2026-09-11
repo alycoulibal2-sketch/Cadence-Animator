@@ -1,0 +1,36 @@
+{
+  "concept": "reach_pose_calibrated_against_placeholder_target",
+  "category": "advanced",
+  "definition": "Calibrating a strike or reach's extreme pose by placing a stand-in target object just out of the character's comfortable reach, then pushing every available joint (spine twist, clavicle, arm stretch/extension) toward it until the pose is close to breaking, rather than choosing the extreme pose's exact extent by eye alone - the placeholder target is deleted or ignored once its job (calibrating how far the pose can plausibly go) is done.",
+  "purpose": "Give a reach or strike's most extreme pose an objective, checkable target to push against, instead of a distance chosen purely by visual judgement with nothing to verify it against.",
+  "visible_effect": "The extreme pose visibly uses every available joint to close the last part of the distance to the target (a spine twist, a clavicle push, a fully stretched arm) rather than stopping short with an under-extended pose, or breaking the rig by reaching past what those joints can plausibly cover.",
+  "psychological_or_gameplay_effect": "A pose visibly pushed to its plausible limit reads as more committed and powerful than one that stops at a comfortable, un-stressed extension - the video frames this explicitly as turning a weak first pass into 'a much stronger punch pose'.",
+  "physical_interpretation": "A real strike is thrown to actually connect with a target at a specific distance, so a pose calibrated against a placeholder at that same distance is closer to what the joints would really have to do than a pose chosen with no target distance in mind at all.",
+  "use_cases": [
+    "any strike, reach, or grab whose extreme pose's exact extent matters (does the hand plausibly reach the target, and how much of the body has to contort to get there)",
+    "diagnosing why an extreme pose reads as insufficiently committed - checking it against an explicit target distance rather than adjusting it by eye alone"
+  ],
+  "non_use_cases": [
+    "a pose with no specific spatial target to reach for (a non-contact gesture, an idle) where there is nothing meaningful to calibrate against",
+    "a final production pass where the placeholder's job is already done and an explicit contact/IK target (not a throwaway placeholder) should be used instead"
+  ],
+  "interactions": [
+    "structural_understanding / appeal - the resulting pose's balance and line of action are exactly what those cards already discuss measuring; this entry is about HOW the pose's raw extent gets decided in the first place, upstream of judging the result",
+    "solve_ik / compute_swing_twist (existing Cadence tools) - a placeholder target used this way is conceptually the same thing an IK target already is in Cadence; the video's version is a manual, iterative, by-eye process rather than a single solve"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Partially reachable, through a different route than the source's manual process: Cadence already has `solve_ik` (analytic two-bone IK onto a target in studs) and `compute_swing_twist`, which could place an effector exactly at a declared target position directly rather than iteratively nudging a pose toward one by eye - but nothing currently reports whether a solved reach is NEAR the rig's own limit (close to breaking, in the video's own words) versus comfortably within it, which is the specific judgement the video's manual push-toward-the-target process is making at each step.",
+  "control_surface": "`solve_ik` already solves an effector onto a declared target; nothing reports margin-to-limit for the result.",
+  "detection_and_measurement_methods": "Partially real: CLAUDE.md's own documented reach-limit facts (e.g. an R15 leg chain's exact 1.85-stud maximum, an arm's 1.6888-stud maximum) mean a solved reach's distance from its declared target, and its distance from the chain's own known maximum, are BOTH already computable numbers - what is not built is reporting the second one (how close to breaking a given reach pose is) as a named result a caller would see.",
+  "generation_or_modification_methods": "`solve_ik` already generates a reach pose onto a declared target in one solve; the video's manual, iterative joint-by-joint push (twist first, then clavicle, then arm stretch) toward a target is a different, exploratory process this build does not need to replicate once a target is declared, since the analytic solve already exists.",
+  "failure_modes": [
+    "choosing an extreme pose's reach distance with no target to check it against, leaving it either under-committed or past what the rig can plausibly cover",
+    "leaving a placeholder target object in the final data after its calibration job is done, rather than replacing it with a real declared contact or IK target"
+  ],
+  "roblox_considerations": "None beyond the existing rig/IK model - Roblox's own IK API can solve onto a declared world target the same way `solve_ik` does.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"I will create an object for the character to punch... put it just out of his reach and I will try to push this pose to see how far I can get this character to reach forward before I start to break it... just by twisting his body... maybe I would also use the clavicle push that a little bit more... if I have some options to stretch this arm maybe I would even consider doing that\" (video @ 04:58-05:33)"
+  ],
+  "evidence_status": "video: https://youtu.be/tcBT-6wdSC8 @ 04:58-05:33 - Greg Marlow describes and performs this calibration process live while posing the punch in a Maya viewport; no frame in this session's 9-frame sample falls in this exact window (nearest sampled frames are at t=03:43 and t=03:43, before this passage), so this rests on the transcript's specific, concrete description rather than a directly-viewed pose; experimental until validated"
+}
