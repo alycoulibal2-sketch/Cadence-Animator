@@ -19,7 +19,10 @@
     "Structural understanding — spine shape is a direct, visible expression of that card's balance/volume concern, specific to the torso chain",
     "Exaggeration — the two contrasting extreme shapes (C, then reverse-C) are themselves a selective-amplification choice: the spine is exaggerated at the extremes and settles between them"
   ],
-  "style_variations": { "realistic": "curvature kept subtle — a slight, physically plausible bend rather than a graphic C/S shape", "cartoon": "the letter-shapes can be pushed further and held longer, closer to the source example" },
+  "style_variations": {
+    "realistic": "curvature kept subtle — a slight, physically plausible bend rather than a graphic C/S shape",
+    "cartoon": "the letter-shapes can be pushed further and held longer, closer to the source example"
+  },
   "cadence_representation": "A genuinely strong fit, unlike squash & stretch's own mesh-deformation problem: a whole-spine curve is nothing more than a coordinated sequence of ordinary joint rotations down the spine chain (however many spine joints the rig provides), which Cadence's rigid Motor6D rig already represents natively — no mesh deformation is needed at all, unlike the compression/extension half of the same beat. Nothing currently names \"C-shape / S-shape / reverse-C-shape\" as a posing vocabulary a caller could request, but every rotation needed to build one is already an ordinary keyframe.",
   "control_surface": "Direct per-joint rotation down a spine chain via `set_keyframe`/`authorMotion`'s pose-per-phase mechanism; no named \"spine curve shape\" vocabulary term exists to request one declaratively.",
   "detection_and_measurement_methods": "None dedicated — `ai/pose.js`'s line-of-action measurement is the closest existing concept (a single sweeping curve summarizing a pose's dominant visual line) but nothing specifically measures spine-chain curvature as its own quantity or classifies it against a named letter-shape.",

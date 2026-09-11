@@ -253,10 +253,16 @@ a failure in a step your change touched.
 
 ## 7. Decisions that are the user's
 
-1. Which videos to watch and which clips to capture (§3C, §3D).
+1. Which videos to watch and which clips to capture (§3C, §3D). **Still open** — the capture queue
+   in `LESSONS.md` has seven candidates with exact timestamps, and `CORPUS.md` is the click path.
 2. Anything that costs money — the answer is no unless the user says otherwise.
 3. Whether captured (estimated) clips may serve as references for the director's loop in the next
-   prompt — default yes, labelled.
+   prompt. **ANSWERED 2026-09-11: yes, labelled.** A captured clip is a reference like any other,
+   and every result that touches one carries `estimated: true` and its source video through to the
+   caller — `add_to_library` refuses an entry that claims otherwise, `search_library` and
+   `load_from_library` both flag it, and its Part 36 profile is advisory twice over. The director's
+   loop may compare against one; it may never present a measurement taken from one as a fact about
+   the performer in the video.
 
 ## 8. End of the session
 

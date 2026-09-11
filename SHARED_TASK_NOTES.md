@@ -1203,10 +1203,23 @@ baseline → scoped edit* is the GPU pixel-comparison flake. Both execute BEFORE
 new learning-loop step passed in 170 ms and proves the cross-project claim end to end: a clip
 stored from project A is found and loaded in project B with the user's rig byte-identical.
 
-**For whoever comes next:** the corpus is the bottleneck now, and it is the user's to unblock —
-`CORPUS.md` and the capture queue in `LESSONS.md` are what they need. On the code side the
-cheapest high-value row is check #10 in `LESSONS.md` (`external_force_easing_mismatch`): both
-halves are already measured, so it is a join rather than a new measurement, and an eased-in key on
-a declared impact is a defect `review_shot` could report today with `certain` certainty. Then
-Slice F from `NEXT_SESSION_PROMPT.md`. The two evaluated architecture proposals and the
-starting-recipe question are still the user's.
+**Two decisions came back from the user at the end of this session:**
+
+1. **A captured (estimated) clip MAY serve as a reference the director's loop compares against —
+   labelled.** `LEARNING_LOOP_PROMPT.md` §7.3 is answered. Every result that touches one already
+   carries `estimated: true` and its source video; the line that must not be crossed is
+   presenting a measurement taken from an estimate as a fact about the performer in the video.
+2. **Build check #10 first, then Slice F.** Asked which to do first, the user said to choose, and
+   the choice is `external_force_easing_mismatch`: cross-reference a declared impact/contact
+   marker against the easing style on the key at that frame and flag an eased-in key on an impact
+   (`LESSONS.md` check 10, evidence video 5 @ 4:26–4:58). Both halves are already measured, so it
+   is a join rather than a new measurement, and it is the first real test of whether this loop
+   pays for itself — a technique seen in a video becoming a check the product runs, with the video
+   timestamp still attached as its evidence. When it lands, give
+   `knowledge/external_force_easing_override.json` the `measurement_keys` that back it and
+   `review_shot`'s `knowledge_checks` picks it up with no further work.
+
+**For whoever comes next:** the corpus is the other bottleneck and it is the user's to unblock —
+`CORPUS.md` and the capture queue in `LESSONS.md` are what they need; do not invent one. After
+check #10, Slice F from `NEXT_SESSION_PROMPT.md`. The two evaluated architecture proposals and
+the starting-recipe question are still the user's.

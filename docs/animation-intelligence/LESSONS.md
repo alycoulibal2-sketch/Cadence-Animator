@@ -38,10 +38,33 @@ that lands in `ai/motion.js MEASUREMENTS` should be wired to its knowledge entry
 | 13 | `spacing_curve_asymmetry` — the shape of the velocity/acceleration curve either side of a phase's midpoint; a large deliberate asymmetry is a signal, not a defect | `sampleMotion` | video 8 @ 3:55–7:09 |
 | 14 | `multi_segment_pacing_signature` — local extrema in a phase's velocity curve; more than one means mixed hold pacing rather than a single ease | `sampleMotion` | video 8 @ 8:41–10:12 |
 | 15 | `bounce_decay_rate_matches_declared_material` — successive bounce-height ratio across a decay sequence | position keys | video 10 @ 2:19–3:08 |
+| 16 | `spacing_subdivision_signature` — classify the velocity curve between two keys as halves-, thirds- or favors-shaped. Descriptive, never pass/fail | `sampleMotion` | video 11 @ 6:59–8:01 |
+| 17 | `dps_floor_vs_action_duration` — key density against the action's own frame count; flag a pose count below what its speed plausibly needs to read | `keyDensity` | video 11 @ 4:14–4:39 |
+| 18 | `obscure_arc_vs_main_arc_divergence` — curvature of a declared secondary tracked part against the main one during a turn. Divergence is EXPECTED and healthy, not a defect | MOT-005 curvature | video 12 @ 8:36–9:18 |
+| 19 | `float_signature_detection` — a velocity curve with two distinct low-speed regions rather than one smooth decay to zero | `sampleMotion` | video 12 @ 3:41–4:28 |
+| 20 | `value_change_visibility_gap_coverage` — a property track's discontinuous change lands entirely inside a hidden span on a visibility/transparency track | property tracks | video 12 @ 5:09–5:12 |
+| 21 | `drag_overlap_followthrough_staging` — segment a chain lead/lag curve into three regions (low relative motion / catching up / post-primary continuation) and confirm all three exist rather than one flat offset | `analyseChain` | video 14 @ 2:08–4:04 |
+| 22 | `secondary_delay_chain_depth_gradient` — each joint's lag against its chain depth; flag a lag that does not increase monotonically with depth | `analyseChain` | video 16 @ 6:23–8:03 |
+| 23 | `hip_balance_vs_limb_extension` — the declared support polygon's balance verdict against hip rotation at frames where an effector is furthest from the centreline | `ai/pose.js measurePose` (MOT-011) | video 17 @ 20:31–20:48 |
+| 24 | `hip_weight_split_asymmetry` — flag a support pose sitting at or near an even 50/50 weight split | **blocked**: needs a per-leg weight-bearing declaration that does not exist | video 18 @ 2:59–3:32 |
+| 25 | `spine_curve_contrast_at_extremes` — spine-chain curvature at each extreme of an impact-recovery beat; flag two extremes with near-identical shape | MOT-005's chord deviation, applied along the spine chain | video 18 @ 4:59–5:34 |
+| 26 | `lead_joint_matches_declared_intent` — which joint's onset is earliest, against a declared intended lead. A mismatch is worth a look, never an automatic error | `analyseChain` | video 18 @ 7:04–7:49 |
+| 27 | `weight_strength_beat_sequence` — a near-zero-velocity struggle stretch must precede any declared powerful lift or throw, and the release itself must span few frames | `sampleMotion` | video 19 @ 1:49–8:33 |
+| 28 | `held_prop_drag_frame_count` — a held prop's lag read straight off the chain and reported as a literal weight indicator, not only a lead/lag curiosity | `analyseChain` | video 19 @ 5:52–6:28 |
+| 29 | `rigid_unit_motion_flag` — a declared body-plus-prop system with near-zero lag between parts across a whole action, at any speed. The differential-timing anti-pattern, named directly | `analyseChain` | video 20 @ 0:27–1:04 |
+| 30 | `drag_amount_vs_declared_leverage` — measured drag against an expectation scaled by declared lever-arm distance, not weight alone | **blocked**: needs a per-item mass-distribution declaration | video 20 @ 3:54–4:11 |
 
-**Check 10 is the cheapest and most valuable**: both halves already exist and are measured, so it
-is a join rather than a new measurement, and an eased-in key on a declared impact is a defect
-`review_shot` could report with `certain` certainty today.
+**Check 10 is next, and it is the user's decision (2026-09-11).** Both halves already exist and
+are measured, so it is a join rather than a new measurement, and an eased-in key on a frame
+carrying a declared impact marker is a defect `review_shot` can report with `certain` certainty —
+the evidence is the marker and the key's own easing style, both already in project data. Build it
+BEFORE Slice F. It is also the first test of whether this whole loop pays for itself: a technique
+seen in a video on Monday becoming a check the product runs on Wednesday, with the video timestamp
+still attached as its evidence.
+
+When it lands, wire it to its knowledge entry: `external_force_easing_override` in
+`knowledge/external_force_easing_override.json` gets the `measurement_keys` that back it, and
+`review_shot`'s `knowledge_checks` picks it up with no further work.
 
 ## The capture queue — motions worth having as reference clips
 
@@ -110,6 +133,42 @@ knowledge and a queue, and `check: external_force_easing_mismatch` (#10 above) i
 building session should take first. What DID change is that entries like these can now exist at
 all: before this session the twelve were hard-coded and there was nowhere for a nineteen-entry
 batch to go.
+
+## 2026-09-11 — batch W02 merged (videos 11–20, fundamentals into body mechanics)
+
+**19 entries accepted, 0 refused, 0 collisions**, merged the same day, minutes after the batch
+finished. The corpus is now **50 entries**: 12 compiled classical principles + 19 from W01 + 19
+from W02. **No capture candidates at all** — every video in this batch was 2D hand-drawn or a
+screen recording, with no performed 3D motion to track. That is a real result for the capture
+queue, not a gap: two-thirds of a tutorial-heavy watch list will produce no reference clips, and
+the seven from W01 remain the whole queue.
+
+The nineteen: `dps_floor_for_short_actions`, `spacing_subdivision_method_ladder` (v11);
+`discontinuity_concealment_via_visibility_gap`, `float_to_stop_settle`, `obscure_arcs` (v12);
+`onion_skin_arc_verification` (v13); `drag_overlap_follow_through_sequence`,
+`drag_stretch_coupling` (v14); `staged_keyframe_then_straight_ahead_workflow` (v15);
+`chain_depth_proportional_secondary_delay`, `shared_mechanism_anticipation_overshoot` (v16);
+`hip_rotation_balance_correction` (v17); `combined_hip_weight_bearing_posing`,
+`deliberate_lead_choice_for_acting`, `spine_curve_letter_shapes` (v18);
+`held_object_drag_frame_count`, `weight_then_strength_formula` (v19);
+`differential_timing_not_uniform_slowness`, `lever_arm_dependent_drag` (v20).
+
+**What this batch is really about, and it is one thing: the chain.** Nine of the nineteen are
+about how a trailing part relates to the part that leads it, from five independent directions —
+delay proportional to chain depth (v16), drag coupled to stretch (v14), drag proportional to the
+lever arm rather than to weight (v20), a prop's lag read as a literal weight reading (v19), and a
+deliberately CHOSEN lead that is not the root (v18). `ai/motion.js analyseChain` already measures
+lead and lag and refuses to call an inversion wrong; what none of these can use yet is the single
+fixed-root assumption underneath it. **That is the structural note for whoever builds next**: a
+declared lead joint, and a lag expectation that scales with depth and leverage, would turn eight
+of these checks from "derivable" into "written".
+
+Hip-as-balance-lever appears three times from independent angles (v17 corrective rotation against
+an extended limb, v18 as a default weight-bearing posing choice, v20 the same counterbalance on
+the head) and the batch deliberately did not collapse them, because each names a separately
+useful facet. Two of the new checks (#24, #30) are **blocked on a declaration that does not
+exist** — per-leg weight bearing, and per-item mass distribution — and are queued as blocked
+rather than as derivable, which is the distinction that keeps the queue honest.
 
 ## 2026-09-11 — the learning loop shipped (the store these entries needed)
 

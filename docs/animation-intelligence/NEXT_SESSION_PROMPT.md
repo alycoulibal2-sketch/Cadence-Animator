@@ -11,7 +11,17 @@ cross-project library (`ai/library.js` + seven MCP tools), knowledge on disk beh
 gates, the `cadence-learn` skill, the `library_search` benchmark, and `LESSONS.md`. Slice A of
 THIS prompt is also done (see `SHARED_TASK_NOTES.md`); **Slice F is next**.
 
-What is NOT done there is the corpus itself: the library is empty until the user works through
+**The user's order, decided 2026-09-11: build `LESSONS.md` check #10 FIRST, then Slice F.**
+That is `external_force_easing_mismatch` — cross-reference a declared impact/contact marker
+against the easing style on the key at that frame, and flag an eased-in key on an impact. Both
+halves are already measured (`ai/events.js` markers, and `interpolation_type` in
+`ai/motion.js MEASUREMENTS`), so it is a join rather than a new measurement and it lands as a
+`certain` defect in `review_shot`. Wire it to `knowledge/external_force_easing_override.json`'s
+`measurement_keys` in the same commit. Also decided: a captured (estimated) clip MAY be a
+reference the director's loop compares against, labelled — never presented as a fact about the
+performer in the source video.
+
+What is NOT done in the learning loop is the corpus itself: the library is empty until the user works through
 `CORPUS.md`, because Mixamo downloads, Studio's Animation Capture and every licence decision are
 theirs. Do not invent one. **Read `docs/animation-intelligence/LESSONS.md` before starting** —
 it holds what the watch batches have taught, a queue of 15 buildable measurements with their

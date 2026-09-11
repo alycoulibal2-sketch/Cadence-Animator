@@ -20,9 +20,11 @@ F → VFX timing, camera and curve craft (`VFX`, `SHOT`, easing); G → workflow
 critique — how a professional plans, blocks, splines and polishes, which is the shape of the
 director's loop.
 
-**Progress: 10 of 100 watched** (batch W01, 2026-09-11 — 19 knowledge entries merged into
-`knowledge/`, 7 capture candidates and 13 `check:` lines in [`LESSONS.md`](LESSONS.md)). W02 is
-in flight. A ticked line records the date, the batch, and what that video produced.
+**Progress: 20 of 100 watched** (W01 + W02, both merged 2026-09-11 — 38 knowledge entries in
+`knowledge/`, 30 `check:` lines and 7 capture candidates in [`LESSONS.md`](LESSONS.md)). W02
+produced no capture candidates at all: every video in it was 2D hand-drawn or a screen
+recording, with no performed 3D motion to track. A ticked line records the date, the batch, and
+what that video produced.
 
 Legend: `- [ ] n. Title — Channel (mm:ss) — url — what it should teach`
 
@@ -38,19 +40,19 @@ Legend: `- [ ] n. Title — Channel (mm:ss) — url — what it should teach`
 - [x] 8. The most important animation principle: An introduction on animation spacing and timing — Dong Chang (11:04) — https://youtu.be/vSJ5lT_ma-E — spacing charts; the `spacing_contrast` strategy's reference — **watched 2026-09-11 (W01)**: asymmetric_spacing_preference, mixed_hold_pacing_within_phase
 - [x] 9. 3 Easy Ways to Master Animation Timing — Dong Chang (13:58) — https://youtu.be/13QIh7vsCpQ — practical timing rules a planner can encode as phase durations — **watched 2026-09-11 (W01)**: physical_reference_timing_method, vibe_timing_anti_pattern
 - [x] 10. Animation basics: The art of timing and spacing - TED-Ed — TED-Ed (6:42) — https://youtu.be/KRVhtMxQWRs — the shortest correct explanation, for the knowledge card's definition — **watched 2026-09-11 (W01)**: material_properties_via_spacing_alone
-- [ ] 11. The #1 Animation Principle (How To In-Between) — NobleFrugal Studio (12:41) — https://youtu.be/6UXjRCORV44 — breakdowns and in-betweens; where a breakdown key belongs
-- [ ] 12. Animation Principles / Everything Moves in Arcs / Animating Classic Motion — Russ Edmonds Animation (10:31) — https://youtu.be/thDT-4RjAeo — a Disney animator on arcs in practice
-- [ ] 13. Animating with Arcs — The Art of Aaron Blaise (6:03) — https://youtu.be/GHf8ie4Nq9Y — arc tracking on a real shot; the `bow_studs` measurement's meaning
-- [ ] 14. 12 Principles of Animation - Follow Through and Overlapping Action Tutorial — Arree Chung (19:54) — https://youtu.be/t_gH-OADlSw — overlap on hair, cloth, props: the secondary-motion rules
-- [ ] 15. Should you PLAN your animation? — Alex Grigg // Animation for Anyone (5:01) — https://youtu.be/ABCUjauQBI4 — pose-to-pose planning; why the plan comes before the keys
-- [ ] 16. Easy animation with overshoot and anticipation - Blender Tutorial — Joey Carlino (10:27) — https://youtu.be/DLzcSSzVjeI — overshoot and settle as curve shapes; the `overshoot` strategy's reference
+- [x] 11. The #1 Animation Principle (How To In-Between) — NobleFrugal Studio (12:41) — https://youtu.be/6UXjRCORV44 — breakdowns and in-betweens; where a breakdown key belongs — **watched 2026-09-11 (W02)**: dps_floor_for_short_actions, spacing_subdivision_method_ladder
+- [x] 12. Animation Principles / Everything Moves in Arcs / Animating Classic Motion — Russ Edmonds Animation (10:31) — https://youtu.be/thDT-4RjAeo — a Disney animator on arcs in practice — **watched 2026-09-11 (W02)**: discontinuity_concealment_via_visibility_gap, float_to_stop_settle, obscure_arcs
+- [x] 13. Animating with Arcs — The Art of Aaron Blaise (6:03) — https://youtu.be/GHf8ie4Nq9Y — arc tracking on a real shot; the `bow_studs` measurement's meaning — **watched 2026-09-11 (W02)**: onion_skin_arc_verification
+- [x] 14. 12 Principles of Animation - Follow Through and Overlapping Action Tutorial — Arree Chung (19:54) — https://youtu.be/t_gH-OADlSw — overlap on hair, cloth, props: the secondary-motion rules — **watched 2026-09-11 (W02)**: drag_overlap_follow_through_sequence, drag_stretch_coupling
+- [x] 15. Should you PLAN your animation? — Alex Grigg // Animation for Anyone (5:01) — https://youtu.be/ABCUjauQBI4 — pose-to-pose planning; why the plan comes before the keys — **watched 2026-09-11 (W02)**: staged_keyframe_then_straight_ahead_workflow
+- [x] 16. Easy animation with overshoot and anticipation - Blender Tutorial — Joey Carlino (10:27) — https://youtu.be/DLzcSSzVjeI — overshoot and settle as curve shapes; the `overshoot` strategy's reference — **watched 2026-09-11 (W02)**: chain_depth_proportional_secondary_delay, shared_mechanism_anticipation_overshoot
 
 ## B. Body mechanics, weight, posing, locomotion, combat (24)
 
-- [ ] 17. Body Mechanics - Maya Beginner's Animation Tutorial | In 5 simple steps — Learn CGI with Yawyee (23:22) — https://youtu.be/7CBcvu8HLEQ — the body-driven order: hips, torso, then limbs
-- [ ] 18. 3 Coco Animation Tips [On Body Mechanics] — Rusty Animator (10:26) — https://youtu.be/fFf8EsPC_ws — weight shift and counter-rotation on a feature character
-- [ ] 19. Animating HEAVY Weight (Objects, Punches, Throwing) — Sir Wade Neistadt (10:16) — https://youtu.be/ZYKAMCZq2UI — what "heavy" is made of: preparation, commitment, contrast, aftermath
-- [ ] 20. Weight in Animation (Tutorial) — Alessandro Camporota (12:39) — https://youtu.be/b3oIxjzdMqY — weight through timing and spacing, not through slowness
+- [x] 17. Body Mechanics - Maya Beginner's Animation Tutorial | In 5 simple steps — Learn CGI with Yawyee (23:22) — https://youtu.be/7CBcvu8HLEQ — the body-driven order: hips, torso, then limbs — **watched 2026-09-11 (W02)**: hip_rotation_balance_correction
+- [x] 18. 3 Coco Animation Tips [On Body Mechanics] — Rusty Animator (10:26) — https://youtu.be/fFf8EsPC_ws — weight shift and counter-rotation on a feature character — **watched 2026-09-11 (W02)**: combined_hip_weight_bearing_posing, deliberate_lead_choice_for_acting, spine_curve_letter_shapes
+- [x] 19. Animating HEAVY Weight (Objects, Punches, Throwing) — Sir Wade Neistadt (10:16) — https://youtu.be/ZYKAMCZq2UI — what "heavy" is made of: preparation, commitment, contrast, aftermath — **watched 2026-09-11 (W02)**: held_object_drag_frame_count, weight_then_strength_formula
+- [x] 20. Weight in Animation (Tutorial) — Alessandro Camporota (12:39) — https://youtu.be/b3oIxjzdMqY — weight through timing and spacing, not through slowness — **watched 2026-09-11 (W02)**: differential_timing_not_uniform_slowness, lever_arm_dependent_drag
 - [ ] 21. James Baxter on Weight and Balance — The SPA Studios (3:07) — https://youtu.be/EASbvJNQz0U — balance and centre of mass from a master animator
 - [ ] 22. How to Animate Weight — AnimSchool (8:32) — https://youtu.be/0x9f21vFqcE — weight in a lift; contact and support relationships
 - [ ] 23. How to use Line of Action for Better Poses — Character Design 360 (6:06) — https://youtu.be/P_BY38z-n4M — line of action as a measurable curve through the pose
