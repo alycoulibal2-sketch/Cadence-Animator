@@ -1,0 +1,38 @@
+{
+  "concept": "differential_timing_not_uniform_slowness",
+  "category": "advanced",
+  "definition": "Weight is communicated by a TIMING-OFFSET relationship between body parts (or a body and a held object) — one part leading while another lags and catches up later — not by uniformly slowing the whole action down. Slowing an entire motion down while keeping every part moving together at the same time still reads as mechanically wrong, regardless of the chosen speed.",
+  "purpose": "Correct a common, plausible-sounding but wrong intuition — that heavy just means slow — by naming the actual mechanism (differential timing between parts) that a uniform speed change cannot produce.",
+  "visible_effect": "A heavy object or limb visibly lags behind the part driving it and catches up later, rather than the whole body-plus-object system moving as one rigid unit at any single speed, fast or slow.",
+  "psychological_or_gameplay_effect": "An animation that moves everything together at the same time reads as mechanically wrong even after the timing is slowed down — slowing it down changes the PACE but not the fundamental error, so the fix is never simply \"make it slower.\"",
+  "physical_interpretation": "A rigid, all-parts-together motion has no internal timing structure at all, which is not how any linked, jointed, or held-mass system actually moves under its own inertia — real weight-driven lag comes from parts of a system responding to force at different times, not from the whole system moving slowly.",
+  "use_cases": [
+    "diagnosing a heavy-object or weapon animation that still feels wrong after the timing has already been slowed down",
+    "any two-part system (body and held weapon, torso and limb) where one part should visibly drive and the other should visibly resist and catch up"
+  ],
+  "non_use_cases": [
+    "a genuinely rigid, single-mass object with nothing to lag behind anything else",
+    "a deliberately mechanical/robotic style where uniform, lockstep motion is the correct choice regardless of implied weight"
+  ],
+  "interactions": [
+    "Secondary delay (`ai/vocabulary.js`, implemented) — this is the underlying mechanism the anti-pattern is missing: `secondary_delay` offsets keys on a trailing part, which is exactly the differential timing a uniform slowdown cannot substitute for",
+    "Held-object drag-frame-count (this batch, video 19) — the same corrective mechanism, quantified as a specific frame count rather than only named as \"lag\"",
+    "Slow in/slow out — the existing card already warns that a smooth ease applied everywhere can make combat feel weak; this entry is the same caution applied specifically to WEIGHT rather than combat readability: uniform smoothing (at any absolute speed) is not a substitute for differential timing"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly actionable with existing, implemented tools: `secondary_delay` already produces exactly the kind of differential timing this entry calls for (key offsets on parts with no contact role), so the corrective half of this anti-pattern is not a capability gap — it is a usage/judgement point about WHEN to reach for `secondary_delay` versus `acceleration_contrast` (a uniform speed change). Nothing currently warns a caller against the specific mistake of applying only `acceleration_contrast`/a global speed change when `secondary_delay` is what the request actually needs.",
+  "control_surface": "`secondary_delay` (the correct fix) versus `acceleration_contrast`/uniform timing changes (the anti-pattern) — both dimensions already exist; nothing currently distinguishes which one a \"make this feel heavier\" request actually needs.",
+  "detection_and_measurement_methods": "`ai/motion.js analyseChain` measures per-joint lead/lag directly — a motion with zero measured lag across a declared chain, regardless of its absolute speed, is a direct, checkable signature of exactly this anti-pattern.",
+  "generation_or_modification_methods": "`secondary_delay` already offsets keys on trailing parts; nothing currently flags a caller's plan when it reaches for a pure speed/easing change on a request that actually needed a lag between parts instead.",
+  "failure_modes": [
+    "the anti-pattern itself: moving a body and a held heavy object together at the same time, then only adjusting overall speed to compensate — named directly as \"just mechanically wrong\" regardless of the chosen speed (video @ 0:27–1:04)",
+    "assuming any two systems that both look wrong can both be fixed by the same knob (speed), when one needs a timing OFFSET and the other needs a speed CHANGE"
+  ],
+  "roblox_considerations": "None specific — a pure timing-relationship concept independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "a student's attack-combo mistake, reproduced directly by the instructor: a character and a large two-handed hammer moving together as one rigid unit, described as \"mechanically wrong\" even if you slow the whole thing down, confirmed on screen at t=2:32 (a Maya viewport with the character gripping the hammer at full extension)",
+    "the corrected version built live: the body moves first, the shoulder drives up early, and the hammer itself stays behind, dragging, \"because the weight is over here\" (video @ 2:32–4:11)"
+  ],
+  "evidence_status": "video: https://youtu.be/b3oIxjzdMqY @ 0:27–1:04 (the stated anti-pattern) and 2:32–4:11 (the corrected demonstration) — Alessandro states the core thesis directly in the transcript while reproducing his student's mistake, then rebuilds it correctly; a frame at t=2:32 in this session's sample directly confirms the rigged upper-body character holding the hammer at extension; experimental until validated"
+}

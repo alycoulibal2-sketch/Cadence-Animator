@@ -10,8 +10,8 @@
 - [x] 16. Easy animation with overshoot and anticipation - Blender Tutorial — Joey Carlino (10:27) — https://youtu.be/DLzcSSzVjeI
 - [x] 17. Body Mechanics - Maya Beginner's Animation Tutorial | In 5 simple steps — Learn CGI with Yawyee (23:22) — https://youtu.be/7CBcvu8HLEQ
 - [x] 18. 3 Coco Animation Tips [On Body Mechanics] — Rusty Animator (10:26) — https://youtu.be/fFf8EsPC_ws
-- [ ] 19. Animating HEAVY Weight (Objects, Punches, Throwing) — Sir Wade Neistadt (10:16) — https://youtu.be/ZYKAMCZq2UI
-- [ ] 20. Weight in Animation (Tutorial) — Alessandro Camporota (12:39) — https://youtu.be/b3oIxjzdMqY
+- [x] 19. Animating HEAVY Weight (Objects, Punches, Throwing) — Sir Wade Neistadt (10:16) — https://youtu.be/ZYKAMCZq2UI
+- [x] 20. Weight in Animation (Tutorial) — Alessandro Camporota (12:39) — https://youtu.be/b3oIxjzdMqY
 
 ## Per-video notes
 
@@ -424,3 +424,156 @@ or the user could capture fresh.
 - `check: lead_joint_matches_declared_intent — cross-reference which joint's onset is earliest (ai/motion.js analyseChain) against a declared intended "lead" joint, flagging a mismatch as worth a deliberate look rather than an automatic error — video 18 @ 7:04–7:49`
 
 **Entries written:** 3 (`W02-18-combined-hip-weight-bearing-posing.json`, `W02-18-spine-curve-letter-shapes.json`, `W02-18-deliberate-lead-choice-for-acting.json`), all passed `validateProposedEntry` cleanly (0 problems, 20/20 fields each).
+
+### 19. Animating HEAVY Weight (Objects, Punches, Throwing) — 2026-09-11
+
+Watched at `balanced` detail (100 scene-aware frames over 10:16, all 100 read) plus the full 295-segment
+caption transcript. Sir Wade Neistadt (professional game/cinematic animator, AnimSchool instructor) on
+selling weight and strength together, illustrated with a video-game reference (a strong character opening
+treasure chests), Encanto, God of War, Big Hero 6, Street Fighter, Arcane, and live physical demonstrations
+with a plush-toy stand-in.
+
+**Cross-check:** confirms `timing`, `weight_transfer`, `secondary_delay`, and `startup_frame_budget` (W01
+video 2) thoroughly — heavier objects take longer to accelerate from rest, giants moving slower with more
+momentum (Godzilla, Big Hero 6's robots), and force rippling outward from the core through successive body
+parts all match directly. No contradictions.
+
+**Two new entries:**
+1. **Weight-then-strength formula** (`W02-19-weight-then-strength-formula.json`) — a required TWO-BEAT
+   sequence: first establish an object's weight through a visible struggle/delay, THEN establish the
+   character's strength through how fast they overcome that already-established resistance — strength
+   literally cannot read until the resistance it overcomes has been shown ("you can't fully reveal a
+   character's strength until you demonstrate what they're up against," video @ 1:49–1:52). Backed by both
+   a positive example (Encanto's rock-breaking sequence, confirmed on screen at t=6:44) and a same-film
+   NEGATIVE example named directly by a working professional: Encanto's boulder-lift shot, criticized
+   specifically for skipping the struggle beat ("this could have been made out of Styrofoam for all we
+   know," video @ 7:00–7:30) — a rare case of documented professional criticism of released, big-studio
+   work, valuable as an unusually concrete failure case.
+2. **Held-object drag-frame-count as a direct weight measurement** (`W02-19-held-object-drag-frame-count.json`)
+   — the number of frames a held object visibly lags behind the hand during a wind-up IS the weight
+   signal itself, stated as a literal count rather than a qualitative note: "however many frames we have in
+   between that and the full extension, that's the answer" (video @ 5:52–6:28). This is mechanically the
+   SAME technique the existing `secondary_delay` dimension already compiles (key offsets on a part with no
+   contact role) — the new content is the INTERPRETIVE claim that `ai/motion.js analyseChain`'s existing
+   frame-lag output can be read directly as a weight value once a held prop is included in the analysed
+   chain, which no existing entry states.
+
+**Other observations, no new entry:** deliberately allowing rock geometry to intersect combined with scale
+animation, to sell compression/weight in Encanto's rockslide shot (video @ 8:34–8:56) — confirms
+`squash_stretch`'s own `roblox_considerations` note that a literal scale key is a real, non-theoretical
+extension, not a new claim. "We can't have too many frames between pose A and pose B" for the release itself
+(video @ 8:29–8:33) reinforces the weight-then-strength formula's own fast-overcome half rather than adding
+new content.
+
+**Capture candidates:** none — every example is existing game/film footage or a rough live-action stand-in
+demonstration, not a reference this session or the user could capture fresh.
+
+**Checks for a later session to implement:**
+- `check: weight_strength_beat_sequence — verify a struggle/delay phase (measurable via ai/motion.js sampleMotion's velocity curve: a near-zero-velocity stretch before a sharp spike) precedes any declared "powerful lift/throw" action, and that the post-struggle release itself spans few frames — video 19 @ 1:49–8:33`
+- `check: held_prop_drag_frame_count — when a held prop is included in a declared chain, read its lag directly from ai/motion.js analyseChain and report the frame count as a literal weight indicator rather than only a lead/lag curiosity — video 19 @ 5:52–6:28`
+
+**Entries written:** 2 (`W02-19-weight-then-strength-formula.json`, `W02-19-held-object-drag-frame-count.json`), both passed `validateProposedEntry` cleanly (0 problems, 20/20 fields each).
+
+### 20. Weight in Animation (Tutorial) — 2026-09-11
+
+Watched at `balanced` detail (50 frames after uniform-fallback dedup over 12:38, all 50 read) plus the full
+244-segment caption transcript. Alessandro Camporota live-blocking a heavy two-handed-hammer attack in Maya
+(upper body only), reproducing then correcting a real student mistake. A concurrent-session note: partway
+through writing this video's entries, `CLAUDE.md` changed on disk (the other session's merge/export
+tooling — `tools/export-knowledge.mjs`, `tools/merge-knowledge-inbox.mjs --batch`, and a new
+`renderer/js/ai/library.js` all appeared). Re-ran this session's full validation script against the live,
+just-changed `ai/knowledge.js` immediately afterward: all 19 entries written across this entire batch still
+pass `validateProposedEntry` cleanly (still the same 20-field shape) — noted here as a real, checked fact,
+not an assumption, since the ground genuinely shifted mid-batch.
+
+**Cross-check:** confirms `weight_transfer`, `secondary_delay`, `body_lead`, and `slow_in_slow_out`
+thoroughly — hip-driven initiation, counter-rotating the head for balance during a big swing, and a final
+"snap" bringing every part together at the impact all match directly. No contradictions.
+
+**Two new entries:**
+1. **Differential timing, not uniform slowness** (`W02-20-differential-timing-not-uniform-slowness.json`)
+   — the video's central, explicitly-argued thesis: a student's mistake (body and a heavy hammer moving
+   together as one rigid unit) is named directly as "just mechanically wrong," and the instructor states
+   plainly that adjusting the OVERALL SPEED cannot fix it — only a timing OFFSET between body and weapon
+   can (video @ 0:27–1:04, the anti-pattern reproduced and confirmed on screen at t=2:32; the correction
+   built live @ 2:32–4:11). This is a sharp, well-argued negative case for a plausible but wrong intuition
+   ("heavy = slow") that no existing card states this directly.
+2. **Lever-arm-dependent drag** (`W02-20-lever-arm-dependent-drag.json`) — the specific physical reasoning
+   Alessandro gives for how MUCH the hammer drags: "the weight is over here," i.e. the hammer head's mass
+   sits far from the hand/shoulder driving it, which resists angular motion more than the same total weight
+   held close to the joint would (a moment-of-inertia/lever-arm effect, video @ 3:54–4:11). Extends video
+   19's `held_object_drag_frame_count` (drag amount as a weight readout) with WHY the same weight can call
+   for different drag depending on the object's own mass distribution — a real gap, since Cadence has no
+   declared per-item mass or mass-distribution property at all (the same "part mass is unknown" limitation
+   `structural_understanding` and `ai/pose.js` already state).
+
+**Other observations, no new entry:** counter-rotating the head for balance during the big swing (video @
+2:05, 5:39) is a second, independent confirmation of the counterbalance pattern already covered by this
+batch's video 17/18 hip entries, applied to a different joint for a similar reason — not filed separately
+to avoid a third near-duplicate balance entry. The "reset and continue blocking" workflow habit and "adjust
+fingers later, don't care about it now" prioritization are production-workflow notes with no new
+Cadence-representable content.
+
+**Capture candidates:** none — a from-scratch Maya blocking demonstration on a placeholder rig, not a
+performed or filmable reference motion.
+
+**Checks for a later session to implement:**
+- `check: rigid_unit_motion_flag — flag a declared multi-part system (body + held item) where ai/motion.js analyseChain finds near-zero lag between parts across an entire action regardless of its overall speed — the differential-timing anti-pattern this video names directly — video 20 @ 0:27–1:04`
+- `check: drag_amount_vs_declared_leverage — once any per-item mass-distribution declaration exists, compare a measured drag amount (ai/motion.js analyseChain) against an expected value scaled by the declared lever-arm distance, not weight alone — video 20 @ 3:54–4:11`
+
+**Entries written:** 2 (`W02-20-differential-timing-not-uniform-slowness.json`, `W02-20-lever-arm-dependent-drag.json`), both passed `validateProposedEntry` cleanly (0 problems, 20/20 fields each).
+
+---
+
+## End of session — all ten videos watched
+
+All ten videos in this batch are complete. Summary for the merge session (per
+`docs/animation-intelligence/watch/README.md`):
+
+- **Videos watched:** all 10 of 10, in order, single session, 2026-09-11.
+- **Entries written:** 19 total across ten videos — `spacing_subdivision_method_ladder`,
+  `dps_floor_for_short_actions` (v11); `obscure_arcs`, `float_to_stop_settle`,
+  `discontinuity_concealment_via_visibility_gap` (v12); `onion_skin_arc_verification` (v13);
+  `drag_overlap_follow_through_sequence`, `drag_stretch_coupling` (v14);
+  `staged_keyframe_then_straight_ahead_workflow` (v15); `shared_mechanism_anticipation_overshoot`,
+  `chain_depth_proportional_secondary_delay` (v16); `hip_rotation_balance_correction` (v17);
+  `combined_hip_weight_bearing_posing`, `spine_curve_letter_shapes`, `deliberate_lead_choice_for_acting`
+  (v18); `weight_then_strength_formula`, `held_object_drag_frame_count` (v19);
+  `differential_timing_not_uniform_slowness`, `lever_arm_dependent_drag` (v20). Every entry was checked
+  directly against the live `ai/knowledge.js` module's `validateProposedEntry` and passed cleanly (0
+  problems, 20/20 fields) — re-checked a second time at the end of the batch after the concurrent
+  merge-tooling session changed `ai/knowledge.js`/`CLAUDE.md` on disk mid-session, with no change in result.
+- **Capture candidates written:** none this batch — every video was either a 2D hand-drawn/screen-recorded
+  demonstration, a from-scratch software blocking session on a placeholder rig, or existing film/game
+  footage. Unlike W01 (which found several), nothing in W02 was an unclaimed, capturable, performed 3D
+  reference motion.
+- **What contradicted an existing card:** nothing directly, but two existing cards are now STALE and
+  should be corrected by whoever next touches them: `structural_understanding` still says "Cadence models
+  neither" balance nor volume, and `appeal` still says "there is no line-of-action measurement" — both
+  written before `renderer/js/ai/pose.js`'s `measurePose` (line of action, a volume-proxy centre of mass,
+  and balance against a declared support polygon) existed. Flagged in detail under video 17 above. Not
+  corrected directly here, since editing `ai/knowledge.js` and the merge itself are out of scope for a
+  watch session.
+- **A second finding worth the merge session's attention:** checking video 16 against the LIVE
+  `ai/plan.js`/`ai/vocabulary.js` (rather than assuming the existing dimension cards' text was current)
+  surfaced a real three-way mechanism split for overshoot/anticipation that no card states: the edit-path
+  `overshoot` dimension uses a `Back`/`Out` easing formula (no new key), `authorMotion`'s generation-path
+  `settle` step inserts a literal added key past the final pose (much closer to how a human animator
+  actually does it), and nothing implements the mirror-image anticipation-side added-key case on either
+  path. See `W02-16-shared-mechanism-anticipation-overshoot.json`.
+- **Recurring cross-references worth the merge session's attention:** a "finish the primary pass before
+  the secondary pass" workflow-ordering pattern was independently stated by FOUR different sources across
+  this batch (videos 11, 12, 14, 15) — never filed as its own entry (a pure authoring-order convention with
+  no Cadence state to represent), but worth knowing it is not a coincidence if a future workflow-guidance
+  feature ever wants it. Hip-as-balance-lever appears three times from independent angles (v17: corrective
+  rotation against an extended limb; v18: a default weight-bearing posing choice; v20: the same
+  counterbalance function on the head instead of the hips) — deliberately NOT collapsed into one entry,
+  since each names a distinct, separately-useful facet. The chain-depth-ordering idea behind `body_lead`
+  reappears applied in three new directions this batch: trailing lag (v16's `chain_depth_proportional_secondary_delay`),
+  force-against-resistance (v19, confirming only), and a deliberately CHOSEN alternate initiator (v18's
+  `deliberate_lead_choice_for_acting`) — all three point at the same underlying dimension needing more than
+  its current single fixed-root assumption.
+- **Next session:** no unwatched video remains in this batch. A new session should either run this batch's
+  merge (per `README.md`, noting `tools/merge-knowledge-inbox.mjs --batch W02` now appears to exist per the
+  updated `CLAUDE.md` — verify it before relying on it, since it changed on disk during this very session)
+  or pick up a different batch (W03–W10) per the programme's ACTIVE PRIORITY memory note.

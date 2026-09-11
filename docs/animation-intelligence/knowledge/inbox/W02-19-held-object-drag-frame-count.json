@@ -1,0 +1,38 @@
+{
+  "concept": "held_object_drag_frame_count",
+  "category": "advanced",
+  "definition": "The number of frames a held or thrown object visibly lags behind the hand carrying it, during a wind-up or anticipation phase, IS the object's weight signal itself — a direct, countable quantity, not merely a qualitative \"drag a bit for weight\" note.",
+  "purpose": "Turn \"make the object feel heavy\" into a specific, countable authoring decision (how many frames of lag) rather than an impression to eyeball.",
+  "visible_effect": "The held object's own position trails visibly behind the hand's position during a wind-up, by a number of frames that scales with the object's intended weight; a light object shows zero or near-zero lag and moves with the hand at all times.",
+  "psychological_or_gameplay_effect": "More lag frames read as heavier; an object that moves in perfect lockstep with the hand at all times reads as weightless regardless of its visual size or design.",
+  "physical_interpretation": "A direct approximation of inertia: a heavier object resists the hand's own acceleration more, so the hand's motion outruns the object's by more frames before the object catches up.",
+  "use_cases": [
+    "a wind-up or anticipation phase for a throw, swing, or lift, where the held object's own weight needs to read distinctly from the character's effort",
+    "any moment the body itself has to visibly recruit more joints (neck, shoulder, arm) to pull a resisting object forward, which the video names as a direct consequence of enough drag frames existing to require it"
+  ],
+  "non_use_cases": [
+    "an object established as light or effortless to hold, where any visible lag would contradict that",
+    "the moment of full extension/release itself — this technique describes the WIND-UP phase specifically, not the release"
+  ],
+  "interactions": [
+    "Weight-then-strength formula (this batch, video 19) — this is the QUANTIFIED version of that formula's own struggle/delay beat, expressed as a specific frame count on the held object rather than a general timing impression",
+    "Secondary delay (`ai/vocabulary.js`, implemented) — mechanically the same lag mechanism that dimension already compiles for a TRAILING part (hair, cloth, weapon); this video is direct evidence for applying the identical mechanism to a HELD object during a wind-up, with the frame count itself standing in as the weight measurement",
+    "Chain lead/lag measurement (`ai/motion.js analyseChain`) — the exact existing measurement that would report this frame count directly, if the held object were included in the analysed chain"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Already representable through an existing, implemented dimension used in a slightly different role: `secondary_delay` compiles to \"key offsets on parts with no contact role\" — a held prop during a wind-up is exactly this kind of part. What is new here is the INTERPRETIVE claim, not a missing mechanism: the resulting frame-offset number can be read directly as a weight value, which is a real, measurable use for `analyseChain`'s existing lead/lag output that no current knowledge entry states.",
+  "control_surface": "`secondary_delay` vocabulary dimension for authoring the lag; `analyze_motion` (`analyseChain`) for measuring the resulting frame count.",
+  "detection_and_measurement_methods": "`ai/motion.js analyseChain` already measures onset and peak timing per part along a declared chain and reports lead/lag directly in frames — if a held prop is declared as part of the chain, this is a real, already-implemented, exact measurement of precisely the quantity this technique describes.",
+  "generation_or_modification_methods": "`secondary_delay` already offsets keys on a part with no contact role — authoring a specific frame-count lag on a held prop is directly possible with the existing dimension today.",
+  "failure_modes": [
+    "a held object moving in perfect lockstep with the hand throughout the wind-up (zero drag frames), reading as weightless regardless of the object's size or the character's effort acting",
+    "so many drag frames that the object appears disconnected from the hand rather than merely heavy"
+  ],
+  "roblox_considerations": "None specific — the underlying keyframe-offset mechanism is already engine-independent.",
+  "performance_implications": "None.",
+  "examples": [
+    "a wind-up for a throw where the held object drags behind the hand specifically because it's heavy enough that \"the body can move and has to pull it,\" recruiting the neck, shoulder, and arm to push it forward from behind — \"however many frames we have in between that and the full extension, that's the answer\" (video @ 5:52–6:28)",
+    "a live physical demonstration using a plush toy stand-in, comparing a weak/normal/strong throw and showing how a stronger character both moves faster AND creates larger spacing before release, directly confirmed on screen at t=5:25 (video @ 5:20–5:47)"
+  ],
+  "evidence_status": "video: https://youtu.be/ZYKAMCZq2UI @ 5:52–6:28 — Sir Wade Neistadt states the frame-count-as-weight-answer claim directly and explicitly in the transcript; a frame at t=5:25 in this session's sample directly confirms the related weak/normal/strong physical demonstration, though the specific held-object drag itself (described with a prop the video acknowledges is an imperfect stand-in) is not independently visible as a distinct lag in this session's frame sample; experimental until validated"
+}

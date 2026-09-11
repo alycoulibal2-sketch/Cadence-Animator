@@ -1,0 +1,37 @@
+{
+  "concept": "lever_arm_dependent_drag",
+  "category": "advanced",
+  "definition": "How much a held object resists and lags behind the joint driving it depends not just on the object's total weight but on how far its mass sits from the rotation axis moving it — a heavy mass held far from the driving joint (like a hammer head on a long handle) resists angular motion more than the same weight held close to the joint would.",
+  "purpose": "Give a physically-grounded reason for HOW MUCH drag a held object should show, beyond \"heavier objects drag more\" — the object's own mass distribution relative to the joint moving it matters as much as its total weight.",
+  "visible_effect": "A weapon or object with its mass concentrated far from the hand (a long-handled hammer, a heavy head at the end of a shaft) visibly resists and trails further behind the driving arm's rotation than a compact object of similar total weight would.",
+  "psychological_or_gameplay_effect": "Reads as the specific PHYSICAL SHAPE of the object mattering, not just an abstract \"heavy\" label — a long-handled weapon feels unwieldy and hard to redirect in a way a compact heavy object of the same weight would not.",
+  "physical_interpretation": "A direct analogue of moment of inertia and lever-arm torque: resistance to angular acceleration scales with mass times the SQUARE of its distance from the rotation axis, so distributing the same mass further from the joint driving it increases drag disproportionately to the weight alone.",
+  "use_cases": [
+    "a long-handled or top-heavy weapon (a hammer, an axe, a polearm) swung from a hand or shoulder joint",
+    "any held object whose mass is concentrated away from the joint driving it, distinct from a compact object of the same total weight"
+  ],
+  "non_use_cases": [
+    "a compact object with its mass close to the hand, where this distinction from total weight alone barely matters",
+    "an object rigidly fixed to the body with no independent rotation of its own (nothing to lag behind)"
+  ],
+  "interactions": [
+    "Held-object drag-frame-count (this batch, video 19) — that entry treats drag-frame-count as a direct weight readout; this entry adds that the SAME frame-count for the SAME total weight should differ depending on how far the mass sits from the driving joint",
+    "Differential timing, not uniform slowness (this batch, video 20) — the corrected demonstration this entry is drawn from is the same clip that establishes the differential-timing principle; this entry explains WHY the hammer specifically drags as much as it does",
+    "Secondary delay (`ai/vocabulary.js`, implemented) — the existing dimension offsets keys per part with no reference to mass distribution at all; this is evidence the offset amount should account for an object's own leverage, not only a flat per-object weight value"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and more specific than what `secondary_delay` currently needs: that dimension applies a lag offset without reference to WHERE an object's mass sits relative to its attachment joint — Cadence has no declared per-item mass or mass-distribution property at all (the same \"part mass is unknown\" gap `structural_understanding`'s card and `ai/pose.js`'s volume-proxy centre of mass already state honestly). A lever-arm-aware drag amount would need at minimum a declared effective mass-distance value this build does not currently have anywhere.",
+  "control_surface": "None — `secondary_delay` offsets keys per part with a single scalar, with no lever-arm or mass-distribution input.",
+  "detection_and_measurement_methods": "`ai/motion.js analyseChain` measures the resulting lag directly once authored, but nothing computes an EXPECTED lag from an object's declared shape or mass distribution to compare it against, since no such declaration exists in this build.",
+  "generation_or_modification_methods": "None beyond the existing flat `secondary_delay` offset, which does not vary by an object's own mass distribution.",
+  "failure_modes": [
+    "applying the same drag amount to a long-handled weapon and a compact object of equal total weight, missing the extra resistance a long lever arm should add",
+    "assuming total weight alone determines drag, when the same weight distributed differently would plausibly drag by a different amount"
+  ],
+  "roblox_considerations": "None specific — a pure physical-reasoning concept independent of the target engine; Roblox has no built-in moment-of-inertia concept for a rigid Motor6D attachment either.",
+  "performance_implications": "None.",
+  "examples": [
+    "a large two-handed hammer with its head far from the gripping hand, explicitly held back and kept low during the wind-up \"because the weight is over here\" — the mass sitting far from the driving shoulder/hip, not merely being heavy in the abstract (video @ 3:54–4:11, directly confirmed on screen at t≈3:54–4:11 with the hammer trailing well behind the body's own forward motion)"
+  ],
+  "evidence_status": "video: https://youtu.be/b3oIxjzdMqY @ 3:54–4:11 — Alessandro explicitly attributes the hammer's held-back, dragging position to where its weight sits (\"the weight is over here\"), while physically demonstrating it live in the Maya viewport; a frame at t=2:32 in this session's sample confirms the same hammer's long-handled, mass-at-the-end shape; experimental until validated"
+}

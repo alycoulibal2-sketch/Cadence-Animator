@@ -1,0 +1,39 @@
+{
+  "concept": "weight_then_strength_formula",
+  "category": "advanced",
+  "definition": "A required two-beat sequence for a character interacting with a heavy object: first establish the object's weight through a delay or visible struggle before motion begins, THEN establish the character's strength by how quickly and decisively they overcome that already-established resistance — strength cannot read at all until the resistance it overcomes has been shown.",
+  "purpose": "Make both an object's weight and a character's strength read clearly and simultaneously, by using one beat to set up the other rather than trying to communicate both at once.",
+  "visible_effect": "A visible hesitation, struggle, or slow build-up before the object first moves (establishing weight), immediately followed by a comparatively fast, decisive motion that fully overcomes it (establishing strength) — with few frames between the pose just before release and the pose at release, so the payoff itself reads as fast.",
+  "psychological_or_gameplay_effect": "Skipping the struggle beat makes even a correctly-heavy-looking object read as weightless, because strength has nothing established to be measured against; skipping the fast-overcome beat makes the character read as merely capable rather than powerful.",
+  "physical_interpretation": "A real heavy object resists acceleration from rest (inertia), which is what the struggle beat approximates; a stronger force then overcomes that resistance faster than a weaker one would, which is what the fast-release beat approximates.",
+  "use_cases": [
+    "any strong or superhuman character interacting with a heavy object, where both the object's weight and the character's strength need to read clearly",
+    "an ordinary (non-superhuman) character lifting or moving something heavy — the same two-beat formula, at a lower intensity"
+  ],
+  "non_use_cases": [
+    "an object established as light, where a struggle beat would contradict the object's own established weight",
+    "a moment where responsiveness or pacing genuinely cannot afford a struggle beat — the video's own alternative for that case is other tools entirely (sound, camera shake, dust/effects), not skipping the idea of weight altogether"
+  ],
+  "interactions": [
+    "Startup frame budget (W01 video 2) — the struggle/delay beat is a specific, named use of exactly that genre-level timing dial, applied to a lift/throw rather than an attack",
+    "Timing — the formula is fundamentally a TIMING sequence (delay, then fast release), independent of how the poses themselves look",
+    "Held-object drag-frame-count (this batch, video 19) — a quantified, measurable version of the same struggle beat, expressed as a specific frame count of lag on the held object itself"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly composable from existing dimensions, though not as one named technique: the struggle/delay beat is an `acceleration_contrast`/`anticipation_depth` matter (a slow start before motion), and the fast-overcome beat is the same dimensions pushed the other way over fewer frames. Nothing currently packages \"delay then fast-release\" as one declarable two-beat technique — a caller would have to author both halves separately today.",
+  "control_surface": "`acceleration_contrast` and `anticipation_depth` vocabulary dimensions can already express each half separately; no combined control surface exists for the pair.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion` already measures the velocity/acceleration curve directly, which would show this formula's signature plainly: a long near-zero-velocity struggle phase followed by a short, sharp acceleration spike — a real, buildable check from existing data, though nothing currently classifies a curve against this specific two-phase shape.",
+  "generation_or_modification_methods": "Both halves are authorable today through existing dimensions/phases; no single tool authors the pair together as one declared \"weight-then-strength\" beat.",
+  "failure_modes": [
+    "skipping the struggle/delay beat entirely — the video's own named example: Encanto's Louisa lifting a boulder with no visible struggle, criticized directly because \"we just never see her have to struggle to lift it... this could have been made out of Styrofoam for all we know\" (video @ 7:00–7:30)",
+    "an overcome beat with too many frames between the pre-release pose and the release pose, which undercuts the strength half even when the struggle half was done correctly (video @ 8:29–8:33)"
+  ],
+  "roblox_considerations": "None specific — a pure timing-sequence concept independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "a positive example named directly: a video-game character's chest-opening animations, always preceded by a visible pull/struggle (elbows shaking, pushing against an edge) before the chest is flung open \"with all the power of a god\" (video @ 01:54–02:15)",
+    "Encanto's Louisa breaking through a rock formation in the \"Surface Pressure\" sequence — pushes against it, it bows, then breaks open — named as the same formula working correctly, directly confirmed on screen at t=6:44 with a bright, explosive release (video @ 2:17–2:26)",
+    "the same film's boulder-lift shot named as the formula's failure case: strength alone, with the weight-establishing struggle beat skipped entirely (video @ 7:00–7:30)"
+  ],
+  "evidence_status": "video: https://youtu.be/ZYKAMCZq2UI @ 1:49–8:33 — Sir Wade Neistadt states the two-beat formula explicitly and repeatedly, contrasting a positive example (Encanto's rock-breaking sequence) against a negative one (Encanto's boulder lift) from the SAME film; the rock-breaking sequence's release is directly confirmed on screen at t=6:44, and the boulder-lift criticism's surrounding shot is confirmed at t=7:08 (a motion-blurred action pose, though the specific lack-of-struggle moment itself is not independently visible in this session's frame sample); experimental until validated"
+}
