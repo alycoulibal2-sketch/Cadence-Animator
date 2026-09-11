@@ -1,0 +1,40 @@
+{
+  "concept": "curve_vs_straight_shape_language_spans_design_and_motion",
+  "category": "advanced",
+  "definition": "A character's overall silhouette shape-language (predominantly curved/rounded versus predominantly straight-edged) is a single design decision that pays off in two connected ways at once: in STATIC design, curves read as warmth/comfort (traditionally used to make a menacing character's actions feel more unsettling by contrast with its cute design, rather than less), and in MOTION, a curved silhouette naturally supports smooth, wave-like secondary motion, while a deliberate STRAIGHT-line moment breaking a normally-curved character's silhouette can be reserved specifically for a strong or directed action, creating a dynamic contrast that emphasizes that action's power.",
+  "purpose": "Get a coherent payoff from one shape-language decision across both a character's static design read and its animated motion vocabulary, rather than choosing them independently.",
+  "visible_effect": "A predominantly round/curved character shows smooth, undulating, wave-like secondary motion through its body by default, and a rare moment where its silhouette straightens out reads as a distinct, powerful contrast against that established norm.",
+  "psychological_or_gameplay_effect": "A cute, rounded design paired with genuinely menacing behavior is MORE unsettling than a design that already looks dangerous, because the mismatch between the comforting shape-language and the threatening behavior is itself the unsettling element — stated directly by the source as the reason 'the rounded, bouncy design of the bosses' makes them 'even more menacing,' not less.",
+  "physical_interpretation": "None directly — a design-and-motion-vocabulary choice, though the wave-like secondary motion a curved silhouette supports is a real, physically-plausible consequence of that shape.",
+  "use_cases": [
+    "designing an antagonist or boss whose behavior is meant to unsettle, where a cute/curved design creates useful contrast rather than working against the intended tone",
+    "a character whose default motion vocabulary is soft and wave-like, where a single powerful action can be emphasized by deliberately breaking silhouette into straight lines for that one moment only"
+  ],
+  "non_use_cases": [
+    "a character whose design and behavior are meant to align directly (a menacing design for a menacing character), where the contrast this technique depends on would not apply",
+    "a rig/style with no meaningful secondary-motion vocabulary at all, where the motion half of this payoff is unreachable regardless of silhouette design"
+  ],
+  "interactions": [
+    "spine_curve_letter_shapes (W02) — a related but narrower existing card about SPINE-specific curve shapes for acting/lead-choice purposes; this entry is about a character's OVERALL silhouette shape-language as a combined design-and-motion decision, a broader scope than the spine alone",
+    "chain_depth_proportional_secondary_delay and drag_stretch_coupling (W02) — the secondary-motion mechanisms this entry's curved silhouettes rely on to produce their wave-like read"
+  ],
+  "style_variations": {
+    "cartoon": "a native technique for this style, per the source's own examples (a genie, a boat, a cigar character)",
+    "realistic": "the design-contrast half (cute-but-menacing) applies less directly; the motion half (curved forms supporting smoother secondary motion) still applies physically"
+  },
+  "cadence_representation": "Not directly representable as a single declared decision: Cadence has no notion of a character's overall SILHOUETTE shape-language as project data (no measure of 'how curved vs. straight is this rig's design'), since that is a modeling/design-time property outside what `ai/pose.js`/`ai/motion.js` operate on (posed joint angles and measured motion, not mesh silhouette shape). The MOTION half is reachable: `ai/motion.js analyseChain`'s lead/lag measurement and the existing drag/secondary-motion cards already describe wave-like chain motion; nothing currently connects that motion vocabulary back to a declared silhouette-shape property, because no such property exists in this build.",
+  "control_surface": "None for the design half; the motion half is reachable through ordinary chain/secondary-motion authoring already covered by existing cards.",
+  "detection_and_measurement_methods": "Not measurable in this build: no measurement represents a character's overall silhouette shape-language; the wave-like secondary motion itself is measurable via `analyseChain`, but nothing connects it back to a declared design cause.",
+  "generation_or_modification_methods": "None for the design half; ordinary chain/secondary-motion authoring already reaches the motion half.",
+  "failure_modes": [
+    "designing a menacing-looking character AND menacing behavior together, losing the contrast effect the source identifies as what makes the cute-but-scary combination distinctly unsettling",
+    "breaking silhouette into straight lines too often, diluting the contrast a single reserved straight-line moment would otherwise deliver for a powerful action"
+  ],
+  "roblox_considerations": "No different from any other design/rig-shape decision — directly reachable through ordinary character modeling; the motion half (secondary chain motion) is reachable with standard Motor6D rigging.",
+  "performance_implications": "None.",
+  "examples": [
+    "'curves traditionally convey warmth and comfort in character design... which makes the rounded, bouncy design of the bosses even more menacing... this contrast between the simple happy design and their menacing actions is what makes the boss characters... much more unsettling' (video @ 03:30–03:49)",
+    "'curves make for some great undulating wavy motion — the boat and the genie are great examples here... what curves do mean though is that when a strong or directed action takes place, straight lines will be prominent. This gives a great sense of power and creates a cool dynamic contrast within the character' (video @ 03:49–04:15)"
+  ],
+  "evidence_status": "video: https://youtu.be/pOBKGcehi8U @ 03:30–04:15 — the presenter states both the design and motion payoffs of the same shape-language choice directly, illustrated with named in-game examples (the boat, the genie); transcript-only, no frames extracted this session; experimental until validated"
+}

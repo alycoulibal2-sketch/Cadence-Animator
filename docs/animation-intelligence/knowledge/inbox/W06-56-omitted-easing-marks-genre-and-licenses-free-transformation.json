@@ -1,0 +1,40 @@
+{
+  "concept": "omitted_easing_marks_genre_and_licenses_free_transformation",
+  "category": "advanced",
+  "definition": "Deliberately omitting ease-in/ease-out on most movement — flat, snappy starts and stops throughout, in the tradition of 1930s-40s ('rubber-hose') cartoon animation — is not merely a dated limitation but a genre-marking style choice with real downstream effects: it removes any sense that a character could exist in a real-world physical setting, which in turn licenses completely unrestricted, rule-breaking transformations (a character becoming a vehicle, an object, or anything else) without breaking the audience's suspension of disbelief, since nothing about the character read as physically grounded to begin with.",
+  "purpose": "Signal a specific historical animation genre through timing alone, and use that genre signal to license transformations and character behavior that would read as jarring or implausible under any easing convention that suggested physical grounding.",
+  "visible_effect": "Movements start and stop abruptly rather than gliding in and out, throughout nearly the entire cast, with no sense of momentum being gently absorbed or released.",
+  "psychological_or_gameplay_effect": "Removes the audience's expectation that a character obeys real-world physical continuity, which makes an otherwise-nightmarish design (a menacing boss with sharp teeth and sinister intent) feel safely, enjoyably cartoonish rather than genuinely disturbing — the same flat timing that would read as a technical flaw in a realistic project is exactly what makes an arbitrary mid-fight transformation (a character becoming a screen-filling monster, or a boss's final phase becoming a vehicle) land as delightful rather than as a broken rule.",
+  "physical_interpretation": "An explicit, genre-coded REJECTION of physical plausibility, not an approximation of it — the opposite convention from `slow_in_slow_out`'s usual purpose.",
+  "use_cases": [
+    "a project deliberately invoking a specific historical animation tradition (1930s-40s 'rubber-hose' cartoons), where flat timing is itself part of the reference being paid homage to",
+    "any character or moment whose design leans sinister or threatening, where removing physical plausibility keeps the tone safely cartoonish rather than genuinely disturbing",
+    "a boss or character that needs to transform into something else entirely, where the absence of established physical continuity makes the transformation feel native to the style rather than rule-breaking"
+  ],
+  "non_use_cases": [
+    "any project wanting characters to read as physically grounded or weighted — `slow_in_slow_out`'s usual purpose (communicating mass and momentum) is directly undercut by this technique, and the two should not be combined without knowing which effect is wanted",
+    "a character or moment specifically wanting to feel real or emotionally sincere rather than knowingly cartoonish, where flat timing would undercut that sincerity"
+  ],
+  "interactions": [
+    "slow_in_slow_out (compiled principle) — this entry names the deliberate ABSENCE of that principle as its own distinct, functional style choice with real downstream effects, rather than simply an omission or a defect",
+    "vibe_timing_anti_pattern (W01) — a useful contrast: that entry warns against a stepped/snappy feel MISAPPLIED where it undercuts weight; this entry describes the same flat timing used correctly, as a deliberate, well-executed genre marker with a stated causal payoff, illustrating that the same timing choice can be either a defect or a technique depending on execution and context — the same point `indiscriminate_technique_application_is_overanimation_not_style` (video 54, this batch) makes from the opposite direction"
+  ],
+  "style_variations": {
+    "cartoon": "a native, expected convention for this specific historical sub-style ('rubber-hose'/Golden Age cartoon homage)",
+    "realistic": "directly contraindicated — undercuts the physical plausibility a realistic style depends on"
+  },
+  "cadence_representation": "Directly reachable today: `set_easing` already supports `Constant`/flat easing per key (the same mechanism this batch's video 51 entries document for a different style target). What is NOT represented is the CAUSAL CLAIM this entry makes — that omitting easing project-wide licenses otherwise-implausible transformations — since Cadence has no model of 'physical plausibility expectation' as a declared quantity a transformation could be checked against.",
+  "control_surface": "`set_easing` already reaches the flat/no-easing style directly; nothing currently declares this as a project-wide style choice the way `ai/style.js STYLE_MODIFIERS` declares other stylistic pulls.",
+  "detection_and_measurement_methods": "Directly measurable: `ai/motion.js`'s existing per-track easing-style tally (the same `stepped`/`Constant` counter this batch's video 51 entries already document) already distinguishes flat/stepped keys from eased ones — the proportion of flat-eased keys across a project is a real, buildable style signature.",
+  "generation_or_modification_methods": "`set_easing` already reaches this directly, one key range at a time; nothing currently applies it as a declared whole-project style default.",
+  "failure_modes": [
+    "applying flat/snappy timing to a moment that specifically needs to feel grounded or sincere, undercutting that intent",
+    "mixing flat and eased timing inconsistently across a cast without a genre reason, reading as uneven rather than stylistically coherent"
+  ],
+  "roblox_considerations": "No different from any other easing-style choice — directly reachable with ordinary keyframe authoring; `POSE_NATIVE_STYLES` (per this batch's video 51 findings) already exports `Constant` losslessly to a Roblox `KeyframeSequence`.",
+  "performance_implications": "None.",
+  "examples": [
+    "'what's interesting to note is the lack of easing... most movements are often flat and snappy... it removes any sense that the character could exist in a more real-world setting, and this is why the sinister character designs are even more effective... they're fully fictional and cartoony, [so they] can do absolutely anything, like turn into a plane, and it wouldn't seem out of place at all' (video @ 01:48–02:21)"
+  ],
+  "evidence_status": "video: https://youtu.be/pOBKGcehi8U @ 01:48–02:21 — the presenter (Video Game Animation Study) states the timing observation and its causal downstream effects directly, illustrated with named in-game examples (a genie's transformation, boss final-phase vehicle transformations); transcript-only, no frames extracted this session; experimental until validated"
+}

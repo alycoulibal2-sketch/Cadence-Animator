@@ -7,7 +7,7 @@
 - [x] 53. How to Animate a Smash Bros Character // MARIO — New Frame Plus (12:59) — https://youtu.be/NHwnTm5o1kc
 - [x] 54. The Overanimation of Zenless Zone Zero — New Frame Plus (24:03) — https://youtu.be/1yH4Qz23FqM
 - [x] 55. The Brilliant Animation in Metroid Dread — Video Game Animation Study (38:26) — https://youtu.be/1B1beXTnvEI
-- [ ] 56. The Animation of Cuphead — Video Game Animation Study (10:57) — https://youtu.be/pOBKGcehi8U
+- [x] 56. The Animation of Cuphead — Video Game Animation Study (10:57) — https://youtu.be/pOBKGcehi8U
 - [ ] 57. How 2D Fighter Games are Animated — Video Game Animation Study (7:13) — https://youtu.be/WYCjmVhiLaM
 - [ ] 58. The Effects Animation of Hollow Knight — New Frame Plus (7:19) — https://youtu.be/SIJtfr-PO4Y
 - [ ] 59. How to add IMPACT frames to your animation — Howard Wimshurst Animation (18:42) — https://youtu.be/6UaUi5fBmJc
@@ -372,3 +372,78 @@ reference performance.
 `W06-55-bespoke-pose-variant-as-undocumented-diegetic-state-indicator.json` — all four checked
 directly against `validateProposedEntry`/`validateEvidenceSource`; all pass; re-swept against the full
 batch so far (twelve prior entries) for concept-name collisions, none found.
+
+### 56. The Animation of Cuphead — Video Game Animation Study
+
+2026-09-11. Watched at `transcript` detail (147 caption segments, clean on first pull, full 10:57
+read in full — the shortest video in the batch). Matches W06.md's framing exactly ("hand-drawn
+timing inside a game loop").
+
+**What it teaches, specifically:**
+1. Bosses run their full authored animation loop regardless of player damage — a hit doesn't snap
+   the current frame to a recoil pose, it waits and rounds up to the next loop boundary — for TWO
+   stated reasons: preserving the hand-drawn-cartoon illusion a mid-frame snap would break, and
+   keeping every boss's attack pattern fully deterministic and memorizable ("this game is all based
+   around muscle memory") (04:53–06:33). This is the SAME underlying mechanism this batch's video 55
+   entry `noninterruptible_linear_clips_with_decision_hitch_read_as_complex_ai` already documents from
+   Metroid Dread — rather than writing a duplicate entry, updated that entry directly with this
+   independent second source's fresh motive (illusion-preservation + learnability, distinct from
+   "reads as complex AI") and its honest admission that the illusion sometimes fails ("although this
+   does actually happen occasionally — hey, it's not perfect"), which the original entry did not have.
+2. The deliberate ABSENCE of easing (flat, snappy starts and stops throughout, per the 1930s-40s
+   "rubber-hose" tradition) is not just a dated limitation but a genre marker with a real causal
+   payoff: removing physical plausibility is exactly what licenses completely unrestricted,
+   rule-breaking transformations (a boss becoming a vehicle, a genie becoming a monster) without
+   breaking suspension of disbelief (01:48–02:21). A useful contrast with `vibe_timing_anti_pattern`
+   (W01, a warning against MISUSING flat/snappy timing) and this same batch's
+   `indiscriminate_technique_application_is_overanimation_not_style` (video 54): the same timing
+   choice reads as craft or as defect depending entirely on execution and context, not on the
+   technique itself. Wrote **`omitted_easing_marks_genre_and_licenses_free_transformation`**.
+3. A character's overall curved-vs-straight silhouette shape-language pays off in two connected ways
+   at once: statically, curves read as warmth/comfort, which makes a cute-but-menacing boss design
+   MORE unsettling by contrast rather than less; in motion, curved silhouettes naturally support
+   wave-like secondary motion, while a rare straight-line moment breaking an otherwise-curved
+   character's silhouette is reserved specifically for a powerful action, for contrast (03:30–04:15).
+   Wrote **`curve_vs_straight_shape_language_spans_design_and_motion`**.
+4. Visible teeth are reserved as an almost-constant antagonist/boss feature and deliberately withheld
+   from the protagonists except in one narratively-consistent exception (baring teeth specifically
+   when shooting) — one binary facial-feature toggle applied consistently across an entire cast as a
+   protagonist/antagonist classifier (04:19–04:47). Distinct from `withheld_idle_fidget_as_deliberate_
+   character_trait` (W05, video 44): that entry withholds a CONTINUOUS behavior from ONE character for
+   personality; this withholds a STATIC FEATURE from a whole ROLE CATEGORY for narrative legibility.
+   Wrote **`withheld_facial_feature_as_protagonist_antagonist_signal`**.
+
+**Cross-checks** (real content, corroborating an existing card from a fresh angle rather than adding
+new mechanism): constant idle motion even at rest ("why would you spend all your effort... bringing a
+character to life when it's just going to be static... it's like the opposite of Dragon Ball Z",
+01:04–01:21) is the SAME general technique this same batch's video 54 entry
+`indiscriminate_technique_application_is_overanimation_not_style` critiques when overdone (Zenless
+Zone Zero's "floaty... swimmy" idle motion) — here presented and executed well, with no such
+critique, a nice real-world confirmation that the same technique's success depends entirely on
+execution and genre fit, exactly as that entry's own thesis states.
+
+**Not written as entries** (real content, kept to notes): the squash-and-stretch/bounce/follow-through
+praise for specific named characters (Baroness Von BonBon, the genie, the rat's can-machine, the
+cigar character, 06:49–08:11) directly reconfirms existing squash_stretch/follow_through_overlap
+cards with vivid new examples but no new mechanism. The catalogue of smear techniques (a shotgun, a
+trident, a cat's paw, a rabbit's hat, 08:11–08:49) directly reconfirms `motion_smear_readability` (W01)
+with several fresh named examples. The eye/pupil vocabulary (blinking, spinning, elongating, color
+change, snake-replacement, 09:06–09:39) is real and specific but is entirely face-system content this
+build has no home for at all (the same already-documented `no face` gap).
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — a 2D hand-drawn game analysis with software screenshots and shipped
+footage, no filmed reference performance.
+
+**Checks for the queue:** none new — entry 1's update to the existing video-55 entry, and entries 2–4,
+each state their own measurability directly inline rather than pointing at a new buildable check.
+
+**Entries written this video:**
+`W06-56-omitted-easing-marks-genre-and-licenses-free-transformation.json`,
+`W06-56-curve-vs-straight-shape-language-spans-design-and-motion.json`,
+`W06-56-withheld-facial-feature-as-protagonist-antagonist-signal.json` — all three checked directly
+against `validateProposedEntry`/`validateEvidenceSource`; all pass. Also UPDATED (not counted as a new
+entry) `W06-55-noninterruptible-linear-clips-with-decision-hitch-read-as-complex-ai.json` with this
+video's independent corroborating evidence. A full-corpus concept-name sweep (156 JSON files: 50
+compiled/merged + 23 W03 + 24 W04 + 42 W05 + this batch's 17 so far) found zero collisions.

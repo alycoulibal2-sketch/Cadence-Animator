@@ -1,0 +1,38 @@
+{
+  "concept": "withheld_facial_feature_as_protagonist_antagonist_signal",
+  "category": "advanced",
+  "definition": "Reserving a single, specific facial feature (visible teeth) as an almost-constant, prominent trait of antagonist characters while deliberately withholding it from protagonist characters except in one stated, narratively-consistent exception (the protagonists also bare their teeth when performing the same kind of aggressive action, shooting) — using ONE binary visual toggle, applied consistently across an entire cast, as a legible protagonist/antagonist classifier.",
+  "purpose": "Give the audience an immediate, consistent, low-effort visual cue for which characters are aggressive/threatening and which are not, reinforced across an entire cast rather than authored per-character.",
+  "visible_effect": "Antagonist and boss characters show their teeth almost constantly, prominently enough to become a recognizable feature of their design, while the protagonist characters' teeth are almost never shown except during their own aggressive action (firing a weapon).",
+  "psychological_or_gameplay_effect": "Teeth read as a direct, near-universal visual shorthand for aggression; withholding them from the protagonists most of the time keeps their design coded as less threatening by default, while the stated exception (baring teeth specifically when shooting) keeps the signal narratively consistent rather than arbitrary — the protagonists are still capable of aggression, the feature is reserved for the moments that specifically call for it.",
+  "physical_interpretation": "None — a design-language signal, not a physical property.",
+  "use_cases": [
+    "establishing a fast, consistent, cast-wide visual classifier for character role (protagonist vs. antagonist, friendly vs. threatening) using a single toggled feature rather than authoring a distinct read per character",
+    "keeping a feature's appearance narratively motivated (tied to a specific triggering action) rather than either always-on or arbitrary"
+  ],
+  "non_use_cases": [
+    "a cast without a clean protagonist/antagonist split to signal, where this specific binary toggle has no role to map onto",
+    "a design language already using teeth-visibility for an unrelated purpose (e.g. purely an expression-of-emotion signal), where overloading it as a role-classifier as well could create a conflicting read"
+  ],
+  "interactions": [
+    "withheld_idle_fidget_as_deliberate_character_trait (W05, video 44) — a related but distinct mechanism from the same general family (a deliberately ABSENT trait carrying meaning): that entry withholds a CONTINUOUS behavior (idle secondary motion) from ONE character to signal personality; this entry withholds a STATIC FEATURE'S VISIBILITY (teeth) from a whole ROLE CATEGORY (protagonists) across an entire cast, to signal narrative role rather than individual personality"
+  ],
+  "style_variations": {
+    "cartoon": "a native, legible technique for this style's typically simplified, readable facial design",
+    "realistic": "a literal teeth-visibility toggle would likely read as anatomically arbitrary rather than as a design signal in a realistic style"
+  },
+  "cadence_representation": "Not represented, and outside this build's scope: Cadence has no face system at all (an already-documented gap from prior batches), so a facial-feature-visibility toggle tied to a declared character role has no data to attach to in this build even in principle.",
+  "control_surface": "None — outside this build's scope entirely.",
+  "detection_and_measurement_methods": "Not measurable in this build: no face/expression system exists to measure feature visibility against.",
+  "generation_or_modification_methods": "None — outside this build's scope entirely.",
+  "failure_modes": [
+    "breaking the narrative consistency of the exception (showing protagonist teeth in a context that isn't itself an aggressive action), muddying the signal",
+    "applying the toggle to a character whose role is deliberately ambiguous, where a clean binary signal would prematurely resolve intended ambiguity"
+  ],
+  "roblox_considerations": "None specific — Roblox avatars typically have very limited or no facial articulation by default; a custom face system (as this build's own broader `no face` gap already notes elsewhere in this programme) would be required regardless of engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "'you'll nearly always see the boss characters['] teeth, so much so that it's almost a prominent feature. This is, of course, a very clear way to show aggression... Cuphead and Mugman do bare their teeth when shooting, of course' (video @ 04:19–04:47)"
+  ],
+  "evidence_status": "video: https://youtu.be/pOBKGcehi8U @ 04:19–04:47 — the presenter states the design pattern and its narrative-logic exception directly; transcript-only, no frames extracted this session; experimental until validated"
+}
