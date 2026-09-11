@@ -138,14 +138,18 @@ follows for one video:
    evidence, and what changed in the library or the knowledge folder. Every later session reads
    this file (add it to §0 of both prompts).
 
-**The watch list is already seeded**: `docs/animation-intelligence/WATCHLIST.md` holds 100 real
-videos (found with `yt-dlp` on 2026-09-11, listed again in the appendix of this prompt), in seven
-sections with what each should teach. Watch them in the order given — fundamentals, body
-mechanics, Roblox, game talks, anime, VFX and camera, workflow — and tick each one in the file
-with the date and the entries or clips it produced. **Do not watch all 100 in one session**: five
-to ten per session, `transcript` detail for talks and analyses, `balanced` only for tutorials that
-show motion the words cannot carry, entries written as you go. Links the user adds at the bottom of
-the file are watched first.
+**The watch list is already seeded and already split into sessions**:
+`docs/animation-intelligence/WATCHLIST.md` holds 100 real videos (found with `yt-dlp` on
+2026-09-11, listed again in the appendix of this prompt), and `docs/animation-intelligence/watch/`
+holds ten self-contained session prompts, `W01.md` to `W10.md`, ten videos each. **The watching is
+NOT this session's job** — the user gives each `Wnn.md` to its own fresh session, several at once,
+so every video that shows motion gets full frames. Each watch session writes only its own notes
+file and its own `knowledge/inbox/Wnn-*.json` entries. **This session's job is the MERGE** (the
+steps in `watch/README.md`): load every inbox entry through Part 72's gate, move the accepted ones
+into `knowledge/`, tick the watched videos in `WATCHLIST.md`, and append the notes' paragraphs,
+`check:` lines and capture candidates to `LESSONS.md`. If no batch has run yet, build the loader
+and the skill anyway; the inbox may be empty. Links the user adds at the bottom of `WATCHLIST.md`
+are watched first by whichever batch runs next.
 
 ### D. The first corpus (the user does the clicks; you write the instructions and wait)
 
