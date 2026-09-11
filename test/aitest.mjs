@@ -2837,9 +2837,11 @@ check('pose: a target out of reach reports the shortfall and never fakes the pos
   const reach = out.applied.find((x) => x.kind === 'reach');
   assert.equal(reach.reached, false);
   assert.equal(reach.shortfall.direction, 'too far');
-  // The reported shortfall IS the residual: the pose returned is the closest reachable one, and
-  // the number a caller reads is exactly how far it falls short.
-  assert.ok(Math.abs(reach.residual_studs - (reach.requested_distance_studs ?? 0)) >= 0);
+  // The reported shortfall IS the residual, to four decimal places. That equality is the whole
+  // promise of the failure path: the pose returned is the closest reachable one, and the number a
+  // caller reads is exactly how far it falls short — not an estimate of it.
+  assert.equal(reach.shortfall.studs, reach.residual_studs,
+    `the declared shortfall (${reach.shortfall.studs}) must be the measured residual (${reach.residual_studs})`);
   assert.ok(reach.residual_studs > 4, `residual ${reach.residual_studs}`);
   assert.ok(out.findings.some((f) => f.id === 'POSE-REACH-SHORT'));
   assert.ok(out.ops.length === 2, 'the two chain joints are still keyed, at the closest reachable pose');
