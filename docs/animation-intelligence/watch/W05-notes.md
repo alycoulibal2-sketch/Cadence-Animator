@@ -9,7 +9,7 @@
 - [x] 45. Animation Bootcamp: Animating Cameras for Games — GDC (26:26) — https://youtu.be/hP1Vz70WouE
 - [x] 46. Animation Bootcamp: Script to Screen: The Development Diary of Marvel's Spider-Man — GDC (31:13) — https://youtu.be/r_rJJyIPrmM
 - [x] 47. Evolving Combat in 'God of War' for a New Perspective — GDC (59:52) — https://youtu.be/hE5tWF-Ou2k
-- [ ] 48. Keyframes and Cardboard Props: The Cinematic Process Behind 'God of War' — GDC (54:01) — https://youtu.be/MNinZWlhprE
+- [x] 48. Keyframes and Cardboard Props: The Cinematic Process Behind 'God of War' — GDC (54:01) — https://youtu.be/MNinZWlhprE
 - [ ] 49. Unsynced: The Last of Us Melee System — GDC (54:20) — https://youtu.be/Ox2H3kUQByo
 - [ ] 50. Making Fluid and Powerful Animations For 'Skullgirls' — GDC (21:06) — https://youtu.be/Mw0h9WmBlsw
 
@@ -503,4 +503,72 @@ diagrams, no trackable independent reference performance.
 `W05-47-angle-scaled-reach-correction-for-lateral-targets.json`,
 `W05-47-procedural-translation-scale-as-iteration-dial.json`,
 `W05-47-animated-not-physical-height-clamped-juggle.json` — all four pass `validateProposedEntry`
+and `validateEvidenceSource`; no concept-name collisions.
+
+### 48. Keyframes and Cardboard Props: The Cinematic Process Behind 'God of War' — GDC (Erica Pinto, Santa Monica Studio)
+
+2026-09-11. Watched at `transcript` detail (1433 caption segments; read via the same targeted-scan
+approach as video 47 given length, with the full transcript span covered non-sequentially). The direct
+companion piece to video 46 (Spider-Man dev diary) and video 47 (God of War combat) — this one covers
+the SAME studio's cinematic pipeline as video 47 but from the narrative-animation side, built entirely
+around the constraint of a camera that never cuts, not even between cinematic and gameplay. Matches
+W05.md's framing ("cinematic planning with cheap previews, the director's loop") closely, though the
+single most valuable finding turned out to be a hard technical bug class rather than a planning
+technique.
+
+**What it teaches, specifically:**
+1. A marked-up cardboard box, puppeteered at the right height, stands in for an oversized/not-yet-built
+   character during rough previs specifically to validate composition and scale before any real asset
+   exists (16:39–16:55). Wrote **`cardboard_box_puppet_scale_proxy`**.
+2. Giving every character an ongoing physical task ("business") solves a problem specific to a no-cut
+   camera: there is no edit available to redirect attention away from a talking head, so the redirection
+   has to be diegetic instead — stated as fixing three things at once (camera motivation, character
+   movement, non-verbal characterization), explicitly tied back to an earlier-documented
+   characters-freezing failure in the same talk (17:59–19:21). Wrote
+   **`character_business_motivates_no_cut_camera_disengagement`**.
+3. **The strongest finding in this video, and arguably the batch**: a character rig's root ("zero")
+   joint is a STATE SIGNAL two independent downstream systems read on their own — the game engine's
+   locomotion state machine (walking/running/idle) and, for a player character, physics/cloth — so an
+   animated clip whose visible mesh moves while the root stays frozen produces a real correctness bug
+   (an idle-pose pop at the cinematic/gameplay handoff, or cloth "flipping out" because physics thinks
+   the character is elsewhere), not a subtle seam. Demonstrated with the team's own real-time
+   root-velocity debugging visualizer tracing an actual desync bug (38:15–40:49). This is directly and
+   immediately measurable in THIS build: `sampleMotion`'s `linear_velocity` on a root part is exactly
+   the quantity at issue, and nothing currently cross-checks it against `analyseChain`'s leg-cycle-implied
+   speed. Wrote **`zero_joint_velocity_must_match_visual_locomotion_state`**.
+4. Live-action reference performers matching a differently-scaled character's height by adjusting their
+   OWN posture (walking on their knees for dwarf characters) get correct eyelines/composition but
+   explicitly NOT correct timing — captured as a named, deliberate exception to the general
+   physical-reference-is-valid-timing-evidence principle from `physical_reference_timing_method` (W01)
+   (11:06–11:44). Wrote **`scale_double_sacrifices_timing_for_composition`**.
+
+**Not written as entries** (real content, kept to notes): "cheating the camera" to hide armor-clipping
+penetrations (41:45–41:54) directly confirms `fixed_camera_licenses_invisible_pose_cheats` (video 43)
+with a different named example — logged as a cross-check, not a new entry. A dedicated late-production
+"buttery smooth pack" QA pass specifically targeting cinematic/gameplay seams (pose-matching discipline
+plus the zero-joint check above plus interactable-object position metrics, 37:42–39:00) is the
+PROCESS/CONTAINER the zero-joint finding was caught inside, not a separate mechanism — its pose-matching
+half also directly echoes `action_end_pose_must_match_idle_for_automatic_blend` (W04) and is noted as a
+cross-check rather than re-stated as new. A validate-cheap-before-committing pattern (shooting an
+iPhone/handheld test specifically to de-risk a risky camera-language idea — a third-to-first-person
+transition — before full previs production, 12:53–13:41) is real but close enough in spirit to this
+video's own `cardboard_box_puppet_scale_proxy` and video 46's workflow entries that a fourth restatement
+was judged not additive.
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — internal production/pipeline footage and diagrams, no independent
+trackable reference performance presented as such.
+
+**Checks for the queue:**
+- `check: root_velocity_vs_implied_leg_cycle_speed — compare a root/zero-joint's measured
+  linear_velocity (sampleMotion) against the speed a leg-cycle's phase (analyseChain) implies the
+  character should be travelling at; flag a mismatch as a candidate for exactly the idle-pop/cloth-glitch
+  bug class this video documents — buildable today from two measurements already in this build — video
+  48 @ 38:19–40:49`
+
+**Entries written:** `W05-48-cardboard-box-puppet-scale-proxy.json`,
+`W05-48-character-business-motivates-no-cut-camera-disengagement.json`,
+`W05-48-zero-joint-velocity-must-match-visual-locomotion-state.json`,
+`W05-48-scale-double-sacrifices-timing-for-composition.json` — all four pass `validateProposedEntry`
 and `validateEvidenceSource`; no concept-name collisions.

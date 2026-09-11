@@ -1,0 +1,38 @@
+{
+  "concept": "zero_joint_velocity_must_match_visual_locomotion_state",
+  "category": "advanced",
+  "definition": "A character rig's root/\"zero\" joint is not merely a cosmetic position marker — its VELOCITY is read independently by the game engine as the authoritative signal for locomotion state (walking, running, idle) and, for a player character, drives the attached camera and physics/cloth simulation — so an animated clip whose visible mesh appears to move while the root joint itself stays still or moves inconsistently with it produces real, game-logic-level bugs, not merely a subtle visual seam.",
+  "purpose": "Name the exact mechanism behind a specific, recurring class of cinematic-to-gameplay transition bug, so it is understood as a DATA-CONSISTENCY requirement (root velocity must match the visible locomotion state) rather than a vague 'polish' problem to be caught by eye.",
+  "visible_effect": "A character who visibly runs across the screen during a cinematic but pops into an idle stance the instant gameplay resumes (because the engine's state machine read a stationary root joint as 'standing' throughout); or trailing physics-driven elements (a cloth skirt, a dragged object) visibly flip or desync because the physics system believed the character's root was somewhere other than where the mesh was actually shown.",
+  "psychological_or_gameplay_effect": "A player experiences this as a jarring 'pop' or glitch exactly at the cinematic-to-gameplay handoff, undermining a no-cut camera's entire premise (a seamless, always-continuous experience) at precisely the moment that promise is most visible.",
+  "physical_interpretation": "The root joint's velocity is the quantity downstream physical/logical systems (state machines, cloth solvers, collision) treat as ground truth for 'where is this character and how fast is it moving' — independent of, and authoritative over, whatever the visible mesh appears to be doing.",
+  "use_cases": [
+    "any player character whose animation must hand off between an authored cinematic and live, systemically-driven gameplay with no cut to hide a mismatch",
+    "any rig where secondary physics (cloth, hair, dragged props) reads root velocity as an input — a root/mesh mismatch will surface as a physics-layer glitch even in a purely observational (non-interactive) sequence"
+  ],
+  "non_use_cases": [
+    "a rig or clip that will only ever be viewed in isolation, with no downstream system (a state machine, a physics solver) reading its root joint independently — the mismatch this entry describes has no consumer to surface as a bug there",
+    "a cut-based (not no-cut) production, where a hard cut at the cinematic/gameplay boundary can hide a root/mesh mismatch the same way it hides other seams — the bug still exists in the data but has nowhere to become visible"
+  ],
+  "interactions": [
+    "cycle_phase_driven_root_translation (video 41) — both concern root motion as a signal OTHER systems consume, not merely a cosmetic position; this entry is the concrete bug report for exactly the failure mode that entry's technique is designed to prevent",
+    "action_end_pose_must_match_idle_for_automatic_blend (W04) — a sibling continuity requirement at the POSE level (the end pose must match the next state's start pose) alongside this entry's requirement at the VELOCITY level (the root's motion must match the next state's expected motion)"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly measurable and directly relevant: `ai/motion.js sampleMotion`'s `linear_velocity` measurement on a rig's root part is exactly the quantity this entry is about, and a check comparing that measured root velocity against the VISUAL locomotion the rest of the rig's pose implies (e.g. leg-cycle phase, per `analyseChain`) is a real, buildable consistency check no code in this build currently runs. This is one of the more directly actionable findings in the batch: the measurement primitive already exists, only the cross-check (root velocity vs. implied visual state) is missing.",
+  "control_surface": "None dedicated; `set_keyframe` on a root/zero-joint's position track is the ordinary authoring surface, with no validation against the rest of the rig's implied motion.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s `linear_velocity` on the declared root part directly measures the quantity at issue; comparing it against a leg-cycle-phase-implied speed (from `analyseChain` on the legs) would let a check flag exactly the 'root frozen while the character visibly runs' defect this entry describes — buildable today from existing measurements, not blocked on new capability the way several of this batch's other camera-runtime entries are.",
+  "generation_or_modification_methods": "None built — no strategy in `ai/plan.js` currently keys or validates root translation against implied visual locomotion speed.",
+  "failure_modes": [
+    "animating a character's mesh to visibly move while leaving the root/zero-joint keyframed as stationary, causing the exact idle-pop-on-handoff bug this entry names",
+    "root motion that is present but does not match the mesh's implied speed even approximately (too slow or too fast relative to the visible leg cycle), producing the same class of bug in a subtler form"
+  ],
+  "roblox_considerations": "Directly applicable: a Roblox `Humanoid`'s state (`Running`, `Idle`, etc.) and its root part's actual assembly linear velocity are exactly the mechanism this entry describes — an exported Cadence cinematic whose root track does not match its visible locomotion would reproduce this bug precisely on Roblox's own Humanoid state machine.",
+  "performance_implications": "None — a correctness/authoring concern, not a runtime cost.",
+  "examples": [
+    "stated directly: 'the zero joint's velocity also informs the engine of what state the character should be in, whether he's walking or running or idle, so if it's not matching the actual action of the scene... if Kratos is running out but your zero joint is frozen, then the game engine thinks he's standing, so you're going to see him pop into an idle pose at the end of the scene' (video @ 38:19–38:51)",
+    "a named physics-layer symptom of the same root cause: 'if it wasn't in sync with the body, sometimes there were cloth physics problems because it thought the character was somewhere else... you would see his skirt would flip out' (video @ 40:38–40:49)",
+    "a dedicated debugging tool built specifically to diagnose this class of bug: a real-time on-screen velocity-arrow visualization of the zero joint, used to trace a scene where 'the log and Kratos become out of sync' back to the log's own root joint having silently stopped updating (video @ 39:29–39:58)"
+  ],
+  "evidence_status": "video: https://youtu.be/MNinZWlhprE @ 38:15–40:49 — Erica Pinto explains the zero-joint mechanism, its dual consumers (state machine and physics), and demonstrates the team's own debugging visualization tool tracing a real instance of the bug; no frames extracted (transcript-only); experimental until validated"
+}

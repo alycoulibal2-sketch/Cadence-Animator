@@ -1,0 +1,37 @@
+{
+  "concept": "character_business_motivates_no_cut_camera_disengagement",
+  "category": "advanced",
+  "definition": "Give every character an ongoing physical task or occupation ('business') during a scene — even one with no scripted purpose — specifically so the camera has a diegetic, motivated reason to look away from a speaking character's face, since a no-cut camera language has no edit available to simply cut away instead.",
+  "purpose": "Solve a problem specific to a camera that never cuts: normal editing tools for redirecting attention (cutting to another angle, a reaction shot, a cutaway) are unavailable, so the SAME redirection has to be achieved diegetically, by giving the camera something happening in-world worth looking at.",
+  "visible_effect": "A character not currently the focus of dialogue is doing something physical and specific (arranging herbs, carrying an item, working at a task) rather than standing idle, giving the camera a motivated place to rest its attention besides a talking head.",
+  "psychological_or_gameplay_effect": "Solves three problems at once, named directly: it gives the camera something to motivate looking away from a face (replacing what a cut would normally do), it gives characters a reason to move through space (fixing an earlier-observed freezing/awkward-camera-swing problem), and it non-verbally communicates personality and profession (a witch tending herbs, a craftsman at his forge) without a line of dialogue.",
+  "physical_interpretation": "None — a staging/direction discipline, not a property of motion.",
+  "use_cases": [
+    "any no-cut or single-continuous-shot cinematic sequence, where cutting away is unavailable as an attention-redirection tool",
+    "any dialogue scene with non-professional performers (here, animators acting as reference) who need something physical to do rather than freezing awkwardly with nothing to occupy them"
+  ],
+  "non_use_cases": [
+    "a conventionally-cut scene, where a cutaway or reaction shot already solves the same attention-redirection problem more directly and 'business' is a secondary tool rather than a necessity",
+    "a scene whose focus SHOULD be a static, undistracted character (a moment of stillness or grief) — constant diegetic business would undercut exactly the stillness the scene wants"
+  ],
+  "interactions": [
+    "two_pass_shoot_comprehension_then_subtext and reaction_shot_over_speaker_shot_for_emotional_weight (video 46) — all are camera-direction techniques for controlling audience attention without relying on a cut",
+    "the earlier-observed 'characters freezing in place' failure this same video names as the original problem this technique fixes — business is presented as a direct, causal solution to a previously-documented defect, not an independent idea"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: 'business' is authored PERFORMANCE content (what a character is doing with their hands/body while another character speaks), which Cadence could in principle store as an ordinary secondary rig's pose/motion track — nothing prevents authoring it — but Cadence has no concept of WHY a given motion exists (to motivate a camera look-away, to characterize a profession) and no camera model to even check whether the 'motivated look-away' this technique targets is being satisfied (the same SHOT-003/004 gap named elsewhere in this batch).",
+  "control_surface": "Ordinary pose/motion authoring tools cover the content itself; nothing evaluates whether it serves this specific camera-motivation purpose.",
+  "detection_and_measurement_methods": "None — whether a secondary character's motion successfully 'motivates' a camera look-away is a judgment about audience attention, not a property `ai/motion.js` could measure from the keys themselves.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "authoring business that is too visually loud or attention-grabbing, competing with (rather than supporting) the actual scene focus — the same unintentional-tangent risk named in `unintentional_tangent_hijacks_viewer_attention` (video 45) applied to a moving secondary character instead of a static composition element",
+    "giving every character constant business regardless of scene tone, undercutting moments that need stillness"
+  ],
+  "roblox_considerations": "None specific — a staging/direction discipline independent of target engine.",
+  "performance_implications": "More authored secondary-character motion per scene than a cut-based equivalent would need, since there is no cut to hide an unanimated or simpler secondary character behind.",
+  "examples": [
+    "Freya given a specific task (arranging herbs on a ladder) during a dialogue scene, described directly as helping 'sell her character as a witch of the woods' while also giving the camera something to look at (video @ 18:56–19:06)",
+    "the causal link stated directly: giving characters business 'help move them' through space, tying back explicitly to the earlier freezing/awkward-camera-swing problem this same talk documented (video @ 18:34–18:42)"
+  ],
+  "evidence_status": "video: https://youtu.be/MNinZWlhprE @ 17:59–19:21 — Erica Pinto states the business technique and all three of its stated purposes (camera motivation, movement, characterization) directly, tying it explicitly to an earlier-documented problem in the same talk; no frames extracted (transcript-only); experimental until validated"
+}

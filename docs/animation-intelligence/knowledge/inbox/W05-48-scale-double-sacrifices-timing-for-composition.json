@@ -1,0 +1,37 @@
+{
+  "concept": "scale_double_sacrifices_timing_for_composition",
+  "category": "optional",
+  "definition": "When shooting live-action reference for characters of different physical scale than the performer (a full-sized adult standing in for a dwarf or child character), have the performer adjust their OWN posture to match the target's height (e.g. walking on their knees) to get correct eyelines and on-screen composition — while accepting that the resulting movement TIMING will read wrong, and capturing accurate timing separately from performers at the character's true effective scale where possible.",
+  "purpose": "Get a cheap, fast composition/eyeline reference immediately, from whatever crew is on hand, while being explicit that the same reference is NOT valid evidence for timing — rather than either skipping composition reference entirely or mistakenly trusting the knee-walking take's timing.",
+  "visible_effect": "A knee-walking performer's on-screen framing and sightlines match what the smaller character would actually produce, while their pace of movement (how long it takes to cross a given distance) does not match the target character's true timing at all.",
+  "psychological_or_gameplay_effect": "None directly — a production reference technique; its value is entirely in what it lets the team validate cheaply, not in anything an audience ever sees.",
+  "physical_interpretation": "Posture substitutes for scale (a lowered eye-height and shortened effective stride approximate a smaller character's geometry) without substituting for the smaller character's own true mass/leg-length-driven timing.",
+  "use_cases": [
+    "quick composition/eyeline previs for a character of significantly different scale than any available reference performer",
+    "any production wanting SOME physical reference for a differently-scaled character faster than sourcing a performer who actually matches that scale"
+  ],
+  "non_use_cases": [
+    "any pass whose purpose is establishing TIMING (how fast the character moves, how long an action takes) — the technique's own scale-substitution is explicitly stated to break exactly that quality",
+    "a final or near-final performance capture, where an actually-scaled performer (or a scaled/retimed version of the reference) is needed rather than the raw knee-walking take"
+  ],
+  "interactions": [
+    "cardboard_box_puppet_scale_proxy (this batch, video 48) — a sibling cheap-scale-proxy technique; that one sacrifices ALL motion fidelity to get scale/silhouette only, this one keeps a real human performance but sacrifices only timing to get BOTH scale-correct eyelines and (unreliable) motion",
+    "physical_reference_timing_method (W01) — the general principle that physical reference is a legitimate timing source; this entry is a specific, named EXCEPTION where the same general technique (shoot yourself as reference) explicitly does NOT transfer for timing, only for composition"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and not really applicable: a live-action reference-shooting technique with no digital trace for Cadence to operate on. The transferable lesson — that a single reference capture can be VALID evidence for one quality (composition) while being INVALID evidence for another (timing) from the same take — has no explicit representation in this build's `evidence_status` conventions either; a knowledge entry's own evidence is treated as valid or not as a whole, with no field distinguishing 'valid for claim X, not for claim Y' within one cited source.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "None — a production/reference-capture technique with no digital trace.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "trusting a knee-walking reference take's TIMING as if it were valid, when the presenter states directly that 'one of the disadvantages of walking on your knees is you don't get a good sense of accurate timing'",
+    "skipping physical reference entirely because no correctly-scaled performer is available, losing the real composition/eyeline value this cheap substitute technique still provides"
+  ],
+  "roblox_considerations": "None specific — a live-action reference-capture technique independent of target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "animators walking on their knees to represent dwarf characters specifically to 'get accurate eye lines and composition for the camera', with the explicit caveat 'you don't get a good sense of accurate timing for how long it takes to move around' (video @ 11:06–11:37)",
+    "contrasted directly in the same passage: when the actual (correctly-scaled) principal cast was available and could 'walk around freely', their takes captured accurate timing that the knee-walking stand-in takes could not (video @ 11:39–11:44)"
+  ],
+  "evidence_status": "video: https://youtu.be/MNinZWlhprE @ 11:06–11:44 — Erica Pinto describes the knee-walking scale-substitution technique and states its specific timing limitation directly; no frames extracted (transcript-only); experimental until validated"
+}

@@ -1,0 +1,35 @@
+{
+  "concept": "cardboard_box_puppet_scale_proxy",
+  "category": "optional",
+  "definition": "During rough live-action or mocap previs, represent an oversized character (a giant, an ogre) with a plain marked-up cardboard box puppeteered by a crew member at the intended height/silhouette, rather than waiting for a rigged, sized creature asset to test blocking and camera composition.",
+  "purpose": "Test composition, spacing and camera framing against a correctly-SCALED stand-in immediately, without waiting on asset production for a character that may not exist yet in a usable form.",
+  "visible_effect": "A rough previs pass shows correctly-proportioned negative space and eyelines around the oversized character's approximate silhouette, even though the 'character' on screen is literally a marked cardboard box.",
+  "psychological_or_gameplay_effect": "None directly — a production-speed tool, not something the audience ever sees; its value is entirely in how fast it lets the team validate a composition decision.",
+  "physical_interpretation": "None — a physical scale proxy, not a simulation of anything.",
+  "use_cases": [
+    "validating camera composition and blocking against an oversized or as-yet-unmodeled character's silhouette and scale, early in previs",
+    "any production wanting to test spacing/framing before a full character rig or asset is ready to shoot with"
+  ],
+  "non_use_cases": [
+    "any pass needing accurate TIMING or performance detail from the oversized character — a static or crudely-puppeteered box carries no usable motion data, only scale/silhouette",
+    "a final or near-final shot, where the proxy's total lack of detail would defeat the purpose of reviewing composition against the real asset"
+  ],
+  "interactions": [
+    "scale_double_sacrifices_timing_for_composition (this batch, video 48) — both are physical, cheap proxies used specifically to validate ONE dimension (here: scale/silhouette; there: eyeline/composition) without needing the full-fidelity asset or performer"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and not really applicable: this is a PHYSICAL, pre-digital previs technique for validating composition against a not-yet-built asset — Cadence only ever operates on rigs and clips that already exist as project data, so it has no equivalent 'placeholder before the asset exists' concept at all. The closest analogy is authoring a rough capsule/primitive rig stand-in for a not-yet-final character, which this build does support in the ordinary sense (any rig, however crude, is just a rig) but names no special workflow for.",
+  "control_surface": "None specific — ordinary rig/item authoring covers a crude placeholder the same as a final one; nothing distinguishes the two.",
+  "detection_and_measurement_methods": "None — a physical, pre-digital proxy has no digital trace to measure at all.",
+  "generation_or_modification_methods": "None.",
+  "failure_modes": [
+    "mistaking the box proxy's rough blocking for validated TIMING or performance, when it only ever validated scale and composition",
+    "skipping the eventual real-asset review because the box-proxy version already 'looked fine' for composition — composition and full-fidelity readability are different questions"
+  ],
+  "roblox_considerations": "None specific — a physical production technique independent of target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "a marked-up cardboard box puppeteered by a crew member to test composition for a face-in-the-mountain environment scene needing an oversized character, described directly as letting the team 'see the environment... and figure out where we were going to place our characters' before any real asset existed (video @ 16:39–16:55)"
+  ],
+  "evidence_status": "video: https://youtu.be/MNinZWlhprE @ 16:39–16:55 — Erica Pinto (lead narrative animator, Santa Monica Studio, God of War 2018) describes and shows the cardboard-box scale-proxy test directly; no frames extracted (transcript-only); experimental until validated"
+}
