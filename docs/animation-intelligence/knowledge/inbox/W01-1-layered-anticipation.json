@@ -1,0 +1,45 @@
+{
+  "concept": "layered_anticipation",
+  "category": "advanced",
+  "definition": "A second, earlier preparatory motion that anticipates the anticipation itself — the body winds up for its own wind-up — rather than a single preparatory phase before the main action.",
+  "purpose": "Read an especially forceful or complex action (a baseball-pitcher-style throw, a haymaker) as more powerful than a single-level anticipation can communicate, by giving the audience two beats of load-up instead of one.",
+  "visible_effect": "Two (or more) distinct preparatory sub-phases before the main action, often in different or opposing directions — e.g. a step forward, then a wind-up, then the arm thrown back, then the punch.",
+  "psychological_or_gameplay_effect": "Reads as a bigger, more consequential action than the same motion with one anticipation phase; costs proportionally more time, so it trades responsiveness for perceived weight even more than ordinary anticipation does.",
+  "physical_interpretation": "Loading energy in stages, the way a pitcher's full-body windup loads more energy than a wrist flick — an extension of anticipation's own spring analogy to multiple linked springs.",
+  "use_cases": [
+    "a signature or \"finisher\" attack meant to read as the most powerful action in its moveset",
+    "a boss telegraph that must be unmistakable even from a distance",
+    "a comedic take where a character absurdly over-prepares for a small action"
+  ],
+  "non_use_cases": [
+    "ordinary or frequent actions, where the extra duration compounds anticipation's own responsiveness cost past what a game can afford",
+    "any action whose single-level anticipation is already at the limit the design permits",
+    "a surprise or reflex reaction, where even one level of anticipation should stay minimal"
+  ],
+  "interactions": [
+    "Anticipation — this is a specialization of it, not a separate principle; both share the same readability-vs-responsiveness tradeoff (Part 26.2)",
+    "Timing — each added level multiplies the cost against the action's total duration, so this is timing's tradeoff compounded",
+    "Exaggeration — layering anticipation is itself a form of exaggerating the preparation phase specifically, restrained everywhere else"
+  ],
+  "style_variations": {
+    "anime": "a natural fit — held multi-beat windups before a signature attack are a genre convention",
+    "realistic": "rare — most real preparatory motion is a single continuous load, not distinct beats",
+    "game_combat": "reserved for the smallest number of highest-impact moves in a kit, given the responsiveness cost"
+  },
+  "cadence_representation": "Not represented. `ai/cal.js PHASE_NAMES` and `ai/plan.js segmentPhases` locate at most one `anticipation` phase per action from key/marker evidence — nothing in this build distinguishes a second, earlier sub-phase from the first, so a layered wind-up would currently segment as a single (longer, oddly-shaped) anticipation phase rather than two.",
+  "control_surface": "None directly. `anticipation_depth` scales whatever single phase `segmentPhases` finds; there is no way to address an inner sub-phase separately.",
+  "detection_and_measurement_methods": "`ai/motion.js` measures onset/peak per joint, which could in principle locate a direction reversal WITHIN an already-segmented anticipation phase (a second local extremum before the main action's onset) — but no code in this build runs that search; it is a real, not merely theoretical, extension of an existing measurement.",
+  "generation_or_modification_methods": "None. Inserting a second preparatory phase requires adding keys, which `ai/plan.js` strategies do not do (Phase 3's planner may not add or remove a key, per CLAUDE.md).",
+  "failure_modes": [
+    "layering anticipation on an action too minor to earn the extra time, reading as sluggish rather than powerful",
+    "two anticipation phases that move in the same direction instead of a distinct second beat, which reads as one slow phase rather than two",
+    "applying it to a gameplay-critical action where the compounded responsiveness cost breaks the input feel"
+  ],
+  "roblox_considerations": "None specific — a pure keyframe-timing structure, independent of the target engine.",
+  "performance_implications": "None beyond any other keyframe edit — no simulation or particle cost.",
+  "examples": [
+    "a baseball-pitcher-style throw: step forward, wind up, throw the other arm back, then punch (video 1 @ 3:50–4:11)",
+    "a boss slowly raising a weapon overhead, pausing, then raising it further before the strike"
+  ],
+  "evidence_status": "video: https://youtu.be/uDqjIdI4bF4 @ 3:47–4:13 — Alan Becker narrates and shows a punch with two nested wind-up phases, contrasted against the same punch with a single anticipation phase; experimental until validated"
+}

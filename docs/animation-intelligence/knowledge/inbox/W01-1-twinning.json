@@ -1,0 +1,43 @@
+{
+  "concept": "twinning",
+  "category": "advanced",
+  "definition": "The specific failure of posing paired limbs or features (arms, legs, eyes, ears) identically or symmetrically at the same time, which reads as flat, static, and lifeless regardless of how correct the pose is otherwise.",
+  "purpose": "Keep a pose reading as alive and dynamically balanced rather than stiff, by breaking mirror symmetry between paired body parts.",
+  "visible_effect": "Paired limbs held in mirrored or near-identical positions simultaneously (both arms at the same angle, both legs evenly weighted) versus the same pose with weight shifted to one side, one hand on a hip, or a slouch introduced.",
+  "psychological_or_gameplay_effect": "A twinned pose reads as posed/artificial even to a viewer who cannot say why — the same \"wrong even without being able to say why\" effect the existing `structural_understanding` entry already names for broken balance, applied specifically to paired-part symmetry.",
+  "physical_interpretation": "Loosely physical: a real standing body rarely bears weight evenly on both legs or holds both arms in mirrored tension at once, so symmetry itself is a mild physical tell as well as a compositional one.",
+  "use_cases": [
+    "any standing, idle, or held pose with paired limbs, where breaking symmetry is close to always correct",
+    "character design silhouettes, where asymmetry also aids readability (Part 26.3's staging concern)"
+  ],
+  "non_use_cases": [
+    "a deliberately robotic, mechanical, or ceremonial pose where rigid symmetry IS the intended read (the existing `structural_understanding` entry's horror/altered-biomechanics exception generalizes here to \"mechanical\" too)",
+    "a genuinely symmetric action mid-motion, such as both arms pushing evenly against a shared load, where symmetry is physically correct for that instant",
+    "a fast in-between pose passed through quickly, where held symmetry has not had time to register as a problem"
+  ],
+  "interactions": [
+    "Structural understanding — twinning is the paired-limb-specific case of that entry's broader balance/volume judgement; Part 26.11 groups exactly this kind of pose-credibility question together",
+    "Appeal — an asymmetric, weight-shifted pose is also one of appeal's own tools for making a character read as designed rather than default",
+    "Mirroring — the rig-level mirror machinery (`mirror_item`, rigspec mirror pairing) is the opposite operation: it exists to COPY a pose across the mirror axis, which is exactly what a caller must NOT do to both sides at once on a held pose"
+  ],
+  "style_variations": {
+    "mechanical": "symmetry is often the correct, intended read and this entry's non_use_cases apply, not its failure mode",
+    "cartoon": "asymmetry can be pushed further than a realistic style would allow, as one more exaggeration axis"
+  },
+  "cadence_representation": "Not represented. No check in this build compares a rig's mirrored joint pairs' rotation values against each other at a given frame — `ai/riggraph.js validateRig` checks mirror COMPLETENESS (that a left joint has a matching right joint in the rig structure) but never compares their animated VALUES, which is a different, unaddressed question.",
+  "control_surface": "None. `inspect_rig` reports structural mirror completeness only.",
+  "detection_and_measurement_methods": "A real, buildable measurement this build does not yet compute: for each declared mirror joint pair, the angular difference between left and right rotation at a sampled frame is directly derivable from the same FK solve `ai/motion.js` already runs — a small difference across multiple paired joints simultaneously on a held (non-locomotion) pose is a concrete, checkable signal for twinning. Stated as a real extension, not a present capability.",
+  "generation_or_modification_methods": "None. No strategy in `ai/plan.js` breaks symmetry between paired joints; a caller would edit one side's keys directly.",
+  "failure_modes": [
+    "both arms or both legs left at identical or mirrored angles on a held pose by default, simply because nothing broke the symmetry",
+    "correcting the limbs but leaving the head or eyes still centred and symmetric, which is part of the same failure",
+    "over-correcting into an asymmetry so large it reads as an unbalanced or falling pose rather than a natural weight shift"
+  ],
+  "roblox_considerations": "None beyond the mirrored Motor6D rig structure already modelled by `ai/riggraph.js`.",
+  "performance_implications": "None.",
+  "examples": [
+    "a standing character with weight shifted onto one hip and the opposite hand resting there, instead of both legs bearing weight evenly (video 1 @ 21:19–21:37)",
+    "a face with one eyebrow raised instead of both, to avoid a twinned expression"
+  ],
+  "evidence_status": "video: https://youtu.be/uDqjIdI4bF4 @ 21:19–21:37 — Alan Becker names \"twinning\" explicitly and narrates the fix (lean to one side, hand on hip, add a slouch) over a corrected-pose illustration not captured in this session's efficient-detail frame sample; experimental until validated"
+}

@@ -1,0 +1,45 @@
+{
+  "concept": "pose_hold_density",
+  "category": "advanced",
+  "definition": "How many frames a single drawn (or keyed) pose is held before the next distinct pose appears — \"drawing on ones/twos/threes\" in traditional terms — as a deliberate stylistic and economic choice, not merely a byproduct of frame rate.",
+  "purpose": "Control whether motion reads as smooth/full or graphic/stepped (\"limited\") animation, and trade authoring cost against smoothness on fast or high-volume work.",
+  "visible_effect": "A new distinct pose every frame (ones) reads as maximally smooth; every second frame (twos) is the traditional default and still reads as smooth at normal viewing speed; every third-or-more frame (threes+) reads as increasingly stepped/graphic (\"limited\") animation.",
+  "psychological_or_gameplay_effect": "Twos are indistinguishable from ones at normal speed for most motion and read as lively rather than smoothed-out; ones can look jittery on slow actions because the precision needed between very close drawings is hard to hit, while stepped/threes+ reads as intentionally graphic or energetic on fast actions, and as cheap or robotic on slow ones.",
+  "physical_interpretation": "Not physical — a sampling-rate choice for the POSE stream itself, orthogonal to the physical motion being represented.",
+  "use_cases": [
+    "fast, high-energy action where a stepped/graphic feel is the intended style (anime-influenced game combat)",
+    "a slow action held on twos to avoid the jitter that can appear between very close poses drawn on ones",
+    "reducing authoring cost on high-volume secondary characters or background motion"
+  ],
+  "non_use_cases": [
+    "a realistic or \"full\" animation style aiming for maximal smoothness, where ones (or a dense, continuously-keyed curve) is the correct choice",
+    "a slow, delicate motion where a stepped hold pattern would read as choppy rather than deliberate",
+    "any phase whose `timing` aspect is locked, since changing hold density edits key placement/count, not values in place"
+  ],
+  "interactions": [
+    "Slow in/slow out — a DIFFERENT axis: that principle shapes the curve BETWEEN two poses, this one decides how many distinct poses exist per unit time in the first place",
+    "Timing — hold density is timing's complement: timing says how long a phase lasts, hold density says how densely it is sampled",
+    "Style — the defining visual signature of \"limited\" vs \"full\" animation styles"
+  ],
+  "style_variations": {
+    "anime": "threes or an irregular stepped pattern on key hits is a genre-defining convention, not a limitation",
+    "realistic": "ones or a dense continuous curve is expected; visible stepping reads as a technical fault",
+    "mechanical": "even, regular stepping can suit a deliberately robotic read — the one style where stepping and this table's usual \"mechanical\" warning are not in tension"
+  },
+  "cadence_representation": "Not represented as a deliberate dial. Cadence keys are continuous by default; `set_easing`'s stepped/constant family (named already under `slow_in_slow_out`'s cadence_representation) can hold a value between two keys, but nothing in `ai/vocabulary.js` treats hold-length-across-a-whole-phase as a style choice the way `spacing_evenness` treats curve shape — nothing plans a controlled, roughly-uniform hold pattern.",
+  "control_surface": "`set_easing` per-key, manually, to a stepped style; no vocabulary dimension or planner strategy addresses hold density as a phase-wide property.",
+  "detection_and_measurement_methods": "Partially measurable: key count and spacing per unit time on a track is data `ai/motion.js`/the track itself already carries (keys are timestamped), so an average \"frames per distinct pose\" figure over a phase is computable from existing data — but nothing in this build computes or reports it today.",
+  "generation_or_modification_methods": "None. No strategy in `ai/plan.js` inserts or removes keys to change hold density (Phase 3's planner may not add or remove a key, per CLAUDE.md); a caller wanting this today would have to place stepped keys manually.",
+  "failure_modes": [
+    "ones (or a dense curve) on a slow action, which can look jittery rather than smooth, because the precision needed between very close poses is hard to hit",
+    "an inconsistent hold length within one phase, which reads as an authoring accident rather than a deliberate stepped style",
+    "applying a stepped hold pattern under a realistic style, which contradicts that style's expectation of continuous smoothness"
+  ],
+  "roblox_considerations": "Roblox's Animation Editor and exported KeyframeSequences support stepped interpolation per key the same way Cadence does, so nothing here is Roblox-specific beyond ordinary export fidelity.",
+  "performance_implications": "Fewer distinct keys per second is marginally cheaper to author and to store, though Cadence keys carry no runtime evaluation cost either way.",
+  "examples": [
+    "a single lean-of-the-head example shown at 0, 1, 2, and up to 10 in-betweens, each count reading as a different action or intensity (video 1 @ 16:35–17:22)",
+    "a fast flurry of activity named as one case where drawing on ones — not twos — is necessary for the action to read at all"
+  ],
+  "evidence_status": "video: https://youtu.be/uDqjIdI4bF4 @ 16:11–18:20 — Alan Becker narrates and shows the same lean at 0–10 in-between counts, and separately states the ones/twos/threes convention and its jitter/cost tradeoffs; experimental until validated"
+}
