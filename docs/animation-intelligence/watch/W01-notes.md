@@ -3,7 +3,7 @@
 ## Checklist
 
 - [x] 1. 12 Principles of Animation (Official Full Series) — AlanBeckerTutorials (24:03) — https://youtu.be/uDqjIdI4bF4
-- [ ] 2. TIMING - The 12 Principles of Animation in Games — New Frame Plus (9:38) — https://youtu.be/rHEJZXvFc5I
+- [x] 2. TIMING - The 12 Principles of Animation in Games — New Frame Plus (9:38) — https://youtu.be/rHEJZXvFc5I
 - [ ] 3. ANTICIPATION - The 12 Principles of Animation in Games — New Frame Plus (7:52) — https://youtu.be/28s1Hv3Zqlo
 - [ ] 4. SQUASH & STRETCH - The 12 Principles of Animation in Games — New Frame Plus (8:19) — https://youtu.be/1kFRU_xBZnE
 - [ ] 5. SLOW IN & SLOW OUT - The 12 Principles of Animation in Games — New Frame Plus (7:24) — https://youtu.be/3jNiNctcQ4c
@@ -43,4 +43,27 @@ Watched at `efficient` detail (50 keyframes, sparse across 24:03 — the script'
 
 **Entries written:** 3 (`W01-1-layered-anticipation.json`, `W01-1-pose-hold-density.json`, `W01-1-twinning.json`), all passed `validateProposedEntry` cleanly (checked directly against the live `ai/knowledge.js` module — 0 problems, no extra/missing fields on any of the three).
 
-**Next video: 2** (TIMING - The 12 Principles of Animation in Games, `balanced` detail).
+### 2. TIMING - The 12 Principles of Animation in Games — 2026-09-11
+
+Watched at `balanced` detail (89 scene-aware frames over 9:38, all 89 read directly) plus the full 247-segment caption transcript. This is New Frame Plus's game-specific deep-dive on the single principle of timing, illustrated with a long montage across many real games (Shadow of the Colossus, Red Dead Redemption 2, Street Fighter III/IV/V, Dark Souls III, Sekiro, Guilty Gear, Persona 4 Arena, Dragon Ball FighterZ, Destiny, Spider-Man PS4, Breath of the Wild, Super Smash Bros., MGSV, The Witcher 3, Superhot) rather than original illustration, so the frames earned their keep here confirming which game each spoken example refers to.
+
+**Cross-check:** confirms the existing `timing` card closely, including a near-verbatim restatement of the interaction graph's own line separating timing from spacing ("if timing describes when, spacing describes how") — direct textual confirmation of `INTERACTION_GRAPH`'s `{a: 'timing', b: 'slow_in_slow_out'}` note. No contradictions. The video's own framing — "it might be the most important principle of the 12" for games specifically — matches the existing card's `cadence_representation` note calling it "the most thoroughly represented principle in this table."
+
+**Two new entries, both specific to GAME timing and grounded in the video's own numbers** (checked directly against the matching gameplay footage, not just the transcript):
+1. **Startup frame budget** (`W01-2-startup-frame-budget.json`) — the video states concrete, contrasting frame counts for the same kind of decision: a fast fighting-game hit connects in ~3 frames at 60fps (one-twentieth of a second, explicitly "too fast to react to"), versus a Dark Souls longsword attack at ~30 frames ("10 times slower... a degree of risk to committing to an attack"). This is a genre-level design dial the existing `timing`/`anticipation` cards don't name explicitly, though `anticipation`'s `game_combat` style_variations gestures at the same tradeoff informally (video @ 7:14–8:24).
+2. **Global timing register** (`W01-2-global-timing-register.json`) — Dan states directly that Shadow of the Colossus's sense of majesty comes from applying slightly-slower timing to *everything* in the game, not only the colossi, and separately names Red Dead Redemption 2's uniformly deliberate pace as a real source of player friction on frequently-repeated actions (shown on screen via the game's own "ARE THESE ANIMATIONS NECESSARY?" meme caption over a horse-mounting animation, frame at t=06:45). This is timing applied at the PROJECT scope, which the existing card only covers per-action; closest existing mechanism is `ai/style.js`'s per-style multipliers, which don't currently include an overall pace/duration axis (video @ 5:32–6:59).
+
+**Other observations, no new entry:** the video's explicit convention of thinking in FRAMES at a fixed reference rate (even though real game frame rates are variable) rather than seconds/milliseconds — Cadence's own frame model already matches this professional convention, so this is confirmation, not a gap. A GDC 2014 slide on "smears" appears briefly as uncredited b-roll at t=00:12 with no matching narration in this video — corroborates video 1's "motion smear" observation from an independent source but adds nothing new to write down.
+
+**Capture candidates:**
+- `capture: readable heavy attack with telegraph + recovery — video 2 @ 8:09–8:24 — a longsword swing with a long, clearly-read wind-up and a long recovery afterward — reference for a "tactical/punishable" heavy attack`
+- `capture: near-instant competitive hit — video 2 @ 7:14–7:25 — a fast normal connecting in ~3 frames at 60fps with almost no visible wind-up — reference for a "fighting-game-style" fast attack`
+- `capture: slow full-body weighted walk — video 2 @ 5:44–6:05 — a huge creature's wind-affected, unhurried full-body shift while walking — reference for a "heavy/majestic" locomotion cycle`
+
+**Checks for a later session to implement:**
+- `check: startup_frame_budget_by_genre — frame distance from an action's first key to its declared contact/impact marker (existing key + marker timestamps) — competitive/fighting-style actions expected in the low tens of frames or fewer, tactical/souls-like actions in the several-tens-of-frames range, both stated at a fixed reference frame rate — video 2 @ 7:14–8:24`
+- `check: global_timing_register_consistency — variance of phase duration / startup frame count across a project's animations — low variance expected once a slow/majestic or fast/snappy register is declared; a frequently-triggered player action sitting far outside that register should be flagged for friction review — video 2 @ 5:32–6:59`
+
+**Entries written:** 2 (`W01-2-startup-frame-budget.json`, `W01-2-global-timing-register.json`), both passed `validateProposedEntry` cleanly.
+
+**Next video: 3** (ANTICIPATION - The 12 Principles of Animation in Games, `balanced` detail).

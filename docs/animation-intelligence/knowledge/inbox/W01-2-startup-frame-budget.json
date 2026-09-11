@@ -1,0 +1,44 @@
+{
+  "concept": "startup_frame_budget",
+  "category": "advanced",
+  "definition": "The number of frames from a declared action's idle/input moment to its effect-connecting frame (a hit, a door fully open, a throw's release), used as a deliberate design dial for how reactable versus how immediately felt the action is.",
+  "purpose": "Choose, per action and per genre, whether an action should be too fast to react to (favoring prediction/offense) or slow enough to read and punish (favoring careful commitment and counterplay).",
+  "visible_effect": "A near-instant transition from idle pose to the effect-connecting pose (very few distinct frames) versus a long, clearly readable wind-up before the same connecting pose.",
+  "psychological_or_gameplay_effect": "A short startup reads as immediately responsive but is unreactable by a human, shifting play toward prediction and positioning; a long startup is reactable and readable, shifting play toward careful commitment, punishment, and risk management.",
+  "physical_interpretation": "Not physical — a designed budget on top of whatever physical read the motion itself carries, independent of anticipation's own separate physical-loading question.",
+  "use_cases": [
+    "a fast-paced competitive genre (fighting games) where sub-second, largely unreactable actions are the genre's own convention",
+    "a tactical or \"souls-like\" genre where a long, telegraphed startup is the entire risk/reward loop of combat",
+    "deliberately mismatching the convention for a specific character or move to make it feel uniquely fast or uniquely committal within its own cast"
+  ],
+  "non_use_cases": [
+    "applying a fighting-game-length startup to an action meant to be read and punished, which removes the counterplay the genre depends on",
+    "applying a souls-like-length startup to a twitch-competitive game's core moves, which breaks the responsiveness the genre depends on",
+    "treating this as a fixed number rather than a per-genre, per-action design choice"
+  ],
+  "interactions": [
+    "Timing — this is timing's own duration question applied specifically to the window between input/idle and effect",
+    "Anticipation — a long startup often IS a visible anticipation phase; a very short startup may have anticipation compressed to almost nothing, exactly as the existing `anticipation` card's `game_combat` style_variations already states",
+    "Layered anticipation — a long startup budget is what makes room for a layered/nested anticipation to fit at all"
+  ],
+  "style_variations": {
+    "game_combat": "the primary axis this dial serves; fighting-game-style combat pins it low, souls-like combat pins it high, as two coherent, internally-consistent genre conventions rather than a universal correct value",
+    "realistic": "startup tends to follow plausible human reaction/wind-up time rather than being pinned to either genre extreme"
+  },
+  "cadence_representation": "Not represented as a named budget. The underlying quantity is fully available — the frame distance between an action's first key and its declared contact/impact event is exactly what `ai/motion.js` onset timing and `ai/events.js` shot-event markers already carry — but nothing in this build names \"startup frame count\" as a design dial to check a value against, the way `anticipation_depth` names a dial for how anticipation reads.",
+  "control_surface": "Indirectly, through phase timing already reachable via `set_keyframe`/marker placement; no dedicated dimension addresses startup length as its own declared budget.",
+  "detection_and_measurement_methods": "Real and simple: the frame (or time) distance from an action's first key to its declared contact/impact marker is directly computable from existing key and marker timestamps — no new measurement primitive is required, only a name and a convention to check it against.",
+  "generation_or_modification_methods": "None dedicated. Changing startup length today means moving or adding keys directly; no vocabulary dimension scales \"time to first contact\" as a single lever independent of the rest of the phase.",
+  "failure_modes": [
+    "a startup budget inconsistent with the declared style/genre (a souls-like startup in a fighting-game-style kit, or vice versa) without that being a deliberate, called-out exception",
+    "startup that is fast in isolation but reads as slow relative to the rest of a kit, breaking the internal consistency a player learns to read",
+    "shortening startup for \"responsiveness\" on an action whose whole design intent depends on being reactable (removing the counterplay named above)"
+  ],
+  "roblox_considerations": "None beyond the frame/fps model already shared across Cadence; a Roblox game's own network latency budget is a separate, non-animation concern this entry does not cover.",
+  "performance_implications": "None.",
+  "examples": [
+    "a fast fighting-game normal connecting in roughly 3 frames at 60fps — about one-twentieth of a second, too fast for a human to react to (video 2 @ 7:14–7:25)",
+    "Dark Souls' basic longsword attack taking roughly 30 frames from idle to the sword connecting — named in the video as about ten times slower than the fast example, with a long recovery afterward that makes the commitment itself the risk (video 2 @ 8:09–8:24)"
+  ],
+  "evidence_status": "video: https://youtu.be/rHEJZXvFc5I @ 7:14–8:24 — Dan states both frame counts directly (≈3 frames and ≈30 frames at 60fps) over matching gameplay footage; the fast example's footage at this timestamp shows Street Fighter III: 3rd Strike (Ryu vs. Makoto), though the auto-captioned character name in the transcript is unclear, so that specific attribution is not asserted as certain; experimental until validated"
+}

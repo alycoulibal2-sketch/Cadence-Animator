@@ -1,0 +1,44 @@
+{
+  "concept": "global_timing_register",
+  "category": "advanced",
+  "definition": "A single, deliberately consistent timing pace applied across an entire project or game — not just the actions that individually \"need\" to be slow or fast — used as a project-wide tone and aesthetic choice rather than a per-action decision.",
+  "purpose": "Make an entire game or shot sequence read with one consistent emotional register (majestic and weighty, or naturalistic and grounded, or snappy and immediate) by keeping timing choices consistent across everything, not only the obviously dramatic moments.",
+  "visible_effect": "Even small, ordinary actions (walking, mounting a horse, opening a door, a minor incidental gesture) share the same unhurried or the same snappy pace as the project's headline actions, rather than only the \"important\" actions being deliberately timed.",
+  "psychological_or_gameplay_effect": "Done well, produces a coherent, immersive tone that no single action could produce alone (the video's own claim: a giant creature's slow timing alone would not make a whole game feel majestic — applying that same slowness everywhere is what does it). Done on frequently-repeated player actions, the same consistency can read as friction or frustration instead of majesty, since a deliberate pace tolerated once becomes a tax when repeated constantly.",
+  "physical_interpretation": "Not physical — a tone/pacing choice applied at the project level, independent of what any single action's own physical weight would suggest.",
+  "use_cases": [
+    "a game whose core fantasy depends on scale, weight, or solemnity, where uniform slow timing is deliberately chosen even for incidental actions",
+    "a naturalistic/grounded game aiming for immersion over snappy responsiveness",
+    "a snappy, arcade-feeling game where uniformly fast, minimal-startup timing is the register instead"
+  ],
+  "non_use_cases": [
+    "a project with mixed gameplay needs, where some systems (traversal, incidental interactions) benefit from staying fast even while headline actions stay slow",
+    "any action the player must repeat very frequently, where a slow register risks reading as friction rather than atmosphere — the video names exactly this tension around one game's frequent slow interactions",
+    "a competitive or twitch-response genre, where a uniformly slow register would contradict the responsiveness the genre depends on"
+  ],
+  "interactions": [
+    "Timing — this is timing applied at the PROJECT scope rather than the per-action scope the existing `timing` card already covers",
+    "Style — the closest existing mechanism: a declared `ai/style.js` style profile already applies consistent multipliers across a project, which is the same kind of consistency this concept asks for, specifically for pace/duration rather than amplitude or spacing",
+    "Startup frame budget — a global register is what a per-action startup budget should be checked AGAINST for consistency, not decided independently action by action"
+  ],
+  "style_variations": {
+    "cinematic": "a natural fit — a slow, deliberate global register is one of the style's own defining traits",
+    "game_combat": "usually the wrong register for frequent player-facing actions specifically, even within an otherwise slow-paced game, per the friction risk above"
+  },
+  "cadence_representation": "Not represented as a project-wide property. `ai/style.js STYLE_PROFILES` already applies consistent per-style multipliers (spacing, amplitude, anticipation depth) across everything a style touches — the same architecture this concept would need — but no existing dimension targets overall ACTION DURATION/pace the way `spacing_evenness` targets curve shape, so a \"global timing register\" is not currently one of the things a declared style pulls.",
+  "control_surface": "None directly. A caller could approximate this today only by manually setting similar phase durations across many separate actions; no single declaration applies a pace multiplier project-wide.",
+  "detection_and_measurement_methods": "Partially measurable: the variance in typical phase duration (or startup frame count) across a project's animations is computable from existing per-item track data — low variance would indicate a consistently-applied register, high variance would indicate ad hoc per-action timing — but nothing in this build aggregates timing data ACROSS items to compute it today.",
+  "generation_or_modification_methods": "None. No tool applies one pace decision across multiple items at once; each item's timing is edited independently.",
+  "failure_modes": [
+    "inconsistent pacing where only the \"obviously important\" actions get deliberate timing and everything else defaults to generic speed, undercutting the tonal consistency the video credits for Shadow of the Colossus's sense of majesty",
+    "applying a slow register to a frequently-repeated player action without accounting for cumulative friction, which the video names as a real point of player frustration in one of its examples",
+    "confusing \"slow\" with \"majestic\" — the register has to be applied consistently to read as deliberate, not merely be slow in isolated places"
+  ],
+  "roblox_considerations": "None specific — a pure pacing/authoring-discipline concept independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "Shadow of the Colossus applying unhurried, wind-blown timing to ordinary movement throughout the entire game, not only to the colossi themselves, credited in the video as the actual source of the game's sense of majesty and scale (video 2 @ 5:32–6:19)",
+    "a naturalistic game applying the same deliberate, grounded pace to frequent incidental actions (mounting a horse, interacting with the world) as a deliberate immersion choice, at the cost of some player friction on repetition (video 2 @ 6:32–6:59)"
+  ],
+  "evidence_status": "video: https://youtu.be/rHEJZXvFc5I @ 5:32–6:59 — Dan states this explicitly for Shadow of the Colossus (\"that sense of majesty is achieved almost entirely through timing... making everything in the game move just slightly slower\") and names the friction tradeoff for the second example directly; experimental until validated"
+}
