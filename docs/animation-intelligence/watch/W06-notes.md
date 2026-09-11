@@ -9,7 +9,7 @@
 - [x] 55. The Brilliant Animation in Metroid Dread — Video Game Animation Study (38:26) — https://youtu.be/1B1beXTnvEI
 - [x] 56. The Animation of Cuphead — Video Game Animation Study (10:57) — https://youtu.be/pOBKGcehi8U
 - [x] 57. How 2D Fighter Games are Animated — Video Game Animation Study (7:13) — https://youtu.be/WYCjmVhiLaM
-- [ ] 58. The Effects Animation of Hollow Knight — New Frame Plus (7:19) — https://youtu.be/SIJtfr-PO4Y
+- [x] 58. The Effects Animation of Hollow Knight — New Frame Plus (7:19) — https://youtu.be/SIJtfr-PO4Y
 - [ ] 59. How to add IMPACT frames to your animation — Howard Wimshurst Animation (18:42) — https://youtu.be/6UaUi5fBmJc
 - [ ] 60. Animate action with SMEAR FRAMES — Kuzillon (6:37) — https://youtu.be/5v0IZSr9-j0
 
@@ -512,3 +512,69 @@ filmed reference performance.
 `W06-57-deliberate-frame-removal-with-followthrough-fill-communicates-move-strength.json` — all three
 checked directly against `validateProposedEntry`/`validateEvidenceSource`; all pass; a full-corpus
 concept-name sweep (159 JSON files: 156 prior + this video's 3) found zero collisions.
+
+### 58. The Effects Animation of Hollow Knight — New Frame Plus (Dan)
+
+2026-09-11. Watched at `transcript` detail (200 caption segments; several non-primary caption tracks
+— zh-TW, pt, ru, es-419, th, tr — hit HTTP 429, but the primary `en` track came through clean on the
+first pull, the same narrow "a different track failed, not the one used" pattern already noted in
+W05's video 44; full 7:18 read in full). Matches W06.md's framing exactly ("effects that support the
+action instead of hiding it, Part 39") and is one of the most directly build-relevant videos in this
+batch, since it engages this build's own Part 14 hierarchy ordering (`ai/review.js QUALITY_LAYERS`/
+`HIERARCHY_ANTIPATTERNS`) closely enough that I re-read that module's actual source before writing the
+flagship entry, rather than assuming what it covers.
+
+**What it teaches, specifically:**
+1. **The flagship finding**: for a small, fast, visually-obscured character mostly watched in
+   peripheral vision during chaotic combat, effects animation (and sound) can become the PRIMARY
+   carrier of essential gameplay-functional information — proven with a direct before/after
+   demonstration: removing sound and effects from a base attack renders it illegible ("it doesn't even
+   look like anything anymore") (05:44–05:50). Checked this precisely against `ai/review.js`'s own
+   `HIERARCHY_ANTIPATTERNS` ("do not add VFX polish to an unclear impact", VFX at layer 11 subordinate
+   to readability at layer 2): this finding does NOT contradict that anti-pattern, it names a genuine
+   BOUNDARY CONDITION the anti-pattern's own premise does not account for — the anti-pattern assumes a
+   higher layer COULD be fixed instead of covered with VFX, but this video's case is one where the
+   viewing CONTEXT itself (character scale, speed, peripheral attention) caps what pose/readability can
+   ever achieve, independent of pose quality. Stated this distinction explicitly in the entry's own
+   `non_use_cases` and `cadence_representation` so a future reader does not conflate the two. Wrote
+   **`effects_as_primary_readability_channel_for_small_fast_characters`**.
+2. The specific, concrete technique behind finding 1's charge-attack example: the SAME four frames of
+   character animation are reused, byte-for-byte identical, across both the charging and fully-charged
+   phases of one move, with the two states differentiated ENTIRELY by escalating effects treatment
+   (flash brightness, aura pulsing, screen shake) (02:47–03:14). This is one of the more directly
+   actionable findings in the whole programme, since it stays entirely within Cadence's existing
+   `ai/vfxspec.js` authoring scope — no new capability required, just two effect declarations tied to
+   one shared clip. Wrote **`identical_character_clip_reused_with_varied_vfx_differentiates_states`**.
+
+**Cross-checks** (fresh evidence for existing cards, not new mechanism): the hit-react's stated
+twenty-frame hit-stop, paired with a flash/shake/sound cue explicitly credited as mattering MORE for
+noticeability than the character sprite's own three-drawing change (04:58–05:19), is fresh, concrete
+evidence (an exact frame count) for `hitstop_freeze_on_confirmed_hit` (W04) — folded into entry 1
+above as a supporting example rather than written up separately, since the underlying hit-stop
+mechanism is not new. Abyss Shriek's deliberately out-of-focus effect burst dissolving into a lingering
+particle cloud (04:18–04:29) is a real, specific example but restates the existing envelope-closing/
+decay concepts `ai/vfxspec.js validateTiming` already covers, with no new mechanism.
+
+**Not written as entries** (real content, kept to notes): the opening framing about animation's
+primary function being visual feedback/gameplay communication (00:03–00:28) restates well-established
+ground from across this whole programme with no new specifics.
+
+**Contradicted an existing card:** none — this video SHARPENS the scope of this build's own existing
+Part 14 hierarchy (naming a boundary condition it does not currently express) rather than contradicting
+anything in the knowledge corpus itself, the same kind of result this batch's video 54 already produced
+for the same hierarchy from a different angle.
+
+**Capture candidate:** none — a 2D sprite/shipped-footage analysis with a live before/after audio-visual
+demonstration, no independent filmed reference performance.
+
+**Checks for the queue:**
+- `check: vfx_intensity_delta_across_declared_states — for two effect declarations attached to the
+  same underlying character clip across two declared game states, confirm a measurable intensity/
+  duration difference between them (extending ai/vfxspec.js validateTiming's existing envelope checks)
+  — buildable today from existing measurements, contingent only on a declared state-pair grouping —
+  video 58 @ 02:47–03:14`
+
+**Entries written:** `W06-58-effects-as-primary-readability-channel-for-small-fast-characters.json`,
+`W06-58-identical-character-clip-reused-with-varied-vfx-differentiates-states.json` — both checked
+directly against `validateProposedEntry`/`validateEvidenceSource`; both pass; a full-corpus
+concept-name sweep (161 JSON files: 159 prior + this video's 2) found zero collisions.

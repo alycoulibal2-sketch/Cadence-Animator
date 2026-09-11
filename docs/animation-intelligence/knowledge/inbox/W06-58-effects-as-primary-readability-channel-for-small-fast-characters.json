@@ -1,0 +1,42 @@
+{
+  "concept": "effects_as_primary_readability_channel_for_small_fast_characters",
+  "category": "advanced",
+  "definition": "For a character that is small on screen, fast-moving, visually obscured (masks, cloaks), and typically only watched in peripheral vision during chaotic combat, effects animation (and sound) can become the PRIMARY carrier of essential gameplay-functional information — input confirmation, charge state, hit-taken feedback — with character pose animation reduced to a secondary, supporting role, rather than the reverse; demonstrated directly by removing the effects/sound from a base attack and showing the result no longer reads as an attack at all.",
+  "purpose": "Recognize a real, evidenced exception to the usual priority ordering (pose/readability first, VFX as later polish): when a character's own on-screen scale, speed, and typical viewing distance/attention level structurally cap how much information its pose alone could ever carry, promoting effects to the primary information channel is the correct design choice, not a workaround for weak posing.",
+  "visible_effect": "The same handful of character animation frames (as few as three drawings for a hit-react, or four looping frames across two different charge states of the same move) are paired with dramatically different effects treatment (flash brightness, particle density, screen shake amplitude, hit-stop duration) to communicate distinct functional states, while the underlying character pose barely changes at all.",
+  "psychological_or_gameplay_effect": "Demonstrated directly by the source removing sound and effects from a base attack: 'it doesn't even look like anything anymore' — proof that the character animation ALONE was never carrying the attack's readability, the effects were. The same holds for hit-react feedback: 'a simple change in pose is not gonna be noticed... even a flickering character sprite might get lost in the mix... but a twenty-frame hit-stop with that enormous flash effect, the screen shake, and the sound cue — good luck not noticing that.'",
+  "physical_interpretation": "None — an information-design and readability argument, not a physical property.",
+  "use_cases": [
+    "a small, fast, or heavily-obscured player character viewed mostly in peripheral vision during busy on-screen action, where pose changes structurally cannot carry enough visual weight to read reliably",
+    "communicating a binary or graded state change (charging → charged, hit-taken severity) where authoring distinct effects treatment is cheaper and more legible than authoring distinct character poses for each state"
+  ],
+  "non_use_cases": [
+    "a character large enough, centered enough, or held on screen long enough that pose/staging COULD achieve the needed clarity on its own — this is exactly the situation `ai/review.js`'s own `HIERARCHY_ANTIPATTERNS` ('do not add VFX polish to an unclear impact') already warns against, where VFX papers over a FIXABLE pose/readability problem rather than compensating for a structural viewing-context limit",
+    "a cinematic or slow-paced context where the player has time and attention to read subtle pose detail, where promoting effects to primary would be unnecessary and could feel heavy-handed"
+  ],
+  "interactions": [
+    "ai/review.js HIERARCHY_ANTIPATTERNS (this build's own Part 14 anti-pattern: 'do not add VFX polish to an unclear impact', action_layer 11 blocked_by_layer 2) — this entry is a genuine BOUNDARY CONDITION on that rule, not a contradiction of it: the anti-pattern assumes a higher layer (readability/pose) COULD in principle be fixed instead of papering over it with VFX; this entry's evidenced case is one where the viewing CONTEXT ITSELF (character scale, speed, peripheral attention) caps what layer 2/3 can ever achieve, regardless of pose quality, which the anti-pattern's own premise does not currently account for",
+    "hitstop_freeze_on_confirmed_hit (W04) — this video's hit-react example (a stated twenty-frame hit-stop) is fresh, concrete evidence for that existing card, specifically arguing WHY the hit-stop/flash/shake matters MORE than the character pose change for noticeability in this context",
+    "always_visible_prop_as_primary_character_canvas (W05, video 44) — a related but distinct 'concentrate signal on the one channel that's actually perceivable' finding from a completely different mechanism (a first-person view's always-visible weapon/hands, versus this entry's effects layer)"
+  ],
+  "style_variations": {
+    "game_combat": "directly applicable — this source's own native context, a fast-paced action-platformer with a small, fast player character",
+    "realistic": "less applicable — a realistic style's effects are typically expected to look physically motivated rather than to carry primary gameplay-information load"
+  },
+  "cadence_representation": "Directly engages this build's own documented hierarchy ordering, which currently treats VFX (layer 11) as subordinate to readability/staging (layer 2) and pose design (layer 3) with no exception clause. `ai/review.js`'s `QUALITY_LAYERS` and `HIERARCHY_ANTIPATTERNS` have no way to represent a DECLARED viewing-context constraint (character scale on screen, expected viewing distance/attention level) that would justify promoting VFX above its normal priority — the ordering is currently a flat, context-independent convention. This entry names a real gap: a review that always demotes VFX findings below pose findings, with no way to declare 'this character is small/fast/peripherally-viewed, so effects ARE the readability layer here,' would give exactly the wrong advice for a project like this one.",
+  "control_surface": "None — `ai/review.js` has no way to declare a per-project or per-character viewing-context exception to its standard layer ordering.",
+  "detection_and_measurement_methods": "Not measurable in this build: no track or measurement represents a character's expected on-screen scale or viewing attention level, which is what this exception condition depends on.",
+  "generation_or_modification_methods": "None — the underlying technique (varying effects treatment while holding character animation constant) is reachable today via ordinary `ai/vfxspec.js` authoring; what's missing is a declared exception to the review hierarchy's default priority.",
+  "failure_modes": [
+    "applying this exception broadly, promoting VFX above pose/readability findings for a character that is NOT actually small/fast/obscured enough to need it — exactly re-creating the anti-pattern this entry's own non-use-case warns against",
+    "assuming character animation is unimportant just because effects are carrying the FUNCTIONAL information — the source explicitly notes character posing 'still brings a lot to the table' aesthetically even where effects carry the functional load"
+  ],
+  "roblox_considerations": "Directly applicable to any small/fast Roblox character (a compact avatar, a vehicle, a projectile) where `ParticleEmitter`/`Beam`/screen-shake effects are the practical way to guarantee gameplay-critical feedback lands, independent of avatar pose scale on screen.",
+  "performance_implications": "Reusing one character clip across multiple game states (varying only effects) is cheaper to author than distinct character animations per state — a real efficiency alongside the readability argument.",
+  "examples": [
+    "'bug knight's playing the same four frames of animation in both the charging and charged phases of this move, but the different effects make these two phases feel very distinct' (video @ 02:47–02:55)",
+    "the direct demonstrated proof: 'look what happens when I take the sound and effect away from just the basic attack — it doesn't even look like anything anymore' (video @ 05:44–05:50)",
+    "the hit-react case: 'the character animation component is just three drawings and effectively one key pose, but... a twenty-frame hit-stop with that enormous flash effect, the screen shake and the sound cue — good luck not noticing that' (video @ 04:58–05:19)"
+  ],
+  "evidence_status": "video: https://youtu.be/SIJtfr-PO4Y @ 02:47–02:55, 04:58–05:19, 05:44–05:50 — Dan (New Frame Plus) states the argument directly and proves it with a real before/after demonstration (removing effects/sound from a live capture); transcript-only, no frames extracted this session; experimental until validated"
+}

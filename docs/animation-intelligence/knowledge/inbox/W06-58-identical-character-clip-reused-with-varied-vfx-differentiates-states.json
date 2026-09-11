@@ -1,0 +1,36 @@
+{
+  "concept": "identical_character_clip_reused_with_varied_vfx_differentiates_states",
+  "category": "advanced",
+  "definition": "Author ONE character animation clip (or loop) and reuse it, byte-for-byte identical, across two or more functionally distinct game states, differentiating those states entirely through the effects layer stacked on top (brightness/flash intensity, particle density, aura pulsing, screen-shake amplitude) rather than by authoring a separate character clip per state.",
+  "purpose": "Communicate a state change cheaply and clearly by varying only the effects layer, avoiding the authoring cost of a distinct character clip per state when the effects layer alone can carry the distinction clearly.",
+  "visible_effect": "A character's pose animation loops or repeats identically across a charging state and its fully-charged follow-on state, while the effects surrounding the character escalate distinctly between the two (a dimmer, slower aura becoming a bright flash and full-screen burst).",
+  "psychological_or_gameplay_effect": "The two states read as clearly, distinctly different to the player — 'an amazing sense of stored-up energy just waiting to be unleashed' versus the release itself — entirely from the effects escalation, with the identical underlying character animation never breaking that read.",
+  "physical_interpretation": "None — an authoring-efficiency and state-differentiation technique, not a physical property.",
+  "use_cases": [
+    "a charge-up/release move pair (or any two-or-more-state sequence) where the character's own pose is naturally similar or identical across states, and the state distinction can be fully carried by effects intensity/type",
+    "reducing animation authoring cost for a state machine with many distinct functional states, by covering some of those states with effects variation on a single shared character clip rather than a full unique clip each"
+  ],
+  "non_use_cases": [
+    "a state distinction that specifically needs to be legible even with sound/effects OFF (accessibility, or a context where effects might be disabled/reduced) — this technique's entire signal lives in the effects layer and would be invisible without it",
+    "a state change whose CHARACTER-SIDE distinction (a genuinely different pose, not just intensity) is itself part of what needs communicating — e.g. a stance change with different combat implications"
+  ],
+  "interactions": [
+    "effects_as_primary_readability_channel_for_small_fast_characters (this same video) — this entry is the specific, concrete AUTHORING TECHNIQUE that finding's broader claim depends on for its charge-state example",
+    "state_driven_frame_selection_instead_of_playback (W05, video 42) — a related but distinct mechanism: that entry selects between DIFFERENT authored clips/frames by a live variable; this entry keeps the SAME clip constant and varies an entirely separate layer (effects) instead"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly and fully buildable today: this is exactly what `ai/vfxspec.js`'s declarative, parametric effect model is for — authoring two (or more) distinct effect declarations tied to the same underlying character clip/item is already reachable with existing tools (`vfx_new_effect`, `vfx_set_effect_props`), no new capability required. This is one of the more directly actionable findings in this batch precisely because it stays entirely within Cadence's own existing VFX authoring scope rather than needing a runtime/engine capability this build lacks.",
+  "control_surface": "`vfx_new_effect`, `vfx_add_layer`, `vfx_set_effect_props`, and `vfx_set_clip` already reach this technique directly — declare two effect variants and trigger the appropriate one alongside the SAME character clip for each state.",
+  "detection_and_measurement_methods": "Partially measurable: `ai/vfxspec.js validateTiming` already checks whether an effect's envelope peaks on the event it reacts to and whether it closes; comparing two effect declarations attached to the SAME underlying character clip across two declared states is a real, buildable check for whether this technique is being used correctly (e.g. that the two effect variants are meaningfully distinct in intensity/duration).",
+  "generation_or_modification_methods": "Fully reachable today via ordinary `ai/vfxspec.js` authoring tools; no new capability needed.",
+  "failure_modes": [
+    "making the two effect variants too similar in intensity, failing to actually differentiate the states despite the identical-clip-reuse technique being correctly applied",
+    "relying on this technique for a state distinction that also needs to survive effects being reduced or disabled, with no character-side fallback signal"
+  ],
+  "roblox_considerations": "Directly reachable via Roblox's own `ParticleEmitter`/`Beam`/lighting effects layered over one shared `AnimationTrack`, switching only the effect parameters between states — no bespoke engine feature required.",
+  "performance_implications": "A real authoring-cost saving: one character clip serves multiple states, with only the (typically cheaper to iterate) effects layer varying.",
+  "examples": [
+    "'bug knight's playing the same four frames of animation in both the charging and charged phases of this move, but the different effects make these two phases feel very distinct — bug knight's sprite is flashing white, the crystals are brighter, there's an aura of power's pulsing around you, the screen is shaking a lot... and when you release that trigger — boom, full-screen flash, a huge sonic-boom effect and a spray of crystal shards' (video @ 02:47–03:14)"
+  ],
+  "evidence_status": "video: https://youtu.be/SIJtfr-PO4Y @ 02:47–03:14 — Dan (New Frame Plus) states directly that the character frames are identical across both phases and attributes the entire state distinction to the effects layer; transcript-only, no frames extracted this session; experimental until validated"
+}
