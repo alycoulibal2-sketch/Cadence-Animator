@@ -1,0 +1,37 @@
+{
+  "concept": "strike_assist_hit_reaction_camera_relative_correction",
+  "category": "advanced",
+  "definition": "On a hit reaction, snap the struck character to an initial orientation and steer its resulting trajectory toward a BLEND between the camera's facing vector and the reaction's own originally-authored trajectory — proportional to how far the reaction would otherwise have carried it toward the frame edge — so a struck enemy is pulled back toward the visible camera frame rather than knocked off-screen, with the blend ratio authored per attack.",
+  "purpose": "Let combos and heavy hits keep translating their target with full authored force and distance, without the camera-framing cost (a struck enemy disappearing off-screen) that would otherwise punish exactly the offensive, combo-continuing play the combat system is designed to reward.",
+  "visible_effect": "A struck enemy's hit-reaction trajectory visibly bends toward camera-center compared to its originally-authored direction — more so for reactions that would have gone further off-frame, and more so on successive hits of the same combo, which pull the target progressively closer to screen-center.",
+  "psychological_or_gameplay_effect": "Removes a specific, previously-observed failure where big, satisfying hit reactions were themselves the cause of losing track of (and being punished for having attacked) a target — described directly as 'punishing you for attacking with your combos and causing fun enemy hit reactions... the exact opposite of what our combat should be about.' Also becomes an expressive PLAYER tool: since the player controls the camera, they can aim where they want a struck enemy to end up (e.g. off a cliff edge on a combo's last hit).",
+  "physical_interpretation": "A deliberate, visible departure from 'pure' physical reaction trajectory, justified entirely by framing rather than physics — the corrected trajectory is still a smooth, plausible-looking arc, just aimed at a different endpoint than an uncorrected version would have used.",
+  "use_cases": [
+    "any hit-reaction or knockback animation played under a close, player-controlled, non-cutting camera where the struck target could otherwise leave the frame",
+    "a combo system that should reward successive hits on the same target by making it progressively easier to keep landing more hits (framing-wise) as the combo continues"
+  ],
+  "non_use_cases": [
+    "a pulled-back, god's-eye or otherwise wide/fixed camera where targets rarely leave frame regardless of reaction trajectory — the correction would be solving a problem that does not exist there",
+    "a reaction meant to read as a hard, physically 'clean' knockback in a specific fixed direction (e.g. off a specific ledge by design, not player aim) where bending the trajectory toward camera would undermine the intended staging"
+  ],
+  "interactions": [
+    "cycle_phase_driven_root_translation (video 41) and the whole translation-authoring theme of this batch's other camera entries — this is the clearest example yet of translation being treated as a CAMERA-RELATIVE quantity to correct, not just a world-space one",
+    "swing_pivot_at_grip_not_geometric_center and deliberate_thirds_placement_as_story_variable (videos 44–45) — all three involve correcting or choosing WHERE something lands in frame, though this one is unique in operating on gameplay-critical, procedurally-corrected motion rather than authored camera/pose placement"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: Cadence has no runtime and no camera-relative motion-correction step at all — every hit reaction it could author is a fixed set of keys with no knowledge of where a (likewise fixed, not live) camera is pointed. The nearest existing idea is `ai/plan.js`'s `overshoot`/translation-scaling machinery, which SCALES an authored trajectory's magnitude but never redirects its DIRECTION toward an external reference like a camera vector — this entry is evidence for a capability class (camera-relative trajectory correction) with no current analogue in this build at all, distinct from anything the SHOT-003/004 gap already names since it is about correcting CHARACTER motion, not measuring camera framing.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s position/velocity series could describe a hit reaction's resulting trajectory directly, and `ai/events.js` could in principle carry a declared camera-facing reference to compare it against — but nothing in this build combines the two into a 'does this reaction stay framed' check, since Cadence's camera is itself only ever a fixed, authored track, never a live value a moving reaction could be corrected against at generation time.",
+  "generation_or_modification_methods": "None — this build has no generation step that takes a camera reference as an input to a motion's trajectory at all.",
+  "failure_modes": [
+    "correcting too aggressively (a blend ratio too close to pure camera-facing), making every hit reaction visually convergent and repetitive regardless of the attack that caused it",
+    "failing to scale the correction by how much a hit would actually go off-frame, over-correcting reactions that were never at risk of leaving the camera view in the first place"
+  ],
+  "roblox_considerations": "Implementing this on Roblox would require a runtime script reading the active `Camera`'s look vector each hit and blending it into a ragdoll/animation-driven knockback direction before or during playback — not something an exported static `AnimationClip` can carry on its own, since the correction depends on a live camera value unknown at export time.",
+  "performance_implications": "A per-hit vector blend and re-orientation is cheap; the far larger cost (unstated in the talk) is almost certainly in tuning the per-attack blend ratios across a full moveset, not in the runtime math itself.",
+  "examples": [
+    "the mechanism stated directly: 'attacks cause their victim to snap to an initial orientation... such that their adjusted trajectory will now go towards a blend between the camera's facing vector and their original trajectory... the larger the delta, the larger the correction' (video @ 35:30–35:57)",
+    "a named emergent player strategy this feature enabled: aiming the camera to direct an enemy off the side of a cliff with the last hit of a combo, described as something 'most players had no idea... was even happening at all' (video @ 37:19–37:39)"
+  ],
+  "evidence_status": "video: https://youtu.be/hE5tWF-Ou2k @ 34:53–37:51 — Mihir Sheth (lead combat designer, Santa Monica Studio, God of War 2018) describes the strike-assist mechanism in full technical detail, crediting the original idea to the team's then-lead gameplay designer; no frames extracted (transcript-only); experimental until validated"
+}

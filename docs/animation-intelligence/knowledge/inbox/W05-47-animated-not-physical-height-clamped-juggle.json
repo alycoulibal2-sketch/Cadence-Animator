@@ -1,0 +1,37 @@
+{
+  "concept": "animated_not_physical_height_clamped_juggle",
+  "category": "advanced",
+  "definition": "For an airborne (juggled) hit reaction that must stay within a camera-relative height ceiling, hand-ANIMATE the falling/bounce motion (rather than driving it with gravity or a physics simulation) so its timing and shape can be tuned to feel good, while a separate runtime system enforces the height ceiling itself — applying a correcting velocity whenever the reacting character's root joint exceeds a tunable float-height limit relative to the player.",
+  "purpose": "Get both a hard, reliable technical guarantee (an airborne enemy never rises above the camera's usable frame) and a good-FEELING bounce/fall arc, by splitting the two concerns: animation owns how it feels, a separate corrective system owns the hard constraint.",
+  "visible_effect": "A juggled enemy's rise and fall reads as a deliberately-timed, weighted bounce (not a raw physics parabola) while never visibly exceeding a height ceiling relative to the camera, regardless of how hard it was launched.",
+  "psychological_or_gameplay_effect": "Solves two problems that a pure physics simulation could not solve together: physics alone would let a hard-enough launch carry a target above the visible frame (breaking the close camera's usable range), while a naive height clamp alone (without hand-animated timing) would not 'always have to feel good,' in the presenter's own words.",
+  "physical_interpretation": "A deliberately non-physical hybrid — the visible motion is authored to LOOK like it obeys gravity and momentum, while the actual height bound is enforced by a corrective velocity that has no physical justification at all, invisible specifically because the animation underneath it was tuned to sell the illusion.",
+  "use_cases": [
+    "any airborne/launched reaction under a camera with a hard usable vertical range (a close third-person camera, a fixed-height view), where a target must stay visible regardless of launch force",
+    "any case where a designer needs a HARD constraint (a bound, a limit) enforced reliably while an animator still needs authored control over how the constrained motion actually feels"
+  ],
+  "non_use_cases": [
+    "a camera with no meaningful vertical framing constraint (a top-down or sufficiently pulled-back view), where there is no height ceiling to enforce in the first place",
+    "a motion where a pure physics simulation already looks and feels correct on its own — the extra hybrid complexity (animated fall plus corrective clamp) is only justified when physics alone cannot satisfy both the feel and the constraint"
+  ],
+  "interactions": [
+    "procedural_translation_scale_as_iteration_dial (this batch, video 47) — a related but distinct translation-control technique: that one uniformly scales an authored clip's existing travel, this one layers a runtime CORRECTIVE constraint on top of hand-authored motion rather than scaling it",
+    "the R15 reach-limit pitfall (this build, CLAUDE.md) — a related discipline from the opposite direction: that pitfall is about a SOLVER refusing to silently violate a physical limit, while this entry is about a runtime system deliberately, visibly-but-invisibly correcting motion to respect a DESIGN limit that has no physical basis at all"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not representable as built: Cadence has no runtime and therefore cannot apply a live corrective velocity in response to a moving camera reference at all — everything it authors is fixed, pre-baked keys. The AUTHORING half is fully in scope, though: hand-animating a falling/bounce arc (rather than deriving it from a physics formula) is exactly the kind of pose-to-pose work `ai/plan.js`/`ai/pose.js` already support; this entry's honest gap is specifically the runtime height-clamp half, which would need to live in exported Luau reading a live camera reference, the same category of gap named by the batch's other camera-runtime entries (SHOT-003/004 and this video's `strike_assist_hit_reaction_camera_relative_correction` entry).",
+  "control_surface": "Ordinary keyframe/pose authoring (`set_keyframe`, `authorMotion`) fully covers the animated-fall half; nothing covers the runtime corrective-velocity half.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s vertical position/velocity series would fully characterize an authored fall/bounce arc's timing and shape, which is the exact data an animator tuning this technique's 'feel' half would want measured — already possible in this build for the authored half alone, with no dependency on the runtime clamp to evaluate it.",
+  "generation_or_modification_methods": "None specific beyond ordinary pose/key authoring for the animated half; the corrective-velocity half is not a generation operation this build could perform at all without a runtime.",
+  "failure_modes": [
+    "deriving the fall/bounce purely from a physics formula instead of hand-animating it, which the presenter states directly does not reliably 'feel good' on its own",
+    "enforcing the height clamp with a visible, uncorrected snap rather than a smooth corrective velocity, which would break the illusion the hand-animated half is built to sell"
+  ],
+  "roblox_considerations": "A Roblox implementation would need a `RunService`-driven per-frame check of the reacting character's root part height relative to the local player's camera, applying a corrective `LinearVelocity`/CFrame adjustment only when the configured float-height threshold is exceeded — squarely custom runtime code, with the animated fall itself exported as an ordinary `AnimationClip`.",
+  "performance_implications": "A per-frame height check and conditional corrective-velocity application per airborne enemy is cheap; negligible even for several simultaneously-juggled enemies.",
+  "examples": [
+    "the float-height system stated directly: 'if the root joint of the enemy ever went higher than the specified float height, some corrective velocity would be applied to keep it in bounds, and this could be tuned per enemy hit reaction by designers in script' (video @ 40:39–40:58)",
+    "the explicit reason hand-animation was required instead of physics: 'we actually had to animate the character's falling instead of relying on gravity or physics, since the trick was that the bounce of juggling always had to feel good' (video @ 41:07–41:22)"
+  ],
+  "evidence_status": "video: https://youtu.be/hE5tWF-Ou2k @ 40:39–41:22 — Mihir Sheth describes the float-height clamp system and the explicit decision to hand-animate rather than simulate the fall; no frames extracted (transcript-only); experimental until validated"
+}

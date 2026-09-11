@@ -1,0 +1,37 @@
+{
+  "concept": "angle_scaled_reach_correction_for_lateral_targets",
+  "category": "advanced",
+  "definition": "When procedurally correcting an attack's reach toward its target (closing the gap between an attacker's actual range and a target slightly out of range — the talk's own 'simplified form of motion warping'), scale the CORRECTION AMOUNT down as the target's angle away from the attacker's forward-facing direction increases, so a target directly ahead gets a full correction while one off to the side gets little or none.",
+  "purpose": "Avoid a specific disorienting failure of naive reach-correction — pulling the attacker sideways toward an off-center target reads as much more jarring than the identical world-space distance corrected straight ahead, because lateral motion is harder to judge under a close, player-controlled camera and looks like being yanked off your own intended path.",
+  "visible_effect": "An attack against a directly-ahead target closes distance reliably; the identical attack against a target at a wide angle to the side is allowed to miss more often, rather than visibly dragging the attacker sideways to compensate.",
+  "psychological_or_gameplay_effect": "Deliberately accepts MORE missed attacks against off-angle targets in exchange for removing a worse problem (disorientation) — an explicit case of choosing which failure mode to keep rather than eliminating all misses.",
+  "physical_interpretation": "None directly — a deliberate asymmetry justified by camera perception, not by any physical property of the attack or target.",
+  "use_cases": [
+    "any procedural reach/gap-closing correction (motion warping, root-motion scaling) applied to an attack under a close or player-controlled camera where lateral corrections are more perceptually costly than forward ones",
+    "a targeting system already distinguishing 'in front of' from 'to the side of' the player, where this asymmetry can reuse that same angle measurement"
+  ],
+  "non_use_cases": [
+    "a wide/pulled-back or fixed camera where lateral character motion is easy to read and does not carry the same disorientation cost — the asymmetry's whole justification is camera-perspective-specific",
+    "a correction system with no meaningful angle-to-target concept at all (e.g. a single fixed-forward-only attack), where there is nothing to scale by"
+  ],
+  "interactions": [
+    "strike_assist_hit_reaction_camera_relative_correction (this batch, video 47) — both are camera-perception-aware corrections to otherwise-naive motion, one on the ATTACKER's reach and one on the TARGET's reaction trajectory, from the same talk and the same underlying design problem (this close camera makes naive corrections read badly)",
+    "swing_pivot_at_grip_not_geometric_center (video 44) — a much smaller-scale instance of the same general idea (getting an off-axis correction's geometry right matters more than getting an on-axis one right)"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Partially representable as a concept, not as a built feature: Cadence's IK (`solveTwoBone`) already reports `reach_range_studs`, i.e. whether and how far a target is from an effector's reachable range — the raw geometric quantity this technique's correction would need — but nothing in `ai/plan.js` or `ai/pose.js` scales a reach correction by the TARGET's angle from a forward-facing direction; every existing translation/reach adjustment in this build is direction-agnostic.",
+  "control_surface": "`reach_range_studs` (via `solveTwoBone`) supplies the raw distance/reachability data; no control surface applies an angle-dependent scaling to it.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s position data could describe how far and in what direction an attacker actually moved toward a target across an attack, and comparing that against the target's angle at the attack's start would let a check classify whether a project's own reach-correction (if hand-authored) already follows this angle-scaled asymmetry — a real, buildable comparison no code in this build runs.",
+  "generation_or_modification_methods": "None built.",
+  "failure_modes": [
+    "applying a UNIFORM reach correction regardless of angle, reproducing the exact 'jarring and disorienting' lateral-suck problem this technique was built to fix",
+    "scaling the correction to exactly zero at any off-center angle rather than smoothly, producing a hard, perceptible cutoff in hit-or-miss behavior as a target crosses a threshold angle"
+  ],
+  "roblox_considerations": "None specific — the underlying geometry (attacker forward vector, target angle, distance) is trivial to compute in Luau; the technique is a design/tuning decision, not an engine-dependent one.",
+  "performance_implications": "Negligible — a single angle computation and a scaling lookup per attack.",
+  "examples": [
+    "the mechanism and its justification stated directly: 'to help with the jarring lateral suck problem we scale the range of suck to target depending on the target's angle to kratos, the wider the angle the lower the range... this way kratos would miss his attacks more frequently against enemies away to the side of the screen compared to enemies in front of him even if they were at the same distance away' (video @ 28:07–28:26)",
+    "named as 'a simplified form of motion warping', framing the whole technique explicitly within that broader animation-technique family rather than as a bespoke one-off (video @ 27:59–28:06)"
+  ],
+  "evidence_status": "video: https://youtu.be/hE5tWF-Ou2k @ 27:55–28:26 — Mihir Sheth describes the angle-scaled reach correction directly, naming it a simplified form of motion warping and stating its exact tuning goal; no frames extracted (transcript-only); experimental until validated"
+}

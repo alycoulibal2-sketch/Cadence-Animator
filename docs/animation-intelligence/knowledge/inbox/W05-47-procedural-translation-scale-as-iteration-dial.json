@@ -1,0 +1,37 @@
+{
+  "concept": "procedural_translation_scale_as_iteration_dial",
+  "category": "advanced",
+  "definition": "Expose an authored animation's translation DISTANCE as a separate, live-tunable scalar in the design tooling — decoupled from the animation's own authored shape — so gameplay/camera tradeoffs (how far an attack or hit reaction moves a character through space) can be iterated on by designers adjusting a number, rather than requiring an animator to re-author the clip for every candidate distance.",
+  "purpose": "Get fast, cheap iteration on a specific, high-stakes tuning question (how far should this reaction/attack move a character) without paying a re-animation cost for every candidate value tested.",
+  "visible_effect": "The same underlying animation shape plays out over a shorter or longer travel distance depending on a script-exposed scalar, without needing a new authored clip per distance tested.",
+  "psychological_or_gameplay_effect": "Directly enabled the specific tuning outcome the talk describes (substantially reducing hit-reaction and attack translation from earlier, pulled-back-camera-era values) by making that a parameter sweep instead of a re-animation cycle — the presenter states this was 'incredibly helpful for testing outcomes with fast iteration speed.'",
+  "physical_interpretation": "A uniform scale applied to a motion's translation component, leaving its rotational/pose shape unchanged — the same operation, applied at the whole-clip level, that `scaleAbout` already performs at the single-value level in this build.",
+  "use_cases": [
+    "any production needing to re-tune how far a category of animations travels (hit reactions, attack lunges) in response to a late-breaking constraint (a camera change, a new content type) across many existing clips at once",
+    "any early-stage prototyping where the RIGHT travel distance is genuinely unknown and testing many candidate values cheaply matters more than any single value being exactly right"
+  ],
+  "non_use_cases": [
+    "a hero/cinematic animation whose exact travel distance is part of its authored intent and should never be procedurally rescaled without an animator's direct involvement",
+    "a clip whose translation is already tightly coupled to a specific world-space target (a contact-driven attack, a scripted stop position) where uniform scaling would break the very alignment the clip depends on"
+  ],
+  "interactions": [
+    "spring_damper_pose_transition_interpolation (video 41) — both separate an authored SHAPE from a tunable, applied-after-the-fact PARAMETER (a spring's stiffness/damping there, a translation scale here), for the same underlying reason: fast iteration without re-authoring",
+    "strike_assist_hit_reaction_camera_relative_correction and angle_scaled_reach_correction_for_lateral_targets (this batch, video 47) — the specific tuning problem (hit-reaction and attack translation distances under a close camera) that this entry's tooling made fast to iterate on"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly analogous to an existing mechanism at a smaller scale: `ai/plan.js`'s `scaleAbout` already performs exactly this operation (a uniform scale of a value's travel from an anchor) for single dimensions like `overshoot`, and Cadence's `motion_amplitude` vocabulary dimension scales a pose's rotation amplitude the same way — but nothing in this build applies an equivalent scale specifically to TRANSLATION distance as a first-class, separately-exposed dial across a whole clip or a category of clips, the way this entry's 'design strips' feature did.",
+  "control_surface": "`scaleAbout` (single-value scaling, used by the `overshoot` strategy) is the closest existing primitive; no tool in this build exposes a whole-clip or cross-clip translation-distance scalar.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s position data directly measures a clip's actual travel distance, which is exactly the quantity this entry's dial would need to report and let a designer compare against a target value — a real, buildable measurement already possible in this build, just not currently exposed as a tunable multiplier.",
+  "generation_or_modification_methods": "Partially buildable by extension: a new strategy applying `scaleAbout`-style scaling to an item's ROOT TRANSLATION keys specifically (rather than a single dimension value) would be a natural, incremental addition to `ai/plan.js`'s existing strategy pattern.",
+  "failure_modes": [
+    "scaling translation on a clip whose distance is coupled to a specific contact/target point, producing a foot-plant or hand-contact mismatch the scale operation has no way to know about or avoid",
+    "treating the scaled-down result as final without ever reviewing it against the ORIGINAL authored intent — a fast dial can just as easily tune away a deliberate choice as a wrong one"
+  ],
+  "roblox_considerations": "A Roblox-side equivalent would need to scale an `AnimationClip`'s translation keyframes programmatically (e.g. via keyframe editing at import time) since Roblox's own playback has no built-in per-clip translation-scale parameter.",
+  "performance_implications": "None at runtime if applied at authoring/export time (a one-time transform of the keys); a live per-frame scale would be cheap if ever done at runtime instead.",
+  "examples": [
+    "stated directly: 'having the functionality in our design strips to procedurally scale the translation of animations was incredibly helpful for testing outcomes with fast iteration speed' (video @ 33:58–34:17)",
+    "the specific tuning outcome it enabled: 'we reduced the translation of basic enemy hit reactions substantially from how they were made in the past and even reduced the translation of some of Kratos's attacks' (video @ 33:32–33:47)"
+  ],
+  "evidence_status": "video: https://youtu.be/hE5tWF-Ou2k @ 33:32–34:17 — Mihir Sheth states the procedural-translation-scaling tool and its role in the team's iteration process directly; no frames extracted (transcript-only); experimental until validated"
+}

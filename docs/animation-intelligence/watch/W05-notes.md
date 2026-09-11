@@ -8,7 +8,7 @@
 - [x] 44. How Overwatch Conveys Character in First Person — New Frame Plus (15:32) — https://youtu.be/7Dga-UqdBR8
 - [x] 45. Animation Bootcamp: Animating Cameras for Games — GDC (26:26) — https://youtu.be/hP1Vz70WouE
 - [x] 46. Animation Bootcamp: Script to Screen: The Development Diary of Marvel's Spider-Man — GDC (31:13) — https://youtu.be/r_rJJyIPrmM
-- [ ] 47. Evolving Combat in 'God of War' for a New Perspective — GDC (59:52) — https://youtu.be/hE5tWF-Ou2k
+- [x] 47. Evolving Combat in 'God of War' for a New Perspective — GDC (59:52) — https://youtu.be/hE5tWF-Ou2k
 - [ ] 48. Keyframes and Cardboard Props: The Cinematic Process Behind 'God of War' — GDC (54:01) — https://youtu.be/MNinZWlhprE
 - [ ] 49. Unsynced: The Last of Us Melee System — GDC (54:20) — https://youtu.be/Ox2H3kUQByo
 - [ ] 50. Making Fluid and Powerful Animations For 'Skullgirls' — GDC (21:06) — https://youtu.be/Mw0h9WmBlsw
@@ -432,4 +432,75 @@ build has no home for yet (cross-project continuity state), rather than pointing
 `W05-46-discontinuous-double-exposure-impact-replay.json`,
 `W05-46-operator-identity-implies-camera-noise-profile.json`,
 `W05-46-cross-cinematic-item-continuity-declaration.json` — all five pass `validateProposedEntry`
+and `validateEvidenceSource`; no concept-name collisions.
+
+### 47. Evolving Combat in 'God of War' for a New Perspective — GDC (Mihir Sheth, Santa Monica Studio)
+
+2026-09-11. Watched at `transcript` detail (1667 caption segments — the longest video in this batch,
+59:52; the main talk runs to ~44:00 with Q&A after). Read via targeted `grep` scanning ahead for dense
+sections (targeting/camera/translation/juggle keywords) rather than a strict linear pass, given the
+length — noted honestly since it is a deviation from this batch's usual video-at-a-time linear read;
+the full 0:00–44:00 main-talk span was still read, just navigated non-sequentially. This talk turned
+out to be overwhelmingly about gameplay/camera SYSTEMS design (targeting, aggression scoring, enemy
+positioning) rather than classical animation craft — most of it (aggression tokens, positioning zones,
+lock-on) has no clean Cadence angle at all (Cadence has no combat-AI or targeting model) and was
+deliberately left out of the entries below to keep the corpus honest about what is animation-relevant
+versus pure game-design. The four sections that ARE squarely animation/motion-authoring, however, are
+exceptionally concrete and technical, matching W05.md's framing for this video ("heavy attacks that
+read; hit reactions; camera and impact") from an unexpected angle: runtime motion CORRECTION rather
+than classical posing principles.
+
+**What it teaches, specifically:**
+1. **Strike assist** — the standout finding of the whole batch so far: a hit reaction's trajectory is
+   corrected toward a tunable blend between the camera's facing vector and its own originally-authored
+   direction, proportional to how far off-frame it would otherwise go, so combos keep struck enemies
+   on screen — and became a genuine player-expression tool (aiming the camera to direct a combo's last
+   hit off a cliff) that "most players had no idea... was even happening at all" (34:53–37:51). Wrote
+   **`strike_assist_hit_reaction_camera_relative_correction`**.
+2. A reach-closing correction ("a simplified form of motion warping") is deliberately scaled DOWN as a
+   target's angle away from forward increases, accepting more misses on off-angle targets specifically
+   because lateral correction reads as more disorienting than forward correction under this camera
+   (27:55–28:26). Wrote **`angle_scaled_reach_correction_for_lateral_targets`**.
+3. Animation translation distance exposed as a separate, live-tunable scalar in the design tooling
+   ("design strips"), decoupled from the authored clip shape, specifically to let designers sweep
+   candidate hit-reaction/attack travel distances without re-animating each one — directly credited
+   with enabling the substantial translation reductions this new camera required (33:32–34:17). Wrote
+   **`procedural_translation_scale_as_iteration_dial`**.
+4. Airborne juggle reactions are hand-ANIMATED (not physics-simulated) specifically because "the bounce
+   of juggling always had to feel good," while a separate runtime float-height system applies a
+   corrective velocity whenever the reaction's root joint exceeds a camera-relative height ceiling —
+   splitting feel (animation) from a hard constraint (a runtime clamp) rather than solving both with
+   one system (40:39–41:22). Wrote **`animated_not_physical_height_clamped_juggle`**.
+
+**Not written as entries** (real, well-evidenced, but pure gameplay/AI-systems content with no
+animation angle): the aggression-token enemy-selection system, the zone-constraint positioning system
+that replaced an earlier weight-based one, the hybrid lock-on system added late in development, and
+aim-friction/zoom-snapping for ranged targeting are all real, carefully-designed systems, but Cadence
+has no combat-AI, targeting, or enemy-behavior model of any kind to connect them to — forcing entries
+here would misrepresent the corpus's actual scope. Two animation-adjacent findings were also left out
+for being thinner extensions of entries already written rather than new mechanisms: invisible "bump"
+collision reactions propagating between hit-reacting enemies (reused, scaled up, for airborne
+reactions) and temporary aggression-token retention during a hit reaction (giving the player a bounded
+offensive window) are both real but closer to gameplay-pacing design than motion authoring.
+
+**Contradicted an existing card:** none.
+
+**Capture candidate:** none — an internal systems-design talk illustrated with gameplay footage and
+diagrams, no trackable independent reference performance.
+
+**Checks for the queue:**
+- `check: reach_correction_angle_asymmetry — for a project declaring a reach/motion-warp correction,
+  compare the correction magnitude actually applied at different target angles against the expected
+  angle-scaled falloff this video describes; flag a uniform (angle-independent) correction as a
+  candidate lateral-disorientation risk — buildable from sampleMotion's position data plus a declared
+  target angle — video 47 @ 27:55–28:26`
+- `check: translation_distance_outlier_vs_category — flag a clip whose measured root-translation
+  distance (sampleMotion position data) is a outlier against other clips of the same declared action
+  type, as a candidate for the kind of category-wide re-tuning this video's 'design strips' dial was
+  built for — video 47 @ 33:32–34:17`
+
+**Entries written:** `W05-47-strike-assist-hit-reaction-camera-relative-correction.json`,
+`W05-47-angle-scaled-reach-correction-for-lateral-targets.json`,
+`W05-47-procedural-translation-scale-as-iteration-dial.json`,
+`W05-47-animated-not-physical-height-clamped-juggle.json` — all four pass `validateProposedEntry`
 and `validateEvidenceSource`; no concept-name collisions.
