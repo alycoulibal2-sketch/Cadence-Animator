@@ -1,0 +1,35 @@
+{
+  "concept": "micro_motion_prevents_spliney_gap_between_extrema",
+  "category": "advanced",
+  "definition": "A long stretch of a tracked reference channel (the hips' up/down) with no local extremum at all — no up, no down, just a long unbroken drift — reads as 'spliney, floaty, and just not very good' even if the overall key count elsewhere looks adequate; the fix is a tiny, barely-perceptible extra motion (a 'micro down') inserted into that stretch, which the presenter states makes a disproportionately large difference to the read despite its tiny magnitude — 'that detail is so important... even if it's tiny.'",
+  "purpose": "Catch a specific failure mode a general key-density count can miss: a shot can have plenty of keys OVERALL while still containing one long gap with no direction change in a specific channel, which is what actually produces the floaty/spliney read, not the raw key count.",
+  "visible_effect": "Before: a long, smooth, monotonic drift in a tracked channel with no reversal. After: a small, sometimes barely-visible reversal (a micro up or down) breaks up that drift, disproportionately improving the perceived weight and liveliness of the motion.",
+  "psychological_or_gameplay_effect": "A body genuinely at rest or under continuous load still shows small, continuous micro-adjustments (breathing, balance correction); a channel with a long, perfectly monotonic drift and no such adjustment reads as unnaturally smooth/computed rather than alive, regardless of how many keys exist elsewhere in the shot.",
+  "physical_interpretation": "A real body's weight is never perfectly static or perfectly monotonic in transition — small continuous corrections (shifting balance, breathing, micro-adjustments) are a constant physical fact; their complete absence over an extended span is itself the tell that a motion was purely interpolated rather than performed.",
+  "use_cases": [
+    "reviewing a tracked channel (typically the hips/COG's vertical position) for any unusually long span with no local extremum, and adding a small, deliberate reversal there even if the visual difference is tiny",
+    "diagnosing a 'floaty'/'spliney' complaint about an otherwise well-keyed shot by checking specifically for this kind of gap, rather than assuming the whole shot needs more keys uniformly"
+  ],
+  "non_use_cases": [
+    "a deliberately smooth, floating, or weightless motion where the intended read IS continuous drift (e.g. an object in zero gravity), where this entry's fix would be wrong to apply"
+  ],
+  "interactions": [
+    "dps_floor_for_short_actions and the queued `check: dps_floor_vs_action_duration` (LESSONS.md check #17, existing corpus) measure OVERALL key density against action duration; this entry names a DIFFERENT, complementary failure mode — a long GAP BETWEEN EXTREMA in one specific channel, which could exist even in a shot whose overall key density already passes the density-floor check.",
+    "key_density_gates_spline_readiness_not_a_fixed_rule (this same batch, video 95) — a companion finding from a different source describing the same underlying family of problem (not enough information reaching the interpolator) from the density angle rather than the specific extrema-gap angle."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a distinct check, though directly buildable: `ai/motion.js sampleMotion`'s existing position/velocity sampling over a tracked part (e.g. the hip) already carries everything needed to find the longest span between two consecutive velocity sign-changes (local extrema) and compare it against a threshold — no new capability required, only a new measurement combining data `sampleMotion` already produces.",
+  "control_surface": "`sampleMotion`, applied to a root/hip part's Y position series to find extrema gaps.",
+  "detection_and_measurement_methods": "Buildable today: the longest interval between consecutive local extrema (sign changes) in a tracked channel's velocity, compared against the action's own total duration or a stated threshold — this session did not find this specific measurement wired anywhere, and it is queued below as a new check.",
+  "generation_or_modification_methods": "Achievable today via ordinary keyframe authoring (`set_keyframe`) once a gap is identified — inserting one small additional key breaking the monotonic span; no new capability required to FIX it, only to DETECT it.",
+  "failure_modes": [
+    "assuming an adequate overall key count means no floaty stretches exist, missing a single long gap in one specific channel that a density-only check would not catch",
+    "adding the corrective micro-motion at too large an amplitude, which would read as a deliberate pose rather than the barely-perceptible correction this technique calls for"
+  ],
+  "roblox_considerations": "None specific — a pure keyframe-density/placement technique independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'if you have a long period where you don't see an up or a down... it's just gonna [supply, i.e. interpolate] and whatever[,] that's gonna make it feel so much more spline, floaty, and just not very good[.] that micro down there will make a massive difference to the animation[,] even if it's tiny' (transcript 34:28-34:44)"
+  ],
+  "evidence_status": "video: https://youtu.be/TaiJauNiKH4 @ 34:00-34:50 — owenferny states the micro-motion-prevents-spliney-gap principle directly while tracking a real reference clip's hip channel, transcript-only per this video's detail setting; cross-checked in this session against `ai/motion.js sampleMotion`'s existing sampling capability; experimental until validated"
+}

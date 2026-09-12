@@ -1,0 +1,34 @@
+{
+  "concept": "eye_focus_change_as_acting_key_signal",
+  "category": "advanced",
+  "definition": "A specific, reliable signal for finding ACTING key poses in reference (complementary to cog_extrema_and_contacts_define_reference_key_poses, this same batch, which is for body-mechanics): a change in what the eyes are focused on or looking at is very often a key, because a focus change is physical evidence of a THOUGHT change — 'we only do that because we're thinking or we're trying to focus on something[,] they're usually keys' — while an eye motion NOT tied to a focus/thought change (a passing glance, a blink-like flick) can be judged as optional texture to keep or cut in the breakdowns rather than a key itself.",
+  "purpose": "Give a concrete, physically-grounded criterion for finding acting beats, since 'thinking' itself is not directly observable — a change in visual focus is the physical trace a thought change actually leaves in reference footage.",
+  "visible_effect": "A key pose chosen this way coincides with a genuine change in where the eyes are pointed/focused, distinguishing it from a pose that merely looks visually different but carries no underlying thought change.",
+  "psychological_or_gameplay_effect": "A key pose tied to a real focus/thought change reads as a genuine acting beat; the same visual pose difference with no underlying focus change would read as arbitrary or noisy if kept as a key rather than folded into the breakdowns.",
+  "physical_interpretation": "Directing visual attention is one of the most involuntary, reliable physical correlates of a change in what a person is thinking about — using it as a proxy for 'thought changed here' is grounded in how real attention actually works, not just a stylistic convention.",
+  "use_cases": [
+    "scanning acting reference for key poses by watching for eye/focus changes specifically, rather than only judging by overall body pose difference",
+    "deciding whether a SPECIFIC eye movement in reference should become a key pose (a real focus change) or stay as optional breakdown texture (a movement not tied to a focus change) — a judgment call the presenter states explicitly is the animator's own to make"
+  ],
+  "non_use_cases": [
+    "a shot where the face/eyes are not visible or reliable in the reference (the presenter's own account of filming himself facing down, where the face was not usable) — the presenter states directly he does not weight facial/eye reference heavily in that situation and instead relies on other cues"
+  ],
+  "interactions": [
+    "cog_extrema_and_contacts_define_reference_key_poses (this same batch, video 99) — the acting-content counterpart to that body-mechanics-content criterion: COG extrema for mechanics, eye-focus changes for acting, as two different physically-grounded proxies for 'this frame is structurally important', each suited to a different content type per acting_vs_mechanics_reference_usage_ratio_decided_per_section (this same batch)."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and likely not measurable from project data alone: Cadence's rig/pose data has no eye-gaze-direction or focus-target concept this session found (a face is a static `faceLayers` swap, per the existing W08 finding, not a keyframeable gaze target) — even if it were keyframeable, 'what the character is focused on' is a semantic fact about story/attention, not a geometric property `ai/motion.js` could derive from a track alone.",
+  "control_surface": "None currently — no Cadence data represents gaze focus/target.",
+  "detection_and_measurement_methods": "not measurable in this build — requires knowing WHAT a gaze direction is aimed at (a semantic target), which is not represented in project data.",
+  "generation_or_modification_methods": "not applicable.",
+  "failure_modes": [
+    "treating every visual difference in eye position as an equally important key, missing the distinction between a real focus/thought change (a key) and incidental eye motion (optional breakdown texture)",
+    "relying on eye/focus cues in reference where the face is not clearly visible or usable, per the presenter's own named exception"
+  ],
+  "roblox_considerations": "None specific — a reference-analysis technique independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'the eyes are very helpful for picking out your keys, honestly[.] so looking over here[,] feeling this is a key, and then looking back' (transcript 29:07-29:14), and the explicit judgment call for a non-focus-driven eye movement: 'that one isn't necessary[,] that's not a beat[,] that's not a thinking thing... that's a decision that I can then make in breakdowns' (transcript 29:52-30:19)"
+  ],
+  "evidence_status": "video: https://youtu.be/TaiJauNiKH4 @ 29:07-30:19 — owenferny states the eye-focus-change key-pose criterion directly while working through a real reference clip, transcript-only per this video's detail setting; experimental until validated"
+}

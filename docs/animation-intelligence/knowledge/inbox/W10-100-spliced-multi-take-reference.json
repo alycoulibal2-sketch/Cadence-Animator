@@ -1,0 +1,33 @@
+{
+  "concept": "spliced_multi_take_reference_editing",
+  "category": "specialized",
+  "definition": "Building one composite reference clip out of the BEST parts of multiple separate takes — including takes from different performers reading the same line — cut together in a video editor and matched by audio waveform, rather than using any single take as-is: 'I'm kind of liking that those two are cutting together... the energy has improved because [I'm] using the energy of the second one, but the acting of the first one.'",
+  "purpose": "Get a single reference clip better than any one continuous take by combining each take's own strongest moment (a better opening energy from one take, a better emotional beat from another), accepting that no single performance is likely to be the best choice all the way through.",
+  "visible_effect": "The final reference clip shows visibly different energy/quality in different sections, corresponding to the specific take each section was cut from, joined at chosen cut points (matched via audio waveform) rather than being one continuous unedited performance.",
+  "psychological_or_gameplay_effect": "not applicable — a reference-production technique, not a viewer-facing effect on the eventual animation directly (though a stronger composite reference should produce a stronger eventual animation).",
+  "physical_interpretation": "not applicable.",
+  "use_cases": [
+    "any reference shoot where multiple takes were recorded and no single take is the best choice throughout its whole length",
+    "combining reference from two different sources (even two different performers) when each contributes something the other lacks (one performer's energy, another's specific acting choice)"
+  ],
+  "non_use_cases": [
+    "a reference session where one take is clearly best throughout, where splicing would add editing effort for no benefit"
+  ],
+  "interactions": [
+    "not applicable — the only entry in this corpus specifically about REFERENCE PRODUCTION/EDITING technique rather than animation authoring itself."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not applicable to Cadence directly: this is a pre-production video-editing technique (performed in DaVinci Resolve, outside any animation tool) that happens BEFORE a reference profile would ever be built via `ai/reference.js` — Cadence has no video-editing capability and this session found no reason it should. Worth recording anyway because of what it implies for the resulting reference's PROVENANCE: a reference profile built from a spliced, multi-take, possibly multi-performer composite is a different kind of source than a single continuous take, and if `ai/library.js`'s captured-entry provenance fields (per the existing 'a captured library entry must declare estimated: true and carry its source video URL' rule, CLAUDE.md) were ever extended to non-Roblox-capture reference sources, this composite-splice case is a concrete example of provenance that is not simply 'one URL, one timestamp range'.",
+  "control_surface": "None in Cadence — the editing happens entirely outside the tool, before any reference profile is built.",
+  "detection_and_measurement_methods": "not applicable — a pre-production technique, not something Cadence measures.",
+  "generation_or_modification_methods": "not applicable.",
+  "failure_modes": [
+    "not applicable to Cadence directly, though for the source technique itself: cutting between takes at a point where the underlying motion does not actually line up (the presenter's own account of a cut 'not hooking up very well' and needing to try several different cut points before one worked)"
+  ],
+  "roblox_considerations": "None — entirely a pre-production reference technique.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim, splicing between two different performers' takes: 'I'm kind of like in that way that those two are cutting together... the energy has improved because [I'm] using the energy of the second one, but the acting of the first one' (transcript 18:15-18:24), and the general method stated earlier in the same editing pass: 'it's also helpful to leave the audio running out of your computer[,] so then you can literally just match the wave form' (transcript 19:34-19:36)"
+  ],
+  "evidence_status": "video: https://youtu.be/TaiJauNiKH4 @ 19:34-19:36 and 18:15-18:24 — owenferny demonstrates splicing multiple takes (including two different performers) together via audio-waveform-matched cuts in DaVinci Resolve, transcript-only per this video's detail setting; experimental until validated"
+}

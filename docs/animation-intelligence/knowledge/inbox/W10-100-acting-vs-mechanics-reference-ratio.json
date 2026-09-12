@@ -1,0 +1,37 @@
+{
+  "concept": "acting_vs_mechanics_reference_usage_ratio_decided_per_section",
+  "category": "advanced",
+  "definition": "How much of a reference clip's detail to actually copy is decided by content type, and can switch mid-shot: for ACTING content, take only the key-pose BEATS from reference and invent the breakdowns yourself using animation principles and experience ('you're not staying exactly where the poses are... you're relying on your own intuition and animation principles a lot more'); for BODY-MECHANICS content, take the extremes AND lean on the reference closely for the breakdowns too, staying close to the source because real physical weight and momentum are hard to invent convincingly from scratch ('copy the reference[,] it comes out perfect'). A single continuous reference clip can contain BOTH — the presenter explicitly marks a section switch mid-shot ('the body mechanics are taking a back seat to the acting here') rather than treating the whole clip as one mode.",
+  "purpose": "Spend fidelity-to-reference where it actually pays off (grounded physical weight and momentum, which is hard to fake) and spend creative departure where it pays off instead (acting choices, which benefit from an animator's own timing/spacing push) — rather than treating a whole reference clip as uniformly 'copy it' or uniformly 'just use it for beats'.",
+  "visible_effect": "The acting portions of a resulting animation depart further from the reference's own exact angles/timing/breakdowns than the body-mechanics portions do, which stay close to the source's actual in-between motion.",
+  "psychological_or_gameplay_effect": "Acting benefits from a performer's own exaggeration and timing choices layered on top of the beats; body mechanics benefits from staying grounded in something a real body actually did, since invented weight/momentum is harder to sell than invented emotional timing.",
+  "physical_interpretation": "Body mechanics (weight, momentum, balance) is governed by real physical laws that a performer's actual reference clip already gets right by construction; acting choices (exactly how long to hold a beat, how big a gesture is) are stylistic decisions with no single physically-correct answer, which is why they tolerate — and benefit from — more departure.",
+  "use_cases": [
+    "any reference-based shot with both an acting component and a body-mechanics component (a hybrid shot, e.g. an emotional reaction during a physical action) — decide per SECTION, not just per shot, how closely to follow the source",
+    "a quadruped or non-human character shot: perform the STORY BEATS and timing yourself as a human approximation first (for planning), then gather separate REAL animal reference specifically for the mechanics layer on top"
+  ],
+  "non_use_cases": [
+    "a shot that is purely one or the other, where a single ratio decision for the whole clip is sufficient"
+  ],
+  "interactions": [
+    "reference_fidelity_then_deliberate_retiming_departure (this same batch, video 99) — a related but distinct axis: that entry is about WHEN to depart (a later, separate retiming stage after a faithful pass); this entry is about WHERE to depart (which sections/content-types tolerate departure at all, decided from the start, not just when)."
+  ],
+  "style_variations": {
+    "cartoony": "even body-mechanics reference is used mainly 'for poses' rather than for breakdown fidelity, per the presenter's own stated exception",
+    "grounded/realistic": "body-mechanics reference is followed closely including its breakdowns"
+  },
+  "cadence_representation": "Directly matched by an existing, precisely-fitting Cadence mechanism, verified in this session by reading the code: `ai/reference.js` (Part 36) already requires a caller to declare `emulate` and `not_copied` as separate arrays on any reference profile — 'clearly separate reference characteristics to emulate from' ones not copied, exactly the caller-declared distinction this entry describes. An acting-heavy reference would declare only beat-level characteristics in `emulate`; a mechanics-heavy one would declare much more (including breakdown timing) in `emulate`. Cadence does not decide this ratio automatically (Part 13 forbids it, per the code's own comment) — it is, correctly, a caller judgment call the tool only RECORDS.",
+  "control_surface": "`ai/reference.js`'s profile-building function, via its `emulate`/`notCopied` parameters.",
+  "detection_and_measurement_methods": "not measurable in this build — a declared authorial intent (Part 13), not a property `ai/motion.js` derives from a clip.",
+  "generation_or_modification_methods": "not applicable — a declaration made by the caller when building a reference profile, not a generation operation itself.",
+  "failure_modes": [
+    "treating a whole hybrid shot as one mode (all-acting or all-mechanics) rather than switching per section, producing either overly-invented physics or overly-literal acting",
+    "declaring the same `emulate`/`not_copied` split for every reference regardless of content type, rather than tailoring it per shot as this entry describes"
+  ],
+  "roblox_considerations": "None specific — a pure reference-usage judgment call independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'with body mechanics[,] I'm gonna take my extremes and I'm gonna refer to the reference a lot in between to get myself there... whereas acting[,] you're using your animation principles... pushing timing... pushing spacing' (transcript 11:35-12:04), and the mid-shot switch: 'I've done a bit of a cut here and that's because the body mechanics are taking a back seat to the acting here' (transcript 32:06-32:33)"
+  ],
+  "evidence_status": "video: https://youtu.be/TaiJauNiKH4 @ 11:05-13:29 and 32:06-32:33 — owenferny states the acting-vs-mechanics reference-usage distinction directly and demonstrates a mid-shot mode switch, transcript-only per this video's detail setting; cross-checked in this session against `renderer/js/ai/reference.js`'s `emulate`/`not_copied` fields; experimental until validated"
+}

@@ -1,0 +1,34 @@
+{
+  "concept": "channel_priority_order_for_extracting_reference_extremes",
+  "category": "advanced",
+  "definition": "A stated priority order for which channel's extremes matter most when extracting body-mechanics keys from reference: screen-space vertical (translate Y, the hips'/COG's up-down) first, then screen-space horizontal (translate X/Z, which gives silhouette C-shapes and overlap), then secondary parts (chest translate X, then arms), each level extracted in order of importance rather than all at once — 'I'm just talking about the things I go through in order of importance.'",
+  "purpose": "Give a concrete, ordered checklist for extracting reference data when time or attention is limited, so the highest-value information (vertical weight/momentum) is captured first and secondary detail (arm gestures, chest lean) is added afterward rather than everything being extracted with equal priority from the start.",
+  "visible_effect": "A key pose built from just the first pass (translate Y extremes) already captures the core weight/timing structure of the motion; each subsequent pass (X/Z, then chest, then arms) adds silhouette and secondary detail on top without changing that core structure.",
+  "psychological_or_gameplay_effect": "not applicable — an extraction-priority method, not a viewer-facing effect on its own.",
+  "physical_interpretation": "Vertical motion (fighting or yielding to gravity) is the dominant signal of a body's weight and momentum in almost any action; horizontal/depth motion and secondary parts (chest, arms) modulate the SILHOUETTE and overlap on top of that dominant signal, which is why the stated order follows from what actually carries the most weight-reading information first.",
+  "use_cases": [
+    "extracting keys from a body-mechanics reference clip under time pressure — get the Y-extremes first as a base, then layer in X/Z and secondary parts as time allows",
+    "deciding which channel's disagreement with a straight interpolation matters most when a breakdown needs manual correction (per contact_poses_derived_as_breakdowns_between_extremes_not_posed_independently, this same batch, video 99)"
+  ],
+  "non_use_cases": [
+    "a motion with no meaningful vertical component (e.g. a purely lateral slide) where a different channel would need to take priority instead — the presenter's own stated order is for typical grounded/gravity-driven actions, not a universal law"
+  ],
+  "interactions": [
+    "cog_extrema_and_contacts_define_reference_key_poses (this same batch, video 99) — this entry is a more granular refinement of that one: video 99 says 'track the COG and find its extremes'; this entry specifies WHICH channel of that COG proxy to check first (Y), and what to check next (X/Z, then secondary parts) when more than one channel matters."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a stated priority, though the underlying data is already available: `ai/motion.js sampleMotion` samples full world CFrames (all translation axes at once) per part per frame, so nothing prevents a caller from checking Y before X/Z — but no existing measurement or workflow states this ORDER as a priority the way this entry's source does.",
+  "control_surface": "`sampleMotion`, read in the priority order this entry describes (Y first, then X/Z, then secondary parts) rather than all axes weighted equally.",
+  "detection_and_measurement_methods": "Buildable today from existing data: `sampleMotion`'s per-axis position series already carries everything needed to apply this priority order; no new capability required, only a convention for which axis's extrema to resolve first.",
+  "generation_or_modification_methods": "not applicable — an extraction-priority convention, not a generation operation.",
+  "failure_modes": [
+    "extracting every channel with equal priority under time pressure, resulting in a shallow pass across everything rather than a deep, correct pass on the highest-value channel (Y) first",
+    "applying this exact order to a motion whose dominant axis genuinely is not vertical, producing a key-pose set that misses the actual dominant signal"
+  ],
+  "roblox_considerations": "None specific — a reference-analysis priority independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'when I'm talking about extremes[,] I'm specifically talking about the extremes on the hits[,] the peak of the translate Y... translate Y and then translate Z and X... probably after that it's about the chest and the translate X... so then I'm gonna reach[,] and I'm gonna say arms' (transcript 9:16-10:20)"
+  ],
+  "evidence_status": "video: https://youtu.be/TaiJauNiKH4 @ 9:16-10:20 — owenferny states the channel priority order for reference extraction directly, transcript-only per this video's detail setting; cross-checked in this session against `ai/motion.js sampleMotion`'s per-axis sampling capability; experimental until validated"
+}

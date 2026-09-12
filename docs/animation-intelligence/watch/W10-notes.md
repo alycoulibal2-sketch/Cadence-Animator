@@ -9,7 +9,7 @@
 - [x] 97. Tips for Polishing Animation from a Disney Animator — Sir Wade Neistadt (22:09)
 - [x] 98. Animation Critique: How To Instantly Improve Your Blender Animation With Easy Tricks — CG Cookie (35:55)
 - [x] 99. How to use video reference for Animation — Chester Sampson (11:40)
-- [ ] 100. The COMPLETE Guide to Reference for Feature Animation — owenferny (38:06)
+- [x] 100. The COMPLETE Guide to Reference for Feature Animation — owenferny (38:06)
 
 ---
 
@@ -396,3 +396,97 @@ stock footage, not something this session could capture).
 
 **No new checks queued** — the strongest finding (COG-extrema detection) is flagged as buildable-today
 in its own entry rather than queued separately, since it names the exact missing measurement already.
+
+## Video 100 — The COMPLETE Guide to Reference for Feature Animation — owenferny (38:06)
+https://youtu.be/TaiJauNiKH4 — watched 2026-09-12, `transcript` detail, captions transcript (811
+segments). The final video of the entire 100-video list. A specialist reference-workflow deep dive,
+independently confirming and sharpening several video-99 findings while adding genuinely new ones. Five
+entries.
+
+**`acting_vs_mechanics_reference_usage_ratio_decided_per_section`** — how closely to copy reference
+depends on content type (acting: take only the beats, invent breakdowns yourself; mechanics: copy
+closely including breakdowns) and the split can happen MID-SHOT, not just per shot (@ 11:05–13:29,
+32:06–32:33). Matches `ai/reference.js`'s existing `emulate`/`not_copied` caller-declared fields almost
+exactly — Cadence already has the mechanism to RECORD this distinction, correctly leaving the judgment
+itself to the caller (Part 13).
+
+**`channel_priority_order_for_extracting_reference_extremes`** — a stated extraction order: translate Y
+extremes first (weight/momentum), then X/Z (silhouette/overlap), then secondary parts (chest, arms) (@
+9:16–10:20). A more granular refinement of video 99's COG-extrema finding — WHICH channel to check
+first when more than one matters.
+
+**`eye_focus_change_as_acting_key_signal`** — a focus/gaze change is physical evidence of a thought
+change and is usually a key; eye motion NOT tied to a focus change is optional breakdown texture, an
+explicit judgment call (@ 29:07–30:19). The acting-content counterpart to video 99's COG-extrema
+criterion for mechanics content.
+
+**`micro_motion_prevents_spliney_gap_between_extrema`** — a long gap with no direction-change in a
+tracked channel reads as 'spliney, floaty' even in an otherwise well-keyed shot; a tiny, barely-visible
+reversal fixes it disproportionately (@ 34:00–34:50). A genuinely new, complementary failure mode to
+the existing `dps_floor_vs_action_duration` check (#17) — not overall key density, but the longest GAP
+between consecutive extrema in one specific channel. **New check queued** below.
+
+**`spliced_multi_take_reference_editing`** — building one composite reference from the best parts of
+multiple takes (including different performers), cut together and matched by audio waveform (@
+18:15–18:24, 19:34–19:36). Not a Cadence-authoring technique — a pre-production note about reference
+provenance worth remembering if `ai/library.js`'s captured-entry fields are ever extended past
+Roblox-capture sources.
+
+**Not written up separately**: the explicit 'I don't retime reference, I reshoot it' account (@
+37:17–37:28) is about retiming raw SOURCE FOOTAGE, a different question from video 99's finding (which
+retimes the ANIMATOR'S OWN authored keys) — a useful clarifying distinction, not a contradiction, but
+too narrow on its own for a full entry; the quadruped human-self-performance-then-real-reference
+technique (@ 32:36–32:55, briefly touched again at 36:11–36:52) is folded into the acting-vs-mechanics
+entry above as a supporting example rather than written up on its own.
+
+**Capture candidates: none** — the video is itself a reference-production tutorial (webcam self-footage
+edited in DaVinci Resolve), not source material Cadence's own capture pipeline would ingest.
+
+**New check queued**: `check: max_gap_between_consecutive_motion_extrema — the longest span, on one
+tracked channel (typically a root/hip's vertical position), between two consecutive local extrema
+(velocity sign changes); flag a span implausibly long relative to the action's own duration — derivable
+today from `sampleMotion`'s existing position/velocity sampling, no new capability required — source:
+video 100 @ 34:00–34:50`.
+
+---
+
+## Batch closing summary (all ten videos complete)
+
+All ten watched in one long session (2026-09-12, the user handed the session `W10.md`'s path directly
+with effort set to max — the same pattern as W05/W07/W08). **36 new knowledge entries** written to
+`knowledge/inbox/W10-*.json` (4+5+2+4+3+2+5+3+3+5 across videos 91–100 in order — recomputed by actually
+listing the files just now, not trusted from a running tally, per the standing discipline this
+programme has needed twice before). All 36 pass both Part 72 gates (`validateProposedEntry` and
+`validateEvidenceSource`, run via a small Node script that imports `ai/knowledge.js` directly rather
+than assumed from examples) — checked per-video as each was written, then again as one final sweep
+across the full corpus (compiled knowledge plus every batch's inbox, 277 files, 276 with a `concept`
+field, 276 unique concepts, **zero collisions**). One pre-existing, unrelated problem surfaced by that
+sweep: `knowledge/inbox/W09-85-legible-vs-ambiguous-energy-source-as-authorial-choice.json` (the
+concurrently-running W09 session's own file, not this batch's) fails to parse as JSON — confirmed with
+a second, independent read a few minutes later, so not a mid-write race; flagged here for whoever merges
+or continues W09, not fixed by this session since it is outside W10's own files.
+
+**Two capture candidates across all ten videos: zero** — every video was a screen recording (Blender,
+3ds Max, Maya) or a reference-production tutorial, never a filmed human performance Cadence's own
+pipeline could capture from.
+
+**Checks queued: two**, both buildable today from `ai/motion.js sampleMotion`'s existing data with no
+new capability required — `rotation_channel_discontinuity_flag` (video 91) and
+`max_gap_between_consecutive_motion_extrema` (video 100).
+
+**Nothing in this batch contradicted an existing knowledge card.** The batch's own throughline: this was
+the first batch to spend real time cross-checking its findings against Cadence's OWN source code rather
+than only against the existing knowledge corpus, and it went both ways about as often as not. Confirmed
+gaps: no animation layers at all (three separate files say so explicitly), `joint_limits: null` on every
+joint (no forearm-twist-style DOF constraint), no local-extrema/turning-point detector in `ai/motion.js`,
+and the `polish_animation` workflow's own honest `implemented: false`. Confirmed strengths, found rather
+than assumed: `set_track_space`/`setUnparented` already do a lossless, pop-free space-switch that a
+whole OTHER tool (3ds Max CAT, video 93) needs a manual align-before-switch step to fake; and
+`ai/certainty.js`'s ranked `CERTAINTY` levels plus `ai/review.js`'s `sortFindings`/`certaintyRank`
+already implement, as real sorted data, exactly the certain-fixes-first feedback discipline a Disney-
+trained reviewer (video 98) described doing by hand. `ai/reference.js`'s `emulate`/`not_copied` fields
+turned out to be an exact, pre-existing match for the acting-vs-mechanics reference-usage distinction
+three different reference-focused videos (94, 99, 100) converged on independently. This is the LAST of
+the ten watch batches (W01–W10) to be watched; W01–W02 are merged, **W03–W10 all sit finished and
+unmerged in `knowledge/inbox/`, waiting for a learning-loop session** to run
+`node tools/merge-knowledge-inbox.mjs` batch by batch.
