@@ -6,7 +6,7 @@
 - [x] 94. The Ultimate Animation Workflow for Beginners — Chester Sampson (12:59)
 - [x] 95. Animation Power Tips - When to go from BLOCKING to SPLINE — Harvey Newman (20:24)
 - [x] 96. Why Your Stepped Animation Sucks in Spline — Sir Wade Neistadt (8:59)
-- [ ] 97. Tips for Polishing Animation from a Disney Animator — Sir Wade Neistadt (22:09)
+- [x] 97. Tips for Polishing Animation from a Disney Animator — Sir Wade Neistadt (22:09)
 - [ ] 98. Animation Critique: How To Instantly Improve Your Blender Animation With Easy Tricks — CG Cookie (35:55)
 - [ ] 99. How to use video reference for Animation — Chester Sampson (11:40)
 - [ ] 100. The COMPLETE Guide to Reference for Feature Animation — owenferny (38:06)
@@ -268,3 +268,53 @@ all, a question about authorial review that project data cannot answer on its ow
 **Capture candidates: none** — a screen-recorded 3D backflip demo, no filmed human performance.
 
 **No new checks queued** — both findings are human self-review disciplines, not measurements.
+
+## Video 97 — Tips for Polishing Animation from a Disney Animator — Sir Wade Neistadt (22:09)
+https://youtu.be/ujo7aHa7DGQ — watched 2026-09-12, `transcript` detail (an interview with Alan
+Ostagar, a Disney character animator — Zootopia, Moana, Frozen), captions transcript (600 segments).
+The single best source in the whole batch: a real feature-animation professional's actual polish
+workflow, interviewed rather than tutorialized. Five entries — density-justified, matching W03/W04/W05
+precedent for an unusually rich source.
+
+**`polish_root_to_leaf_ordering_avoids_orphaned_counter_animation`** — polish the driver (usually hips,
+sometimes torso/head) before its dependents, because polishing a child first and changing the parent
+afterward orphans the child's counter-animation (@ 5:07–5:56). A sharp, general, well-evidenced
+mechanism directly applicable to Cadence's own FK joint hierarchy.
+
+**`steal_frame_reallocation_before_curve_work`** — reallocate frame budget BETWEEN adjacent actions
+(steal a frame from one, give it to another) as the very first polish step, before any curve work,
+because timing changes get more expensive to make the longer curve work has already been built around
+them (@ 2:44–3:39). Directly buildable today with `move_keyframes`.
+
+**`resample_to_whole_frames_preserving_curve_shape_via_insert_delete`** — a specific technical fix for
+keys left on non-integer frames after a time-scale: insert new keys at the target whole frames using
+the curve's OWN current value there, then delete the fractional-frame originals — never snap, which
+distorts the shape (@ 8:30–9:24). Traced to a genuinely open, well-grounded question rather than a
+guess: `stretch_frames` can produce fractional frame times, `state.js`'s own cache comment confirms the
+evaluator tolerates them internally, but whether any Roblox-bound export re-quantizes them (and how) was
+not checked.
+
+**`isolate_by_disabling_risks_losing_causal_context`** — turning off a limb to judge a torso in
+isolation is useful during blocking but risky during polish, because it hides the very influence (the
+arm's weight pulling on the torso) that explains why the torso moves the way it does (@ 5:56–7:10). A
+technique and its own explicit caveat from the same source.
+
+**`cross_channel_curve_copy_via_layer_for_correlated_secondary_motion`** — copying a jaw's rotation
+curve onto a cheek/mouth-corner/eyebrow channel on a SEPARATE LAYER, non-destructively, for automatic
+correlated secondary facial motion (@ 13:37–14:32). Confirmed absent in Cadence by the code's own
+repeated statements ('Cadence has no animation layers or blend weights', found in three separate
+files), and directly compounds the existing W08 finding that Cadence's face isn't keyframeable over
+time at all — two independent reasons now point at the same missing capability.
+
+**Not written up separately**: the 'know exactly why you're doing what you're doing' graph-editor
+discipline (@ 9:24–9:53) restates video 95's spline-should-refine-not-fix principle rather than adding
+a new mechanism; the face-polish ORDER (jaw → cheeks/eyes → blinks, @ 13:12–14:59) and the line-of-action
+reversal-for-impact technique (@ 15:10–16:04) are both genuine but lower-confidence restatements/variants
+of already-covered ground (facial polish is out of scope per the existing W08 gap; line-of-action
+reversal is a specific case of anticipation/overshoot already in the corpus).
+
+**Capture candidates: none** — a talking-head interview with screen-recorded Maya examples, no filmed
+human reference performance shown on screen.
+
+**No new checks queued** — all five findings are workflow disciplines or a code-verification question,
+not new runtime measurements.

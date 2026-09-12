@@ -1,0 +1,34 @@
+{
+  "concept": "steal_frame_reallocation_before_curve_work",
+  "category": "advanced",
+  "definition": "A specific first-pass polish technique, done BEFORE any graph-editor/curve work: look across the whole shot for places to reallocate frame budget between adjacent actions — take a frame out of one action to make it feel quicker/snappier, and give that frame to a neighbouring action that needs more room — treating the shot's total frame count as a fixed pool to redistribute, rather than only adding or removing frames from one action in isolation.",
+  "purpose": "Get the shot's overall timing and rhythm right while it is still cheap to change (before curves/tangents/arcs have been finessed around the current timing), since fixing timing AFTER curve work means re-doing the curve work too — stated directly as 'your last chance to do some timing... the earlier you get that adjusted the better so you don't have to re-fix arcs and things like that'.",
+  "visible_effect": "One action in the shot becomes visibly quicker/snappier while an adjacent one gets more frames to breathe, with the shot's total length and the individual poses themselves unchanged — only the DISTRIBUTION of frames between actions changes.",
+  "psychological_or_gameplay_effect": "Correctly-distributed timing (a quick, snappy moment next to a lingering one) reads as intentional rhythm and contrast; the same total frame count spent evenly across every action reads as flatter and less purposeful.",
+  "physical_interpretation": "not applicable — a timing/rhythm authoring technique, not a new physical claim.",
+  "use_cases": [
+    "a shot with two or more adjacent actions where one currently feels sluggish and another feels rushed, reallocating frames between them rather than changing the shot's total length",
+    "any point during polish, before curve/tangent work begins, as a check on overall rhythm"
+  ],
+  "non_use_cases": [
+    "a shot with only one uninterrupted action and no adjacent action to trade frames with, where this specific technique does not apply (though the general 'fix timing before curves' principle still would)"
+  ],
+  "interactions": [
+    "spline_should_refine_not_fix_posing_defects (this same batch, video 95) and polish_root_to_leaf_ordering_avoids_orphaned_counter_animation (this same batch, video 97) — all three share the same motive: settle higher-leverage decisions (posing, driver hierarchy, timing) before the harder-to-undo curve/tangent work, so that work is never wasted redoing itself."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly achievable today: `move_keyframes` ('shift a list of keyframes in time by dt frames') applied to one action's keys (shortening it) and to the adjacent action's keys (lengthening it, or shifting its start later) is exactly the reallocation this technique describes — no new capability required, only the judgment of which two adjacent actions should trade frames and by how much.",
+  "control_surface": "`move_keyframes`, applied to two adjacent actions' key sets to trade frame budget between them.",
+  "detection_and_measurement_methods": "Not measurable as a single check — a workflow-timing judgment; though the RESULT (a snappier action next to a slower one) is measurable via `ai/motion.js sampleMotion`'s velocity profile across the shot, showing genuine contrast rather than uniform pacing.",
+  "generation_or_modification_methods": "`move_keyframes` on both actions' key sets — already sufficient; no new capability required.",
+  "failure_modes": [
+    "doing curve/tangent work first, then discovering the timing needs to change, and having to redo the curve work around the new timing",
+    "only ever adding or removing frames from a single action in isolation rather than treating adjacent actions' frame budgets as tradeable, missing opportunities to create contrast without changing the shot's total length"
+  ],
+  "roblox_considerations": "None specific — a pure timing-authoring technique independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'before I do that [graph editor work] a lot of times I will... look at the shot overall and see if [there are] places in the shot that I can maybe... take a frame out of an action to make it a little bit quicker... so maybe [rob] a frame from one action and... give that frame to another action[.] I'll usually do that before I really start getting into the... polish stuff because it's kind of like your last chance to do some timing' (transcript 2:56-3:34)"
+  ],
+  "evidence_status": "video: https://youtu.be/ujo7aHa7DGQ @ 2:44-3:39 — Alan Ostagar (Disney character animator) describes the frame-stealing timing-reallocation technique and its ordering rationale directly, transcript-only per this video's detail setting; cross-checked in this session against `move_keyframes`'s MCP tool description; experimental until validated"
+}

@@ -1,0 +1,35 @@
+{
+  "concept": "polish_root_to_leaf_ordering_avoids_orphaned_counter_animation",
+  "category": "advanced",
+  "definition": "Polish a hierarchy's driving/parent part before its dependent/child parts — normally hips (or whatever actually leads the action: sometimes torso and head first, arms and legs after) before the extremities — because polishing a child part first, then changing its parent afterward, orphans the child's own counter-animation: work done to make the child read correctly against the OLD parent motion becomes wrong, or has to be redone, once the parent changes.",
+  "purpose": "Avoid wasted, discarded polish work by fixing a dependency before the parts that depend on it, rather than discovering after the fact that downstream polish has to be redone because an upstream part changed underneath it.",
+  "visible_effect": "not applicable — a workflow-ordering discipline; the failure it prevents (redone or mismatched downstream polish) is what would otherwise be visible.",
+  "psychological_or_gameplay_effect": "not applicable.",
+  "physical_interpretation": "A real body's extremities move relative to its core — a hand's precise position depends on where the torso and shoulder put it — so any authored counter-animation on the hand implicitly assumes a FIXED torso motion underneath it; changing that assumption after the fact invalidates the assumption, not just the numbers.",
+  "use_cases": [
+    "any polish pass on a hierarchical rig, starting with whichever part actually DRIVES the action (usually hips, but torso/head when they are the true lead) and working outward to dependents",
+    "deciding, per shot, which part is the real driver — not always the hips: 'there are some shots where maybe the hips aren't what's leading the action... I'll kind of take care of the torso and head first and then worry about the arms and legs afterwards'"
+  ],
+  "non_use_cases": [
+    "a shot with no real driver/dependent hierarchy to respect (fully independent, uncorrelated parts), where ordering does not matter"
+  ],
+  "interactions": [
+    "correlated_controller_keys_reviewed_and_moved_together_before_offsetting (this same batch, video 95) — a companion but distinct rule: that one is about keeping CORRELATED controllers together during review; this one is about the ORDER in which a hierarchy's independent driver/dependent parts should be polished.",
+    "spline_should_refine_not_fix_posing_defects and steal_frame_reallocation_before_curve_work (this same batch, videos 95 and 97) — all three share the same underlying motive: do the higher-leverage, harder-to-undo work first so later, more detailed work does not have to be redone."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a workflow rule, though the underlying hierarchy the rule depends on is exactly how Cadence's rigs are structured: `renderer/js/rigbuild.js RigInstance`/joint hierarchy already has an explicit parent-child structure (the same one FK rotation composes through), so 'which parts are downstream of which' is already known project data — nothing currently orders a polish or review pass by it.",
+  "control_surface": "None specific — ordinary per-joint keyframe authoring, applied in the order this entry recommends rather than any tool enforcing the order.",
+  "detection_and_measurement_methods": "not measurable in this build — a workflow-ordering discipline; the SYMPTOM of violating it (child counter-animation that no longer matches its parent's current motion) could in principle be measured as a chain lead/lag or contact-drift anomaly via `analyseChain`/`measureContactDrift`, but this specific cross-reference was not confirmed to exist.",
+  "generation_or_modification_methods": "not applicable — an authoring-order discipline, not a generation operation.",
+  "failure_modes": [
+    "polishing a hand's counter-animation against the current hip/torso motion, then changing the hip/torso timing afterward, silently invalidating the hand's careful counter-animation",
+    "assuming hips always lead, when a particular shot's real driver is the torso or head — applying the default order to the wrong driver produces the same orphaning problem this rule exists to avoid"
+  ],
+  "roblox_considerations": "None specific — a pure authoring-order discipline independent of the target engine; applies identically to any Motor6D-jointed hierarchy.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'I'm gonna first... take care of the hips[,] make sure that[,] because that drives a lot of the things coming out of it[.] if you have a weird hitch there and you polish the hand and then you polish the hips later[,] the [counter-animation] you had to do to make it look okay here is now orphaned again because [the hips] changed' (transcript 5:16-5:36), and the named exception: 'there are some shots where maybe the hips aren't what's leading the action... I'll kind of take care of the torso and the head first and then... worry about the arms and legs afterwards' (transcript 5:40-5:56)"
+  ],
+  "evidence_status": "video: https://youtu.be/ujo7aHa7DGQ @ 5:07-5:56 — Alan Ostagar (Disney character animator) states the root-to-leaf polish ordering and its orphaned-counter-animation failure mode directly, with a named per-shot exception for a non-hip driver, transcript-only per this video's detail setting; experimental until validated"
+}

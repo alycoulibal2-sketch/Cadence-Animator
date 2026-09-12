@@ -1,0 +1,34 @@
+{
+  "concept": "resample_to_whole_frames_preserving_curve_shape_via_insert_delete",
+  "category": "specialized",
+  "definition": "When a time-scaling operation (e.g. scaling a set of selected keys in time) leaves keys sitting on non-integer ('half') frames, the fix is NOT to snap them to the nearest whole frame directly (which distorts the curve's shape) but to resample: insert new keys exactly on the whole frames spanning the affected range using the curve's OWN current evaluated value at each of those times, then delete the original off-frame keys — preserving the curve's shape exactly while moving its data onto integer frame numbers. A dedicated script performing this exists in the source tool; the manual fallback is inserting a key at each whole frame individually ('hold I, insert key... insert a key on 5 and insert a key on 7') then deleting the subframe keys between them.",
+  "purpose": "Get keys back onto whole frames (required for many downstream tools, and simply easier to reason about) without the curve-shape distortion naive snapping would introduce, since a snapped key changes WHEN the curve reaches a value, not just re-labels an already-correct frame number.",
+  "visible_effect": "Before: keys sit at non-integer times (e.g. 12.5) with the curve's shape correct at those times. After: keys sit at the nearest whole frames with the SAME evaluated shape as before, because the new keys' values were read from the curve's own prior evaluation rather than reused from the old (wrongly-timed) keys.",
+  "psychological_or_gameplay_effect": "not applicable — a technical cleanup operation with no effect on the finished motion if done correctly (that is the point).",
+  "physical_interpretation": "not applicable.",
+  "use_cases": [
+    "cleaning up keys left on non-integer frames after a time-scale operation, before further editing or export",
+    "any situation where a curve's data needs to move onto whole-frame keys without altering its evaluated shape"
+  ],
+  "non_use_cases": [
+    "a genuine desire to CHANGE the curve's timing (not just re-quantize its existing shape onto whole frames) — that is an ordinary retiming edit, not this operation"
+  ],
+  "interactions": [
+    "not applicable — no other entry in this corpus addresses fractional-frame key hygiene specifically."
+  ],
+  "style_variations": {},
+  "cadence_representation": "A genuinely open question this session could not resolve, flagged honestly rather than guessed: `stretch_frames` ('rescale the time-spacing of the given keyframes by a factor... anchored at the earliest selected frame') can produce exactly this situation — a factor that does not divide the keys' frame spacing evenly yields a fractional resulting frame time. `renderer/js/state.js`'s own `evalTrackCF` comment states its cache memoizes 'ONLY for whole-frame queries (`Number.isInteger(t)`)', which implies the evaluator DOES correctly handle a fractional `t` as ordinary input (just uncached) — so a fractional key likely does not break anything INSIDE Cadence's own evaluation. Whether `export_to_studio` (or any Roblox-bound export) re-quantizes a fractional key time to a whole frame, and if so whether it does so by naive snapping (distorting the curve, per this entry's own warning) or by this entry's resample-preserving-shape method, was NOT checked this session — a concrete, answerable question for a future session to resolve by reading the export code directly rather than assuming either answer.",
+  "control_surface": "Not checked this session; the likely relevant code is whatever `export_to_studio`/`export_property_script` do with a track's key times immediately before writing a Roblox `KeyframeSequence`, which requires whole-frame (or at least engine-valid) key times.",
+  "detection_and_measurement_methods": "A fractional key time is directly and exactly detectable by checking `Number.isInteger(k.t)` across a track's keys — a trivial, exact check this session did not confirm exists anywhere in the export path.",
+  "generation_or_modification_methods": "Not confirmed to exist in Cadence. If needed, the described method (evaluate the curve at each target whole frame using its CURRENT shape, insert a key there, then delete the original fractional-frame keys) is directly performable with existing primitives: `get_pose`/track evaluation to read the value at each whole frame, `set_keyframe` to write it, and `delete_keyframes` to remove the original off-frame keys.",
+  "failure_modes": [
+    "naively snapping a fractional-frame key to the nearest whole frame, which changes WHEN the curve reaches that value and distorts its shape — named directly by the presenter as inferior to resampling ('by snapping[,] the snapping doesn't work very well')",
+    "if Cadence's export path snaps rather than resamples, an exported clip could carry a subtly different timing than what was authored, with no error or warning produced"
+  ],
+  "roblox_considerations": "A Roblox `KeyframeSequence` requires keys at valid frame times — if `stretch_frames` (or any future time-scale operation) can produce a fractional frame internally, the export step's handling of that case directly determines whether the exported clip matches what was authored in Cadence's own viewport.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'if I scale keys out and they're on half frames[,] I think there's a script that I use that... will take that curve[,] without changing the curve[,] put keys on the whole frames[,] that's better than... the snapping[,] the snapping doesn't work very well' (transcript 8:46-9:06), and the manual fallback: 'you hold I and you can insert key... I'll insert a key on... five and insert a key on seven and then just blow away [the] subframes' (transcript 9:11-9:22)"
+  ],
+  "evidence_status": "video: https://youtu.be/ujo7aHa7DGQ @ 8:30-9:24 — Alan Ostagar (Disney character animator) describes the resample-not-snap technique and its manual fallback directly, transcript-only per this video's detail setting; cross-checked in this session against `renderer/js/state.js`'s `evalTrackCF` comment and `stretch_frames`'s MCP tool description, though the actual export-path behavior was NOT checked; experimental until validated"
+}

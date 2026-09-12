@@ -1,0 +1,34 @@
+{
+  "concept": "cross_channel_curve_copy_via_layer_for_correlated_secondary_motion",
+  "category": "advanced",
+  "definition": "A non-destructive facial-polish technique: copy a driving curve's SHAPE (e.g. the jaw's rotation curve) onto a different, semantically-related channel (mouth-corner translate, cheek compression, eyebrow height) on a SEPARATE ANIMATION LAYER, so the related channel gets automatic, correlated secondary motion timed exactly with the driver, without hand-authoring it from scratch and without touching or risking the original channel's own existing keys.",
+  "purpose": "Produce correlated secondary motion (a cheek compressing exactly when the jaw closes, an eyebrow arcing in sync with a mouth-corner move) cheaply and safely, reusing a curve's timing/shape as a proxy for a related physical effect rather than hand-keying each dependent channel separately, with the layer providing a safe, reversible sandbox that cannot corrupt the base animation.",
+  "visible_effect": "A dependent channel (cheek, eyebrow, mouth corner) shows motion that is exactly correlated in timing and shape with its driver (the jaw), without that motion having been separately hand-keyed.",
+  "psychological_or_gameplay_effect": "Small, correctly-correlated secondary facial motion (a cheek compressing with the jaw, an eyebrow arcing with a mouth-corner move) reads as organic and 'fleshy' rather than rigid, per the presenter's own framing.",
+  "physical_interpretation": "A real jaw's motion physically compresses and displaces nearby soft tissue (cheeks) and can pull on connected structures; reusing the jaw's own curve as a proxy driver for those nearby channels approximates that physical coupling without simulating it.",
+  "use_cases": [
+    "facial polish: driving cheek compression, mouth-corner in/out translation, or eyebrow height from a copy of the jaw's own rotation curve",
+    "any situation where two channels should move in a correlated, exactly-timed way and one already has a well-tuned curve the other can reuse"
+  ],
+  "non_use_cases": [
+    "two channels whose relationship is NOT a simple reuse of one curve's shape (a genuinely independent secondary motion with its own timing) — this technique specifically assumes the dependent channel's motion should track the driver's shape directly"
+  ],
+  "interactions": [
+    "keyed_decal_property_track_animates_facial_expression_over_time (existing corpus entry, W08) already identified that Cadence's `faceLayers` are deliberately NOT part of the keyframed/animated state — this entry's technique assumes a keyframeable, layer-capable facial rig, which is exactly the capability that existing entry found Cadence currently lacks; this entry adds a SECOND reason a keyframeable, layerable face representation would be valuable (correlated secondary motion via curve reuse), not just direct expression keying."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Confirmed absent by the code's own repeated, explicit statements, not inferred: `renderer/js/ai/riggraph.js`, `timelinegraph.js`, and `ai/benchmark.js` all state directly that 'Cadence has no animation layers or blend weights' (`timelinegraph.js`: 'layer, blend_mode and weight are null on every track... there is nothing to report rather than a default to invent'). This technique's core mechanism — a non-destructive layer holding a copied curve alongside the base animation — has no representation in Cadence at all, for ANY channel, not only facial ones; this is a confirmed, general capability absence, not a face-specific one.",
+  "control_surface": "None — no layer concept exists to copy a curve onto.",
+  "detection_and_measurement_methods": "not measurable in this build — there is no layer data to inspect; `layer`/`blend_mode`/`weight` are reported as `null` on every track by design, per `timelinegraph.js`.",
+  "generation_or_modification_methods": "not applicable — no Cadence operation creates or writes to an animation layer, since none exist.",
+  "failure_modes": [
+    "without a layer, copying a driver curve directly onto a dependent channel's OWN track would overwrite or merge with that channel's existing keys, exactly the risk a layer exists to prevent — Cadence has no safe way to do this non-destructively today",
+    "and independent of layers: Cadence's face is not keyframeable over time at all (per the existing `keyed_decal_property_track_animates_facial_expression_over_time` entry), so even the DRIVER half of this technique (a keyed jaw rotation curve changing over a clip) is itself the already-identified gap"
+  ],
+  "roblox_considerations": "Roblox's own `AnimationTrack`/`Animator` DOES support multiple simultaneously-playing tracks with independent priorities and weights (a form of layering at the runtime level), so the platform Cadence targets already has a layering primitive this authoring tool has no representation of at all — worth noting for any future animation-layer work as a reason the runtime side would readily accept it.",
+  "performance_implications": "None for authoring; a runtime layer/blend system (if ever built for export) would have an ordinary evaluation cost proportional to the number of active layers, not assessed further here.",
+  "examples": [
+    "the presenter's own words, verbatim: 'I might copy that [jaw rotation] curve and... copy it into maybe the cheeks... also onto a layer or something[,] onto the mouth corners... so that... I might do that on a separate layer animation layer so it's not messing up [the] stuff I already have' (transcript 13:37-14:09), and the physical motivation: 'when the jaw compresses you get a little bit of compression in the cheeks too[,] so I'll do a little bit of that to make the face feel more organic' (transcript 14:22-14:32)"
+  ],
+  "evidence_status": "video: https://youtu.be/ujo7aHa7DGQ @ 13:37-14:32 — Alan Ostagar (Disney character animator) describes the cross-channel curve-copy-via-layer facial polish technique directly, transcript-only per this video's detail setting; cross-checked in this session against `riggraph.js`/`timelinegraph.js`/`benchmark.js`'s repeated, explicit 'Cadence has no animation layers' statements; experimental until validated"
+}

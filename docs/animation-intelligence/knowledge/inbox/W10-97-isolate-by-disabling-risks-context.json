@@ -1,0 +1,34 @@
+{
+  "concept": "isolate_by_disabling_risks_losing_causal_context",
+  "category": "advanced",
+  "definition": "Temporarily disabling/hiding a body part's evaluation (e.g. turning off the arms to work on torso timing alone) is a real, useful isolation technique during blocking and polish, but carries a named, explicit risk: doing so during POLISH can hide the very context that explains an odd motion elsewhere, since 'the weight of the arm... is affecting the torso' — disabling the arm removes the visual evidence for why the torso moves the way it does, risking a change to the torso that looks fine in isolation but no longer makes sense once the arm's influence is restored.",
+  "purpose": "Get the benefit of isolating one part to judge its own timing/shape cleanly (used freely during blocking, e.g. animating just the torso before turning limbs back on), while explicitly warning against relying on it during polish, where the parts' visual interactions ARE part of what is being judged.",
+  "visible_effect": "With a part disabled, only the remaining visible parts' motion is judged; re-enabling the disabled part can reveal that a change made while it was hidden no longer accounts for its influence.",
+  "psychological_or_gameplay_effect": "not applicable — a workflow technique and its own caveat, not a viewer-facing effect.",
+  "physical_interpretation": "A limb's weight and momentum genuinely do influence the torso's motion in a real body (an arm's swing pulls on the shoulder, which pulls on the torso) — hiding the arm during editing does not remove that causal relationship from the finished shot, only from the editor's current view of it.",
+  "use_cases": [
+    "isolating one part's timing during BLOCKING, where the goal is establishing that part's own rhythm before layering others on top (the presenter's own blocking-stage example: animating the torso alone, then turning the limbs back on)",
+    "isolating a part during polish ONLY when the animator consciously accounts for the risk (e.g. specifically because 'the arm is distracting me', a deliberate tradeoff rather than a default habit)"
+  ],
+  "non_use_cases": [
+    "judging a part's polish-stage motion in isolation as if it were the final word — the presenter's own stated default preference is to KEEP things on during polish specifically to avoid this risk"
+  ],
+  "interactions": [
+    "polish_root_to_leaf_ordering_avoids_orphaned_counter_animation (this same batch, video 97) — both are about the same underlying hazard (losing track of a real dependency between parts during editing), from two different angles: ordering (fix the driver first) versus visibility (don't hide the driver's influence while judging the dependent)."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a workflow caution, though the underlying mechanical capability likely exists in some form: this session did not check whether Cadence has any per-item or per-joint visibility/evaluation toggle comparable to what this technique needs — CLAUDE.md's own pitfall about per-part selection boxes ('build its subject set positively — hide everything, re-show what you want') is about RENDER PASSES specifically, a different mechanism than temporarily disabling a joint's contribution to a rig's pose evaluation for editing purposes, and this session did not verify whether the latter exists at all.",
+  "control_surface": "Not confirmed to exist in Cadence for this specific purpose.",
+  "detection_and_measurement_methods": "not measurable in this build — a workflow caution about editing context, not a property of a resulting track.",
+  "generation_or_modification_methods": "not applicable.",
+  "failure_modes": [
+    "disabling a driving part during polish, adjusting a dependent part to look good in isolation, then re-enabling the driver and finding the adjustment no longer reads correctly against its real influence",
+    "the inverse risk this technique is meant to manage in the first place: NOT isolating when isolation would have made a part's own timing clearer to judge"
+  ],
+  "roblox_considerations": "None specific — a pure editing-workflow caution independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'sometimes I'll turn off maybe the arms if I just want to work with the torso... but a lot of times I also like to keep things on[,] just because I don't want to change something in the torso and then realize... [the] weird little motion... is because the weight of the arm... is affecting the torso in some way' (transcript 6:32-7:00)"
+  ],
+  "evidence_status": "video: https://youtu.be/ujo7aHa7DGQ @ 5:56-7:10 — Alan Ostagar (Disney character animator) describes both using and deliberately avoiding part-isolation during polish, naming the specific risk directly, transcript-only per this video's detail setting; experimental until validated"
+}
