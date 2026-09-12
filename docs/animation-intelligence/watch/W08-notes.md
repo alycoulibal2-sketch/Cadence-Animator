@@ -9,7 +9,7 @@
 - [x] 77. How to ANIMATE a Perfect Sword Swing in Roblox Studio! (EASY) — Nobel Courses (8:01)
 - [x] 78. How to make WEAPON animations in ROBLOX STUDIO! [Moon Animator Tutorial] — MonkeyDev (11:29)
 - [x] 79. How to ANIMATE Tools In Roblox Studio! — Rustysillyband (11:24)
-- [ ] 80. ROBLOX VFX Guide #1 - Particles — TrendyV2 (7:14)
+- [x] 80. ROBLOX VFX Guide #1 - Particles — TrendyV2 (7:14)
 
 ---
 
@@ -333,3 +333,87 @@ here for the merge session's awareness rather than forced into an entry.
 
 No capture candidate — a screen-recording tutorial throughout, a block R15 rig only.
 
+## Video 80 — ROBLOX VFX Guide #1 - Particles — TrendyV2 (7:14)
+https://youtu.be/xzZeP65SSlA — watched 2026-09-12, `balanced` detail, 18 frames (scene-aware, all 18
+candidates kept), captions transcript (181 segments). Episode 1 of a stated VFX series (trails/beams
+promised for episode 2); this batch's own gloss ("ParticleEmitter craft; what a VFXSpec compiles to")
+was accurate — a `ParticleEmitter` property primer (Brightness, Color, Orientation, Size, Texture,
+Transparency, ZOffset, Enabled, Lifetime, Rate, Speed, SpreadAngle, Flipbook mode) followed by one
+concrete two-layer fire-effect build.
+
+**`layered_emitter_composite_with_flipbook_core`** — a genuinely reproducible VFX construction
+pattern: two independently-tuned `ParticleEmitter`s (an inner flipbook-textured near-static 'core'
++ an outer drifting, fading, larger 'glow') composited into one fire effect (@ 04:41–06:20). Checked
+directly against Cadence's own VFX architecture before writing this up, not assumed: `ai/vfxspec.js`'s
+own top-of-file documentation states it 'cannot author a multi-layer PNX effect, and does not
+pretend to' — this is exactly that excluded case. `particleLibrary.js`'s existing single-layer 'fire'
+archetype (`lifetime:[0.5,1.0], rate:45`, no flipbook field) confirmed directly as a reasonable
+single-emitter approximation, not this two-layer composite. The full PNX engine DOES have flipbook
+support (confirmed in `pnx/nodes/texture.js` and others) and multi-layer composition, making it —
+not VFXSpec — the right existing tool for this exact technique. A precise, code-grounded finding
+rather than a guess either way.
+
+No capture candidate — a Roblox Studio screen recording throughout, no filmed motion.
+
+---
+
+## Closing summary — W08 complete (videos 71–80, all ten watched)
+
+Counts recomputed directly from the files on disk, not carried forward from a running tally (per the
+standing lesson from W03/W04, echoed in every batch since): `ls docs/animation-intelligence/
+knowledge/inbox/W08-*.json | wc -l` → **17 files**, breaking down per video as 71:5, 72:1 (+1
+enrichment to a 71 file), 73:1, 74:0, 75:2, 76:2, 77:2 (+1 enrichment from video 78), 78:2 (+1
+enrichment from video 79), 79:1, 80:1 (= 5+1+1+0+2+2+2+2+1+1 = 17). Three of those 17 are in-batch
+ENRICHMENTS of an earlier video's own file rather than fresh write-ups (the face-decal entry enriched
+by video 72, the tool-construction entry enriched by video 78, the activation-script entry enriched
+by video 79) — done because the files were still this same batch's own unmerged inbox files, the same
+disclosed pattern W07 used. All 17 pass both Part 72 gates (`validateProposedEntry` 20/20 fields,
+`validateEvidenceSource`) checked individually as each was written. A final full corpus + inbox scan,
+run once just now across the whole batch (main `knowledge/` plus every unmerged `inbox/*.json` from
+W03 through W08), found **204 files carrying a `concept` field, 204 unique concepts, zero collisions**.
+
+**No capture candidates across all ten videos** — every one was a Roblox Studio screen recording
+(Moon Animator, native Animation Editor, or VFX authoring), consistent with this batch's own section
+("E. Roblox and Moon Animator") and the same null result W02/W05/W06/W07 already established for
+tutorial-heavy, non-performance-footage batches.
+
+**No new `check:` lines queued** beyond what individual entries already specify inline in their own
+`detection_and_measurement_methods` — this batch's findings skewed toward either (a) directly
+buildable today with an existing measurement (`keyDensity` for the keyframe-bisection entry,
+`bow_studs` for the motion-path entry), or (b) genuine open questions about THIS BUILD'S OWN
+behaviour that a future session should verify by reading code rather than assume (does `attach_item`
+preserve a hand-placed offset? does `export_to_studio` set an Animation Priority? does it derive a
+Roblox Grip from `attach_item`'s own offset?) — a different shape from a checks-queue line, so none
+were added; each open question is instead written directly into its own entry's `cadence_representation`.
+
+**Nothing contradicted an existing card outright.** The closest to friction, both explicitly flagged
+rather than resolved: (1) video 71's presenter admitting the 35-FOV-for-cinematic convention (now
+confirmed a FOURTH time across this whole watch list, videos 67/68/71/72) was itself copied from
+another tutorial rather than independently derived — a nuance for the merge session to weigh when
+judging how independent that corroboration really is; (2) nothing else rose to contradiction level —
+every other cross-check this batch found (motion-path tools, onion-skin-family aids, easing-sandwich
+recipes) CONFIRMED an existing card from a new angle rather than conflicting with one.
+
+**The batch's own throughline**, found only by reading across all ten videos together: this section's
+Roblox-specific, hands-on content repeatedly surfaced concrete, checkable answers to open questions
+this programme had already been carrying — `weapon_attach_under_root_avoids_subframe_chain_desync`
+(W05-43)'s open question about whether an authoring-time attach offset survives into a runtime
+result was directly sharpened by video 79's `authoring_time_weld_and_runtime_grip_are_independent_
+systems`, real evidence that in the vanilla Roblox pipeline it does NOT unless something deliberately
+carries it across — and by extension a real, evidenced case for what `attach_item`/`export_to_studio`
+should be checked against. Three separate `export_to_studio`/`attach_item` open questions were named
+directly rather than guessed at (Grip derivation, Priority setting, offset preservation) — all now
+concrete enough for a future session to answer by reading code rather than speculating. And twice
+this batch, a video's real, hands-on technique mapped onto a genuine, narrow gap between Cadence's
+TWO existing systems rather than a missing capability outright: the face entry (a static `faceLayers`
+vs. a keyable Roblox Decal.Texture track) and the VFX entry (VFXSpec's single-emitter scope vs. the
+PNX engine's already-existing multi-layer/flipbook capability) — in both cases the right tool already
+exists in this build, just not the one the simpler path reaches for by default.
+
+**W08 is NOT yet merged.** All ten videos are ticked above. This session ran the full ten in one
+sitting (the user handed the session `W08.md`'s path directly with effort set to max, the same
+pattern as W05/W07) with a commit after every video, ten commits total (`fbccd5d` through the final
+video-80 commit), all pushed to `origin/animation-intelligence` with no conflicts — origin never
+moved between any of this session's pushes, so no rebase was ever actually required; this desktop's
+usual dirty `site/` WIP from another concurrent session sat untouched in the working tree the entire
+time and was never staged. **W09–W10 are still unwatched.**
