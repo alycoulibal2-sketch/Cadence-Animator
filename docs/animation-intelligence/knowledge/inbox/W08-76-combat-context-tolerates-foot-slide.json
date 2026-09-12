@@ -1,0 +1,39 @@
+{
+  "concept": "combat_genre_context_raises_acceptable_foot_slide_tolerance",
+  "category": "advanced",
+  "definition": "An explicit, named genre-dependent quality threshold: a planted foot sliding slightly during a fast combat action is stated as acceptable specifically BECAUSE the animation is a combat action rather than a cinematic one — 'it's okay if you make it slide a bit, this isn't a cinematic animation, it's more of a combat animation' — treating allowable contact drift as a property of the ANIMATION'S CONTEXT/GENRE, not a fixed universal threshold.",
+  "purpose": "Avoid spending disproportionate authoring effort eliminating a small foot-slide artifact in a context (fast, player-facing combat action) where the source states it will not be noticed or judged as harshly as it would be in a slower, more deliberately observed cinematic shot.",
+  "visible_effect": "A planted foot's contact point visibly shifts slightly across a span of frames rather than staying pixel/stud-locked, tolerated here rather than corrected.",
+  "psychological_or_gameplay_effect": "The source's own reasoning: a fast combat action is watched differently than a cinematic shot — less time to notice a small positional slip, and less of the viewer's attention budgeted to scrutinizing foot placement specifically, versus and the resulting look/personality/impact of the strike itself.",
+  "physical_interpretation": "None — a stated authoring/quality-effort trade-off, not a physical claim; the underlying drift is a real, measurable positional discontinuity regardless of whether it is judged acceptable.",
+  "use_cases": [
+    "a fast player-facing combat action (this source's own context) where authoring time is better spent on read-ability, impact and timing than on eliminating a small, brief contact drift",
+    "any context where the source's own stated distinction applies: a fast, secondary-focus action versus a slow, directly-scrutinized cinematic one"
+  ],
+  "non_use_cases": [
+    "a cinematic/showcase shot, or any slow or held pose where a planted contact point is a primary focus of the shot — the source's own contrast case, where the same drift would NOT be waved off",
+    "a context with an explicit hard contact requirement declared (e.g. a required planted-foot constraint in `ai/constraints.js`) — a genre preference does not override a declared constraint"
+  ],
+  "interactions": [
+    "foot_lock_duration_scales_with_weight_before_launch (W03) and the broader contact-drift measurement family (`measureContactDrift`, MOT-008) — this entry is a STATED TOLERANCE/THRESHOLD claim about how much of that already-measurable drift is acceptable, conditioned on genre; it does not change how drift is measured, only how a measured value should be judged",
+    "anti_realism_readability_tradeoff_for_screen_combat (earlier batch) — a sibling case of screen combat explicitly trading a form of fidelity (there: physical realism; here: contact precision) for a different priority (readability/impact) rather than pursuing fidelity for its own sake"
+  ],
+  "style_variations": {
+    "cinematic": "the source's own named contrast case — the SAME drift amount would not be acceptable here",
+    "game_combat": "the source's own stated context — a small amount of drift is explicitly tolerated"
+  },
+  "cadence_representation": "Directly relevant to `ai/motion.js measureContactDrift` (MOT-008) and any future contact constraint check: this entry is evidence for a genuinely useful missing piece — a per-genre/per-context ACCEPTABLE drift threshold, rather than one fixed pass/fail number. Today a contact constraint compiles to `warn` or a violation is simply reported (per this build's own `report.violations` handling) with no notion that the SAME measured drift value should be judged differently depending on a declared style/genre (`project.semantics.style`, `ai/style.js`). No test or threshold in this build currently varies an acceptable-drift number by declared style.",
+  "control_surface": "`measureContactDrift`/contact constraints report a violation amount; no existing control varies the acceptability THRESHOLD by `project.semantics.style` or any other declared genre/context signal.",
+  "detection_and_measurement_methods": "Fully measurable today: `measureContactDrift` (MOT-008) already reports exact drift in studs. What is not implemented is any style-conditioned threshold to compare that number against — today the same raw number is reported regardless of declared genre.",
+  "generation_or_modification_methods": "Not applicable — a judgment/threshold question, not a generation step.",
+  "failure_modes": [
+    "applying one universal, strict zero-drift standard to every animation regardless of genre, over-investing correction effort on a fast combat action where the source states it would not be noticed",
+    "the opposite failure: assuming ALL combat animation tolerates any amount of drift, when the source's own claim is specifically about a SMALL, brief amount in a FAST action, not an unlimited allowance"
+  ],
+  "roblox_considerations": "Not Roblox-specific — a general animation-authoring-effort/quality-context judgment, though made here in a Roblox R6/Moon Animator combat-animation context specifically.",
+  "performance_implications": "None.",
+  "examples": [
+    "'it's okay if you make it slide a bit, this isn't a cinematic animation, it's more of a combat animation' — stated directly while posing a lunging step during the slash's leg animation pass (video @ 17:21–17:29, confirmed in this session's own frame at t=17:30 showing the wide-stanced lunge pose)"
+  ],
+  "evidence_status": "video: https://youtu.be/KneO6y3FebM @ 17:21–17:29 — Thundey (the presenter) states the genre-dependent tolerance directly and explicitly while actively making this exact trade-off on screen; visually confirmed in this session's own frame at t=17:30; experimental until validated"
+}

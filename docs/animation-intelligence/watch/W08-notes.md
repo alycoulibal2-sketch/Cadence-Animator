@@ -5,7 +5,7 @@
 - [x] 73. How to Make SUPER SMOOTH Roblox Animations with Moon Animator 2! | Beginner to Pro Tutorial — TnxBlox (16:56)
 - [x] 74. 3 Must-Know Moon Animator 2 TIPS for Better Roblox Animations — TnxBlox (2:41)
 - [x] 75. Make Your Roblox Animations Feel REAL | Roblox Animation Tips 2026 — Devgrams and Draco (8:53)
-- [ ] 76. How to Animate a Sword Slash [Moon Animator] — Thundey (24:36)
+- [x] 76. How to Animate a Sword Slash [Moon Animator] — Thundey (24:36)
 - [ ] 77. How to ANIMATE a Perfect Sword Swing in Roblox Studio! (EASY) — Nobel Courses (8:01)
 - [ ] 78. How to make WEAPON animations in ROBLOX STUDIO! [Moon Animator Tutorial] — MonkeyDev (11:29)
 - [ ] 79. How to ANIMATE Tools In Roblox Studio! — Rustysillyband (11:24)
@@ -199,4 +199,40 @@ pose, the same continuity idea `action_end_pose_must_match_idle_for_automatic_bl
 names for idle blending specifically, just in a combo-chaining context here rather than a new finding.
 
 No capture candidate — a screen-recording/talking-head tutorial throughout, no filmed human motion.
+
+## Video 76 — How to Animate a Sword Slash [Moon Animator] — Thundey (24:36)
+https://youtu.be/KneO6y3FebM — watched 2026-09-12, `efficient` detail, 50 frames (keyframe pass, 66
+near-duplicates dropped), captions transcript (457 segments). This batch's own promised subject:
+"the heavy-attack benchmark's own subject, done by hand in Moon." A full start-to-finish R6 sword
+weld + one-handed then two-handed slash build, entirely hands-on with no filler.
+
+**`per_limb_sequential_pass_workflow_with_ghost_reference`** — a genuinely different authoring
+METHOD from videos 71/73's whole-body pose-to-pose blocking: animate one limb across the FULL
+timeline before moving to the next (torso → head → primary arm → secondary arm → legs last, legs
+explicitly last and hardest because Moon Animator has no IK to enforce ground contact), using the
+ghost marker at each step to check a new key against its own immediately-prior one (a different role
+for that tool than its original walk-cycle-spacing use in W08-71). Checked directly against
+`authorMotion`: Cadence's own generation order is the INVERSE (phase-by-phase across all parts, not
+limb-by-limb across all phases) — read as evidence this manual workflow is shaped by the absence of
+what `authorMotion` already solves analytically, not a technique Cadence lacks.
+
+**`combat_genre_context_raises_acceptable_foot_slide_tolerance`** — a directly-stated, explicit
+genre-dependent quality threshold: "it's okay if you make it slide a bit, this isn't a cinematic
+animation, it's more of a combat animation" (@ 17:21–17:29, confirmed in this session's own frame at
+t=17:30 showing the exact lunging pose this was said over). Directly relevant to `measureContactDrift`
+(MOT-008): the drift itself is already fully measurable, but nothing in this build varies the
+ACCEPTABLE threshold by declared style/genre (`project.semantics.style`) the way this source's own
+judgment does — a real, evidenced, narrow gap rather than a restatement of existing contact-drift
+cards.
+
+Cross-checks, not new entries: (1) a percentage-based whole-selection "Drop Time Stretch" tool used
+to retime the finished result to 115% (@ 20:50–21:10) is the same operation as Cadence's own
+`stretch_frames` — confirmatory; (2) tolerating an "abrupt/snappy" pre-slash inbetween because it's
+too brief to be noticed (@ 07:48–07:58) restates the general fast-action tolerance already implicit
+in `startup_frame_budget` and siblings; (3) R6-specific minor arm-into-torso clipping tolerance
+("as long as it's on the chest, because this is roblox r6," @ 22:11–22:19) folded into the
+per-limb-workflow entry's `failure_modes` rather than written up separately.
+
+No capture candidate — a screen-recording tutorial throughout (a block R6 dummy, not a filmed
+performer).
 

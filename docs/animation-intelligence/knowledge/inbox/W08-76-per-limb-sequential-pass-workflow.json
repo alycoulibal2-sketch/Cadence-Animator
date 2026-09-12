@@ -1,0 +1,37 @@
+{
+  "concept": "per_limb_sequential_pass_workflow_with_ghost_reference",
+  "category": "advanced",
+  "definition": "An alternative to whole-body pose-to-pose blocking: animate ONE limb/part across the ENTIRE action's full timeline before moving to the next, in a fixed order (torso rotation first, to establish the core anticipation-to-strike-to-recovery timing; then head aim; then the primary/acting arm; then the secondary arm; then the legs last, explicitly called the hardest because the rig has no IK and nothing keeps a planted foot from sliding automatically), using the single-frame ghost marker at each step specifically to compare the part's new position against its own immediately-preceding key.",
+  "purpose": "Let each body part's own motion read as fully coherent and well-timed on its own pass, rather than splitting attention across the whole body at every single frame — and let a later pass (e.g. the legs) be built with the timing skeleton every earlier part already established fully in place as a stable reference.",
+  "visible_effect": "During authoring, each intermediate stage shows only some parts animated and others static (e.g. torso swinging with the legs still planted and unanimated); after all passes, the full body reads as one coordinated action.",
+  "psychological_or_gameplay_effect": "Not applicable — an authoring-workflow choice; the resulting motion reads however the finished combined result reads, no differently than if it had been posed whole-body-at-once.",
+  "physical_interpretation": "None — an authoring-order decision. It does deliberately mirror one real structural fact this same source states about the legs specifically: without IK, nothing enforces ground contact automatically, so the legs are treated as needing the most correction and are therefore done last, against every other part's motion already being fixed and checkable.",
+  "use_cases": [
+    "an animator who finds it easier to judge one part's timing/spacing in isolation across a full action than to judge the whole body at every single key",
+    "specifically for the legs (or any part with no IK/constraint help), doing them LAST so their contact/sliding corrections can be checked against an already-finished, stable upper-body performance rather than a still-changing one"
+  ],
+  "non_use_cases": [
+    "an action where the parts are tightly coupled and a change to one demands an immediate compensating change in another (the pose-to-pose whole-body approach, as in videos 71/73 of this same batch, suits that better since every part is visible together at each key from the start)",
+    "a rig WITH working IK for its legs, where the specific reason this source gives for doing legs last (no automatic contact enforcement) does not apply as strongly"
+  ],
+  "interactions": [
+    "single_frame_ghost_marker_for_spacing_reference (W08-71, this same batch) — the ghost tool is used here in a different role than its original walk-cycle-spacing use case: comparing one part's NEW key against its own immediately-PRIOR key while working through a full pass, not comparing two poses across a longer stride",
+    "boundary_key_pair_isolates_constant_velocity_middle_segment, recursive_keyframe_bisection_increases_pose_density (this same batch) — this entry is about authoring ORDER (which part, in what sequence); those are about within-a-track key PLACEMENT — complementary, not overlapping"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence's own `authorMotion` (Slice A) compiles an IntentSpec + declared phase frames + a PoseSpec PER PHASE into a full multi-part key across ALL declared parts at once, per phase — the inverse authoring order from this entry's per-LIMB, per-full-timeline-pass approach (Cadence goes phase-by-phase across all parts; this technique goes limb-by-limb across all phases). Not a gap — a genuinely different, tool-appropriate authoring order given Cadence solves each phase's whole pose analytically rather than building it up part-by-part by eye. Worth noting for what it is: evidence that this manual-tool workflow order is shaped by the ABSENCE of what `authorMotion` already has (a way to specify and solve a full pose at once), not a technique Cadence is missing.",
+  "control_surface": "Not applicable — `authorMotion`'s own phase-based generation order already differs structurally from this manual per-limb approach for the reason stated above.",
+  "detection_and_measurement_methods": "Not a motion measurement — an authoring-workflow order, with no resulting difference in the final keyed data from any other order that arrives at the same poses.",
+  "generation_or_modification_methods": "Not applicable to Cadence's own generation path (see cadence_representation).",
+  "failure_modes": [
+    "the source's own explicitly named risk of doing legs without IK: without a stable, already-finished upper body to check against, foot placement is harder to judge consistently — which is exactly why this workflow places legs last rather than first or concurrently",
+    "an R6-specific tolerance named in passing: minor arm-into-torso clipping is treated as acceptable 'as long as it's like on the chest, because this is roblox r6' — a rig-specific visual tolerance that would not necessarily transfer to a higher-detail rig where the same clipping would read as a more obvious error"
+  ],
+  "roblox_considerations": "Demonstrated entirely on Roblox R6 with a plain block dummy; the stated no-IK constraint on the legs is specific to Moon Animator's manual FK-only workflow on this rig, not a Roblox engine limitation per se.",
+  "performance_implications": "None — an authoring-order choice with no effect on the exported result.",
+  "examples": [
+    "the method stated directly at the start of the character-animation portion: 'by my method we're gonna animate each limb separately... we're gonna animate the torso [first]' (video @ 03:21–03:29)",
+    "the legs done last, named directly as the hardest part specifically because there is no IK to enforce ground contact automatically, with the ghost tool used heavily throughout that pass (video @ 16:22–16:44, confirmed in this session's own frame at t=17:30 showing a wide lunging leg pose with a dense per-part keyframe track panel)"
+  ],
+  "evidence_status": "video: https://youtu.be/KneO6y3FebM @ 03:21–20:22 — Thundey (the presenter) states the per-limb methodology directly and demonstrates it start to finish across torso, head, both arms and legs in that stated order; UI/pose confirmed in this session's own frames at t=03:24 and t=17:30; experimental until validated"
+}
