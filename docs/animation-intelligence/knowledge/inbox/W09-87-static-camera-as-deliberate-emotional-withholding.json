@@ -1,0 +1,34 @@
+{
+  "concept": "static_camera_as_deliberate_emotional_withholding",
+  "category": "advanced",
+  "definition": "A completely static (unmoving) camera can be a deliberate choice specifically BECAUSE it does NOT match a character's own emotional intensity — holding still and neutral through a moment of panic or suffering, rather than moving to sympathize with it, reads as colder and more unsettling than a moving camera would, precisely because the audience is denied the release a matching camera movement would provide.",
+  "purpose": "Amplify the cruelty or helplessness of a moment by withholding the camera's usual empathetic participation, forcing the audience to watch without the comfort of a camera that shares or reacts to the subject's distress.",
+  "visible_effect": "The frame does not move at all while the subject within it experiences visible panic, suffering, or helplessness — the contrast between an agitated subject and a perfectly still frame is itself the effect.",
+  "psychological_or_gameplay_effect": "Named directly: \"a moving camera might have matched Solomon's panic, but this static shot with its neutral and cold perspective is far more unsettling... its cruelty is amplified by stillness\" — the audience is denied the ability to look away (the camera does not cut or move to relieve the moment) and denied the comfort of a camera that seems to feel what the character feels.",
+  "physical_interpretation": "Not applicable — an audience-psychology effect built from the ABSENCE of camera movement, not a physical motion principle.",
+  "use_cases": [
+    "trapping a character within a merciless, unmoving frame to suggest helplessness (the video's own 12 Years a Slave and Dunkirk examples)",
+    "letting a performance carry a scene entirely on its own, with no camera movement to underline or editorialize it (the video's own dialogue-scene example)"
+  ],
+  "non_use_cases": [
+    "a moment where the audience SHOULD feel the camera sympathizing/participating with the subject's emotional state — there, a matching movement (a push-in, a roll, a shake) is the better choice, per this video's own many other entries"
+  ],
+  "interactions": [
+    "camera_roll_signals_disorientation_or_power_reversal (this same video) — a direct contrast in mechanism: that entry is about a camera MATCHING a character's disequilibrium; this entry is about a camera pointedly NOT matching a character's emotional state, for a different but related unsettling effect"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not a capability gap — a static camera item (no keys at all on `@origin`/`@fov,` or a single held pose) is the simplest possible thing to author in Cadence, requiring nothing beyond NOT animating it. What is worth recording is purely the narrative point this video supplies: that choosing NOT to move the camera during an emotionally intense character moment is itself a legible, deliberate authorial choice with a specific effect (cold/unsettling/cruel-by-neutrality), not merely the default/absence of a decision — worth carrying as knowledge even though it requires no new tool support.",
+  "control_surface": "None needed — the absence of `@origin`/`@fov` keyframes during the relevant span.",
+  "detection_and_measurement_methods": "`ai/motion.js key_density`/`sampleMotion` on a camera item's tracks already trivially confirms whether it is static (zero or near-zero motion) over a given range — the measurement already exists; nothing currently cross-references a static camera against a concurrently HIGH-motion subject to flag the specific contrast this technique depends on (that comparison would be the natural check, similar in shape to other cross-item comparisons already named as gaps elsewhere in this batch).",
+  "generation_or_modification_methods": "not applicable — achieved by omission, not by any authoring action.",
+  "failure_modes": [
+    "defaulting to a static camera out of inattention rather than intent, and getting a flat, un-charged neutrality rather than the specific cold/cruel effect this technique aims for",
+    "moving the camera reflexively to \"cover\" or soften an intense character moment when withholding that movement was the stronger choice"
+  ],
+  "roblox_considerations": "None specific — applies to any camera system, including a Roblox cutscene camera simply left unkeyed for a span.",
+  "performance_implications": "None — arguably a performance BENEFIT, since a static camera is the cheapest possible camera behavior to author and render.",
+  "examples": [
+    "\"sometimes filmmakers use static shots to trap a character and suggest their helplessness like this moment from Dunkirk\" and \"in this scene from 12 Years a Slave the static shot holds on Solomon's lynching... he is helpless and we are not allowed to look away... a moving camera might have matched Solomon's panic, but this static shot with its neutral and cold perspective is far more unsettling\" (video @ 02:29–03:11), confirmed in this session's own frame read of the labeled \"STATIC\" Dunkirk shot"
+  ],
+  "evidence_status": "video: https://youtu.be/IiyBo-qLDeM @ 02:29–03:11 — StudioBinder states the withholding effect explicitly with two named-film examples, confirmed in this session's own frame read; experimental until validated"
+}

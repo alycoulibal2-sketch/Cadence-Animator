@@ -1,0 +1,38 @@
+{
+  "concept": "dolly_zoom_coordinated_invariant_effect",
+  "category": "advanced",
+  "definition": "The \"vertigo effect\": physically dolly the camera in ONE direction while simultaneously zooming the lens in the OPPOSITE direction (dolly in + zoom out, or dolly out + zoom in), coordinated so that the subject's own size in frame stays constant while everything at a different distance (the background, or the foreground) visibly grows or shrinks relative to it — an effect with no equivalent achievable by either mechanism alone.",
+  "purpose": "Portray a subjective psychological shift (vertigo, dawning realization, growing intimacy, internal or external conflict) by distorting the normal relationship between a subject's size and its surroundings' size, while keeping the subject itself visually anchored and stable.",
+  "visible_effect": "Dolly-in + zoom-out: the background appears to grow rapidly while the subject's size in frame stays the same, producing a disorienting sense of the world rushing away/expanding around a fixed point. Dolly-out + zoom-in: the foreground subject appears to swell/dominate over a background that recedes, producing a sense of growing intimacy or focus.",
+  "psychological_or_gameplay_effect": "Named directly across three examples: internal or external conflict (a heart-wrenching or threatening revelation), tunnel-vision/immersion (Raging Bull's boxing-ring version, putting the audience \"in it\" rather than watching it), and growing intimacy (Bohemian Rhapsody's version, where \"Freddie's not getting any bigger in the frame but the audience is getting closer\").",
+  "physical_interpretation": "A direct, deliberate exploitation of perspective geometry: a longer focal length compresses apparent depth (background looks closer to foreground in scale) while a shorter one exaggerates it (background looks much smaller/farther than foreground) — moving the camera's physical distance while counter-adjusting focal length to hold the subject's frame-size constant isolates and makes visible exactly this depth-compression change, which does not occur during an ordinary push-in or zoom alone.",
+  "use_cases": [
+    "a moment of dawning realization, shock, or vertigo where the world seems to shift around a fixed subject",
+    "building a sense of growing intimacy or immersion between the audience and a subject without technically moving the subject at all in frame"
+  ],
+  "non_use_cases": [
+    "any shot where the two mechanisms are not deliberately counter-coordinated — an ordinary simultaneous dolly-and-zoom in the SAME direction (both making the subject bigger) is not this effect and has no special name here"
+  ],
+  "interactions": [
+    "dolly_push_vs_optical_zoom_perceptual_distinction (this same video) — this technique only makes sense once the two mechanisms are understood as independent; it is their deliberate opposition against each other, not their combination in the same direction"
+  ],
+  "style_variations": {
+    "dolly_in_zoom_out": "background grows in size while the subject's own frame-size is held constant — used for conflict (video's own \"it broke my heart to put that tumor in her head\" example)",
+    "dolly_out_zoom_in": "the foreground subject becomes visually dominant over a shrinking-relative background — used for immersion/growing relationship (video's own Raging Bull and Bohemian Rhapsody examples)"
+  },
+  "cadence_representation": "This is a sharp, concrete case for what an active-camera/projection model (MOT-006, currently unplanned) would need to represent and CHECK: the technique's entire definition is a held invariant (subject's on-screen size stays constant) across two simultaneously-changing authored channels (`@origin` distance-to-subject and `@fov`). Today, Cadence can author both channels' keyframes (nothing stops a caller from animating `@origin` and `@fov` in opposite directions on the same range), but nothing can VERIFY the invariant actually holds — that would require projecting a target part's bounding box through the camera's `@fov` at each sampled frame and confirming its on-screen size stays within tolerance, which needs the active-camera projection model this build does not have. This is one of the clearest concrete use cases yet in this corpus for why that model would be worth building: without it, an author could get the ratio between dolly speed and zoom speed wrong and Cadence would have no way to tell them.",
+  "control_surface": "`set_keyframe` on both `@origin` and `@fov`; no validation surface exists to check the size-invariant this effect depends on.",
+  "detection_and_measurement_methods": "not measurable in this build — requires projecting a subject's screen-space size through the camera's FOV and physical distance at each frame, which needs MOT-006's blocked active-camera/projection model.",
+  "generation_or_modification_methods": "not applicable — Cadence has no tool that would compute the correct paired `@origin`/`@fov` rates to hold a target's screen size constant; a caller would have to hand-compute and key both tracks themselves with no way to verify the result.",
+  "failure_modes": [
+    "mismatching the dolly speed and zoom speed so the subject's size visibly drifts instead of staying constant, undermining the entire effect",
+    "confusing this technique with an ordinary simultaneous dolly+zoom in the same direction, which is a different (much more common, unnamed-as-special) shot"
+  ],
+  "roblox_considerations": "Achievable in Roblox by animating a Camera's CFrame (distance to subject) and FieldOfView in opposite, coordinated directions on the same timeline — the same two native properties named in dolly_push_vs_optical_zoom_perceptual_distinction, used together deliberately.",
+  "performance_implications": "None beyond animating two ordinary camera properties simultaneously.",
+  "examples": [
+    "\"A dolly zoom utilizes both a dolly movement and lens zoom to create something called the vertigo effect, named after its dramatic use in Hitchcock's Vertigo\" (video @ 13:00–13:16)",
+    "the dolly-in/zoom-out variant on internal/external conflict (video @ 13:21–13:58), and the dolly-out/zoom-in variant on Raging Bull (\"we are no longer watching the fight, we are in it,\" video @ 14:09–14:27) and Bohemian Rhapsody (\"Freddie's not getting any bigger in the frame but the audience is getting closer,\" video @ 14:39–15:23), all confirmed in this session's own frame reads of the labeled \"DOLLY ZOOM\" shots and the StudioBinder \"Shot 9\" diagram showing the opposing in/out arrows directly"
+  ],
+  "evidence_status": "video: https://youtu.be/IiyBo-qLDeM @ 13:00–15:23 — StudioBinder explains the mechanism and both directional variants with three independent named-film examples, confirmed in this session's own frame reads including the explanatory shot-list diagram; experimental until validated"
+}

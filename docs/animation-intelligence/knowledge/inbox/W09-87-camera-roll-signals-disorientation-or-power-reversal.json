@@ -1,0 +1,36 @@
+{
+  "concept": "camera_roll_signals_disorientation_or_power_reversal",
+  "category": "advanced",
+  "definition": "A camera roll — rotating the camera on its long (view) axis while the lens keeps pointing the same direction, i.e. a Dutch-angle tilt animated over time rather than held static — is used specifically to unsettle the viewer's own equilibrium, distinct from a pan (yaw) or tilt (pitch); it is used to match a character's physical disorientation, to signal a villain's ascent, or to visually enact a reversal of power partway through a single shot.",
+  "purpose": "Give the camera a third, distinct rotational register (roll) beyond pan/yaw and tilt/pitch, reserved specifically for disequilibrium and power dynamics rather than ordinary framing or following.",
+  "visible_effect": "The horizon line itself visibly tilts and rotates within the frame, unlike a pan or tilt where the horizon stays level — the world appears to rotate around the subject rather than the camera simply redirecting its attention.",
+  "psychological_or_gameplay_effect": "Disorienting and unsettling by design (\"disorienting, unsettling our equilibrium\"); used to match a character's own panic or vertigo, to make a villain's rise to power visually unsettling, or — in the video's own Dark Knight example — to physically enact within a single shot a character's shift from powerless (strung upside down) to back in control, as the camera rolls to bring them upright relative to the frame.",
+  "physical_interpretation": "Directly exploits the viewer's own vestibular/visual expectation that a level horizon means a stable, oriented world — rolling it violates that expectation the same way real disorientation (vertigo, being upside down, a fall) would.",
+  "use_cases": [
+    "matching a character's own physical disorientation or panic",
+    "visually marking a villain's ascent or a morally unsettling turn",
+    "enacting a power reversal WITHIN a single continuous shot, so the reversal itself is felt rather than only stated (the video's own Joker-strung-upside-down example: the roll itself performs the shift in who has the upper hand)"
+  ],
+  "non_use_cases": [
+    "ordinary reframing or following where a level horizon should be preserved — a pan or tilt covers that case; rolling for a routine reframe would read as an unintended, distracting disorientation"
+  ],
+  "interactions": [
+    "dolly_push_vs_optical_zoom_perceptual_distinction and dolly_zoom_coordinated_invariant_effect (this same video) — together with roll, these establish the video's fuller catalogue of distinct camera registers, each reserved for a different narrative register rather than being interchangeable ways to \"move the camera\""
+  ],
+  "style_variations": {},
+  "cadence_representation": "A camera roll is already fully representable in Cadence's existing model: the camera item's `@origin` track is a CFrame carrying rotation on all three axes, so animating roll specifically (rotation about the view/forward axis, independent of pan/tilt) requires no new capability — `set_keyframe`/`get_rotation_degrees` already handle it exactly as they would any other rotation. What Cadence's own knowledge does not carry is the NARRATIVE association this video supplies: that roll specifically (as opposed to pan or tilt) reads as disorientation/power-reversal, worth recording since nothing in this build's `ai/vocabulary.js` or camera-related documentation currently distinguishes the THREE rotational registers by their typical narrative use.",
+  "control_surface": "`set_keyframe` on the camera's `@origin` CFrame rotation component (roll/Z-axis specifically); `get_rotation_degrees` to inspect it.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion`/`get_rotation_degrees` can already report a camera item's rotation about any axis, including roll specifically, over time — the MEASUREMENT already exists; nothing currently classifies a rotation as \"a roll\" versus \"a pan\" or \"a tilt\" by which axis dominates, though that classification would be a straightforward addition given the existing per-axis rotation data.",
+  "generation_or_modification_methods": "`set_keyframe`/`set_easing` on the rotation component as usual; nothing currently generates a roll specifically as a named, distinct authoring action separate from an arbitrary rotation keyframe.",
+  "failure_modes": [
+    "rolling the camera during an ordinary reframe with no disorientation/power-shift intent, producing an unintended unsettling effect",
+    "using a pan or tilt where a roll's specific disequilibrium register was actually wanted, understating the intended disorientation"
+  ],
+  "roblox_considerations": "A Roblox camera's CFrame carries full 3D rotation identically to Cadence's own model; a roll is simply rotation about the camera's own look-vector axis, native to the engine with no special support needed.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"A roll turns the camera on its long axis while maintaining the direction of the lens... disorienting, unsettling our equilibrium\" (video @ 15:47–15:54)",
+    "the Dark Knight example, confirmed in this session's own frame read of the labeled \"CAMERA ROLL\" shot showing the Joker strung upside down then righted as the camera rolls: \"as the camera slowly rolls over he reveals that he still has the upper hand\" (video @ 17:12–17:16)"
+  ],
+  "evidence_status": "video: https://youtu.be/IiyBo-qLDeM @ 15:39–17:36 — StudioBinder defines the roll and demonstrates its disorientation/power-reversal use with two named films, confirmed in this session's own frame reads; experimental until validated"
+}

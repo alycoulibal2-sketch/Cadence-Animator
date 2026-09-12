@@ -1,0 +1,36 @@
+{
+  "concept": "dolly_push_vs_optical_zoom_perceptual_distinction",
+  "category": "essential",
+  "definition": "A push-in (physically translating the camera toward the subject) and a zoom-in (changing the lens's focal length while the camera stays put) both make the subject bigger in frame, but they are perceptually and narratively distinct: a push-in has a real embodied equivalent (a person can physically walk closer to something), while a zoom has NONE (\"our eyes can't zoom\"), which is exactly why a zoom reads as unnatural, artificial, or voyeuristic where a push-in reads as an ordinary, natural approach.",
+  "purpose": "Choose deliberately between the two mechanisms based on whether the natural, embodied read (push-in) or the unnatural, detached/uncanny read (zoom) is wanted, rather than treating them as interchangeable ways to make a subject bigger.",
+  "visible_effect": "A push-in changes perspective and parallax as the camera physically moves through space (nearer objects shift more than farther ones); a zoom changes only magnification from a fixed viewpoint, so perspective and parallax do NOT change — the background is optically magnified in lockstep with the subject, which a physical approach would never do.",
+  "psychological_or_gameplay_effect": "A zoom's lack of any real-world equivalent is precisely what horror/thriller films exploit for uneasiness (the slow zoom) and what comedy exploits for absurdity (the crash zoom) — the unnaturalness itself is the expressive content, not a side effect to hide.",
+  "physical_interpretation": "A push-in is a literal translation through 3D space with all the natural parallax/perspective consequences that implies; a zoom is a pure 2D magnification of an already-fixed projection, with none of those consequences — the two are only equivalent in the single, narrow sense of final subject size.",
+  "use_cases": [
+    "a push-in for a natural, embodied escalation of emphasis or internal conflict (the source's own Godfather/Post examples)",
+    "a slow zoom specifically to create unease, since the audience registers the movement as not corresponding to anything a body could do (the source's own Exorcist/Shining examples)",
+    "a fast \"crash zoom\" for comedic or shock punctuation (the source's own Django Unchained example)"
+  ],
+  "non_use_cases": [
+    "treating a zoom as a free substitute for a push-in (or vice versa) whenever a shot's budget/rig constraints make one easier than the other — the choice changes what the shot MEANS, not only how it was achieved"
+  ],
+  "interactions": [
+    "dolly_zoom_coordinated_invariant_effect (this same video) — the vertigo effect is built by deliberately opposing these two mechanisms against each other rather than choosing one; understanding them as distinct is a prerequisite for understanding why combining them produces a third, different effect"
+  ],
+  "style_variations": {},
+  "cadence_representation": "This distinction maps exactly onto Cadence's own camera item's two independent tracks: `@origin` (a CFrame — physical position, the push/pull mechanism) and `@fov` (a numeric field-of-view value — the zoom mechanism, clamped 5–120 degrees). The two are already structurally separate in Cadence's data model exactly as this video argues they should be conceptually; nothing needs to change to represent either movement individually. What Cadence does NOT have is a projection/rendering model that would let it show or measure the perspective/parallax DIFFERENCE between the two the way a real render would — MOT-006 (screen-space measurement) and the absent active-camera model mean this distinction, while representable as authored data, cannot currently be verified by rendering or measured by `ai/motion.js`.",
+  "control_surface": "`set_keyframe`/`add_camera` on `@origin` for a push/pull; on `@fov` for a zoom.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion` already measures a camera item's `@origin` track (position/velocity/curvature) and could equally sample `@fov`'s value over time — so DETECTING which track is animated at a given moment is already possible; what is not possible is rendering or measuring the resulting on-screen PERSPECTIVE difference between the two, since that needs an active camera/projection model this build does not have.",
+  "generation_or_modification_methods": "`set_keyframe` on `@origin` or `@fov` independently; nothing currently warns a caller who animates `@fov` when a push-in (`@origin`) was the more natural-reading choice, or vice versa.",
+  "failure_modes": [
+    "zooming when a push-in was wanted (or the reverse), producing an emotionally wrong register even though the subject ends up the same size on screen either way",
+    "not noticing that a project's camera work is entirely `@fov`-driven (all zoom, no dolly), which would read as uniformly unnatural/detached across a whole piece even if that was never the intent"
+  ],
+  "roblox_considerations": "A Roblox camera's `FieldOfView` property is the direct zoom-equivalent control; physically moving the Camera's CFrame is the push/dolly equivalent — the same two independent mechanisms, native to the engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"Zooms are unique because there is no equivalent in the human experience... like a push-in we can physically move closer to a subject but our eyes can't zoom making this camera movement unnatural\" (video @ 10:56–11:07)",
+    "the slow zoom used for uneasiness (The Exorcist, The Shining) and the fast \"crash zoom\" used for comedy (Django Unchained), confirmed in this session's own frame read of the labeled \"CRASH ZOOM\" shot (video @ 11:22–12:31)"
+  ],
+  "evidence_status": "video: https://youtu.be/IiyBo-qLDeM @ 10:35–12:31 — StudioBinder states the embodiment distinction explicitly and illustrates both registers with named films, confirmed in this session's own frame reads; experimental until validated"
+}

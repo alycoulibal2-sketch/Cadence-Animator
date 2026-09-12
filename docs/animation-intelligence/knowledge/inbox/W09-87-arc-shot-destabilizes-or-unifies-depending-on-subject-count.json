@@ -1,0 +1,39 @@
+{
+  "concept": "arc_shot_destabilizes_or_unifies_depending_on_subject_count",
+  "category": "advanced",
+  "definition": "An arc shot (the camera orbiting around a subject, typically on a horizontal arc) produces two nearly opposite readings depending on what it orbits: orbiting a SINGLE, physically still subject injects tension/instability/panic into an otherwise static moment, while orbiting a GROUP of separate subjects visually unifies them into a single cohesive unit against a surrounding threat.",
+  "purpose": "Add camera-driven dynamism to a scene with no character movement to draw energy from, and choose which of the arc's two distinct readings (destabilizing a single subject, or unifying a group) fits the moment.",
+  "visible_effect": "The camera continuously changes its angle on the subject(s) while they themselves remain stationary, producing a smooth (or, sped up, dizzying) rotation of the background relative to the subject.",
+  "psychological_or_gameplay_effect": "For a single still subject: reads as tension, reeling panic, or intimacy, since the world visibly turns around them while they cannot or do not move — sped up further, it becomes explicitly dizzying and reflective of a character's destabilized mental state. For multiple separate subjects: the shared orbit visually binds them together as one group/unit, reinforcing solidarity or a shared stance against something external, even though each individual is otherwise doing nothing that would connect them.",
+  "physical_interpretation": "Not applicable — a framing/composition effect rather than a physical motion principle.",
+  "use_cases": [
+    "adding dynamic energy to a scene where characters are standing completely still and there is no other motion to carry the shot",
+    "unifying a group of characters as a single entity (the video's own Avengers hero-shot example)",
+    "underscoring tension, panic, or an unstable mental state around one still subject (the video's own Dark Knight interrogation and City of God standoff examples), intensified further by increasing the arc's speed"
+  ],
+  "non_use_cases": [
+    "a scene already carrying energy from character movement or cutting, where an arc's specific \"generate energy from stillness\" purpose is not needed"
+  ],
+  "interactions": [
+    "camera_roll_signals_disorientation_or_power_reversal (this same video) — a sibling case of one mechanical camera movement carrying more than one possible narrative reading depending on context, the same caution that applies to interpreting or authoring either"
+  ],
+  "style_variations": {
+    "single_subject_destabilizing": "orbiting one still subject reads as tension/panic/intimacy, escalating to dizziness at higher speed",
+    "multi_subject_unifying": "orbiting a group reads as solidarity/unity against something external"
+  },
+  "cadence_representation": "An arc is ordinary CFrame keyframing on the camera's `@origin` track (a circular path around a world-space point) — no new Cadence capability is needed to author it. What is not represented is the compositional fact this video supplies: the SAME mechanical path (an orbit) reads oppositely depending on whether it orbits one subject or several, which is a fact about scene composition and subject count that Cadence's project data does not reason about at all (it has no notion of \"how many subjects this camera is oriented around\" as a semantic property).",
+  "control_surface": "`add_camera`/`set_keyframe` on `@origin` for the orbit path itself; no surface represents or reasons about subject count/grouping semantics.",
+  "detection_and_measurement_methods": "`ai/motion.js` can measure the camera's own path curvature/speed (confirming it IS an arc, and how fast); nothing measures how many distinct subjects are within frame or reasons about the resulting single-subject-vs-group semantic distinction.",
+  "generation_or_modification_methods": "not applicable beyond ordinary CFrame keyframing for the orbit itself.",
+  "failure_modes": [
+    "orbiting a group when a unifying read was not intended, accidentally suggesting solidarity between characters who are not meant to be linked",
+    "an arc speed too gentle to register as tension when panic/instability was the intended read, or too fast (dizzying) when only mild energy was wanted"
+  ],
+  "roblox_considerations": "None specific — an orbiting Roblox camera is ordinary CFrame keyframing around a world point, identical in mechanism to any other engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"arc shots add dynamic movement when characters may be standing completely still, like in this hero shot from the Avengers which unifies them as a single unit against surrounding threats\" (video @ 21:09–21:19), confirmed in this session's own frame read of the labeled \"ARC\" Avengers shot",
+    "\"the arc shot underscores the tension and reeling panic between Gordon and Dent\" (The Dark Knight) and \"when the speed of an arc shot is amplified it can create a dizzying effect reflective of character's mental state, like in City of God\" (video @ 21:53–22:30), both confirmed in this session's own frame reads"
+  ],
+  "evidence_status": "video: https://youtu.be/IiyBo-qLDeM @ 20:49–22:30 — StudioBinder demonstrates both readings of the arc shot with three named-film examples, confirmed in this session's own frame reads; experimental until validated"
+}

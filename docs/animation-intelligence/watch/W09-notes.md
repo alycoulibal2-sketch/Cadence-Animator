@@ -8,7 +8,7 @@
 - [x] 84. How To Make Animated Character Cutscenes in Roblox Studio — RKGAM3ZS (15:42)
 - [x] 85. The BEST way to learn FX Animation? — Alex Grigg (15:51)
 - [x] 86. #5: Timing | Artistic Principles of VFX — VFX Apprentice (23:10)
-- [ ] 87. Ultimate Guide to Camera Movement — StudioBinder (29:09)
+- [x] 87. Ultimate Guide to Camera Movement — StudioBinder (29:09)
 - [ ] 88. 7 Rules of Cinematic Framing and Composition — Kellan Reck (9:29)
 - [ ] 89. Animate Cameras like a Pro (Blender Tutorial) — CG Boost (23:10)
 - [ ] 90. How to Animate with the Graph Editor — Sir Wade Neistadt (21:04)
@@ -78,4 +78,18 @@ check: effect_decay_phase_presence — measure whether a compiled effect's `timi
 check: effect_pair_timing_distinguishability — when two compiled effects share the same `primitive`/`theme`/`colorStart`/`colorEnd` (or are otherwise visually near-identical), compare their `timing` envelopes and flag if those are ALSO too similar to serve as a distinguishing signal, per `timing_envelope_shape_as_sole_differentiator_between_similar_abilities` — same shape of gap as W09-82's phase-offset check (nothing cross-references two VFX items' envelopes against each other yet) (source: video 86 @ 17:44–18:59).
 
 No capture candidates (a slide deck and pre-recorded game clips, no rig performance to reference).
+
+## Video 87 — Ultimate Guide to Camera Movement (StudioBinder, 29:09) — 2026-09-12
+
+Watched at `efficient` (50 frames from 514 candidates, targeted toward the static/zoom/dolly-zoom/roll/arc sections rather than a full even sample, given a 29-minute runtime). 514 caption segments. The canonical film-school vocabulary video the plan called for ("the camera vocabulary of Part 40") — static, pan, tilt, push-in, pull-out, zoom, dolly zoom, roll, tracking, trucking, arc, boom, random/handheld — each defined and given a named narrative register with named-film examples throughout.
+
+Five entries, chosen for being the sharpest and most Cadence-relevant of the full vocabulary rather than one card per movement type: **dolly push vs. optical zoom** (a push-in has a real embodied equivalent, a zoom has none at all — "our eyes can't zoom" — which maps exactly onto Cadence's own separate `@origin`/`@fov` camera tracks, already structurally correct even though nothing renders the perspective difference between them); **the dolly zoom / vertigo effect** (opposing the two mechanisms deliberately, holding the subject's frame-size invariant while the background scale shifts — the sharpest concrete case yet for why the unplanned active-camera/projection model, MOT-006, would matter: the whole technique IS a checkable invariant across two channels that Cadence cannot currently verify); **camera roll as disorientation/power-reversal**, a third rotational register distinct from pan/tilt (already fully representable as ordinary CFrame rotation — the gap here is narrative knowledge, not capability); **a static camera as deliberate emotional withholding** (the 12 Years a Slave/Dunkirk point that NOT matching a character's panic with camera movement is itself a legible, colder choice — needs no tool support at all, purely a craft fact worth recording); and **an arc shot's two opposite readings** depending on whether it orbits one still subject (destabilizing) or a group (unifying), from the same Avengers/Dark Knight/City of God frame reads.
+
+What surprised me: three of five entries here (dolly zoom, roll, static-withholding) are cases where Cadence's DATA MODEL already has everything needed to author the technique — the gap is either a missing measurement (dolly zoom's invariant, blocked on MOT-006) or purely narrative/associative knowledge with no code gap at all (roll's meaning, static withholding). That's a cleaner split between "needs building" and "needs writing down" than most of this batch's other videos, and worth keeping distinct when this batch gets merged. The rest of the video's vocabulary (pan, tilt, pull-out, tracking, trucking, boom, handheld) is genuinely useful reference — each with its own well-established narrative association (pan/tilt for reveal and scale, pull-out for de-emphasis/isolation, tracking for immersion and forward-momentum tension, trucking for lateral world-reveal, boom for vertical scale/action, handheld/random for documentary-style subjectivity) — but none surprised enough on its own to warrant a dedicated card; recorded here rather than duplicated as five more thin entries.
+
+check: dolly_zoom_size_invariant — project a target part's screen-space bounding size through the camera's `@fov` and its distance to that part at each sampled frame across a range where both are being keyed in opposition; flag drift in that projected size beyond a small tolerance as a broken dolly-zoom — **blocked**: needs the active-camera/projection model (MOT-006), which does not exist (source: video 87 @ 13:00–15:23).
+
+check: static_camera_against_concurrent_high_motion_subject — cross-reference a camera item's own near-zero `@origin`/`@fov` motion (already measurable via `sampleMotion`) against a concurrently HIGH motion-intensity rig in the same shot, as the measurable signature of `static_camera_as_deliberate_emotional_withholding` versus simple authorial inattention — not blocked: both halves are already measured separately, only the cross-reference is new (source: video 87 @ 02:29–03:11).
+
+No capture candidates (film clips throughout, no rig performance to reference). Nothing contradicted an existing card.
 
