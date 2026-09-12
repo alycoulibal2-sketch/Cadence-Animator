@@ -1,0 +1,36 @@
+{
+  "concept": "constraint_influence_crossfade_for_instantaneous_shot_cuts",
+  "category": "advanced",
+  "definition": "Rather than switching between multiple camera objects (bound to timeline markers) to cut between different shots, keep ONE camera and give it a second, independent motion-path rig (a second curve plus a second Follow-Path constraint); to cut, key the first constraint's influence from 1 to 0 and the second's from 0 to 1 across a single frame step (not eased across a span), so the camera's position snaps from being fully governed by path one to fully governed by path two — a hard cut implemented as an instantaneous influence swap rather than as a change of which object is active.",
+  "purpose": "Support an arbitrary number of distinct camera shots/moves without proliferating camera objects in the scene, and without needing a scene-level \"which camera is active now\" marker system, by keeping every shot's motion as an alternative, weighted input to the SAME camera object.",
+  "visible_effect": "The camera instantly jumps from one authored path's position/behavior to a completely different one at the cut frame, exactly as a hard edit cut would, rather than blending or easing between the two.",
+  "psychological_or_gameplay_effect": "Reads as an ordinary hard cut to a new shot, indistinguishable in effect from switching cameras, but authored and managed as one continuously-existing object with swapped inputs rather than as scene-level camera switching.",
+  "physical_interpretation": "Not applicable — an authoring/rigging technique, not a motion principle.",
+  "use_cases": [
+    "a sequence with many distinct camera shots/moves, where keeping a single camera object (with swappable constraint inputs) is preferred over managing many separate camera objects and marker-based active-camera bindings",
+    "specifically named by the source as a deliberate preference: \"I try to only work with one camera\" rather than \"many different cameras in your scene\" becoming \"overwhelming\""
+  ],
+  "non_use_cases": [
+    "a genuine smooth transition BETWEEN two shots (rather than a hard cut) — that would need the influence change eased/animated across a span instead of stepped across one frame, a variation not demonstrated in this video"
+  ],
+  "interactions": [
+    "camera_path_shape_progress_and_aim_as_independent_channels (this same video) — each swapped-in path is itself built from that same three-way decoupled rig (path shape, progress, aim), so this technique is really \"maintain several complete instances of that rig on one camera and switch which one is live\"",
+    "linear_interpolation_for_continuous_multi_shot_camera_flow (this same video) — keeping both shots' own motion on linear interpolation, right up to and after the cut, is what keeps the camera's perceived speed consistent through the transition rather than having one side of the cut visibly decelerate into it"
+  ],
+  "style_variations": {},
+  "cadence_representation": "No equivalent exists: Cadence's camera item has no constraint-stack/influence-weighting concept at all — a camera's `@origin` is set directly by keyframes, with no notion of multiple competing authored inputs blended or switched by a weight value. Reproducing this pattern in Cadence today would mean literally re-keying the SAME `@origin` track directly at the cut frame from wherever path one left off to wherever path two begins — achievable (an ordinary hard change in position between two adjacent keys is just an ordinary keyframe pair with no special easing), but without the SOURCE-SEPARATION benefit this technique provides: each shot's motion cannot be independently revised as its own self-contained rig the way two separate constraint stacks can.",
+  "control_surface": "None — Cadence has no constraint/influence system; the same net result (a hard position cut) would use ordinary adjacent keyframes on `@origin` directly, without the independent-rig-per-shot benefit.",
+  "detection_and_measurement_methods": "`ai/motion.js` could trivially detect a hard cut in Cadence's own model (a discontinuous jump in `@origin` between two adjacent keys with no interpolation spanning them); it has no way to represent or detect an \"influence crossfade\" specifically, since that authoring mechanism does not exist here.",
+  "generation_or_modification_methods": "not applicable — no constraint-influence surface to generate from; the equivalent net effect in Cadence is just two adjacent keyframes with a discontinuous position value between them.",
+  "failure_modes": [
+    "easing the influence swap across multiple frames when a genuine hard cut was wanted, producing an unwanted blend/warp between the two paths instead of a clean cut",
+    "leaving both constraints at partial, non-zero/non-one influence values, producing an unintended blended position rather than either shot's own authored path"
+  ],
+  "roblox_considerations": "Roblox has no constraint-influence system either; the equivalent there would be directly setting a camera's CFrame from one script-computed path to another at the cut frame/moment, with no blending in between.",
+  "performance_implications": "None beyond evaluating one extra (inactive) constraint stack per additional shot kept on the same camera object.",
+  "examples": [
+    "\"switching from one camera perspective to another all we need to do is to create another path... so this one here is moving around the head and maybe let's add another one which is moving around the backpack... now all we need to do is to animate that the camera is switching the path... animate the influence of both constraints so for the first one we need the full influence of one and the second one we need zero influence... now if we go one frame further let's swap this so we set the influence to zero for the first one and to one for the second one\" (video @ 18:49–19:53)",
+    "the explicit reasoning for avoiding multiple camera objects instead: \"I don't really like this workflow because then at some point you have many different cameras in your scene and this can become a bit overwhelming so I try to only work with one camera\" (video @ 18:37–18:49)"
+  ],
+  "evidence_status": "video: https://youtu.be/COwENnPwWJ8 @ 18:08–19:58 — Zach Weinert (CG Boost) states the preference for a single camera object and builds the influence-crossfade cut live; experimental until validated"
+}

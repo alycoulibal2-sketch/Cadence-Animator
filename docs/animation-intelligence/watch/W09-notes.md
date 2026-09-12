@@ -10,7 +10,7 @@
 - [x] 86. #5: Timing | Artistic Principles of VFX — VFX Apprentice (23:10)
 - [x] 87. Ultimate Guide to Camera Movement — StudioBinder (29:09)
 - [x] 88. 7 Rules of Cinematic Framing and Composition — Kellan Reck (9:29)
-- [ ] 89. Animate Cameras like a Pro (Blender Tutorial) — CG Boost (23:10)
+- [x] 89. Animate Cameras like a Pro (Blender Tutorial) — CG Boost (23:10)
 - [ ] 90. How to Animate with the Graph Editor — Sir Wade Neistadt (21:04)
 
 ---
@@ -104,4 +104,14 @@ What surprised me: three of these four entries are blocked on the same active-ca
 check: subject_background_world_space_separation — measure the minimum world-space distance between a declared subject item and declared background geometry; flag near-zero separation as the specific beginner mistake that defeats depth-of-field regardless of aperture, per `subject_background_separation_enables_depth_defocus` — **not blocked**: ordinary position data already available in any project, no camera or lens model needed (source: video 88 @ 06:15–07:35).
 
 No capture candidates (film clips and a talking-head presenter, no rig performance to reference). Nothing contradicted an existing card; the "emphasize your subject" closing tip is explicitly the video's own synthesis of the other six tools rather than a seventh independent technique, so it was not written up as its own card.
+
+## Video 89 — Animate Cameras like a Pro (CG Boost, 23:10) — 2026-09-12
+
+Watched via transcript (614 caption segments), deliberately — a dense, live-build Blender rigging tutorial (Follow Path + Track To constraints, curve editing, constraint-influence keyframing) where every mechanism is precisely narrated as it happens on screen; no frame pass was needed to confirm any of the three entries below, matching how W09-82 and W09-89's own sibling live-build videos were handled in this batch. This is the one video in the whole batch about camera ARCHITECTURE rather than camera vocabulary or craft judgment.
+
+Three entries: **linear interpolation deliberately overriding the default ease, specifically for shots inside an edited, cut-together sequence** (the opposite of "always ease" — a continuous, constant-speed shot preserves rhythm across cuts that a self-settling eased shot would break, with the video's own explicit boundary case: a standalone final shot should still ease to a stop); **camera path shape, progress-along-path, and aim as three fully independent authored channels** (a curve's geometry, a single keyframed offset value, and a separately-keyframed look-target object — the single biggest architectural idea in the video, and a sharp contrast with Cadence's own camera model, which fuses position AND rotation into one `@origin` CFrame track with no equivalent of an independently-timed look-target or a path/progress split at all); and **a hard cut authored as an instantaneous constraint-influence crossfade on ONE camera object**, rather than switching between multiple camera objects bound to timeline markers — the presenter's own stated reason is keeping a scene from accumulating "many different cameras," a production-hygiene concern Cadence's single-camera-per-project-typical model sidesteps by not facing at all.
+
+What surprised me: this video's core insight (decouple a camera's PATH, its SPEED ALONG the path, and its AIM into three independently-editable things) is a genuinely different flavor of gap from most of this batch's other camera entries — those were mostly about a MEASUREMENT Cadence cannot make (screen-space projection, MOT-006); this one is about an AUTHORING STRUCTURE Cadence's single fused CFrame track does not offer at all, independent of any camera-projection question. Both kinds of gap point at the same underlying theme (Cadence's camera model is presently the least developed part of its data model), but they would be closed by different work: one needs a renderer/projection model, the other needs a richer camera item schema (or a general constraint/rig system extended to cameras). Worth keeping the distinction sharp when this batch is reviewed.
+
+No capture candidates (a Blender screen-capture tutorial, no character rig performance). Nothing contradicted an existing card. No new check queued: all three entries are authoring-architecture gaps, not measurable-quantity gaps, and are recorded as such rather than stretched into invented checks.
 

@@ -1,0 +1,42 @@
+{
+  "concept": "linear_interpolation_for_continuous_multi_shot_camera_flow",
+  "category": "essential",
+  "definition": "For a camera move that is one beat within a larger edited sequence (cuts timed to music, multiple shots back-to-back), deliberately override the default eased (ease-in/ease-out) interpolation with LINEAR interpolation on the camera's own motion, so it moves at a constant, unchanging speed for the whole shot rather than starting slow, speeding up, and stopping slow — because the default ease's natural deceleration at the shot's end would otherwise break the continuous rhythm the edit is building across cuts.",
+  "purpose": "Preserve a consistent, continuous sense of motion and rhythm ACROSS an edited sequence of camera shots, which the default per-shot ease (correct for an isolated, standalone camera move) would undermine by making every individual shot visibly slow down at its own end regardless of what comes next.",
+  "visible_effect": "The camera moves at one constant velocity for the shot's full duration, with no perceptible acceleration or deceleration at either end — noticeably different from the default bezier ease's slow-fast-slow shape.",
+  "psychological_or_gameplay_effect": "An eased shot reads as a complete, self-contained gesture that settles to rest; a linear shot reads as a continuous, ongoing motion that could plausibly keep going past the cut — exactly the quality wanted when the NEXT shot's motion should feel like a continuation rather than a fresh start.",
+  "physical_interpretation": "Not applicable — an editorial/rhythm choice about a sequence of shots, not a physical-motion principle; the source explicitly frames this as a deliberate departure from the otherwise-default eased motion, not a claim that constant velocity is more \"realistic.\"",
+  "use_cases": [
+    "a camera move that is one shot within an edited, cut-together sequence (especially one cut to music) where continuous flow across cuts matters more than any single shot's own settled ending",
+    "a hard cut between two different camera paths on the same object (see constraint_influence_crossfade_for_instantaneous_shot_cuts), where linear motion on both sides of the cut keeps the perceived speed consistent through the transition"
+  ],
+  "non_use_cases": [
+    "a final, standalone shot meant to visibly slow down and settle at its end — the source explicitly notes bezier/eased interpolation is still the right choice there, specifically to make the camera stop convincingly rather than cut off mid-motion",
+    "the look-target/aim channel left on a DIFFERENT interpolation style than the position channel it accompanies — the source found that a linear path combined with a bezier-eased look-target \"looks a bit weird,\" and fixed it by matching both channels to linear"
+  ],
+  "interactions": [
+    "camera_path_shape_progress_and_aim_as_independent_channels (this same video) — when position and aim are decoupled into separate authored channels, BOTH must be given matching interpolation styles for the combined motion to read as coherent; decoupling the channels does not mean their easing styles can be decoupled too",
+    "slow_in_slow_out (compiled) — this entry is a named, deliberate EXCEPTION to that general principle for camera work specifically, analogous to how external_force_easing_override (compiled) is a different deliberate exception for a different reason"
+  ],
+  "style_variations": {
+    "linear_continuous_flow": "constant velocity, for shots within an edited sequence where rhythm must carry across cuts",
+    "eased_settling_shot": "the default bezier ease, correct for a standalone shot or a sequence's final shot that should visibly come to rest"
+  },
+  "cadence_representation": "Directly expressible with Cadence's existing `set_easing` on a camera item's `@origin` track — choosing a linear/constant-rate easing style instead of the default is already a supported, ordinary operation, no new capability needed. What Cadence's own knowledge does not carry is the SEQUENCING judgment this video supplies: that linear easing is specifically preferred for shots that are part of a larger CUT-TOGETHER sequence, and bezier/eased for a standalone or sequence-final shot — a call, until now, this corpus had only associated with matching a caused external force (external_force_easing_override), not with multi-shot editorial rhythm.",
+  "control_surface": "`set_easing` on the camera's `@origin` (and, if decoupled per camera_path_shape_progress_and_aim_as_independent_channels, the look-target's track as well).",
+  "detection_and_measurement_methods": "`ai/motion.js interpolation_type` already reports a track's easing style per key — trivially sufficient to detect whether a camera's motion is linear or eased; nothing currently checks WHETHER that choice matches the shot's role in a larger sequence (standalone vs. continuous), since Cadence's project data has no notion of \"this shot is part of an edited sequence of shots.\"",
+  "generation_or_modification_methods": "`set_easing` sets the style directly; nothing infers which style is appropriate from sequence context.",
+  "failure_modes": [
+    "leaving a continuous-sequence camera shot on the default eased interpolation, producing an unwanted slow-down at the exact moment the edit needs momentum to carry into the next shot",
+    "using linear interpolation for a genuinely final, standalone shot that should settle to rest, producing an abrupt stop rather than a natural deceleration",
+    "matching position to linear but leaving an accompanying look-target on eased interpolation (or vice versa), producing a mismatched, \"weird\"-reading combined motion"
+  ],
+  "roblox_considerations": "None specific — the same easing-style choice applies to any keyframed camera, engine-independent.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"by default it will use a bezier interpolation so it starts slow gets faster and then it stops slow... I don't always want to break the flow of the camera motion... I want to have a continuous flow of the same speed for the camera so make sure the keyframes are selected... press t and then change the interpolation to linear\" (video @ 08:23–09:06)",
+    "the later correction applying the same fix to the decoupled look-target object: \"since the camera motion is linear and the motion of the target object has the bezier interpolation... it looks a bit weird... I would definitely add the linear interpolation to this target object as well\" (video @ 16:51–17:05)",
+    "the explicit non-use-case: \"you don't have to go with a linear interpolation... you can also go with a bezier interpolation if you want to make the camera stop at the very end\" (video @ 22:05–22:16)"
+  ],
+  "evidence_status": "video: https://youtu.be/COwENnPwWJ8 @ 08:23–09:06, 16:51–17:05, 22:05–22:16 — Zach Weinert (CG Boost) states the deliberate override, its cross-channel consistency requirement, and its own boundary condition explicitly; experimental until validated"
+}
