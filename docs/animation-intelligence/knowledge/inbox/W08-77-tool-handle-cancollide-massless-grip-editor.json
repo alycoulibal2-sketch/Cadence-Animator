@@ -1,7 +1,7 @@
 {
   "concept": "tool_handle_cancollide_massless_grip_editor_construction",
   "category": "advanced",
-  "definition": "The mechanical construction of a holdable Roblox weapon/tool, distinct from attaching a prop to an already-posed rig in an animator: a modeled part (or union of parts) is renamed 'Handle' inside a `Tool` instance, given `CanCollide = false` (so it does not physically collide with other players while held/dropped) and `Massless = true` (so it does not affect the holding character's physics), and then a 'Tool Grip Editor' plugin is used to set exactly where and at what rotation the character's hand grips it — separately from the part's own modeled geometry/pivot.",
+  "definition": "The mechanical construction of a holdable Roblox weapon/tool, distinct from attaching a prop to an already-posed rig in an animator: a modeled part (or union of parts) is renamed 'Handle' inside a `Tool` instance, given `CanCollide = false` (so it does not physically collide with other players while held/dropped), `Massless = true` (so it does not affect the holding character's physics), and `Anchored = false` (a second, independently-required property — confirmed by a second creator's live debugging session: a tool left Anchored will not let a player pick it up AT ALL, a distinct failure from anything CanCollide controls), and then a 'Tool Grip Editor' plugin is used to set exactly where and at what rotation the character's hand grips it — separately from the part's own modeled geometry/pivot.",
   "purpose": "Produce a `Tool` a Roblox character can actually equip, hold correctly-oriented in the hand, and swing or drop, with physically sensible collision/mass behaviour while held.",
   "visible_effect": "An unconfigured tool part either collides awkwardly with the world/other players while held, throws off the holding character's physics if not massless, or appears held at the wrong position/angle in the hand until the grip is explicitly set.",
   "psychological_or_gameplay_effect": "Not applicable — a functional/technical setup step, not a viewer-facing effect on its own (though a badly-gripped tool would visibly look wrong in the hand).",
@@ -26,13 +26,15 @@
   "failure_modes": [
     "leaving `CanCollide` true on a held tool, causing it to physically shove or catch on other players/geometry while held or swung",
     "leaving `Massless` false, letting a large tool part meaningfully affect the holding character's own physics (fall speed, balance) simply by being equipped",
-    "skipping the Grip Editor step and accepting wherever the part's own pivot happens to place it in the hand, producing an awkwardly-held weapon needing a manual rotate/offset fix after the fact (the source's own account: 'doesn't look the best just yet... let me just rotate it a bit')"
+    "skipping the Grip Editor step and accepting wherever the part's own pivot happens to place it in the hand, producing an awkwardly-held weapon needing a manual rotate/offset fix after the fact (the source's own account: 'doesn't look the best just yet... let me just rotate it a bit')",
+    "leaving a tool's Handle `Anchored`, which silently prevents pickup entirely with no error — a second creator's own real, extended live-debugging session (video 78, this same batch) spent several minutes on exactly this before identifying Anchored as the cause, distinct from and in addition to the CanCollide/Massless properties this entry already names"
   ],
   "roblox_considerations": "This entire entry is Roblox-engine-specific: `Tool`, `Handle`, `CanCollide`, `Massless` and the Grip transform are all native Roblox concepts with no equivalent outside it.",
   "performance_implications": "`Massless=true` avoids unnecessary physics simulation cost from a held part that need not affect the character's own mass/momentum.",
   "examples": [
-    "a unioned sword part renamed 'Handle', set `CanCollide=false` and `Massless=true` explicitly and directly (video @ 02:15–02:26)",
-    "the Tool Grip Editor plugin used to set the exact hand grip position and a 90° rotation correction after the default grip looked wrong (video @ 02:51–03:48, confirmed in this session's own frame at t=03:29 showing the Tool Grip Editor panel open)"
+    "a unioned sword part renamed 'Handle', set `CanCollide=false` and `Massless=true` explicitly and directly (video 71 @ 02:15–02:26)",
+    "the Tool Grip Editor plugin used to set the exact hand grip position and a 90° rotation correction after the default grip looked wrong (video 71 @ 02:51–03:48, confirmed in this session's own frame at t=03:29 showing the Tool Grip Editor panel open)",
+    "a second creator's tool refusing pickup entirely in a live playtest despite CanCollide already being handled, tracked down over several confused minutes ('why is it still not letting me pick it up... it's being weird') to the Handle still being Anchored, fixed by rebuilding the Handle/CanCollide/Grip setup from scratch (video 78 @ 08:06–09:52)"
   ],
-  "evidence_status": "video: https://youtu.be/I1T5Rcm9g3E @ 02:15–03:48 — Nobel Courses (the presenter) demonstrates every step directly on screen, naming each property explicitly; UI confirmed in this session's own frame at t=03:29; experimental until validated"
+  "evidence_status": "video 77: https://youtu.be/I1T5Rcm9g3E @ 02:15–03:48 — Nobel Courses (the presenter) demonstrates every step directly on screen, naming each property explicitly; UI confirmed in this session's own frame at t=03:29. video 78: https://youtu.be/UURYhAVph5g @ 08:06–09:52 — MonkeyDev (a second, independent presenter) hits and resolves the separate Anchored pitfall live, gathered in the same W08 batch session as the original entry rather than by a separate merge; experimental until validated"
 }

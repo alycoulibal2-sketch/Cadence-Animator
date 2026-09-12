@@ -1,0 +1,41 @@
+{
+  "concept": "tool_activated_cooldown_gated_animation_playback",
+  "category": "advanced",
+  "definition": "The scripted runtime pattern that actually plays a published animation from a Roblox `Tool`: on `Tool.Equipped`, resolve the character/player/humanoid ONCE and call `humanoid:LoadAnimation` ONCE to obtain a reusable `AnimationTrack`; on each `Tool.Activated`, check a boolean cooldown flag before playing that already-loaded track, and gate re-triggering with `task.wait(cooldownTime)` before clearing the flag — loading the animation once at equip time rather than once per swing, and explicitly preventing the action from re-firing every frame the player holds the trigger down.",
+  "purpose": "Play a weapon's swing animation in response to player input exactly as often as intended (not once per swing when the trigger is held or spammed, and not with the overhead of reloading the animation track on every single activation).",
+  "visible_effect": "Without the cooldown gate, holding or rapidly clicking the activation input replays the animation immediately on top of itself every time, reading as a stutter/spam rather than a deliberate attack cadence; with it, activations faster than the cooldown window are simply ignored until it expires.",
+  "psychological_or_gameplay_effect": "The cooldown VALUE itself is a deliberate gameplay-feel dial, demonstrated directly: the source tunes it down from a slower default to 0.7s specifically to match a faster, more spammable feel referenced from an existing shipped game (Bed Wars), calling the faster result 'kind of like how that looks' as a genre-appropriate pacing choice, not merely a technical necessity.",
+  "physical_interpretation": "Not applicable — a scripted gameplay-timing mechanism layered on top of the animation clip itself, independent of the clip's own internal timing.",
+  "use_cases": [
+    "any Tool/weapon whose action animation should play once per deliberate player activation, at a controlled maximum rate, rather than uncontrolled per-frame or per-click replay",
+    "loading an AnimationTrack once per equip rather than once per activation, avoiding redundant load calls for an action that may fire many times per equip"
+  ],
+  "non_use_cases": [
+    "an animation that should legitimately restart or blend freely on rapid re-triggering with no rate limit (rare for a discrete attack action, more plausible for some continuous/held effects) — a hard cooldown gate would be the wrong tool there",
+    "Cadence's own offline authoring/export step itself, which produces the clip and asset id this pattern consumes but does not itself run gameplay scripts"
+  ],
+  "interactions": [
+    "animation_priority_determines_simultaneous_track_override (this same video/batch) — a sibling piece of the same weapon-activation pipeline: priority determines which track visually wins once two are playing; this entry is the separate mechanism controlling WHEN and how often the action track is triggered to play at all",
+    "tool_handle_cancollide_massless_grip_editor_construction (video 77, this same batch) — this script's own `Tool.Equipped` handler is exactly where a badly-configured Handle (the source's own debugged `Anchored`/`CanCollide` issue) would surface as 'the tool won't even pick up', a separate failure layer below animation playback entirely"
+  ],
+  "style_variations": {
+    "game_combat": "the source's own explicit tuning example: 0.7s cooldown chosen to match a faster, more spammable feel referenced from an existing shipped game, rather than derived from the animation's own clip length"
+  },
+  "cadence_representation": "Entirely outside this build's own scope, and correctly so per Cadence's animate-not-model/animate-not-script design: `export_to_studio` produces a playable animation asset id, and everything in this entry (the Equipped/Activated wiring, the cooldown gate, the load-once-per-equip discipline) is Roblox gameplay SCRIPTING the user writes afterward, not something Cadence authors. Worth recording anyway as the concrete 'what happens after export' context: a Cadence user exporting a weapon-swing clip will need exactly this kind of script to ever see it fire in a real game, and the cooldown-vs-clip-length relationship (a cooldown shorter than the clip's own duration lets a new swing interrupt the previous one's tail) is a real interaction worth the user's awareness even though Cadence does not control it.",
+  "control_surface": "Not applicable — outside Cadence's own tool surface by design.",
+  "detection_and_measurement_methods": "Not a motion measurement — a gameplay-scripting pattern with no motion data of its own to measure.",
+  "generation_or_modification_methods": "Not applicable to this build.",
+  "failure_modes": [
+    "loading the AnimationTrack inside the Activated handler (once per swing) rather than once at Equipped, wasting a load call on every single activation",
+    "omitting the cooldown gate entirely, letting a held or spammed activation input replay the swing continuously with no rate limit",
+    "setting a cooldown shorter than the animation clip's own play length without deciding deliberately whether that should let a new swing interrupt the previous one's tail or not"
+  ],
+  "roblox_considerations": "Built entirely from native Roblox APIs (`Tool.Equipped`, `Tool.Activated`, `Humanoid:LoadAnimation`, `AnimationTrack:Play`) — a standard, broadly-applicable pattern for any Tool-based action, not specific to swords or to this source's own game.",
+  "performance_implications": "Loading an AnimationTrack once per equip rather than once per activation avoids redundant load overhead on every single trigger pull, which matters more the higher the action's fire rate (this source's own tuned 0.7s cooldown implies a plausible several-times-per-second worst case).",
+  "examples": [
+    "`Tool.Equipped` resolving character/player/humanoid and calling `humanoid:LoadAnimation` once, storing the resulting track for reuse (video @ 07:02–07:29)",
+    "`Tool.Activated` checking a `cooldown` boolean, playing the pre-loaded track only if false, then setting it true and waiting `cooldownWeights` seconds before clearing it (video @ 07:37–07:53)",
+    "tuning the cooldown from its initial default down to 0.7 seconds specifically to allow the faster, more spammable swing cadence the source references from Bed Wars (video @ 10:25–10:36, confirmed in this session's own frame at t=10:29 showing the live playtest result)"
+  ],
+  "evidence_status": "video: https://youtu.be/UURYhAVph5g @ 06:50–10:36 — MonkeyDev (the presenter) builds and narrates the full script live, including the specific cooldown-tuning decision and its stated genre reference; UI/result confirmed in this session's own frame at t=10:29; experimental until validated"
+}

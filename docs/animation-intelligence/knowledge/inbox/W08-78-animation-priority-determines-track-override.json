@@ -1,0 +1,36 @@
+{
+  "concept": "animation_priority_determines_simultaneous_track_override",
+  "category": "advanced",
+  "definition": "Every Roblox animation carries a declared Priority (named tiers confirmed directly: Idle, Movement, Action, Core) set BEFORE export/publish, which determines which of several animation tracks playing on the SAME rig simultaneously visually wins — a locomotion animation should be Movement priority, and an action like a sword swing must be Action priority specifically so it overrides (plays visibly on top of) a concurrently-playing Movement-priority walk/run cycle rather than being hidden or fighting it.",
+  "purpose": "Let multiple animation tracks run on one character at once (a walk cycle plus a weapon swing plus an idle-breathing loop) with a well-defined, predictable rule for which one's pose wins on any joint they both touch, rather than an undefined last-track-wins or simultaneous-conflict result.",
+  "visible_effect": "An animation published at too LOW a priority for its role is either invisible (fully overridden by a higher-priority track already playing, e.g. a walk cycle) or fights/flickers against a competing track; set to the correct tier, it cleanly overrides what it should and yields to what it shouldn't (Core, the highest, is reserved above even Action).",
+  "psychological_or_gameplay_effect": "An action that fails to visibly override locomotion (wrong priority) reads as broken or unresponsive to the player, even though the underlying trigger/script logic worked correctly — the failure is invisible at the data layer and only shows up as 'the animation didn't play right.'",
+  "physical_interpretation": "Not applicable — a blending/override RULE, not a physical property of the motion itself.",
+  "use_cases": [
+    "any project running more than one animation track on the same rig at once (nearly all real gameplay: locomotion plus actions plus idle variation)",
+    "specifically: a held-weapon action animation, which must be set to Action priority (or higher) to visibly override a concurrently-playing Movement-priority locomotion track"
+  ],
+  "non_use_cases": [
+    "a rig that only ever plays exactly one animation track at a time, with no concurrent locomotion/idle layer to override — priority still exists as a property but has no visible consequence there",
+    "Cadence's own offline authoring/review of a single clip in isolation, where no second concurrent track exists to compete with (see cadence_representation)"
+  ],
+  "interactions": [
+    "tool_handle_cancollide_massless_grip_editor_construction, unlicensed_toolbox_animation_republish_anti_pattern (video 77, this same batch) — sibling weapon-pipeline entries; this one is the step that makes a correctly-built, correctly-attached weapon animation actually override locomotion correctly once triggered in a real running game, which those two do not by themselves guarantee",
+    "tool_activated_cooldown_gated_animation_playback (this same video/batch) — the SCRIPT that plays this track at runtime; priority is set once at export/publish time and is independent of how the play call itself is triggered"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented anywhere in this build today, as far as this session found: `export_to_studio`'s `IO.buildExportData` builds keyframe data for the Roblox bridge to publish, and nothing in this batch's reading of that path set or exposed a Priority value — worth a future session checking directly whether the bridge's `buildAnimation` sets a default Priority (and if so, which) or omits it entirely, since an omitted/wrong Priority is exactly the kind of defect that is invisible until the exported clip is actually tested alongside a concurrent locomotion track in Studio, which this build's own export path does not do.",
+  "control_surface": "`export_to_studio` is the relevant tool; whether it sets Priority was not verified in this session and should not be assumed either way.",
+  "detection_and_measurement_methods": "Not a motion measurement — a metadata property on the published Roblox Animation asset itself, set outside the keyframe data `ai/motion.js` measures.",
+  "generation_or_modification_methods": "Not implemented in this build; if `export_to_studio` does not already set one, the natural fix is exposing Priority as part of the export call's parameters (defaulting sensibly by declared intent/action-type, matching the pattern `ai/intent.js` already uses for other declared metadata).",
+  "failure_modes": [
+    "publishing an action animation at the default/wrong priority tier and having it silently fail to override a concurrently-playing locomotion track in actual gameplay — invisible until tested with both tracks running together, exactly the debugging gap this entry's own source video does not fall into (it sets Action explicitly) but which an export path with no priority control could produce for a Cadence user",
+    "setting an animation to Core priority when Action would do — reserving the highest tier for something that doesn't need to override everything else, leaving no higher tier available for something that genuinely does"
+  ],
+  "roblox_considerations": "A native Roblox `Animation`/`AnimationTrack` concept (`Enum.AnimationPriority`), fundamental to how ANY multi-track Roblox character animation setup behaves — not a Moon Animator peculiarity, though this source sets it from within Moon Animator's own publish flow.",
+  "performance_implications": "None.",
+  "examples": [
+    "'make sure priority is set to action... movement is used for stuff like walking animations and jumps, idle's just the player's idle actions, actions are used for stuff like sword animations' — stated directly before any posing begins, as a precondition of the whole tutorial (video @ 01:22–02:00)"
+  ],
+  "evidence_status": "video: https://youtu.be/UURYhAVph5g @ 01:22–02:00 — MonkeyDev (the presenter) states the priority tiers and the action-animation rule directly and sets it on screen before animating; transcript-only for this specific step (no frame lands in this sparse-scene-change stretch), corroborated by the same presenter's later successful in-game result where the sword swing does visibly override the character's stand/idle pose (confirmed in this session's own frame at t=10:29); experimental until validated"
+}

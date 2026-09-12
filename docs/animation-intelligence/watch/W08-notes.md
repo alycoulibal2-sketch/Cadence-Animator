@@ -7,7 +7,7 @@
 - [x] 75. Make Your Roblox Animations Feel REAL | Roblox Animation Tips 2026 — Devgrams and Draco (8:53)
 - [x] 76. How to Animate a Sword Slash [Moon Animator] — Thundey (24:36)
 - [x] 77. How to ANIMATE a Perfect Sword Swing in Roblox Studio! (EASY) — Nobel Courses (8:01)
-- [ ] 78. How to make WEAPON animations in ROBLOX STUDIO! [Moon Animator Tutorial] — MonkeyDev (11:29)
+- [x] 78. How to make WEAPON animations in ROBLOX STUDIO! [Moon Animator Tutorial] — MonkeyDev (11:29)
 - [ ] 79. How to ANIMATE Tools In Roblox Studio! — Rustysillyband (11:24)
 - [ ] 80. ROBLOX VFX Guide #1 - Particles — TrendyV2 (7:14)
 
@@ -265,4 +265,36 @@ practiced failure mode, not a hypothetical one.
 
 No capture candidate — a screen-recording tutorial throughout; the swing motion itself is someone
 else's uploaded animation, not a filmed performer, and not this presenter's own authored motion.
+
+## Video 78 — How to make WEAPON animations in ROBLOX STUDIO! — MonkeyDev (11:29)
+https://youtu.be/UURYhAVph5g — watched 2026-09-12, `balanced` detail, 35 frames (scene-aware, all 35
+candidates kept), captions transcript (223 segments). Dense, genuinely hands-on: build a sword swing
+in Moon Animator, export and publish it, then wire it into a real `Tool` with a full activation
+script — including a live, unscripted debugging detour that turned out valuable in its own right.
+
+**`animation_priority_determines_simultaneous_track_override`** — a genuinely new, structurally
+important Roblox concept not previously in the corpus: every animation carries a Priority (Idle <
+Movement < Action < Core, confirmed directly) that decides which of several simultaneously-playing
+tracks visually wins — an action animation must be Action priority specifically to override a
+concurrent Movement-priority locomotion track (@ 01:22–02:00). Checked directly against this build's
+own export path: this session could not confirm whether `export_to_studio`/`buildAnimation` sets a
+Priority at all, and flagged that as an open question for a future session rather than assumed either
+way — a wrong or unset priority is exactly the class of defect invisible until tested against a
+concurrent track, which this build's own export path does not do.
+
+**`tool_activated_cooldown_gated_animation_playback`** — the complete runtime script pattern that
+actually fires a published animation from a `Tool`: load the AnimationTrack once at `Equipped`, gate
+`Activated` behind a boolean cooldown flag, tune the cooldown VALUE as a deliberate gameplay-feel
+choice (0.7s, explicitly referenced against Bed Wars' faster spammable feel, not derived from the
+clip's own length, @ 10:25–10:36). Outside Cadence's own scope by design (gameplay scripting, not
+animating), but recorded as the concrete "what happens after `export_to_studio`" context a user needs.
+
+**Enriched `W08-77-tool-handle-cancollide-massless-grip-editor.json`** (my own file from this same
+batch): this video hits a THIRD required Handle property beyond video 77's CanCollide/Massless —
+`Anchored` left true silently blocks pickup entirely, tracked down over several confused live minutes
+before being identified and fixed (@ 08:06–09:52). Added as a new failure mode and example rather than
+a separate entry, since it's the same underlying "Handle property checklist" concept, not a new
+mechanism.
+
+No capture candidate — a screen-recording tutorial throughout, a block R6 rig only.
 
