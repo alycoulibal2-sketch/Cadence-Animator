@@ -6,7 +6,7 @@
 - [x] 74. 3 Must-Know Moon Animator 2 TIPS for Better Roblox Animations — TnxBlox (2:41)
 - [x] 75. Make Your Roblox Animations Feel REAL | Roblox Animation Tips 2026 — Devgrams and Draco (8:53)
 - [x] 76. How to Animate a Sword Slash [Moon Animator] — Thundey (24:36)
-- [ ] 77. How to ANIMATE a Perfect Sword Swing in Roblox Studio! (EASY) — Nobel Courses (8:01)
+- [x] 77. How to ANIMATE a Perfect Sword Swing in Roblox Studio! (EASY) — Nobel Courses (8:01)
 - [ ] 78. How to make WEAPON animations in ROBLOX STUDIO! [Moon Animator Tutorial] — MonkeyDev (11:29)
 - [ ] 79. How to ANIMATE Tools In Roblox Studio! — Rustysillyband (11:24)
 - [ ] 80. ROBLOX VFX Guide #1 - Particles — TrendyV2 (7:14)
@@ -235,4 +235,34 @@ per-limb-workflow entry's `failure_modes` rather than written up separately.
 
 No capture candidate — a screen-recording tutorial throughout (a block R6 dummy, not a filmed
 performer).
+
+## Video 77 — How to ANIMATE a Perfect Sword Swing in Roblox Studio! (EASY) — Nobel Courses (8:01)
+https://youtu.be/I1T5Rcm9g3E — watched 2026-09-12, `balanced` detail, 32 frames (scene-aware, all 32
+candidates kept), captions transcript (168 segments). Another mismatch worth flagging (third in this
+batch, after video 73): the batch list's one-line gloss calls this "a second sword swing to compare
+timings against," but the presenter never hand-animates a swing at all — this video is actually about
+BUILDING a holdable Tool from raw parts, then downloading and republishing someone else's premade
+animation rather than authoring one. No comparable timing data to the sword-slash entries exists.
+
+**`tool_handle_cancollide_massless_grip_editor_construction`** — the mechanical construction of a
+holdable Roblox `Tool` (a part renamed 'Handle', `CanCollide=false`, `Massless=true`, then a 'Tool
+Grip Editor' plugin sets the hand-grip offset and rotation, @ 02:15–03:48, confirmed in this
+session's own frame at t=03:29 showing the Grip Editor panel). Distinct from this batch's earlier
+weapon-attachment entries (an authoring-time weld inside an animator) — this is the prerequisite,
+in-game-equippable ITEM construction step those assume already happened. Out of Cadence's
+animate-not-model scope as a build step, consistent with this batch's video-71 verdict on the DIY
+face-plate rig.
+
+**`unlicensed_toolbox_animation_republish_anti_pattern`** — a real, demonstrated anti-pattern (same
+category as the merged `vibe_timing_anti_pattern`, W01): downloading a free community toolbox model
+purely to extract its bundled animation, then clicking "Publish to Roblox" to create a NEW asset
+under the presenter's own account, with no licence check or attribution at any point — presented as
+the recommended easy path, the chosen item's own majority thumbs-down ratio noted in passing but not
+treated as disqualifying (@ 04:10–05:21, confirmed in this session's own frame at t=06:51 showing the
+republished animation live in-game). Not a gap for Cadence — real evidence that this build's existing
+`add_to_library` licence-declaration refusal (Part 70/72) guards against a genuinely real, casually-
+practiced failure mode, not a hypothetical one.
+
+No capture candidate — a screen-recording tutorial throughout; the swing motion itself is someone
+else's uploaded animation, not a filmed performer, and not this presenter's own authored motion.
 

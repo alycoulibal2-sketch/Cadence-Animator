@@ -1,0 +1,38 @@
+{
+  "concept": "tool_handle_cancollide_massless_grip_editor_construction",
+  "category": "advanced",
+  "definition": "The mechanical construction of a holdable Roblox weapon/tool, distinct from attaching a prop to an already-posed rig in an animator: a modeled part (or union of parts) is renamed 'Handle' inside a `Tool` instance, given `CanCollide = false` (so it does not physically collide with other players while held/dropped) and `Massless = true` (so it does not affect the holding character's physics), and then a 'Tool Grip Editor' plugin is used to set exactly where and at what rotation the character's hand grips it — separately from the part's own modeled geometry/pivot.",
+  "purpose": "Produce a `Tool` a Roblox character can actually equip, hold correctly-oriented in the hand, and swing or drop, with physically sensible collision/mass behaviour while held.",
+  "visible_effect": "An unconfigured tool part either collides awkwardly with the world/other players while held, throws off the holding character's physics if not massless, or appears held at the wrong position/angle in the hand until the grip is explicitly set.",
+  "psychological_or_gameplay_effect": "Not applicable — a functional/technical setup step, not a viewer-facing effect on its own (though a badly-gripped tool would visibly look wrong in the hand).",
+  "physical_interpretation": "`CanCollide=false` and `Massless=true` are both explicit opt-outs from Roblox's default rigid-body physics for this part, chosen deliberately because a held weapon should behave as an extension of the character's own animated pose rather than as an independent physical object.",
+  "use_cases": [
+    "any weapon or tool meant to be equipped, held, and swung/used by a Roblox character via the standard `Tool`/`Handle` mechanism",
+    "setting a specific, deliberate hand grip point and rotation distinct from the part's own default pivot, rather than accepting wherever the part happens to attach by default"
+  ],
+  "non_use_cases": [
+    "a prop attached to a rig purely for offline animation authoring in a tool like Moon Animator (see `easyweld_join_in_place_preserves_relative_transform`, W08-71) — that is a different mechanism (a weld in an animator) solving a different problem (authoring-time attachment) than an in-game equippable `Tool`",
+    "a part that should physically collide or carry real mass while held (an intentionally heavy, physics-interacting held object) — the defaults this entry describes are for the common case, not a universal rule"
+  ],
+  "interactions": [
+    "easyweld_join_in_place_preserves_relative_transform, weapon_attach_under_root_avoids_subframe_chain_desync (this batch and W05-43) — sibling weapon-attachment entries at a different LAYER: those are about attaching a prop within an ANIMATION (a weld, a parenting choice); this entry is about constructing the actual in-game HOLDABLE ITEM the animation will later be played on, a prerequisite step those entries assume already happened",
+    "attach_item (`weapon_attach_under_root_avoids_subframe_chain_desync`'s own cadence_representation question) — this entry's Grip mechanism is Roblox's own OWN native equivalent of an attach offset, worth reading alongside that still-open question about `attach_item`'s offset-preserving behaviour"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Out of Cadence's own animate-not-model scope as a CONSTRUCTION step (building a `Tool`/`Handle`/Grip from raw parts is rig-building, not animating an existing rig) — consistent with this same batch's verdict on the video 71 DIY face-plate rig-building. Worth recording anyway as a completeness note: if a future capability ever imports or targets a Roblox `Tool` specifically (rather than a plain rig), its `CanCollide`/`Massless`/`Grip` properties are real, load-bearing state a faithful round-trip would need to preserve, not just its `Handle` part's mesh/appearance.",
+  "control_surface": "Not applicable — no tool-construction capability exists in this build.",
+  "detection_and_measurement_methods": "Not a motion measurement — a static property-configuration fact about a Roblox `Tool` instance.",
+  "generation_or_modification_methods": "Not applicable to this build.",
+  "failure_modes": [
+    "leaving `CanCollide` true on a held tool, causing it to physically shove or catch on other players/geometry while held or swung",
+    "leaving `Massless` false, letting a large tool part meaningfully affect the holding character's own physics (fall speed, balance) simply by being equipped",
+    "skipping the Grip Editor step and accepting wherever the part's own pivot happens to place it in the hand, producing an awkwardly-held weapon needing a manual rotate/offset fix after the fact (the source's own account: 'doesn't look the best just yet... let me just rotate it a bit')"
+  ],
+  "roblox_considerations": "This entire entry is Roblox-engine-specific: `Tool`, `Handle`, `CanCollide`, `Massless` and the Grip transform are all native Roblox concepts with no equivalent outside it.",
+  "performance_implications": "`Massless=true` avoids unnecessary physics simulation cost from a held part that need not affect the character's own mass/momentum.",
+  "examples": [
+    "a unioned sword part renamed 'Handle', set `CanCollide=false` and `Massless=true` explicitly and directly (video @ 02:15–02:26)",
+    "the Tool Grip Editor plugin used to set the exact hand grip position and a 90° rotation correction after the default grip looked wrong (video @ 02:51–03:48, confirmed in this session's own frame at t=03:29 showing the Tool Grip Editor panel open)"
+  ],
+  "evidence_status": "video: https://youtu.be/I1T5Rcm9g3E @ 02:15–03:48 — Nobel Courses (the presenter) demonstrates every step directly on screen, naming each property explicitly; UI confirmed in this session's own frame at t=03:29; experimental until validated"
+}

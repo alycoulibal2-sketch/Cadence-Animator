@@ -1,0 +1,36 @@
+{
+  "concept": "unlicensed_toolbox_animation_republish_anti_pattern",
+  "category": "advanced",
+  "definition": "A real, demonstrated workflow (presented as the recommended, easy way to get a weapon-swing animation, not flagged by the presenter as questionable): find a free community 'model' in the Roblox Toolbox that happens to bundle a premade animation, play that animation on your own rig inside the Animation Editor, then click 'Publish to Roblox' to create a NEW animation asset id under your own account — with no stated check of the original toolbox item's licence terms, no attribution, and no acknowledgment that the animation was authored by someone else before being republished as the presenter's own asset.",
+  "purpose": "Get a usable swing animation quickly without animating by hand — the video's own explicit selling point ('I do promise you don't need to know how to animate to do this').",
+  "visible_effect": "The end result is functionally identical to a hand-authored animation from the player's perspective; nothing in the workflow or its output visibly signals that the motion originated from another creator's uploaded model rather than the channel's own work.",
+  "psychological_or_gameplay_effect": "Not applicable to the in-game result; the effect that matters here is on ATTRIBUTION and OWNERSHIP, not on how the animation reads to a player.",
+  "physical_interpretation": "Not applicable.",
+  "use_cases": [
+    "Not a technique to adopt — recorded specifically as a real, demonstrated ANTI-PATTERN, per this programme's own established precedent (see `vibe_timing_anti_pattern`, W01) for documenting what NOT to do alongside the evidence that it actually happens in the wild"
+  ],
+  "non_use_cases": [
+    "reusing a toolbox animation whose licence/terms are actually checked and permit this use, with attribution preserved — the anti-pattern here is specifically the ABSENCE of that check, not toolbox reuse itself being inherently wrong",
+    "using a toolbox animation purely as local REFERENCE (watched, not republished as one's own asset) — a materially different, unproblematic use the source does not actually demonstrate but which this entry's criticism does not apply to"
+  ],
+  "interactions": [
+    "vibe_timing_anti_pattern (merged, W01) — the established precedent for recording a real anti-pattern as its own entry precisely because the evidence of it happening is itself valuable, not because it should be copied",
+    "the Part 70/72 licence gates already built in this codebase (`add_to_library` refusing an entry with no `licenseOrOwnership.terms` + explicit `redistributable` boolean, per [[project_cadence_animation_intelligence]]) — this entry is real-world evidence for exactly the failure mode those gates exist to prevent: a creator casually re-publishing someone else's work as their own with no licence declaration at all"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly validates an existing design decision rather than naming a gap: Cadence's `add_to_library` already REFUSES an entry with no explicit `licenseOrOwnership.terms` and `redistributable` boolean, and a user knowledge entry's `evidence_status` must name a real source — this entry is concrete, real-world evidence that the failure mode those gates guard against is not hypothetical. Nothing to build here; this is a confirmation-of-design-correctness finding, the same shape as W07's 'Cadence was already ahead' findings from that batch, just for a licensing gate rather than a rendering capability.",
+  "control_surface": "`add_to_library`'s existing licence-declaration refusal is the relevant control surface, and it already blocks the unattributed-republish pattern this entry describes if the same workflow were attempted through Cadence.",
+  "detection_and_measurement_methods": "Not a motion measurement — a provenance/licensing question. Not automatically detectable from animation data alone (a republished animation is indistinguishable in its keyframe data from an original one); only a declared source/licence field, which this workflow's real-world example completely omits, could ever surface it.",
+  "generation_or_modification_methods": "Not applicable.",
+  "failure_modes": [
+    "treating 'it plays correctly and looks fine' as sufficient justification for publishing a reused asset under one's own name, with no licence check at all — exactly what this source does, presented as the easy/recommended path rather than flagged as a concern",
+    "the source's own passing acknowledgment that most viewers 'voted thumbs down' on the specific toolbox item chosen, followed by using it anyway — a signal of community distrust of the specific asset noted but not acted on"
+  ],
+  "roblox_considerations": "Specific to the Roblox Toolbox/Creator Store's own publish/republish mechanics, where 'Publish to Roblox' on an imported animation creates a genuinely new, separately-owned asset id with no structural link back to the original toolbox item.",
+  "performance_implications": "None.",
+  "examples": [
+    "'go to the toolbox and you're going to search for a sword swing... these aren't like normal models, we won't use them, we'll only use the animation inside of them' — selecting a community model purely to extract its bundled animation, with the chosen item's own thumbs-down ratio noted but not treated as disqualifying (video @ 04:10–04:40)",
+    "clicking 'Publish to Roblox' on the extracted animation and naming it as the presenter's own new asset, with no licence or attribution step at any point in the sequence (video @ 05:07–05:21, confirmed in this session's own frame at t=06:51 showing the resulting animation played on a live in-game character)"
+  ],
+  "evidence_status": "video: https://youtu.be/I1T5Rcm9g3E @ 04:10–05:21 — Nobel Courses (the presenter) demonstrates the full workflow directly and explicitly recommends it as the easy path, with no licence caveat stated at any point; visually confirmed in this session's own frame at t=06:51 (the republished animation playing on a live character); experimental until validated"
+}
