@@ -1,0 +1,36 @@
+{
+  "concept": "camera_slaved_to_animated_proxy_part",
+  "category": "advanced",
+  "definition": "Rather than keying the camera item's own CFrame track directly, attach the camera to a separate, otherwise-invisible part via an 'Attach to Part' toggle, key that toggle ON once, then turn it back OFF to freely move/rotate the now-unlocked part exactly like any other animated object (including rotating it, which is stated as the main reason to use this indirection at all), key the part's own motion, and finally re-enable 'Attach to Part' so that during playback the camera follows and matches the part's animated CFrame exactly.",
+  "purpose": "Animate a camera move using the same ordinary move/rotate/keyframe workflow used for any other object, including rotation, rather than whatever more constrained or less familiar controls the camera item's own direct CFrame keying offers.",
+  "visible_effect": "During authoring, the proxy part is visible and freely manipulable like any block; during playback, the camera itself is not visible (as cameras never are) but frames exactly the path and rotation the proxy part was keyed to.",
+  "psychological_or_gameplay_effect": "Not applicable — an authoring-workflow choice, not a viewer-facing effect; the resulting camera motion reads however the underlying keyed path and rotation reads.",
+  "physical_interpretation": "None — a rig-authoring indirection. Functionally the proxy part acts as the camera's parent/target, so animating the part is equivalent to animating the camera's CFrame by one level of indirection.",
+  "use_cases": [
+    "an animator who finds keying an ordinary part's position/rotation more familiar or more directly controllable than the camera item's own dedicated controls, and wants camera rotation specifically (the source's own stated main reason for the indirection)",
+    "reusing the same generic move/rotate/keyframe muscle memory and tooling for a camera move as for any other animated object, rather than learning the camera tool's own distinct interface"
+  ],
+  "non_use_cases": [
+    "a tool whose direct camera CFrame keying is already just as capable and convenient as animating a generic part — the indirection adds a step with no benefit in that case",
+    "a camera move that needs a property only the camera item itself exposes (e.g. field of view) — a proxy part carries no FOV, so that part of the shot still has to be keyed on the camera item directly regardless of this technique"
+  ],
+  "interactions": [
+    "easyweld_join_in_place_preserves_relative_transform (W08-71, this same batch) — a sibling case of routing an animated relationship through an attach/parent mechanism rather than keying the dependent item directly; this entry is the same pattern applied to a camera specifically, with the added wrinkle of a TOGGLE the animator switches off to pose the parent and back on to re-establish the slaved relationship",
+    "low_field_of_view_reads_cinematic (W07-67, enriched W07-68, and again in this batch's video 71) — this video keys FOV to 35 by the same by-now-familiar convention (@ 02:10), a further confirmation rather than a new finding; see this batch's notes on the propagation question already flagged from video 71"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence's `add_camera` gives a camera its own directly keyable CFrame/FOV tracks already, so the specific problem this technique works around (a camera tool that is somehow less capable or less familiar than generic part animation) does not obviously apply — Cadence's camera is not a shape-less special case requiring a proxy. The one genuinely open question this raises and does not resolve: whether Cadence's camera tracks support the same range of rotation control as an ordinary item's tracks, since the source names rotation specifically as the reason a proxy was worth the extra indirection at all — worth checking directly against `add_camera`'s own track set rather than assumed either way.",
+  "control_surface": "`add_camera` already exposes CFrame/FOV as directly keyable tracks; no proxy-object indirection exists or is needed in this build's own data model.",
+  "detection_and_measurement_methods": "Not a motion measurement — an authoring-workflow choice with no resulting difference in the final keyed data (a camera CFrame track looks identical whether it was keyed directly or copied from a proxy part).",
+  "generation_or_modification_methods": "Not applicable to Cadence directly, since the indirection this entry describes has no analogue need here.",
+  "failure_modes": [
+    "forgetting to re-enable 'Attach to Part' after posing the freed proxy, leaving the camera pointed wherever it was before the proxy's new motion was keyed",
+    "keying the proxy's motion while 'Attach to Part' is still ON, which (per the source's own workflow order) would move the camera immediately rather than letting the proxy be posed independently first"
+  ],
+  "roblox_considerations": "A Moon-Animator-specific UI indirection; the underlying Roblox mechanism (a Camera's CFrame following an arbitrary part) is an ordinary scripted or animated relationship, not a Moon Animator peculiarity.",
+  "performance_implications": "None — an authoring-time indirection with no runtime cost difference from keying the camera directly.",
+  "examples": [
+    "the presenter attaches the camera to a small part, toggles 'Attach to Part' off, moves and ROTATES the part freely, then toggles it back on so the camera matches the part's keyed path on playback, naming rotation specifically as the main reason for the indirection (video @ 06:56–08:01, confirmed in this session's own frame at t=07:20 showing the camera item's attach-to-part properties panel over a small floating part in the workspace)"
+  ],
+  "evidence_status": "video: https://youtu.be/dqAAa9aubM8 @ 06:56–08:01 — DatBoiEle (the presenter) demonstrates the full attach/detach/re-attach workflow directly and states the rotation motivation explicitly; UI confirmed in this session's own frame at t=07:20; experimental until validated"
+}

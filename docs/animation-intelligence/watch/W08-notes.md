@@ -1,7 +1,7 @@
 # W08 notes — videos 71–80 (E. Roblox and Moon Animator)
 
 - [x] 71. How I Animate: An Unofficial Moon Animator 2 Tutorial — Tycoon (45:46)
-- [ ] 72. How to Animate in ROBLOX the RIGHT way [NEW] {Tutorial} — DatBoiEle (10:47)
+- [x] 72. How to Animate in ROBLOX the RIGHT way [NEW] {Tutorial} — DatBoiEle (10:47)
 - [ ] 73. How to Make SUPER SMOOTH Roblox Animations with Moon Animator 2! | Beginner to Pro Tutorial — TnxBlox (16:56)
 - [ ] 74. 3 Must-Know Moon Animator 2 TIPS for Better Roblox Animations — TnxBlox (2:41)
 - [ ] 75. Make Your Roblox Animations Feel REAL | Roblox Animation Tips 2026 — Devgrams and Draco (8:53)
@@ -79,4 +79,40 @@ COPIED between Roblox tutorial creators rather than independently re-derived eac
 as a cross-check, not a third independent data point, when W07-67 is next touched.
 
 No capture candidate — a screen-recording software tutorial throughout, no filmed human motion.
+
+## Video 72 — How to Animate in ROBLOX the RIGHT way [NEW] {Tutorial} — DatBoiEle (10:47)
+https://youtu.be/dqAAa9aubM8 — watched 2026-09-12, `balanced` detail, 92 frames (scene-aware, all 92
+candidates kept), captions transcript (355 segments). A comedic, fast-paced personal-workflow recap
+covering the same ground as video 71 (blockout poses, M-key smoothing, face decals, camera, export)
+in a fifth of the time — mostly confirmations and one genuinely new technique.
+
+**`camera_slaved_to_animated_proxy_part`** (new entry) — rather than keying the camera's own CFrame
+directly, attach it to a separate part via an 'Attach to Part' toggle, switch the toggle off to pose
+the now-freed part with ordinary move/rotate/keyframe controls (rotation named directly as the main
+reason for the indirection), then switch it back on so the camera slaves to the part's keyed motion
+on playback (@ 06:56–08:01, confirmed in this session's own frame at t=07:20). Cadence's `add_camera`
+already exposes CFrame/FOV as directly keyable tracks, so the specific problem this works around may
+not apply — but the video's own emphasis on ROTATION specifically as the reason for the indirection
+is worth checking against `add_camera`'s actual rotation support directly rather than assumed.
+
+**Enriched `W08-71-keyed-decal-property-track-animates-face.json`** (my own file from this same
+batch, not a W07/earlier-batch file) rather than writing a duplicate: this video confirms the same
+keyed-`Decal.Texture` face technique from video 71, but applied directly to R6's own BUILT-IN face
+decal with no custom welded parts needed at all (@ 05:20–06:26) — a simpler variant of the same
+mechanism, not a different one. Updated that entry's `definition`/`use_cases`/`examples`/
+`evidence_status` to cover both variants; the `cadence_representation` finding (today's `faceLayers`
+is a static per-item property, not a keyable mid-clip track) is unchanged by this addition.
+
+Cross-checks, not new entries: (1) a third/fourth confirmation of the `low_field_of_view_reads_
+cinematic` card's 35-FOV-for-cinematic convention (@ 02:10) — noted, not folded in (W07's file is
+not mine to edit); (2) the same 'select all, press M to smooth, then select all again and try quad
+in-out, selectively reverting areas that "look clunky" back to linear' workflow already implicit in
+video 71's easing content — supporting evidence for the existing spacing/pacing cards, not a new
+entry; (3) the full save → export rigs → upload to Roblox → copy animation id → paste into a
+play-animation script pipeline (@ 09:06–10:26) — confirms Cadence's own `export_to_studio` already
+collapses this entire multi-step manual pipeline into one MCP call, another case (like W07's) of
+Cadence's own tooling already being ahead of the manual technique being taught.
+
+No capture candidate — a screen-recording tutorial throughout (the presenter's own on-camera intro
+segment is a real person, but shows no motion worth capturing as a reference).
 
