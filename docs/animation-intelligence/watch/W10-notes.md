@@ -8,7 +8,7 @@
 - [x] 96. Why Your Stepped Animation Sucks in Spline — Sir Wade Neistadt (8:59)
 - [x] 97. Tips for Polishing Animation from a Disney Animator — Sir Wade Neistadt (22:09)
 - [x] 98. Animation Critique: How To Instantly Improve Your Blender Animation With Easy Tricks — CG Cookie (35:55)
-- [ ] 99. How to use video reference for Animation — Chester Sampson (11:40)
+- [x] 99. How to use video reference for Animation — Chester Sampson (11:40)
 - [ ] 100. The COMPLETE Guide to Reference for Feature Animation — owenferny (38:06)
 
 ---
@@ -360,3 +360,39 @@ filmed human performance.
 
 **No new checks queued** — all three findings are about review-OUTPUT structure and communication, not
 new runtime measurements.
+
+## Video 99 — How to use video reference for Animation — Chester Sampson (11:40)
+https://youtu.be/UkWnwHwMapQ — watched 2026-09-12, `transcript` detail, captions transcript (368
+segments). A worked, end-to-end demonstration of turning a reference clip into a blocking pass, with a
+genuinely algorithmic key-pose criterion. Three entries.
+
+**`cog_extrema_and_contacts_define_reference_key_poses`** — track the character's center of gravity as
+a line across the reference; every LOCAL EXTREME of that line (a real turning point) plus every contact
+is a key pose (@ 0:44–2:46). Checked directly against `ai/motion.js`: `sampleMotion` already samples an
+arbitrary part's trajectory (a COG proxy could be passed today), but no local-extrema/turning-point
+detector exists as a named measurement — the raw data is there, the specific 'find the turning points'
+step is not built.
+
+**`contact_poses_derived_as_breakdowns_between_extremes_not_posed_independently`** — pose only the
+extremes; generate every contact between them as a BIASED BREAKDOWN, then adjust only the feet/roll —
+'you don't have to make a pose from scratch[,] you get a lot for free' (@ 3:48–5:35). Exactly what
+`ai/plan.js authorMotion`'s breakdown step already does, per the video 92/94 findings this same batch —
+a fourth independent confirmation of the same mechanism, this time applied specifically to deriving
+contacts.
+
+**`reference_fidelity_then_deliberate_retiming_departure`** — get a faithful blocking pass matching the
+reference's own timing FIRST, then a separate, explicit stage to retime deliberately toward a style
+(hold longer here, snap faster there) — with a clean side-by-side comparison at the end proving the
+retime alone (no re-posing) already reads more cartoony (@ 8:20–10:15). Directly buildable with
+`move_keyframes`.
+
+**Not written up separately**: exaggerating lead/follow elements 'that aren't as much in the reference'
+restates existing lead/follow corpus ground; three-quarter angles reading better than front-on for CG
+characters is a real but generic CG-modeling observation with no Cadence-specific hook.
+
+**Capture candidates: none** — a Maya viewport screen recording synced to a reference clip via
+Keyframe Pro, no filmed human performance directly usable (the reference clip itself is third-party
+stock footage, not something this session could capture).
+
+**No new checks queued** — the strongest finding (COG-extrema detection) is flagged as buildable-today
+in its own entry rather than queued separately, since it names the exact missing measurement already.

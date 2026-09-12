@@ -1,0 +1,35 @@
+{
+  "concept": "contact_poses_derived_as_breakdowns_between_extremes_not_posed_independently",
+  "category": "advanced",
+  "definition": "Pose only the COG-extreme key poses first (per cog_extrema_and_contacts_define_reference_key_poses, this same batch); do NOT pose the contacts between them from scratch. Instead, generate each contact as a BREAKDOWN biased toward whichever adjacent extreme it is closer to (using a tween/breakdown tool), snap only the feet to the actual contact position, and adjust just the foot roll and lead/follow — 'doing it this way you don't have to make a pose from scratch and you get a lot for free[,] and you basically just then have to go through and create arcs[,] lead and follow[,] a bit of asymmetry'.",
+  "purpose": "Save real posing effort: a contact pose interpolated from the two extremes that already bracket it already carries most of the correct body shape (weight distribution, silhouette) for free, leaving only the small, specific adjustments (foot contact, roll, timing bias) that actually differ from a straight interpolation.",
+  "visible_effect": "A contact pose built this way shares most of its shape with whichever neighbouring extreme it is biased toward, with only the feet/legs and a few lead/follow details differing — rather than being an independently-designed pose that happens to look similar.",
+  "psychological_or_gameplay_effect": "not applicable — a workflow-efficiency technique, not a viewer-facing effect distinct from ordinary correct posing.",
+  "physical_interpretation": "A body's overall shape changes continuously between two extremes; a real contact frame's pose IS mostly determined by where it falls along that continuum, so treating it as an interpolation with local correction reflects how the body actually got there, rather than treating it as an independent decision.",
+  "use_cases": [
+    "any contact pose (a foot-plant, a hand-touch) that falls between two already-posed extremes — derive it as a biased breakdown rather than posing it independently",
+    "reducing redundant posing work across a whole reference-based blocking pass"
+  ],
+  "non_use_cases": [
+    "a contact pose that genuinely needs a body shape unlike either neighbouring extreme (a distinct acting choice at that exact frame), where deriving it by interpolation would miss the intended shape entirely"
+  ],
+  "interactions": [
+    "cog_extrema_and_contacts_define_reference_key_poses (this same batch, video 99) — the companion technique this one depends on: extremes must be identified and posed first before a contact can be derived as a breakdown between them.",
+    "progressive_spacing_via_pose_density_before_curve_interpolation and breakdown_bias_symmetry_default_convention (this same batch, video 94) — the same underlying `authorMotion` breakdown/bias mechanism, here applied specifically to deriving a CONTACT pose rather than to general in-between spacing."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly matched by an existing Cadence mechanism, verified in this session (video 92/94 findings, this same batch): `ai/plan.js`'s `authorMotion` breakdown step already generates an in-between pose at a stated bias fraction between two key poses — deriving a contact pose this way, then only adjusting the feet/roll on top, is exactly the breakdown step's own intended use, not a new capability.",
+  "control_surface": "`authorMotion`'s breakdown step (`bias`), followed by targeted per-joint adjustment (ordinary `set_keyframe`) for the feet/roll/lead-follow details that need to differ from the straight interpolation.",
+  "detection_and_measurement_methods": "not measurable in this build — a posing-efficiency technique, not a property of a resulting track.",
+  "generation_or_modification_methods": "`authorMotion`'s breakdown step already generates exactly this kind of biased in-between pose; no new capability required.",
+  "failure_modes": [
+    "posing every contact independently from scratch, duplicating shape information that a biased breakdown from the adjacent extremes would have provided for free",
+    "deriving a contact as a breakdown without then adjusting the feet/roll/lead-follow, leaving foot sliding or a missed contact position"
+  ],
+  "roblox_considerations": "None specific — a pure authoring-efficiency technique independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'instead[,] what I do is I create those extremes first and then I make breakdowns which I interpolate between in order to get those contacts... doing it this way you don't have to make a pose from scratch and you get a lot for free' (transcript 3:58-4:15), with the specific follow-up adjustment named: 'I'm going to snap those feet to the contact[,] but then I'm going to add more roll... and basically... make this pose with the lead and follow as a breakdown rather than as an entire pose' (transcript 4:33-4:46)"
+  ],
+  "evidence_status": "video: https://youtu.be/UkWnwHwMapQ @ 3:48-5:35 — Chester Sampson demonstrates deriving multiple contact poses as biased breakdowns between already-posed extremes, transcript-only per this video's detail setting; cross-checked in this session against `ai/plan.js`'s breakdown/bias mechanism (already verified in videos 92/94, this same batch); experimental until validated"
+}

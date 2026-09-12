@@ -1,0 +1,38 @@
+{
+  "concept": "reference_fidelity_then_deliberate_retiming_departure",
+  "category": "advanced",
+  "definition": "A two-stage procedure for moving from reference to a finished stylized blocking pass: FIRST reproduce the reference faithfully (its own extremes, contacts, and breakdowns, plus any additional in-between poses needed purely to describe the motion clearly — still following the reference's own timing and shape); ONLY THEN, as an explicit separate stage, deliberately detach from the reference's own timing and RETIME it — holding some poses longer, snapping faster between others — to push the piece toward the intended style (e.g. cartoony: hit a pose, hold, flick out, hit another; versus realistic: continuous, few true holds).",
+  "purpose": "Separate 'did I capture what the reference actually shows' from 'how do I want this to depart from realism for style', so a stylized push is a deliberate, comparable choice made against a known-faithful baseline, rather than an accidental drift introduced while still trying to read the reference correctly.",
+  "visible_effect": "The faithful stage's blocking pass, played back, matches the reference's own timing and weight; the departure stage changes hold durations and snap speed between the SAME poses, without changing what the poses themselves are.",
+  "psychological_or_gameplay_effect": "A stylized (cartoony) hold-and-snap rhythm reads as more graphic and posed; the reference's own more continuous, realistic timing reads as more grounded — the technique lets an animator choose deliberately how far to push toward either, rather than the departure happening as an unintentional side effect of imperfect reference-reading.",
+  "physical_interpretation": "Real motion (and faithful reference) has continuous acceleration with no true zero-velocity holds at a pose; a stylized/cartoony convention deliberately introduces holds (a genuine pause at a pose) that real physics would not produce, then compensates by moving unusually fast between them to keep the overall duration similar.",
+  "use_cases": [
+    "any reference-based shot where the target style departs from raw realism — get a faithful pass first, then retime deliberately as a distinct second stage",
+    "choosing WHICH poses to hold longer (ones judged 'cool' or storytelling-important) versus which to snap through faster, as a deliberate creative decision made with the faithful timing already established as a comparison point"
+  ],
+  "non_use_cases": [
+    "a shot intended to stay as close to realistic/reference-accurate timing as possible, where no deliberate retiming-departure stage is wanted"
+  ],
+  "interactions": [
+    "cog_extrema_and_contacts_define_reference_key_poses and contact_poses_derived_as_breakdowns_between_extremes_not_posed_independently (this same batch, video 99) — both describe the FAITHFUL first stage this entry's procedure builds on; this entry is specifically about the SEPARATE, later departure stage.",
+    "move_keyframes (existing Cadence tool) is literally named as the mechanism: 'just by moving those keys around we have all of the information there... and we've just re-timed it'."
+  ],
+  "style_variations": {
+    "realistic": "minimal or no retiming departure from the faithful reference pass",
+    "cartoony/stylized": "deliberate holds on chosen poses with faster snaps between them, explicitly contrasted against the reference's own more continuous timing"
+  },
+  "cadence_representation": "Directly achievable today with an existing tool, confirmed by the video's own account matching it almost exactly: `move_keyframes` ('shift a list of keyframes in time by dt frames') applied to already-placed keys is exactly the retiming mechanism this procedure needs — no new capability required, only the two-stage DISCIPLINE (faithful first, deliberate retiming second) that decides when and how much to use it.",
+  "control_surface": "`move_keyframes`, applied in a distinct, later pass after an initial reference-faithful blocking pass is already complete.",
+  "detection_and_measurement_methods": "not measurable in this build — a workflow-staging discipline; the RESULT (a hold followed by a fast snap versus continuous motion) is measurable via `ai/motion.js sampleMotion`'s velocity profile, which would show near-zero velocity during a genuine hold versus continuous motion in a faithful realistic pass.",
+  "generation_or_modification_methods": "`move_keyframes` — already sufficient; no new capability required.",
+  "failure_modes": [
+    "retiming before the faithful pass is actually correct, conflating 'the reference wasn't read correctly' with 'the style deliberately departs from the reference', which makes it hard to tell which problem is being solved",
+    "applying stylization pressure to every aspect at once (poses, arcs, timing, spacing) in one pass rather than starting with timing alone — the presenter's own stated approach was to retime FIRST and treat the rest as a later, separate pass"
+  ],
+  "roblox_considerations": "None specific — a pure authoring-workflow procedure independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'this is where we start to detach from the reference[.] right now I'm going to un-tap the reference completely and we're just going to have a look at the timing specifically... so just by moving those keys around we have all of the information there... and we've just re-timed it to make it feel a bit more cartoony' (transcript 8:28-10:09), and the explicit realistic-vs-cartoony contrast: 'in real life there's more of a consistent movement[,] everything is continuously moving[,] nothing's really held[.] being cartoony animation[,] we hit a pose[,] we flick out [of] a pose[,] we hit another pose' (transcript 9:02-9:13)"
+  ],
+  "evidence_status": "video: https://youtu.be/UkWnwHwMapQ @ 8:20-10:15 — Chester Sampson demonstrates the faithful-then-retime procedure directly, including a side-by-side comparison against the original reference at the end, transcript-only per this video's detail setting; cross-checked in this session against `move_keyframes`'s MCP tool description; experimental until validated"
+}
