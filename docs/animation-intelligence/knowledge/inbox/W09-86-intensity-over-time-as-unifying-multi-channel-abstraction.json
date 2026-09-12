@@ -1,0 +1,36 @@
+{
+  "concept": "intensity_over_time_as_unifying_multi_channel_abstraction",
+  "category": "essential",
+  "definition": "Rather than reasoning separately about every animatable channel an effect exposes (position, velocity, scale, color, rotational velocity, transparency, lifetime, emission rate, UV scroll, dissolve, and more), collapse the design question of timing down to a single conceptual curve — \"intensity,\" meaning roughly how eye-grabbing the effect is at each moment — sketch or judge THAT one curve first, then decide afterward which combination of underlying channels will realize it.",
+  "purpose": "Make an otherwise combinatorially overwhelming design problem (potentially a dozen simultaneously-animated channels) tractable, by giving the artist one abstract quantity to design against instead of many literal ones.",
+  "visible_effect": "The same perceptual \"intensity\" curve (e.g. a sharp rise and slow decay) can be achieved through brightness, motion speed, scale, flicker, or any combination — the AUDIENCE reads one unified impression of building/peaking/fading regardless of which specific channels carry it.",
+  "psychological_or_gameplay_effect": "Named directly by the source: \"how eye-grabbing is it at that moment\" is the entire content of the abstraction — it is explicitly a perceptual simplification, acknowledged by the source as \"an oversimplification,\" adopted because reasoning about every literal channel at once is unworkable.",
+  "physical_interpretation": "Not a physical quantity — a deliberate design abstraction over several different physical/rendering channels that happen to jointly produce a single perceptual impression.",
+  "use_cases": [
+    "planning any effect's overall timing/read BEFORE committing to which specific properties (brightness vs. scale vs. speed vs. flicker) will implement it",
+    "communicating a desired timing to a collaborator or reviewer without needing to specify exact keyframe values on every channel"
+  ],
+  "non_use_cases": [
+    "final implementation — the abstraction is explicitly a planning tool; the actual authored result still has to set real values on real channels"
+  ],
+  "interactions": [
+    "lead_overload_process_three_beat_timing_structure (this same video) — the three-beat structure is most naturally described AS an intensity-over-time curve (rise, peak, decay), and the source uses exactly this framing throughout",
+    "archetype_intensity_curves_by_effect_category (this same video) — the concrete payoff of this abstraction: once intensity is the single design axis, distinct effect categories (missile, explosion, blinking light, portal) can each be given their own named, reusable curve SHAPE independent of which channels realize it"
+  ],
+  "style_variations": {},
+  "cadence_representation": "VFXSpec's `timing` envelope already drives exactly one channel directly — `@rate` — as the closest existing analogue to an \"intensity\" proxy, but it is one specific channel, not a declared abstraction that could be re-realized through scale, color, or transparency instead. Cadence has no explicit \"design the perceptual intensity curve first, bind it to channels second\" authoring step; a caller wanting this workflow today would have to informally decide on an intensity shape and then manually choose which of `compile_effect`'s fields (rate, scale, colorStart/colorEnd) approximate it.",
+  "control_surface": "`compile_effect`'s `timing` envelope (bound to `@rate`) is the nearest existing single-channel proxy; no field represents a channel-independent \"intensity\" design curve.",
+  "detection_and_measurement_methods": "not measurable in this build as a unified quantity — `ai/motion.js` measures individual channels (velocity, key density, etc.) separately, with nothing that combines them into one perceptual \"how eye-grabbing\" measure.",
+  "generation_or_modification_methods": "not applicable — no unified intensity control surface to generate from.",
+  "failure_modes": [
+    "trying to hand-tune every channel independently without first deciding what the overall intensity shape should be, producing a technically-animated but perceptually incoherent result",
+    "over-relying on the abstraction and forgetting that different channels reaching the SAME nominal \"intensity\" can still look different depending on which channel carries it (the source's own acknowledged oversimplification)"
+  ],
+  "roblox_considerations": "None specific — a conceptual design tool independent of engine.",
+  "performance_implications": "None directly.",
+  "examples": [
+    "the slide sequence building up the problem explicitly, escalating from a single Position/Time graph through \"Position, Velocity\" then \"Position, Velocity, Scale, Color\" to a cluttered ten-plus-channel graph (\"Position, Velocity, Scale, Color, Rotational Velocity, Transparency, Lifetime, Emission Rate, UV Scroll, Dissolve, [Insert Feature]\"), confirmed directly in this session's own frame reads (video @ 12:20–13:09)",
+    "\"to simplify it... we're just going to talk about intensity over time... how eye-grabbing is it at that moment\" (video @ 13:41–13:55)"
+  ],
+  "evidence_status": "video: https://youtu.be/WLMVpcK0WvA @ 12:20–13:55 — the presenter builds up the multi-channel problem explicitly on slides confirmed in this session's own frame reads, then states the intensity abstraction as the deliberate simplification; experimental until validated"
+}

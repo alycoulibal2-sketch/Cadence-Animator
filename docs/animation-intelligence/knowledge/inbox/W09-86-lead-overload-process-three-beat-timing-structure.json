@@ -1,0 +1,38 @@
+{
+  "concept": "lead_overload_process_three_beat_timing_structure",
+  "category": "essential",
+  "definition": "The single foundational structure for effect timing, stated as a cognitive/perceptual rule rather than a purely technical one: lead the brain with anticipation, overload the brain at the moment it has been waiting for, then give the brain time to process what just happened — formalized on the source's own slide as \"ALL effects should have anticipation and dissipation\" and \"OUTRO should be considered as a secondary effect, with a lower value, saturation, and opacity.\"",
+  "purpose": "Give an effect's timing a reliable, general-purpose three-beat shape (anticipation → climax → dissipation) that reads as satisfying regardless of the specific effect, by matching how attention itself builds, peaks and releases rather than by convention alone.",
+  "visible_effect": "An effect visibly builds before its main moment, spikes sharply at that moment, then recedes at a DIFFERENT (typically slower, lower-key) pace afterward, rather than starting and ending at uniform intensity or ending as abruptly as it began.",
+  "psychological_or_gameplay_effect": "Named directly by the source as the mechanism itself: anticipation primes attention, the climax satisfies it, and the dissipation phase gives the brain time to process what happened — skipping any one of the three beats (most often the outro) is explicitly called out as leaving the moment feeling unrewarding even when the climax itself is fine.",
+  "physical_interpretation": "Loosely modeled on real cause-and-effect timing (a wind-up before a strike, a release and settle afterward) but stated here primarily as a perceptual/attentional claim about the audience, not a physical-accuracy claim about the effect.",
+  "use_cases": [
+    "essentially every effect with a distinct climactic moment — the source frames this as the one rule to remember above all others in the entire timing discussion",
+    "specifically recommends folding in character/animation anticipation (a wind-up, a raised arm) wherever gameplay timing allows it, to reinforce the effect's own anticipation beat"
+  ],
+  "non_use_cases": [
+    "an effect with genuinely no time budget for a build-up (the source's own caveat: \"you don't always have time in a video game to do a build up sometimes the effect needs to happen immediately\") — the anticipation beat is dropped, not forced, when gameplay responsiveness requires an instant effect"
+  ],
+  "interactions": [
+    "layered_anticipation, follow_through_backfill_hold, recovery_weight_substitution (all compiled, W01) — the same three-beat idea already exists in this corpus for character/rig motion; this entry is the same structure independently arrived at for VFX intensity specifically, from a real-time game VFX perspective rather than a character-animation one",
+    "decay_duration_bounded_by_gameplay_relevance_not_aesthetics (this same video) — refines the THIRD beat specifically: the dissipation phase should be present, but its DURATION is bounded by gameplay legibility, not open-ended",
+    "timing_envelope_shape_as_sole_differentiator_between_similar_abilities (this same video) — two effects can share this exact three-beat skeleton while still reading as distinct abilities, by varying each beat's relative proportions"
+  ],
+  "style_variations": {},
+  "cadence_representation": "This is close to an exact match for `ai/vfxspec.js`'s existing Part 39 timing envelope: `lead`/`attack` (anticipation), `peak` (the overload moment), and `sustain`/`decay` (the processing/dissipation phase) are already the compiled fields, and `VFXSPEC_TIMING_DEFAULTS` already biases toward a short attack and longer decay by default. This video is strong independent, professional-industry confirmation that Cadence's existing model reflects real practice, articulated here as a perceptual principle rather than only a technical shape — worth citing as the WHY behind the existing `lead`/`decay` asymmetry.",
+  "control_surface": "`compile_effect`'s `timing` fields (`lead`, `attack`, `sustain`, `decay`, `peak`) already implement all three beats.",
+  "detection_and_measurement_methods": "`validate_effect_timing` already checks peak-vs-event alignment and flags a degenerate (zero-frame) attack or decay — the closest existing check to \"does this effect actually have all three beats.\" Nothing currently checks for a MISSING outro/decay phase specifically (a decay of exactly the clamped minimum could still pass validation while reading as absent) — worth a look for a future check.",
+  "generation_or_modification_methods": "`compile_effect`'s `timing` fields generate all three beats already; nothing currently defaults toward THIS specific ratio (short lead/attack, longer decay) unless the caller sets it.",
+  "failure_modes": [
+    "omitting the outro/dissipation phase, leaving the brain with the climax but no time to process it — the source's own single most emphasized failure mode",
+    "an anticipation phase disproportionate to the payoff, over-promising and under-delivering"
+  ],
+  "roblox_considerations": "None specific — a general real-time VFX principle, sourced from League of Legends examples but stated as medium-independent.",
+  "performance_implications": "None directly, though a longer dissipation phase does extend an effect's total on-screen lifetime (see decay_duration_bounded_by_gameplay_relevance_not_aesthetics for the resulting trade-off).",
+  "examples": [
+    "the source's own slide, quoted directly: \"VFX TIMING GUIDELINE — ALL effects should have anticipation and dissipation; OUTRO should be considered as a secondary effect, with a lower value, saturation, and opacity\" (video @ 01:01, confirmed in this session's own frame read of the \"THE IMPORTANCE OF TIMING IN VFX\" slide)",
+    "the paired \"GAMEPLAY BARREL EXPLOSION\" diagram staging exactly three labeled vertical stages — ANTICIPATION, MAIN EXPLOSION, DISSIPATION — confirmed in this session's own frame read (video @ 02:28)",
+    "\"you want to lead the brain with anticipation and then you want to overload the brain at the moment that it's been waiting for him and then you want to give the brain time to process what just happened\" (video @ 01:26–01:38)"
+  ],
+  "evidence_status": "video: https://youtu.be/WLMVpcK0WvA @ 01:01–01:38, 02:28 — the presenter states the rule as the single most important takeaway and it appears as a named guideline and a three-stage diagram on the accompanying slides, both confirmed in this session's own frame reads; experimental until validated"
+}

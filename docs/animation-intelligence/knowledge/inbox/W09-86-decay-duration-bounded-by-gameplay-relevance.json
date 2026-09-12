@@ -1,0 +1,37 @@
+{
+  "concept": "decay_duration_bounded_by_gameplay_relevance",
+  "category": "essential",
+  "definition": "An effect's lingering/dissipation duration should be capped by how long it remains relevant to gameplay, not by how good it looks lingering longer — formalized on the source's own slide as \"we intentionally minimize an effect's linger duration to reduce visual noise for team fights,\" with a direct comparison: an effect that stays on screen a long time after its gameplay impact has already resolved dominates the visual space, obscures whatever else is happening underneath it, and creates ambiguity about whether it is still an active hazard.",
+  "purpose": "Bound a dissipation/outro phase's length by its GAMEPLAY relevance window rather than treating longer lingering as automatically more visually satisfying, since an effect that keeps commanding attention after it stops mattering actively harms legibility of everything around it.",
+  "visible_effect": "A well-timed effect fades or clears from the screen shortly after its gameplay consequence (damage, a hit, a zone) has resolved; an over-lingering effect keeps a large, high-contrast presence on screen long after the moment it communicated has passed.",
+  "psychological_or_gameplay_effect": "An effect lingering past its relevance costs attention that should go to other simultaneous events (in a multiplayer team fight, several players' abilities at once), and creates a specific, named confusion: uncertainty about whether the lingering visual is still an active hazard (\"should I not step on it, am I gonna slip and fall because it's ice, I don't know\").",
+  "physical_interpretation": "Not applicable — a legibility/attention-management principle, not a physical-accuracy one; the source explicitly frames this as sometimes overriding what would otherwise be the more visually appealing choice.",
+  "use_cases": [
+    "any effect in a multiplayer/competitive context where several simultaneous effects compete for the same visual space (the source's own frame: \"reduce visual noise for team fights\")",
+    "any effect whose lingering appearance could be mistaken for a still-active hazard or area of effect"
+  ],
+  "non_use_cases": [
+    "a single-player or non-competitive context with no risk of visual clutter or gameplay ambiguity, where a longer, purely aesthetic lingering dissipation is not automatically wrong",
+    "an effect where the LOOK of a long lingering trail is itself the intended gameplay signal (e.g. deliberately marking a zone that remains a genuine ongoing hazard) — the point is to match duration to actual relevance, which could mean longer OR shorter depending on the case"
+  ],
+  "interactions": [
+    "lead_overload_process_three_beat_timing_structure (this same video) — this entry refines that structure's third beat specifically: dissipation should exist, but its LENGTH is bounded by gameplay relevance rather than open-ended aesthetic preference",
+    "follow_through_backfill_hold (v7, compiled) — a related but distinct existing card about spending recovery time deliberately; this entry adds the specific bound of GAMEPLAY RELEVANCE WINDOW as the ceiling on how long that recovery/dissipation time should be, in a competitive multiplayer context"
+  ],
+  "style_variations": {},
+  "cadence_representation": "VFXSpec's `timing.decay` field already controls exactly this duration numerically, and `validate_effect_timing` already flags a degenerate (near-zero) decay — but nothing in this build represents \"how long this effect remains gameplay-relevant\" as a quantity to bound `decay` against, since Cadence has no gameplay/hazard-duration model at all. The authoring capability (a numeric decay) already exists; the JUDGMENT of what value it should take (bounded by an external gameplay fact) is entirely outside what this build can check or supply on its own.",
+  "control_surface": "`compile_effect`'s `timing.decay` field sets the duration; nothing supplies or checks a gameplay-relevance bound for it.",
+  "detection_and_measurement_methods": "not measurable in this build — there is no representation of a gameplay hazard's actual active duration to compare a VFX decay length against.",
+  "generation_or_modification_methods": "`compile_effect`'s `timing.decay` as usual; the correct VALUE remains an external, game-design judgment call this build cannot supply.",
+  "failure_modes": [
+    "a visually appealing but long-lingering effect that dominates screen space and obscures other simultaneous effects in a multiplayer context",
+    "a lingering effect whose appearance is ambiguous about whether it still represents an active hazard, costing the player decision-making clarity"
+  ],
+  "roblox_considerations": "None specific — a general real-time/competitive game VFX principle, medium-independent.",
+  "performance_implications": "A shorter decay directly reduces how long an effect's particles/lights must render, a secondary practical benefit alongside the legibility one.",
+  "examples": [
+    "the source's own slide, quoted directly: \"REDUCING THE AMOUNT OF TIME EFFECTS STAY ON SCREEN — We intentionally minimize an effect's linger duration to reduce visual noise for team fights,\" contrasting an ability whose effect \"stays on screen a very long time... that takes too much focus visually and it will likely dominate other effects in the same space\" against one that \"fades off quickly and has some transparency even at its high moment. This allows other effects to show up clearly\" (video @ 06:05, confirmed directly in this session's own frame read of the labeled inaccurate/accurate side-by-side)",
+    "the narrated version of the same principle: \"this icy splosh cool as it may look is taking up gameplay space long after it has any impact on gameplay... the longer you leave it there the longer its drawing visual attention... suit your timing to match the gameplay implications\" (video @ 06:53–07:34)"
+  ],
+  "evidence_status": "video: https://youtu.be/WLMVpcK0WvA @ 06:05, 06:53–07:34 — stated both as a formal slide guideline with a labeled accurate/inaccurate side-by-side (confirmed in this session's own frame read) and narrated with a second, independent worked example; experimental until validated"
+}

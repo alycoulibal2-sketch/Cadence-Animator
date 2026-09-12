@@ -1,0 +1,42 @@
+{
+  "concept": "archetype_intensity_curves_by_effect_category",
+  "category": "essential",
+  "definition": "Four named effect categories are shown with four distinct, recognizable intensity-over-time curve shapes: a Missile holds a flat, sustained/constant intensity for as long as it travels; an Explosion starts at its OWN peak intensity immediately and decays continuously from there (explicitly NOT tracking the explosion's growing visual size, which increases while intensity decreases); a Blinking Light repeats a sharp spike-and-return pattern at intervals; and a Portal oscillates smoothly up and down like a sine wave. Each shape is a reusable starting template for its category, chosen for what the real phenomenon (or its gameplay role) actually does over time.",
+  "purpose": "Give a concrete, checkable starting shape for an effect's intensity envelope based on what KIND of effect it is, rather than defaulting every effect to the same generic rise-peak-fall shape regardless of category.",
+  "visible_effect": "A missile reads as a sustained, traveling presence; an explosion reads as a single front-loaded burst that is already fading while still visually expanding; a blinking light reads as a periodic pulse; a portal reads as a slow, continuous breathing/shimmering presence.",
+  "psychological_or_gameplay_effect": "Matching the curve to the category keeps each effect legible as the kind of thing it is — an explosion that built UP in intensity as it grew would read as wrong even if a viewer couldn't say why, because real explosions do not work that way.",
+  "physical_interpretation": "Directly modeled on the real phenomena: a missile's threat is continuously present while traveling; an explosion's energy release is genuinely front-loaded (ignition) with the visible fireball's growth driven by rapidly DEcelerating expansion, not building energy; a portal's shimmer is a standing, oscillating field rather than a one-shot event.",
+  "use_cases": [
+    "choosing a starting intensity envelope shape for a new effect based on its category, before hand-tuning specifics",
+    "specifically correcting the intuitive-but-wrong assumption that an explosion's intensity should build as it visually grows — the source calls this out by name as a common point of confusion (\"note that this isn't size... explosions start small and then get big but the intensity of an explosion starts big\")"
+  ],
+  "non_use_cases": [
+    "an effect that does not cleanly fit one of these four archetypes — the four are named starting points, not an exhaustive taxonomy"
+  ],
+  "interactions": [
+    "intensity_over_time_as_unifying_multi_channel_abstraction (this same video) — these four archetypes are the concrete payoff of treating intensity as one designable curve: each is a named, reusable SHAPE for that one curve",
+    "lead_overload_process_three_beat_timing_structure (this same video) — the Explosion archetype IS that three-beat structure (its whole curve is essentially an immediate peak plus decay, with no anticipation phase built into the archetype itself — anticipation, where present, is staged as a separate preceding beat, per the barrel-explosion diagram's own three labeled stages)"
+  ],
+  "style_variations": {
+    "missile": "flat/sustained intensity for the duration of travel",
+    "explosion": "maximum intensity at or near ignition, continuously decaying from there, decoupled from and inverse to the growing visual size",
+    "blinking_light": "a repeated sharp spike-and-return at regular intervals",
+    "portal": "a smooth, continuous up-down oscillation, never fully returning to zero"
+  },
+  "cadence_representation": "VFXSpec's `timing` envelope (`lead`/`attack`/`sustain`/`decay`/`peak`/`loop`) can express three of these four shapes directly: a long `sustain` with minimal `attack`/`decay` approximates Missile; `attack` near-zero with the full duration spent in `decay` approximates Explosion; `loop: true` with a short cycle approximates Blinking Light. Portal's smooth CONTINUOUS oscillation (never returning fully to a floor, unlike a sharp repeated spike) is not cleanly expressible with the current discrete lead/attack/sustain/decay/peak fields, which describe one rise-and-fall shape per cycle rather than a sinusoid — the closest approximation would need an explicit periodic curve, which is outside this field set as currently defined.",
+  "control_surface": "`compile_effect`'s `timing` fields for Missile/Explosion/Blinking Light; no direct field for a smooth sinusoidal Portal-style oscillation.",
+  "detection_and_measurement_methods": "`validate_effect_timing` measures a compiled effect's actual peak/attack/decay shape — sufficient to check whether an authored effect matches ANY of these declared shapes, though nothing in this build currently classifies a compiled effect BY category or checks it against a category-appropriate archetype.",
+  "generation_or_modification_methods": "`compile_effect`'s timing fields generate three of the four shapes; Portal's smooth oscillation is not directly generatable with the current field set.",
+  "failure_modes": [
+    "keying an explosion's intensity to rise as its visual size grows, inverting the real (and correct) relationship",
+    "giving a missile a decaying rather than sustained intensity, making a still-traveling threat read as already spent",
+    "using a sharp repeated spike for a portal instead of a smooth oscillation, when the two read as meaningfully different (alarm-like vs. ambient)"
+  ],
+  "roblox_considerations": "None specific — category-based archetypes are engine-independent.",
+  "performance_implications": "None directly.",
+  "examples": [
+    "the four labeled archetype graphs shown directly, confirmed in this session's own frame reads: Missile (flat line, video @ ~14:40), Explosion (front-loaded decay curve, @ ~14:56), Blinking Light (repeated spikes, @ ~15:49), Portal (smooth oscillation, @ ~16:32)",
+    "\"note that this isn't size right like explosions start small and then get big but the intensity of an explosion starts big because in the very first moment that explosion is alive... it is very intense... and then it's also like rapidly decelerating... the intensity therefore ramps down pretty quickly\" (video @ 15:01–15:45)"
+  ],
+  "evidence_status": "video: https://youtu.be/WLMVpcK0WvA @ 14:40–16:48 — the presenter shows all four named archetype graphs directly and explains the explosion's counterintuitive inverse-to-size shape explicitly, both confirmed in this session's own frame reads; experimental until validated"
+}

@@ -1,0 +1,36 @@
+{
+  "concept": "timing_envelope_shape_as_sole_differentiator_between_similar_abilities",
+  "category": "advanced",
+  "definition": "Two effects sharing nearly identical shape, color, and material vocabulary can still read as distinct, semantically opposite abilities purely by giving them different intensity-over-time envelope shapes — demonstrated with two thematically-linked ('undead'/'gooey') abilities, one an incoming DAMAGE effect (a gradual build to a spike, with a short dissipation) and one a self-cast HEAL (instant maximum intensity at the moment of cast, with a long, lingering, friendly-feeling dissipation of sparkles).",
+  "purpose": "Differentiate two abilities that are deliberately visually related (same theme, palette, material) without contradicting that visual kinship, when shape/color differentiation would undermine the intended thematic similarity.",
+  "visible_effect": "The damage effect's intensity ramps up before spiking, then fades relatively quickly; the heal effect spikes to maximum immediately (since the cast IS the payoff, with no gameplay reason to delay it) then fades slowly, with lingering sparkle follow-through that reads as gentle/friendly rather than threatening.",
+  "psychological_or_gameplay_effect": "The damage envelope (build then spike) reads as an incoming threat being telegraphed and landing; the heal envelope (instant spike then long, soft decay) reads as an immediately-granted benefit whose warmth lingers — the SAME underlying visual material (goo, undead theme) is recontextualized entirely by these two different timing shapes.",
+  "physical_interpretation": "Not applicable — a design/communication choice rather than a physical distinction, since the source notes the two effects are deliberately built from the same visual vocabulary.",
+  "use_cases": [
+    "a family of thematically related abilities (a shared visual identity, faction, or character kit) that still need to read as individually distinct in the moment",
+    "specifically: an incoming/hostile effect vs. a self-beneficial effect that should share a visual theme but not be confusable"
+  ],
+  "non_use_cases": [
+    "abilities with no reason to share visual vocabulary in the first place, where shape/color differentiation is available and timing need not carry the whole burden"
+  ],
+  "interactions": [
+    "lead_overload_process_three_beat_timing_structure (this same video) — both abilities still follow SOME version of the three-beat shape; what differs is the relative proportion and presence of each beat (the heal has essentially no anticipation beat at all, since the cast itself IS instantaneous gratification, while the damage effect keeps a build-up)",
+    "material_properties_via_spacing_alone (v10, compiled) — a sibling principle: that card is about spacing communicating a material's PHYSICAL properties (weight, stiffness); this entry is about timing shape communicating an ability's GAMEPLAY MEANING (harmful vs. beneficial) using otherwise-identical material"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly expressible with VFXSpec's existing `timing` fields on two otherwise near-identical VFXSpecs (same `primitive`, `theme`, `colorStart`/`colorEnd`, differing only in `lead`/`attack`/`sustain`/`decay`/`peak`) — this is a clean, already-buildable authoring pattern requiring no new Cadence capability, only the compositional decision to author two effects this way.",
+  "control_surface": "`compile_effect` called twice with shared visual fields and differing `timing` fields.",
+  "detection_and_measurement_methods": "`validate_effect_timing` measures each compiled effect's own envelope independently; nothing currently cross-compares two effects' envelopes to confirm they are meaningfully distinguishable from each other, which would be the natural check for this specific pattern (a sibling gap to the one already named in phase_offset_dual_emitter_for_persistent_glow, W09-82, where nothing cross-references two VFX items' timing against each other either).",
+  "generation_or_modification_methods": "`compile_effect`'s `timing` fields as above; nothing generates a pair of deliberately-differentiated envelopes automatically — the differentiation is an authored design decision.",
+  "failure_modes": [
+    "giving two thematically-linked but gameplay-opposite abilities the same timing envelope in addition to the same visuals, making them difficult to tell apart in the moment they matter most",
+    "over-differentiating the timing to the point the visual kinship between the two abilities is lost entirely, defeating the reason they shared vocabulary in the first place"
+  ],
+  "roblox_considerations": "None specific.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"You'll notice that the shapes and the colors except for the red here are largely the same... so we had to differentiate by timing that's really the only option you have\" (video @ 18:43–18:59), with the two distinct intensity-graph shapes shown directly over the damage and heal clips, confirmed in this session's own frame reads (video @ ~17:57–18:40)",
+    "\"the healing is instant so the moment you press the button... it's maximum intensity that heel has happened and then quickly falls off and it has these like long dissipation\" versus the damage effect's own build-then-spike-then-shorter-falloff shape (video @ 18:27–18:40)"
+  ],
+  "evidence_status": "video: https://youtu.be/WLMVpcK0WvA @ 17:44–18:59 — the presenter contrasts Reaper Soraka's damage-received and self-heal effects directly, with distinct intensity graphs shown on screen for each, confirmed in this session's own frame reads; experimental until validated"
+}

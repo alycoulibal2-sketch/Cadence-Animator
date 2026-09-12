@@ -1,0 +1,36 @@
+{
+  "concept": "visual_growth_rate_must_match_gameplay_hitbox_timing",
+  "category": "essential",
+  "definition": "For an effect whose visual extent represents an actual gameplay collision zone (a wall, an expanding ring, a skillshot), the effect's visible spatial growth must be timed to match the real underlying hitbox's growth exactly, rather than merely looking good — formalized on the source's own slide as \"Accurate movement of elements is key to making believable effects. Accurate and impactful timing clearly communicates gameplay and delivers a competitive and satisfying experience for players.\"",
+  "purpose": "Let players accurately judge, in real time and often under competitive pressure, whether they are inside or outside an effect's actual collision zone, by making the visual growth a faithful, trustworthy readout of the real gameplay state rather than an approximation.",
+  "visible_effect": "A wall or zone effect's visible edge expands at the same rate its collision boundary actually expands, so a player watching the visual can correctly predict whether a given position is safe at any instant during the growth, not just once it settles.",
+  "psychological_or_gameplay_effect": "A mismatch between visual and actual timing is a competitive-fairness problem, not just an aesthetic one — the source frames this explicitly as delivering \"a competitive and satisfying experience for players,\" implying the alternative (a visual that lags or leads the real hitbox) actively costs players correct in-the-moment decisions.",
+  "physical_interpretation": "Not applicable — a simulation-fidelity requirement (visual must equal game-state), not a physical-plausibility one.",
+  "use_cases": [
+    "any zone, wall, or area-of-effect ability whose boundary is both rendered and mechanically collidable, where the two must agree at every instant, not just at rest",
+    "the source's own named examples: a wind-wall-type ability whose visual is a literal representation of its collision geometry, and an orbiting/ring-based ability whose growing radius is itself the hazard"
+  ],
+  "non_use_cases": [
+    "a purely cosmetic effect with no associated collision/hitbox — there is no ground truth for the visual to be checked against",
+    "an effect whose collision is instantaneous/binary (present or absent) rather than spatially growing over time, where this specific growth-rate-matching concern does not apply"
+  ],
+  "interactions": [
+    "decay_duration_bounded_by_gameplay_relevance (this same video) — a sibling principle: that entry bounds an effect's LINGERING duration by gameplay relevance; this entry bounds an effect's GROWTH RATE by gameplay accuracy — both subordinate purely aesthetic timing choices to a gameplay-legibility requirement",
+    "external_force_easing_override (compiled) — a related but distinct existing card about EASING STYLE at a caused moment; this entry is about the RATE OF SPATIAL GROWTH matching a mechanical fact continuously over a duration, a stronger and more literal constraint than easing style alone"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence has no gameplay-collision/hitbox model at all — a Cadence project holds keyframed visual data only, with no paired mechanical-collision ground truth to check a growing effect's boundary against. This is a hard external dependency: even if Cadence could measure an effect's visual growth rate precisely (which `ai/motion.js`'s existing size/scale-over-time sampling already could, for an item with a keyed scale track), there is nothing in this build representing the corresponding gameplay hitbox growth to compare it against.",
+  "control_surface": "None — no gameplay-state representation to validate against.",
+  "detection_and_measurement_methods": "The VISUAL half is measurable in principle (a scale/size track's growth rate over time, via ordinary `sampleMotion`); the GAMEPLAY half (the actual collision boundary's growth) has no representation in this build at all, so the comparison this principle calls for cannot be made here.",
+  "generation_or_modification_methods": "not applicable — Cadence authors the visual only, never the paired gameplay collision logic this principle requires matching against.",
+  "failure_modes": [
+    "a visual effect's boundary growing faster or slower than its actual collision zone, so players are shown an inaccurate picture of where the real hazard is at every instant except the final rest state",
+    "prioritizing a more visually appealing growth curve (an ease, a flourish) over an accurate one for an effect whose growth IS the gameplay information"
+  ],
+  "roblox_considerations": "None specific — applies to any real-time multiplayer game with collidable zone/wall abilities, independent of engine.",
+  "performance_implications": "None directly.",
+  "examples": [
+    "the source's own slide, quoted directly: \"ANIMATING ACCURATE MOVEMENT — Accurate movement of elements is key to making believable effects. Accurate and impactful timing clearly communicates gameplay and delivers a competitive and satisfying experience for players\" (video @ 02:56, confirmed in this session's own frame read), illustrated with a wind-wall-type ability and an orbiting-ring ability as the two named examples"
+  ],
+  "evidence_status": "video: https://youtu.be/WLMVpcK0WvA @ 02:56–03:23 — stated as a formal slide guideline with two named League of Legends ability examples, confirmed in this session's own frame reads; experimental until validated"
+}
