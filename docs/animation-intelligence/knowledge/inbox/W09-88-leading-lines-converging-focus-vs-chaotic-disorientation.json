@@ -1,0 +1,38 @@
+{
+  "concept": "leading_lines_converging_focus_vs_chaotic_disorientation",
+  "category": "advanced",
+  "definition": "Natural lines already present in an environment (fences, buildings, roads, window bars) can be framed to draw the viewer's eye TOWARD a subject when used convergently, or deliberately framed as crossing/tangled/chaotic lines to confuse the viewer or reflect a character's own confusion — the same environmental-line technique produces near-opposite reads depending on whether the lines converge on the subject or cross against each other.",
+  "purpose": "Use existing environmental geometry as a free compositional tool, choosing between the two available readings (guiding attention to a clear point, or deliberately withholding a clear point) based on what the moment needs.",
+  "visible_effect": "Convergent leading lines visibly funnel the eye toward one point where the subject is placed; chaotic/crossing lines give the eye no single point to settle on, producing visual confusion by design.",
+  "psychological_or_gameplay_effect": "Convergent lines read as clarity and directedness (\"this is where to look, this is where the character is going\"); chaotic lines read as confusion, reflecting either the viewer's own disorientation or a character's, used deliberately rather than as a compositional mistake.",
+  "physical_interpretation": "Not applicable — a compositional convention exploiting real environmental geometry, not a physical motion principle.",
+  "use_cases": [
+    "using a fence, road, or building line to draw the eye toward a subject or to suggest the direction a character is heading",
+    "using lines in the background of a portrait to draw the eye toward the subject specifically",
+    "deliberately using crossing/tangled lines to confuse the viewer or to reflect a character's own confusion or disorientation"
+  ],
+  "non_use_cases": [
+    "a shot with no natural lines available in the environment — the technique depends on finding and using what is already there, not adding artificial lines"
+  ],
+  "interactions": [
+    "arc_shot_destabilizes_or_unifies_depending_on_subject_count (W09-87) — a structural sibling: the same underlying compositional device (here, converging vs. chaotic lines; there, orbiting one subject vs. a group) produces near-opposite readings depending on how it is applied, in both cases requiring the author to choose deliberately rather than assume one fixed meaning"
+  ],
+  "style_variations": {
+    "convergent": "lines drawn toward the subject, focusing attention and clarity",
+    "chaotic": "crossing or tangled lines with no single convergence point, used to confuse the viewer or a character deliberately"
+  },
+  "cadence_representation": "Not measurable in this build: like rule-of-thirds placement, whether environmental lines visually converge on a subject is a screen-space/projection fact requiring an active camera model Cadence does not have (the same MOT-006/SHOT-002 gap named across this batch's camera-framing entries). Cadence also has no notion of \"environmental line geometry\" as a scene property at all — it authors rig/item/camera keyframes, not architectural or environmental layout.",
+  "control_surface": "None — no active-camera projection or environmental-geometry representation exists.",
+  "detection_and_measurement_methods": "not measurable in this build.",
+  "generation_or_modification_methods": "not applicable in this build.",
+  "failure_modes": [
+    "leading lines that converge somewhere OTHER than the intended subject, misdirecting attention",
+    "using chaotic/crossing lines when a clear, convergent read was actually needed, unintentionally confusing the viewer"
+  ],
+  "roblox_considerations": "None specific — applies to any rendered environment with linear geometry (corridors, railings, roads).",
+  "performance_implications": "None.",
+  "examples": [
+    "\"look for some of the natural lines in your environment that might come from a fence or a building or roads and use these to draw the viewer's eye towards your subject... a lot of tv shows and movies use leading lines\" and \"you can also break this rule and use chaotic lines to help confuse the viewer or confuse the character or subject\" (video @ 02:57–03:44)"
+  ],
+  "evidence_status": "video: https://youtu.be/MYlgj1hwcYw @ 02:57–03:44 — Kellan Reck states both the convergent and chaotic uses of leading lines explicitly; experimental until validated"
+}

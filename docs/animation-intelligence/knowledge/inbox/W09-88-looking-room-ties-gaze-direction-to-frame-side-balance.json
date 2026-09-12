@@ -1,0 +1,36 @@
+{
+  "concept": "looking_room_ties_gaze_direction_to_frame_side_balance",
+  "category": "essential",
+  "definition": "Where a subject sits off-center in frame, the EMPTY space should be on the side the subject is looking or facing toward, not the side behind them — a subject positioned so their gaze points toward the SHORTER/smaller side of the frame (with most of the empty space behind them) reads as strange and off-balance, while gaze pointing toward the LARGER open side reads as correct and comfortable. A companion rule, headroom, keeps the distance from the frame's top edge to the subject's head consistent (commonly by placing the eyes on the upper rule-of-thirds line) rather than crowding or floating the head.",
+  "purpose": "Balance a frame according to where the subject's attention/gaze is directed, not only where their body mass sits, since an off-center subject implicitly promises there is something worth looking at in the direction they face.",
+  "visible_effect": "A subject placed on one side of frame, looking toward the larger remaining open space, reads as naturally composed; the same subject looking toward the cramped/smaller side (with empty space behind their head instead) reads as visually wrong even to an untrained eye.",
+  "psychological_or_gameplay_effect": "Named directly: getting looking room backward \"is going to feel a little bit strange, a little bit off balance and just a bit confusing\" — the discomfort is specifically about the mismatch between where attention is directed and where the frame offers room for that attention to land.",
+  "physical_interpretation": "Not applicable — a compositional convention about screen-space balance relative to a subject's gaze/facing direction, not a physical principle.",
+  "use_cases": [
+    "any off-center subject with a clear facing/look direction (an interview subject looking off-camera, a character glancing toward something) — the empty space belongs on the side they face",
+    "headroom specifically for interview/portrait framing: keep consistent space above the head, commonly by aligning the eyes to the upper rule-of-thirds line, avoiding both a cramped head touching the frame top and an overly empty gap above it"
+  ],
+  "non_use_cases": [
+    "a subject looking directly at camera (no lateral gaze component), where looking room's specific left/right balancing question does not apply the same way"
+  ],
+  "interactions": [
+    "rule_of_thirds_placement_with_center_frame_authority_exception (this same video) — headroom is explicitly implemented AS a rule-of-thirds application (eyes on the upper third-line), so this entry is a direct, specific extension of that one rather than an independent convention",
+    "the video's own facing-direction dependency directly parallels Cadence's own `get_facing` tool, which already computes an item's facing direction in world/local space — the missing half for looking room specifically is projecting that facing direction and the subject's frame position through a camera, not the facing computation itself"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Partially grounded: Cadence's `get_facing` already computes a rig or item's facing direction in its own space — the WORLD-SPACE half of this rule (which way is the subject actually oriented) is already measurable today. What is missing is the SCREEN-SPACE half: projecting both the subject's frame position and their facing direction through an active camera to determine which side of frame is the \"larger\" side and whether the subject's gaze points toward it — that half needs the same absent active-camera/projection model (MOT-006, SHOT-002) named throughout this batch's camera entries. This rule is a case where Cadence already has HALF the needed measurement, unlike most other framing rules in this batch which are blocked on both halves.",
+  "control_surface": "`get_facing` for the world-space facing direction; no camera-projection surface exists for the screen-space half.",
+  "detection_and_measurement_methods": "`get_facing` already reports facing direction; the screen-space frame-balance comparison it would need to be checked against is not measurable in this build (same MOT-006/SHOT-002 gap).",
+  "generation_or_modification_methods": "not applicable for the screen-space half; `get_facing` already serves the world-space half if a future camera model needed it as an input.",
+  "failure_modes": [
+    "a subject's gaze pointing toward the cramped/smaller side of frame, with the larger empty space wasted behind them",
+    "inconsistent headroom — either the head crowding the top of frame or an overly large, unbalanced gap above it"
+  ],
+  "roblox_considerations": "None specific — applies to any rendered camera framing an oriented subject.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"headroom often comes into play when you're shooting something like an interview and that's the distance from the top of your frame to the subject's head... the best way to do this is to put your subject's eyes on that top rule of thirds line\" (video @ 04:43–05:06)",
+    "\"looking room is all about where your subject is looking so if you have an interview where a subject is looking off to the side make sure they're looking towards the larger part of the frame as opposed to the shorter part of the frame or else it's going to feel a little bit strange\" (video @ 05:07–05:26), confirmed in this session's own frame read of an interview subject correctly framed left-of-center while facing toward the larger right-hand space"
+  ],
+  "evidence_status": "video: https://youtu.be/MYlgj1hwcYw @ 04:40–05:31 — Kellan Reck states both the headroom and looking-room conventions explicitly, the latter confirmed against this session's own frame read of a correctly-framed interview shot; experimental until validated"
+}

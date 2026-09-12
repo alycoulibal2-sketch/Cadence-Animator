@@ -1,0 +1,35 @@
+{
+  "concept": "subject_background_separation_enables_depth_defocus",
+  "category": "essential",
+  "definition": "A shallow depth-of-field/background-blur look requires BOTH a wide aperture AND sufficient physical distance between the subject and the background — a named beginner mistake is opening the aperture while still placing the subject right up against a wall or backdrop, which fails to produce the depth effect because there is no distance for the background to fall out of focus across; pulling the subject away from the background (and optionally adding a textured element in the foreground) is what actually enables the separation, with aperture as the second, necessary-but-not-sufficient half.",
+  "purpose": "Achieve subject emphasis and a cinematic look via background defocus, by correctly identifying BOTH conditions the effect depends on rather than assuming a wide aperture alone is sufficient.",
+  "visible_effect": "A subject with real distance to the background falls into sharp focus against a visibly soft/blurred backdrop; the same subject shot flush against a wall stays largely in focus throughout the frame even at a wide aperture, because there is no depth separation for the blur to act across.",
+  "psychological_or_gameplay_effect": "Removes visual distractions and directs attention unambiguously to the subject; without adequate separation, competing in-focus background detail can make it unclear who or what the viewer is meant to be looking at.",
+  "physical_interpretation": "A direct optical fact: depth-of-field blur is a function of the actual distance between the focal plane (the subject) and other planes (the background) as well as aperture — reducing that physical distance to near zero removes the effect regardless of how wide the aperture is set.",
+  "use_cases": [
+    "interview and portrait setups specifically — pull the subject away from any wall/backdrop rather than placing them flush against it",
+    "adding a foreground textured element (a plant, an object) at a third distance to reinforce the sense of depth across multiple planes"
+  ],
+  "non_use_cases": [
+    "a shot where deep focus (everything sharp) is the intended look — there, minimizing subject-background separation and/or closing the aperture is correct instead"
+  ],
+  "interactions": [
+    "rule_of_thirds_placement_with_center_frame_authority_exception and looking_room_ties_gaze_direction_to_frame_side_balance (this same video) — unlike those two, which require an active-camera projection model Cadence entirely lacks, THIS rule's core physical quantity (world-space distance between a subject item and a background item) is already directly measurable in Cadence's existing 3D project data, no camera model required — a meaningfully different, more tractable case than most of this batch's other framing rules"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Partially buildable today, unusually for a framing rule in this batch: Cadence's project data already holds every item's world-space position, so the WORLD-SPACE half of this rule (is there adequate subject-to-background distance) is measurable via ordinary position data, with no active-camera/projection model required at all — a genuine exception to the MOT-006/SHOT-002 gap that blocks most other camera-framing rules in this batch. What is still missing is the OPTICAL half: translating a given subject-background distance and a hypothetical aperture value into an actual predicted blur amount, which needs a lens/depth-of-field model this build does not have, and the screen-space question of whether that blur is actually large enough to read as separated on screen, which does need the camera projection model.",
+  "control_surface": "Ordinary item position queries already available (no dedicated tool needed) could compute subject-to-background world distance directly; no aperture/depth-of-field or camera-projection model exists to carry the calculation further.",
+  "detection_and_measurement_methods": "World-space subject-to-background distance is measurable today from ordinary project position data; predicted blur amount and its on-screen legibility are not measurable in this build (no lens/DOF model, no active-camera projection).",
+  "generation_or_modification_methods": "not applicable — no DOF/lens authoring surface exists in this build.",
+  "failure_modes": [
+    "opening the aperture while leaving the subject flush against the background, producing no visible separation despite a technically \"correct\" aperture setting — the named beginner mistake",
+    "insufficient foreground/background distance even with adequate subject separation, if the background itself is very close behind despite not touching the subject"
+  ],
+  "roblox_considerations": "Roblox's depth-of-field post-processing effect (`DepthOfFieldEffect`) depends on the same physical logic — a near/far focus distance relative to actual part positions in the 3D scene — so the same beginner mistake (subject flush against geometry) would produce the same lack of visible separation there too.",
+  "performance_implications": "None directly from the composition choice itself; a DOF post-effect has its own ordinary rendering cost, unrelated to this rule.",
+  "examples": [
+    "\"a lot of beginners will place their subject right up against a wall to shoot an interview and you just aren't going to get that same type of depth so pull your subject away, have some space in the background and maybe even consider adding something to the foreground\" (video @ 07:13–07:35)",
+    "\"the best way to achieve depth and subject emphasis is by opening up your aperture... let a little bit more light in and notice that background fall out of focus\" (video @ 06:22–06:44)"
+  ],
+  "evidence_status": "video: https://youtu.be/MYlgj1hwcYw @ 06:15–07:35 — Kellan Reck states both the aperture and subject-separation requirements explicitly, naming the flush-against-a-wall case as a specific common mistake; experimental until validated"
+}

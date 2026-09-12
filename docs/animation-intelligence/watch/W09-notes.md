@@ -9,7 +9,7 @@
 - [x] 85. The BEST way to learn FX Animation? — Alex Grigg (15:51)
 - [x] 86. #5: Timing | Artistic Principles of VFX — VFX Apprentice (23:10)
 - [x] 87. Ultimate Guide to Camera Movement — StudioBinder (29:09)
-- [ ] 88. 7 Rules of Cinematic Framing and Composition — Kellan Reck (9:29)
+- [x] 88. 7 Rules of Cinematic Framing and Composition — Kellan Reck (9:29)
 - [ ] 89. Animate Cameras like a Pro (Blender Tutorial) — CG Boost (23:10)
 - [ ] 90. How to Animate with the Graph Editor — Sir Wade Neistadt (21:04)
 
@@ -92,4 +92,16 @@ check: dolly_zoom_size_invariant — project a target part's screen-space boundi
 check: static_camera_against_concurrent_high_motion_subject — cross-reference a camera item's own near-zero `@origin`/`@fov` motion (already measurable via `sampleMotion`) against a concurrently HIGH motion-intensity rig in the same shot, as the measurable signature of `static_camera_as_deliberate_emotional_withholding` versus simple authorial inattention — not blocked: both halves are already measured separately, only the cross-reference is new (source: video 87 @ 02:29–03:11).
 
 No capture candidates (film clips throughout, no rig performance to reference). Nothing contradicted an existing card.
+
+## Video 88 — 7 Rules of Cinematic Framing and Composition (Kellan Reck, 9:29) — 2026-09-12
+
+Watched at `balanced` (100 frames from 148 candidates, effectively the full scene-aware set for a 9-minute video). 259 caption segments. A tight, well-known "7 rules" structure (rule of thirds, leading lines, balance/headroom/looking room, symmetry, depth, frame-within-a-frame, emphasize-your-subject) matching the plan's own gloss exactly ("framing rules a readability measure can encode").
+
+Four entries, chosen for having a specific, checkable rule rather than being generic composition advice: **rule-of-thirds placement with its own center-frame exception** (off-center power-point placement is the default, but dead-center is a deliberate, recognizable alternative reserved for authority/teaching — confirmed by the presenter unknowingly demonstrating it on himself throughout the video); **leading lines, convergent vs. chaotic** (the same environmental-line technique reads as focused guidance or deliberate confusion depending on whether the lines converge or cross — a structural sibling of W09-87's arc-shot duality); **looking room ties gaze direction to which side of frame should be empty** (a subject looking toward the cramped side of frame reads as wrong even to an untrained eye — notably, the WORLD-SPACE half of this rule, facing direction, is already exactly what Cadence's `get_facing` computes; only the screen-space half is missing); and **subject-background separation, not aperture alone, enables depth defocus** (a named beginner mistake: opening the aperture while the subject stays flush against a wall produces no blur at all, because there's no distance for it to act across — the sharpest exception in this batch's camera-framing entries, since the WORLD-SPACE distance this rule depends on is already fully measurable in Cadence's existing project data with no active-camera model needed at all).
+
+What surprised me: three of these four entries are blocked on the same active-camera/projection gap (MOT-006/SHOT-002) this batch keeps running into (W09-87's dolly zoom, static-withholding, arc-shot; this video's rule-of-thirds and leading-lines) — by this point in the batch that gap is clearly the single highest-leverage camera capability missing from this build, evidenced independently by five-plus distinct techniques across two whole videos. The fourth entry (depth defocus) is the interesting exception: it's the first framing rule in this whole batch whose core measurement is already fully available today, because it depends on ordinary 3D world-space distance rather than a screen projection — worth flagging as a genuinely low-hanging check.
+
+check: subject_background_world_space_separation — measure the minimum world-space distance between a declared subject item and declared background geometry; flag near-zero separation as the specific beginner mistake that defeats depth-of-field regardless of aperture, per `subject_background_separation_enables_depth_defocus` — **not blocked**: ordinary position data already available in any project, no camera or lens model needed (source: video 88 @ 06:15–07:35).
+
+No capture candidates (film clips and a talking-head presenter, no rig performance to reference). Nothing contradicted an existing card; the "emphasize your subject" closing tip is explicitly the video's own synthesis of the other six tools rather than a seventh independent technique, so it was not written up as its own card.
 

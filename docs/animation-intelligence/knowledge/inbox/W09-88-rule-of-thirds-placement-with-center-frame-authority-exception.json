@@ -1,0 +1,39 @@
+{
+  "concept": "rule_of_thirds_placement_with_center_frame_authority_exception",
+  "category": "essential",
+  "definition": "A frame divided by two horizontal and two vertical lines into thirds creates four \"power point\" crosses that draw the eye more than the geometric center; placing a subject (or a horizon line) on one of these third-lines/crosses is the default composition, EXCEPT that dead-center framing is its own deliberate exception, specifically reserved for conveying authority or a teaching/informing role (a subject speaking directly to camera with intent to instruct).",
+  "purpose": "Give subject placement a legible default (off-center, on a power point) while reserving the one clear deviation from it (dead center) for a specific, recognizable communicative purpose rather than treating center-framing as merely a failure to apply the rule.",
+  "visible_effect": "A subject or horizon sitting on a third-line/power-point reads as more dynamic and intentionally composed than one sitting at the frame's literal center; conversely, a subject placed dead-center reads as authoritative or didactic specifically because it is recognizable as a deliberate departure from the more common off-center placement.",
+  "psychological_or_gameplay_effect": "Off-center placement on a power point is described as conveying more emotion/emphasis than dead-center; dead-center framing is named as specifically signaling authority or a teaching role — the same source demonstrates this on itself, framing its own direct-to-camera instructional shots dead-center throughout.",
+  "physical_interpretation": "Not applicable — a compositional/perceptual convention, not a physical principle.",
+  "use_cases": [
+    "placing a subject or a horizon line on a rule-of-thirds line/power-point as the default composition for portraits, b-roll, and establishing shots",
+    "deliberately breaking the rule with dead-center framing specifically when a subject's authority, expertise, or didactic role is what the shot needs to communicate"
+  ],
+  "non_use_cases": [
+    "dead-center framing used out of inattention rather than intent — the exception's legibility depends on it being a deliberate, recognizable departure, not a default"
+  ],
+  "interactions": [
+    "static_camera_as_deliberate_emotional_withholding (W09-87) — a structural sibling: both entries are about a compositional/camera DEFAULT having a specific, opposite-reading DELIBERATE EXCEPTION (stillness withholding sympathy; center-framing asserting authority) rather than the exception being merely a failure to follow the rule",
+    "looking_room_ties_gaze_direction_to_frame_side_balance (this same video) — both are rule-of-thirds-derived compositional conventions; that entry adds the further constraint of matching frame-side space to gaze direction"
+  ],
+  "style_variations": {
+    "power_point_placement": "the default: subject or horizon on a third-line/cross, read as more dynamic/emotionally engaging",
+    "center_frame_authority": "the exception: subject dead-center, read as authoritative or instructional"
+  },
+  "cadence_representation": "Not measurable in this build at all: rule-of-thirds placement is inherently a SCREEN-SPACE fact (where does a subject project to within the visible frame), which requires an active camera with a projection model — exactly the capability named as absent throughout this batch's camera-related entries (MOT-006, SHOT-002/004, REV-001's blocked camera-framing analysis step, KNW-007's unmeasured \"camera support\" quality). Cadence's `ai/pose.js`/`ai/motion.js` measure world-space facts (line of action, centre of mass, joint rotation) that exist independent of any camera; this rule is defined ENTIRELY in terms of the camera's own view and cannot be evaluated from world-space data alone, however complete.",
+  "control_surface": "None — no active-camera projection exists to place a subject against a rule-of-thirds grid.",
+  "detection_and_measurement_methods": "not measurable in this build — requires projecting a subject's screen position through an active camera, which does not exist (the same MOT-006/SHOT-002 gap as this batch's other camera-framing entries).",
+  "generation_or_modification_methods": "not applicable in this build.",
+  "failure_modes": [
+    "defaulting to dead-center framing without the specific authority/teaching intent, losing the exception's meaning by making it the unremarkable norm",
+    "placing a subject off-center inconsistently (sometimes left third, sometimes right, with no narrative reason), reading as accidental rather than composed"
+  ],
+  "roblox_considerations": "None specific — applies to any rendered camera view, live-action or virtual.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"the center of the frame is reserved for authority or for teaching... you'll notice in videos like this one right now the teacher is often center-framed looking right at the camera\" (video @ 02:30–02:42), confirmed directly in this session's own frame reads — the presenter's own talking-head shots throughout are consistently dead-center",
+    "the rule-of-thirds grid overlay demonstrated directly on a park-bench establishing shot, an animated hot-air-balloon shot with the balloon on a power-point cross, a sunset with the sun on the lower-right third-line, and a close-up on a distressed character's face with eyes on the top third-line, all confirmed in this session's own frame reads (video @ 00:33–02:10)"
+  ],
+  "evidence_status": "video: https://youtu.be/MYlgj1hwcYw @ 00:45–02:49 — Kellan Reck states the default and the center-frame authority exception explicitly, both richly illustrated on screen and confirmed in this session's own frame reads; experimental until validated"
+}
