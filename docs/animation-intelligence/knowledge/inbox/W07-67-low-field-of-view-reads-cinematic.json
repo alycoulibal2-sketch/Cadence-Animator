@@ -1,0 +1,39 @@
+{
+  "concept": "low_field_of_view_reads_cinematic",
+  "category": "advanced",
+  "definition": "A low camera field-of-view value (the source's own worked example: FOV 35, well below Roblox's default ~70) is stated directly as a deliberate technique for making a shot 'look cinematic' — a specific, named, numeric camera-authoring rule rather than a vague framing preference.",
+  "purpose": "Give a camera shot a deliberate cinematic register by choosing a specific FOV value, rather than leaving field of view at a game-default wide angle for every shot.",
+  "visible_effect": "A narrower field of view compresses perspective and magnifies the subject relative to the background compared to a wider default FOV, at the same subject distance.",
+  "psychological_or_gameplay_effect": "The source's own direct claim: 'a low field of view creates a cinematic look' — associating a specific numeric camera parameter with a genre/register read (cinematic vs. game-default), stated as a rule of thumb for cutscene/showcase authoring rather than gameplay camera work.",
+  "physical_interpretation": "A real optical property (a narrower FOV corresponds to a longer real-world focal length, which does produce perspective compression and background magnification) applied here as a deliberate authoring choice rather than a physically-necessitated one.",
+  "use_cases": [
+    "a cutscene, showcase animation, or promotional shot wanting to read as deliberately filmic rather than like default in-game gameplay footage",
+    "any authored camera shot where a specific numeric FOV target (the source's own example: 35) is a reasonable starting point before further adjustment"
+  ],
+  "non_use_cases": [
+    "an active gameplay camera where a wide FOV is needed for player spatial awareness and peripheral visibility — lowering FOV there would cost functional visibility for a purely aesthetic gain",
+    "a shot wanting to read as an ordinary in-game camera rather than a deliberately authored cinematic moment"
+  ],
+  "interactions": [
+    "SHOT-003/004 (camera model gap, LESSONS.md / W05 batch) — a concrete, simple, numeric authoring rule for exactly the camera-model capability that gap already flags as missing; unlike this batch's harder camera findings (parallax, midpoint framing), FOV is a single scalar property already directly settable, making this the cheapest possible SHOT-003/004-adjacent rule to encode",
+      "deliberate_thirds_placement_as_story_variable, lens_focal_length_distorts_character_off_model (W05-45) — sibling camera-authored perceptual effects; the second of those already covers focal-length distortion on a character's proportions specifically, while this entry is about the register/genre read of a LOW FOV value as a whole-shot choice"
+  ],
+  "style_variations": {
+    "realistic": "the technique's own physical basis (real cinema lenses, longer focal lengths) is most directly meaningful in a realistic-rendering context",
+    "anime": "not addressed directly by this source; anime camera conventions in this corpus (W05's findings) are more about framing/positioning than FOV value specifically"
+  },
+  "cadence_representation": "Directly and fully authorable today: `add_camera`/camera FOV is an ordinary keyframeable property, so setting a target FOV (e.g. 35, per this entry's example) requires no new capability. What is missing is any NAMED guidance or preset connecting a target FOV value to an intended register ('cinematic' vs. 'gameplay-default') — currently a caller must know the numeric convention themselves.",
+  "control_surface": "Camera FOV is already a settable/keyframeable property; no preset or named guidance currently offers 'cinematic' as a target register with a suggested value.",
+  "detection_and_measurement_methods": "Trivially measurable: a camera item's FOV track value at any frame is already stored data, so flagging a shot's FOV against a 'cinematic' threshold (e.g. well below a game-default ~70) requires no new measurement, only a threshold convention.",
+  "generation_or_modification_methods": "Camera FOV keyframes are already authorable with ordinary tools; no preset currently proposes a cinematic FOV target automatically.",
+  "failure_modes": [
+    "leaving a deliberately cinematic/showcase shot at a default wide FOV, missing the register the source states is available for free from one numeric change",
+    "applying a low, cinematic FOV to an active gameplay camera, trading away peripheral visibility for an aesthetic effect where the shot's purpose is functional rather than expressive"
+  ],
+  "roblox_considerations": "Directly relevant and directly named by the source in a Roblox authoring context specifically (Moon Animator's own camera FOV track, in a Roblox Studio workflow): Roblox's default `Camera.FieldOfView` (~70) versus a deliberately authored lower value (the source's own example, 35) for cutscenes, promotional renders, or in-engine cinematics.",
+  "performance_implications": "None — a single scalar property choice.",
+  "examples": [
+    "'add the camera to the file using the add camera action... select the field of view track, press plus to add a key frame... go ahead and set the field of view to 35 — a low field of view creates a cinematic look' (video @ 03:11–03:26)"
+  ],
+  "evidence_status": "video: https://youtu.be/q8tGNMo_jHg (six, \"Moon Animator 2 Basics - Official Tutorial\") @ 03:11–03:26 — the presenter (the tool's own author) states the specific value and its stylistic effect directly; experimental until validated"
+}

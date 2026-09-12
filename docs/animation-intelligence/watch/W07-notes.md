@@ -6,7 +6,7 @@
 - [x] 64. Sakuga OVERKILL! | Animation Analysis: Stark vs Dragon — MankoMan (25:12)
 - [x] 65. I Spent 30 Days ANIMATING this FIGHT SCENE!! — Shrimpy (16:31)
 - [x] 66. PWOW Workshop - Introduction to Animation Breakdowns — Toniko Pantoja (16:25)
-- [ ] 67. Moon Animator 2 Basics - Official Tutorial — six (4:41)
+- [x] 67. Moon Animator 2 Basics - Official Tutorial — six (4:41)
 - [ ] 68. Roblox ANIMATION Guide #1 - Moon Animator (2026) — Nisky (12:07)
 - [ ] 69. Roblox Animation in Blender: Full Beginner Guide [2026] — Nisky (7:46)
 - [ ] 70. Roblox Animation in Blender: Advanced Guide (2026) — Nisky (31:26)
@@ -299,4 +299,49 @@ not a new one.
 
 Entries written: `W07-66-breakdown-choice-encodes-character-independent-of-keys.json`,
 `W07-66-breakdown-authorship-checklist-measurement-map.json`. Both pass `validateProposedEntry`
+(20/20) and `validateEvidenceSource`.
+
+## Video 67 — Moon Animator 2 Basics - Official Tutorial — six (4:41)
+https://youtu.be/q8tGNMo_jHg — watched 2026-09-12, `balanced` detail, 21 frames (all read; UI-heavy
+screen-recording, confirmed the orange-themed per-part timeline panel and colored keyframe diamonds
+but no diagram beyond that), captions transcript (110 segments, read in full). Moon Animator's OWN
+official basics tutorial, from its author ("six") — exactly "the tool Cadence replaces, from its
+author" per the batch list's own gloss.
+
+Most of this video is software feature/keybind instruction (install flow, add-item window, R6 rig
+insertion, EasyWeld prop attachment, export/import to Roblox via ServerStorage KeyframeSequences,
+keyframe grouping, markers) rather than animation craft — genuinely useful for the SEPARATE Moon-
+parity tracking effort, but not "techniques or rules" in the Part 25 sense the knowledge schema is
+built for, so **written up here as parity notes rather than forced into knowledge entries**:
+
+- **Direct-manipulation keying**: clicking a part selects its keyframe track; TRANSFORMING a part
+  automatically adds a keyframe at the current playhead — no separate "add key" step for a normal
+  transform edit. Worth comparing against Cadence's own keying model.
+- Moon Animator's item model is broader than rigs: an arbitrary Roblox `Part` can be added to the
+  file and keyed directly on `CFrame`/`Size`/color tracks, not just rig joints.
+- The **camera is a first-class file item**: its own FOV and CFrame tracks, `Ctrl+H` hide/show the
+  plugin UI, `Ctrl+Space` enable/disable camera tracks specifically (separate from other tracks).
+- **Export/import round-trip**: "export all" writes `KeyframeSequence`s into `ServerStorage`;
+  right-click → "save to Roblox" uploads one; a per-rig "import to rig" button pulls one back in.
+  Exports default to grouped keyframes with an explicit "ungroup" action available.
+  - A **marker track** uses the identical UI/interaction pattern as a keyframe track (add/edit the
+  same way) but for named annotations / exported-frame renaming, not a pose value.
+- Onion skin (`B`), reset-transform (`G`), and an edit-keyframe window (`7`) for easing are all
+  bound to single keys with a preview-the-easing shortcut (`space` inside that window) — a low-
+  friction, keyboard-first workflow throughout, worth keeping in mind for Cadence's own ergonomics
+  work given the master directive's "no learning required" constraint cuts the other way (Moon's
+  speed depends on a user having memorized these binds).
+
+One genuine animation-craft technique DID meet the knowledge-entry bar:
+
+- **`low_field_of_view_reads_cinematic`** — the author states directly: "set the field of view to
+  35 — a low field of view creates a cinematic look." A concrete, numeric, directly-authorable
+  camera rule, and the cheapest possible SHOT-003/004-adjacent finding in this whole programme so
+  far (FOV is already a plain keyframeable scalar — no new capability needed, only the guidance
+  connecting a target value to an intended register).
+
+No capture candidate (screen recording of software, no performed motion). No new check — the FOV
+entry is directly measurable today with no new primitive.
+
+Entries written: `W07-67-low-field-of-view-reads-cinematic.json`. Passes `validateProposedEntry`
 (20/20) and `validateEvidenceSource`.
