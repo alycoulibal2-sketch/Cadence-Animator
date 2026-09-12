@@ -1,0 +1,58 @@
+WEBVTT
+
+1
+00:00:02.785 --> 00:00:10.105
+This is Cadence Animator, a free desktop app for animating Roblox rigs. Here is what your first two minutes look like.
+
+2
+00:00:10.486 --> 00:00:18.502
+The welcome screen shows the whole loop: add a rig, pose and key it, polish, and ship it to Studio. Let's start.
+
+3
+00:00:18.885 --> 00:00:26.061
+Your scene is on the left, the 3D viewport in the middle, the inspector on the right, and the timeline runs along the bottom.
+
+4
+00:00:26.444 --> 00:00:28.940
+Click Add, and pick an R15 rig.
+
+5
+00:00:30.514 --> 00:00:37.162
+There is our rig. Orbit with the right mouse button and zoom with the wheel, exactly like Roblox Studio.
+
+6
+00:00:37.544 --> 00:00:40.832
+Click a part to select it. I'll take the right upper arm.
+
+7
+00:00:41.215 --> 00:00:49.351
+Press E for the rotate tool, then drag the ring to raise the arm. Auto-key is on, so the pose is recorded as you move.
+
+8
+00:00:49.732 --> 00:00:55.228
+Press S to key the whole pose. The keyframe lands on the timeline at frame zero.
+
+9
+00:00:55.609 --> 00:01:03.073
+Now drag the playhead to frame 24. At 30 frames per second, that is almost one second later.
+
+10
+00:01:03.453 --> 00:01:08.901
+Swing the arm the other way, and press S again. Two keys, one second apart.
+
+11
+00:01:09.282 --> 00:01:16.482
+Press Space to play. Cadence fills in every frame between your keys, and the motion is already smooth.
+
+12
+00:01:16.863 --> 00:01:23.991
+Press Control K, type onion, and turn on onion skin. Neighbouring frames appear as ghosts while you pose.
+
+13
+00:01:24.371 --> 00:01:32.939
+When you are happy, click Export. Straight into Studio puts the animation in the rig's AnimSaves, and the animation file works anywhere.
+
+14
+00:01:34.021 --> 00:01:43.717
+That is the whole loop: add, pose, key, play, export. Everything autosaves, and Cadence is free and open source.
+
