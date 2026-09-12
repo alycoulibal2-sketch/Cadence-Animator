@@ -9,7 +9,7 @@
 - [x] 67. Moon Animator 2 Basics - Official Tutorial — six (4:41)
 - [x] 68. Roblox ANIMATION Guide #1 - Moon Animator (2026) — Nisky (12:07)
 - [x] 69. Roblox Animation in Blender: Full Beginner Guide [2026] — Nisky (7:46)
-- [ ] 70. Roblox Animation in Blender: Advanced Guide (2026) — Nisky (31:26)
+- [x] 70. Roblox Animation in Blender: Advanced Guide (2026) — Nisky (31:26)
 
 ---
 
@@ -427,3 +427,131 @@ No capture candidate (screen recording of software). No new check.
 
 Entries written: `W07-69-procedural-curve-modifiers-for-loop-and-noise.json`. Passes
 `validateProposedEntry` (20/20) and `validateEvidenceSource`.
+
+## Video 70 — Roblox Animation in Blender: Advanced Guide (2026) — Nisky (31:26)
+https://youtu.be/EM9u4gIHoRg — watched 2026-09-12, `efficient` detail, 50 keyframes (spread across
+the full 31 minutes; confirmed the "ULTIMATE POSE PACK" asset browser with named thumbnails — A-Pose,
+Idle A/B, Confident/Relaxed/T-Pose, Fight Stance, Hit Reaction, Kick A/B, Knockdown, Punch
+Anticipation/Contact/Follow Through — and the graph-editor stepped-interpolation workflow), captions
+transcript (891 segments, read in full). The longest video in this batch and, once the first ~8
+minutes of pure rig-texturing/accessory-attachment software instruction and the final ~7 minutes of
+troubleshooting (purple-rig-texture fix, animation-import anchoring) are set aside as out-of-scope
+software mechanics, the single richest MIDDLE section of any video in W07.
+
+Two strong new entries:
+
+- **`reusable_pose_library_for_rapid_cycle_assembly`** — a library of individually-saved, NAMED,
+  thumbnailed poses (not full motions) assembled into cycles in seconds ("I've literally made an
+  idle cycle in like 4 seconds"). This is the single most direct, concrete, evidenced example this
+  whole batch has found for the master directive's still-open starting-recipe question (§7.3) —
+  complete with a working category taxonomy (defaults / action / cycles) that independently
+  converges on the SAME phase vocabulary (anticipation, contact, follow-through) `authorMotion`
+  already uses internally. Flagged as a distinct, smaller unit than `ai/library.js`'s existing
+  full-motion entries: a reusable POSE, one level below a reusable MOTION.
+- **`stepped_interpolation_bulk_apply_via_curve_modifier`** — the AUTHORING-MECHANISM companion to
+  the already-existing `stepped_keyframes_replace_interpolation_for_2d_read` (W06-51): rather than
+  baking `Constant` easing per key, apply a non-destructive "Stepped Interpolation" F-curve modifier
+  to one curve and bulk-copy it to every curve at once, with a hold-length parameter directly named
+  against "animating on twos/threes." This is real, external evidence for a solution shape to a gap
+  W06-51 already names explicitly ("no tool currently applies it project-wide... a user must select
+  every range by hand"). Also surfaced a genuinely NEW failure mode neither W06-51 nor any other
+  card records: stepped interpolation looks good un-looped but "looks ridiculous" once looped — a
+  step-phase/loop-boundary mismatch worth the merge session cross-linking into W06-51.
+
+**Enriched `W07-68-lower-export-framerate-for-choppier-2d-style.json` in place** (written fresh in
+video 68, untouched since) with this video's much stronger restatement of the same 24-vs-60fps claim
+("60 is way too smooth... 99% of the time you want to keep this at 24... I probably haven't met
+that many animators who even animate at 60"). Flagged
+explicitly and honestly in the entry's own evidence_status that this is the SAME creator (Nisky)
+restating the claim seven months later across two of this batch's videos, not independent
+corroboration from a second source — worth being precise about, since the difference between "two
+sources agree" and "one source said it twice" matters for how much confidence the merge session or
+user should place in the specific "24fps, 99% of the time" framing.
+
+Cross-check only, not a new entry: the pose-asset-library assembly workflow's own idle-polish step
+(delaying the head+arms keyframes 2-3 frames after the base cycle is built) confirms the existing
+chain-depth/secondary-delay family (W02 v16, LESSONS check #22) yet again, from a fourth independent
+context — not written up separately since the underlying measurement claim is already thoroughly
+covered; the news here is the WORKFLOW placement (a discrete polish pass after structural assembly),
+not a new measurement.
+
+No capture candidate (screen recording of software throughout). No new check beyond what the two new
+entries' own fields already specify.
+
+Entries written: `W07-70-reusable-pose-library-for-rapid-cycle-assembly.json`,
+`W07-70-stepped-interpolation-bulk-apply-via-curve-modifier.json` (new), plus a second in-place
+enrichment of `W07-68-lower-export-framerate-for-choppier-2d-style.json`. All pass
+`validateProposedEntry` (20/20) and `validateEvidenceSource`.
+
+---
+
+## Closing summary — W07 complete (videos 61–70, all ten watched)
+
+Counts below are recomputed directly from the files on disk, not carried forward from a running
+tally (per the standing lesson from W03/W04): `ls docs/animation-intelligence/knowledge/inbox/W07-*.json | wc -l` → **21 files**, breaking down per video as 61:2, 62:5, 63:2, 64:4, 65:1, 66:2, 67:1,
+68:1, 69:1, 70:2 (= 21). All 21 pass both Part 72 gates (`validateProposedEntry` 20/20 fields,
+`validateEvidenceSource`) in one final sweep just run across the whole batch. A full corpus + inbox
+scan (main `knowledge/` plus every unmerged `inbox/*.json` from W03 through W07) found **187 files
+carrying a `concept` field, 187 unique concepts, zero collisions**.
+
+Three of the 21 files are **in-batch enrichments rather than fresh video-61-through-70 write-ups**:
+`W07-67-low-field-of-view-reads-cinematic.json` was written for video 67 and enriched once (video
+68's fuller numeric FOV range); `W07-68-lower-export-framerate-for-choppier-2d-style.json` was
+written for video 68 and enriched once (video 70's much stronger restatement of the same 24fps
+convention — flagged explicitly as the SAME creator restating the claim, not independent
+corroboration); `W07-69-procedural-curve-modifiers-for-loop-and-noise.json` was written for video 69
+and would have been enriched by video 70's stepped-interpolation content, but that turned out
+specific and novel enough (a genuinely new failure mode: looping breaks the stepped look) to warrant
+its own companion entry (`W07-70-stepped-interpolation-bulk-apply-via-curve-modifier.json`) instead,
+cross-referencing both `W06-51` and the video-69 entry rather than merging into either.
+
+**No capture candidates** across all ten videos — the run was entirely 2D hand-drawn tutorials,
+professional-analysis commentary over existing footage, hobbyist production vlogs, and Blender/Moon
+Animator screen recordings; nothing showed a real filmed person performing a clean, trackable motion
+the way earlier batches occasionally found (W01, W04).
+
+**No new `check:` lines queued** beyond what individual entries' own `detection_and_measurement_
+methods` fields already specify inline — this batch's findings skewed toward either (a) directly
+buildable today with existing measurements (the snappy-easeout/energy-transfer entry, the Yutapon-
+cubes timing distinction, the breakdown-checklist measurement map) or (b) genuinely new capability
+gaps rather than unwired measurements of existing data (multi-projectile evasion choreography, the
+procedural curve-modifier and stepped-interpolation-modifier gaps) — nothing fell into the
+"measurable today but not yet wired to a knowledge entry" shape that produces a fresh checks-queue
+line the way earlier batches' findings often did.
+
+**Nothing contradicted an existing card outright.** The closest to friction: this video 61's
+`smear_construction_doubles_streak_or_combined` notes an unreconciled terminology/framing overlap
+with W06-57's `multiples_vs_smear_for_differently_weighted_fast_motion` (same underlying mechanism,
+described as combinable sub-techniques by one source and as an either/or weight-reading choice by
+the other) — flagged for the merge session, not resolved here, per this programme's own discipline
+for exactly this situation.
+
+**The batch's own throughline**, found only by reading across all ten videos together: three
+independent capability GAPS surfaced this batch that are squarely inside `ai/**`'s own pose/motion
+scope rather than this programme's more common "out-of-scope rendering/2D-drawing concern" verdict —
+multi-projectile evasion choreography (a genuinely new measurement category: multiple simultaneous
+independent paths relative to one evading target), and TWO curve-authoring capabilities from the
+Blender videos (procedural loop/noise modifiers, and a non-destructive bulk-appliable stepped-
+interpolation layer that directly answers a gap `W06-51` already named). Also notable: this batch
+found the single most direct, concrete, evidenced candidate yet for the master directive's still-
+open starting-recipe question (§7.3) — video 70's reusable named-pose library, whose own category
+taxonomy independently converges on the same anticipation/contact/follow-through phase vocabulary
+`authorMotion` already uses internally. And twice this batch, Cadence's own real 3D viewport turned
+out to already be AHEAD of the 2D source technique being learned from (scale-via-rotation-parallax,
+cast-shadow-as-connective-tissue, both video 64) — worth remembering that not every finding in this
+programme is a gap to fill; some are confirmation that a rigid 3D pipeline already does something a
+2D pipeline has to work hard for.
+
+Also caught and corrected in-session (video 66): drafted an entry with `category: "essential"`
+before checking that all twelve existing essential-category entries are exactly the compiled
+classical principles with zero exceptions across every prior batch — fixed to `"advanced"` to keep
+that unbroken precedent, and flagged explicitly for the user/merge session as an unenforced
+convention (the gate does not actually block a user entry from claiming "essential") worth deciding
+whether to make a hard rule.
+
+**W07 is NOT yet merged.** All ten videos are ticked above. This session ran the full ten in one
+sitting (the user handed the session `W07.md`'s path directly with effort set to max, the same
+pattern as W05) with a commit after each video or pair of videos, eight commits total, all pushed to
+`origin/animation-intelligence` with no conflicts (this desktop's usual dirty `site/` WIP from
+another concurrent session was stashed before each rebase and restored after each push, every time,
+never staged or lost). **W08–W10 are still unwatched.**

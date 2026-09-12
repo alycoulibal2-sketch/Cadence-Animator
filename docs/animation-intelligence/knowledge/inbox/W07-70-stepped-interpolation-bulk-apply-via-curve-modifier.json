@@ -1,0 +1,42 @@
+{
+  "concept": "stepped_interpolation_bulk_apply_via_curve_modifier",
+  "category": "advanced",
+  "definition": "Rather than converting each key's own easing to a held/Constant style one at a time, author the motion normally with smooth interpolation, then apply a 'Stepped Interpolation' F-CURVE MODIFIER (with a configurable hold-length parameter directly matching the 'animating on twos/threes' convention) to one curve and bulk-copy that same modifier onto every other curve at once, producing the identical stepped/choppy 2D-adjacent look as a non-destructive, globally-adjustable layer over the original smooth keys rather than a per-key destructive bake.",
+  "purpose": "Reach the same stepped/limited-animation visual result `stepped_keyframes_replace_interpolation_for_2d_read` (W06-51) already documents, but as ONE bulk, non-destructive, globally-tunable action across an entire rig's curves at once, rather than hand-selecting and re-easing every key range individually — directly answering that entry's own noted gap ('no tool currently applies it project-wide... a user must select every range by hand').",
+  "visible_effect": "Smoothly-interpolated motion becomes visibly stepped/held for a configurable number of frames per pose (2 for 'on twos', 3 for 'on threes') across every animated curve on the rig simultaneously, achieved by copying one F-modifier to all curves in a single paste action rather than re-authoring each key.",
+  "psychological_or_gameplay_effect": "Same as `stepped_keyframes_replace_interpolation_for_2d_read`: reads as deliberately hand-drawn/stop-motion-adjacent rather than smooth 3D — the source's own framing: 'this is the secret sauce... it just works so well.'",
+  "physical_interpretation": "None — the same non-physical stylistic renunciation of continuous motion as the entry it complements.",
+  "use_cases": [
+    "converting an already-authored smooth animation to a stepped 2D-adjacent style in one bulk action, without re-keying anything",
+    "quickly comparing a smooth vs. stepped version of the same motion by toggling the modifier on/off, since the underlying smooth keys are never destroyed",
+    "tuning the hold-length (2, 3, or more frames per pose) globally after the fact, matching a target 'on twos'/'on threes' convention without re-authoring"
+  ],
+  "non_use_cases": [
+    "a LOOPED cycle, per this source's own directly-observed new failure mode (see failure_modes) — the technique's demonstrated result specifically 'looks ridiculous' once looped, a caveat `stepped_keyframes_replace_interpolation_for_2d_read` does not itself record",
+    "any case already covered by that entry's own non-use-cases (camera motion, a realistic style, a single accent beat rather than a whole-performance style)"
+  ],
+  "interactions": [
+    "stepped_keyframes_replace_interpolation_for_2d_read (W06-51) — this entry is the AUTHORING-MECHANISM companion to that RESULT-level entry: same visual outcome, different (non-destructive, bulk-appliable) construction method, plus one new failure mode that entry's own evidence did not surface. The merge session should read both together and consider cross-linking them explicitly.",
+    "procedural_curve_modifiers_for_loop_and_noise (video 69, this batch) — the same underlying Blender mechanism (an F-curve modifier, copyable across curves) applied to a different end (stepping/holding rather than looping/noise); worth noting as the same capability class reused for a third distinct purpose"
+  ],
+  "style_variations": {
+    "anime": "the source explicitly compares the result to Spider-Verse-style stop-motion-adjacent 3D animation",
+    "realistic": "contraindicated, same as the entry this one complements"
+  },
+  "cadence_representation": "Directly relevant to a gap `stepped_keyframes_replace_interpolation_for_2d_read` already names explicitly: 'no tool currently applies it project-wide as a declared style default... a user must select every range by hand.' This entry is external evidence that a NON-DESTRUCTIVE, BULK-APPLIED modifier layer (rather than a per-key destructive `Constant` bake, which is how Cadence's existing 'Stop motion' command works today) is a real, demonstrated, preferred solution shape for exactly that gap — worth considering when eventually building a project-wide stepped-style default.",
+  "control_surface": "Cadence's existing `set_easing`/'Stop motion' command already bakes `Constant` per selected range; no non-destructive, bulk, globally-adjustable stepped-interpolation LAYER exists — this would be new capability, not a wiring gap.",
+  "detection_and_measurement_methods": "Same as `stepped_keyframes_replace_interpolation_for_2d_read`: once baked/exported, the result is ordinary `Constant`-eased keys, measurable exactly the same way regardless of which authoring method produced them.",
+  "generation_or_modification_methods": "None currently offers a non-destructive, bulk-appliable stepped-interpolation layer; only per-key destructive easing changes exist today.",
+  "failure_modes": [
+    "applying stepped interpolation to a LOOPED cycle: the source directly observes 'it is choppy and it looks good when it's not looped — when it gets looped it kind of looks ridiculous', a concrete new caveat about the step phase/boundary not aligning cleanly at a loop seam, not previously recorded by `stepped_keyframes_replace_interpolation_for_2d_read`",
+    "all the failure modes `stepped_keyframes_replace_interpolation_for_2d_read` already names (inconsistent application, masking broken interpolation, insufficient pose density) apply equally here since the visual RESULT is the same"
+  ],
+  "roblox_considerations": "Same underlying export target as `stepped_keyframes_replace_interpolation_for_2d_read` (Roblox's native `PoseEasingStyle` already includes a held/Constant-equivalent style) — this entry's non-destructive authoring method would still need to bake to that same discrete-key export shape, since Roblox has no runtime curve-modifier evaluation.",
+  "performance_implications": "Same as the entry this one complements: an authoring-time convenience, no additional runtime cost once baked.",
+  "examples": [
+    "'select any single point... we're going to go to the right here and it says modifiers... add a modifier and select stepped interpolation... press A [select all]... copy F modifiers, and paste — boom, it pasted it to every single frame out here' (video @ 17:57–18:45), confirmed in this session's frames at t=17:48/19:16 showing the graph editor and dope sheet mid-edit",
+    "the hold-length parameter named directly against the classical convention: 'you can change over here how many frames you want it to stay on for — if you're animating on twos, you're going to have two here, if you're animating on threes, you're going to have three here' (video @ 18:52–19:02)",
+    "the new loop-interaction failure mode: 'you can see that it is choppy and it looks good when it's not looped — when it's when it gets looped it kind of looks ridiculous' (video @ 19:36–19:45), confirmed in this session's frame at t=19:55 showing the looped playback"
+  ],
+  "evidence_status": "video: https://youtu.be/EM9u4gIHoRg (Nisky, \"Roblox Animation in Blender: Advanced Guide\") @ 17:48–19:45 — the presenter demonstrates the full workflow live, confirmed in this session's frames at t=17:48, 19:16, 19:55; experimental until validated"
+}

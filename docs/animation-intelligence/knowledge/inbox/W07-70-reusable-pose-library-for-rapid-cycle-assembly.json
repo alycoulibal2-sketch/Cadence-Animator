@@ -1,0 +1,40 @@
+{
+  "concept": "reusable_pose_library_for_rapid_cycle_assembly",
+  "category": "advanced",
+  "definition": "A library of individually-saved, named, thumbnailed POSES (not full captured motions) — organized into named categories such as defaults (A-Pose, Idle A/B, Confident/Relaxed/T-Pose), action (Fight Stance, Hit Reaction, Punch Anticipation/Contact/Follow Through, Kick A/B, Knockdown), and named cycles (Walk Cycle A/B, Run Cycle) — that can be dropped onto any frame of any rig to assemble a full cycle by chaining a handful of library poses, rather than hand-posing each key from scratch every time.",
+  "purpose": "Turn animation authoring from 'pose everything by hand every time' into 'assemble a sequence from a reusable vocabulary of named poses', reducing a full idle cycle to selecting two or three library assets rather than keying a rig from a neutral pose each time.",
+  "visible_effect": "A demonstrated idle cycle (Idle A at frame 0, Idle B at the cycle's midpoint) is assembled in seconds by double-clicking two library thumbnails onto two timeline positions, versus keying every joint by hand.",
+  "psychological_or_gameplay_effect": "The source's own direct claim, demonstrated on camera: 'I've literally made an idle cycle in like 4 seconds' — the time saving is the whole point, not a secondary benefit.",
+  "physical_interpretation": "None — an authoring-workflow structure, not a physical claim.",
+  "use_cases": [
+    "rapidly assembling a first-pass idle, walk, or run cycle from named starting poses rather than keying from a neutral rest pose each time",
+    "consistent named acting/action poses (a fight stance, a hit reaction, a punch's anticipation/contact/follow-through beats) reused across many different characters or sequences",
+    "quickly generating thumbnail/showcase poses for non-animation purposes (the source's own example: using a library pose for a video thumbnail)"
+  ],
+  "non_use_cases": [
+    "a performance needing a genuinely unique, bespoke pose no library entry approximates — the library speeds up the COMMON case, it doesn't replace hand-posing for a novel one",
+    "final, polished character acting where a library pose is only ever a starting point requiring further refinement, not a finished result on its own"
+  ],
+  "interactions": [
+    "the master directive's open starting-recipe question (`project_cadence_animation_intelligence` memory, prompt §7.3) — this is the single most direct, concrete, evidenced real-world example this whole batch has found of exactly the kind of named-pose starting-recipe library that open question is about, complete with a working category taxonomy (defaults / action / cycles) and a demonstrated multi-second assembly workflow",
+      "the twelve-action-phase vocabulary already implicit in `authorMotion` (anticipation, key poses, breakdowns, holds, settle) — the library's own category names (Punch Anticipation, Punch Contact, Punch Follow Through) independently converge on the SAME phase vocabulary this build already uses internally, evidence that the phase model is a natural fit for a pose-library taxonomy",
+      "obari_punch_camera_facing_pose_sequence (video 62, this batch) — another concrete named-pose-sequence candidate; between the two, this batch now has multiple independent, evidenced examples supporting the same open design question"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly relevant to the still-open starting-recipe question and to `ai/library.js`'s existing cross-project motion library: that module already stores full captured/authored MOTIONS with a Part 36 profile; this entry's evidence is for a library of individual POSES (single points in time, not motion sequences) as a separate, smaller, faster-to-assemble unit one level below a full library entry. Neither `author_motion`'s PoseSpec-per-phase mechanism nor `ai/library.js` currently distinguishes a reusable named POSE from a reusable named MOTION — this entry is evidence that both units are independently useful and demanded in practice.",
+  "control_surface": "`compile_pose`/`author_motion` can already take a PoseSpec per phase; no tool currently stores, names, thumbnails, or retrieves an individual reusable PoseSpec the way this source's library does.",
+  "detection_and_measurement_methods": "Not directly measurable — an authoring-time convenience structure, not a property of finished motion data. Once assembled, the resulting cycle is measured by whatever existing checks already apply to a cycle (`keyDensity`, cross-repeat variance, etc.).",
+  "generation_or_modification_methods": "None currently stores or retrieves named individual poses; `author_motion` authors a full phase sequence per call rather than dropping a single named pose onto an arbitrary frame.",
+  "failure_modes": [
+    "treating a library pose as a finished result rather than a starting point needing further refinement for the specific shot",
+    "a category taxonomy that doesn't match the target rig's own phase/action vocabulary, making retrieval harder than hand-posing would have been"
+  ],
+  "roblox_considerations": "Directly reachable in a Roblox/Studio-adjacent tool as a per-user or per-project stored set of named `Pose`-equivalent snapshots (a joint-angle dictionary per named pose), retrievable and droppable onto any frame of any compatible R15/R6 rig.",
+  "performance_implications": "An authoring-time saving only (fewer manual keying actions); no runtime cost implication once a cycle is assembled and baked to ordinary keyframes.",
+  "examples": [
+    "'this is basically the biggest time saver... it's not only that, but it is a huge part of the reason [Blender is good for this]... this right here will save you hours' (video @ 09:41–10:02), confirmed in this session's frame at t=10:44 showing the 'ULTIMATE POSE PACK' asset browser with named thumbnails (A-Pose, Confident Casual Pose, Confident Pose, Idle A, Idle B, Relaxed, T-Pose)",
+    "'I'm going to go ahead and select the idle A... I'm actually going to just right click this, as you can see it already made the keyframes... select idle B... I've literally made an idle cycle in like 4 seconds' (video @ 11:58–12:35), confirmed in this session's frames at t=12:01/13:40 showing the pose browser mid-selection with the dope sheet populated",
+    "the library's own stated category list, confirmed in this session's frame at t=19:16 showing a second pose-pack page: 'Fight Stance, Hit Reaction, Kick A, Kick B, Knockdown, Punch Antipication [sic], Punch Contact, Punch Follow Through' (video @ 11:35–11:45)"
+  ],
+  "evidence_status": "video: https://youtu.be/EM9u4gIHoRg (Nisky, \"Roblox Animation in Blender: Advanced Guide\") @ 09:41–12:35 — the presenter demonstrates the library live and states the time-saving claim directly; confirmed by on-screen asset-browser thumbnails in this session's frames at t=10:44, 12:01, 13:40, 19:16; note the library shown is the presenter's own paid product (disclosed in-video), so the SPECIFIC pose set is a commercial example, not a neutral one, though the underlying workflow pattern is independently verifiable from the demonstration itself; experimental until validated"
+}
