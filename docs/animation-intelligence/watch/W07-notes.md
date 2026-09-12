@@ -5,7 +5,7 @@
 - [x] 63. The Art of Animators (or Sakuga) — RCAnime (7:44)
 - [x] 64. Sakuga OVERKILL! | Animation Analysis: Stark vs Dragon — MankoMan (25:12)
 - [x] 65. I Spent 30 Days ANIMATING this FIGHT SCENE!! — Shrimpy (16:31)
-- [ ] 66. PWOW Workshop - Introduction to Animation Breakdowns — Toniko Pantoja (16:25)
+- [x] 66. PWOW Workshop - Introduction to Animation Breakdowns — Toniko Pantoja (16:25)
 - [ ] 67. Moon Animator 2 Basics - Official Tutorial — six (4:41)
 - [ ] 68. Roblox ANIMATION Guide #1 - Moon Animator (2026) — Nisky (12:07)
 - [ ] 69. Roblox Animation in Blender: Full Beginner Guide [2026] — Nisky (7:46)
@@ -250,3 +250,53 @@ check.
 
 Entries written: `W07-65-combat-choreography-cannot-loop-cost-multiplier.json`. Passes
 `validateProposedEntry` (20/20) and `validateEvidenceSource`.
+
+## Video 66 — PWOW Workshop - Introduction to Animation Breakdowns — Toniko Pantoja (16:25)
+https://youtu.be/wdPbiy-8BRo — watched 2026-09-12, `balanced` detail, 72 frames (all read; well-
+labeled diagrams throughout — "Breakdown 1 - BLINK", "Power Fighter", "Evasive Fighter",
+"Strategist Fighter", a numbered "6. Character Performance" title card), captions transcript (one
+subtitle track hit `HTTP 429` but a fallback track (`en-orig`) succeeded automatically, no retry
+needed — worth noting as a case where the script's own multi-track fallback absorbed a 429 without
+intervention). One of the best single sources in this batch — a professional character animator
+(Toniko Pantoja) giving a genuinely structured lesson, not trivia or a vlog.
+
+The central, extremely well-evidenced thesis: **holding the two key poses AND the timing between
+them completely fixed, the breakdown's own content is sufficient on its own to produce an entirely
+different character read.** Demonstrated twice, at length: a two-breakdown reaction shot whose
+MEANING flips depending only on breakdown ORDER (squash-then-stretch reads as "registers, then
+reacts"; stretch-then-squash reads as "caught off guard, then processes"); and — the standout
+example — one identical punch key-pair reinterpreted through SIX named, individually-diagrammed
+fighter archetypes (dull baseline, tight "seasoned", wound-up "Power Fighter" with overshoot
+explicitly "to show weight", head-led "Evasive Fighter", flailing "hooligan", measuring
+"strategist", block-then-strike martial artist) — same keys, same timing, six completely different
+personalities. Wrote this up as **`breakdown_choice_encodes_character_independent_of_keys`**, cross-
+referencing `deliberate_lead_choice_for_acting` (W02, v18, directly confirmed by the head-lead vs.
+torso-lead fighter contrast) and the anticipation/overshoot ladder (the "overshot it to show weight"
+line is a direct, independent confirmation of overshoot-as-weight-signal).
+
+Caught my own near-mistake here: first drafted this entry with `category: "essential"` since the
+thesis felt foundational, then checked and found ALL twelve "essential"-category entries in the
+merged corpus are exactly the twelve compiled classical principles — no watch-batch entry across
+179 prior inbox files has ever used it. `validateProposedEntry` doesn't actually block a user entry
+from claiming "essential" (it passed), so this is an unenforced convention, not a hard rule — but
+worth calling out explicitly for the merge session or the user to decide whether it should become
+an enforced boundary. Fixed to `"advanced"` before committing, to keep with the unbroken 179-entry
+precedent rather than assume the convention doesn't apply.
+
+Second entry: **`breakdown_authorship_checklist_measurement_map`** — the source's own explicit,
+numbered 6-point checklist (weight distribution, leading/delayed action, anticipation/overshoot,
+path of motion, "ups and downs", character) for what to consider when authoring any breakdown. Five
+of the six map directly to measurements this build already has (balance, `analyseChain` lead/lag,
+anticipation timing, MOT-005 curvature, a partial secondary-bounce match); only "character" itself
+is acknowledged by the source as unmeasurable ("abstract"). Framed as a composition/reporting
+opportunity rather than a new-capability gap — a future breakdown-review tool could run the five
+existing measurements together under this checklist's own six headings with no new primitive
+required.
+
+No capture candidate (2D drawn examples throughout, no filmed motion). No new check beyond what the
+second entry's own measurement-mapping already names — it's a composition of existing measurements,
+not a new one.
+
+Entries written: `W07-66-breakdown-choice-encodes-character-independent-of-keys.json`,
+`W07-66-breakdown-authorship-checklist-measurement-map.json`. Both pass `validateProposedEntry`
+(20/20) and `validateEvidenceSource`.

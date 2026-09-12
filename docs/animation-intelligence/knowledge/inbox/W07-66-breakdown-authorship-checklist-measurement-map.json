@@ -1,0 +1,41 @@
+{
+  "concept": "breakdown_authorship_checklist_measurement_map",
+  "category": "advanced",
+  "definition": "A named, six-point checklist for what to consider when authoring any breakdown — (1) weight distribution, (2) leading and delayed action (drag), (3) anticipation and overshoot, (4) path of motion (arc vs. straight), (5) 'ups and downs' (secondary vertical bounce), and (6) character/personality/temperament — stated explicitly by the source as a deliberate, repeatable design checklist rather than an intuition-only process.",
+  "purpose": "Give breakdown authorship a repeatable, named checklist instead of leaving it to unstructured intuition, and (for this corpus specifically) name six axes each of which maps to a measurement this build already has or nearly has, which is not something the source itself claims but is a direct, checkable consequence of the checklist's content.",
+  "visible_effect": "Not applicable directly — a design-process checklist, confirmed as a deliberate structure by an explicit numbered on-screen list culminating in a '6. Character Performance' title card in this session's frames.",
+  "psychological_or_gameplay_effect": "Not applicable — an authoring-process aid, not itself a perceptual effect.",
+  "physical_interpretation": "None — a checklist, not a physical claim.",
+  "use_cases": [
+    "reviewing an already-authored breakdown against a fixed set of considerations rather than relying on unstructured judgment",
+    "a future automated or semi-automated breakdown-review tool, since five of the six axes already map to specific measurements this build has"
+  ],
+  "non_use_cases": [
+    "a purely mechanical in-between breakdown with no performance intent, where applying the full checklist would be over-engineering (see `breakdown_choice_encodes_character_independent_of_keys`'s own baseline non-use-case)"
+  ],
+  "interactions": [
+    "breakdown_choice_encodes_character_independent_of_keys (video 66, this batch) — this checklist is the same source's own structured breakdown of exactly what its worked examples were varying; read together, not separately",
+    "hip_balance_vs_limb_extension (LESSONS.md check #23), ai/pose.js measurePose (MOT-011) — directly maps to checklist point 1 (weight distribution)",
+    "chain_depth_proportional_secondary_delay, analyseChain lead/lag — directly maps to checklist point 2 (leading and delayed action)",
+    "the anticipation ladder (W01), layered_anticipation_present (LESSONS.md check #2) — directly maps to checklist point 3 (anticipation and overshoot)",
+    "MOT-005 curvature/chord deviation, obscure_arc_vs_main_arc_divergence (LESSONS.md check #18) — directly maps to checklist point 4 (path of motion / arcs)",
+    "pose_based_squash_stretch_present_on_launch (LESSONS.md check #9) — a plausible partial match for checklist point 5 ('ups and downs'/secondary bounce), though that check is specifically about a launch phase rather than a general vertical-bounce measurement",
+    "deliberate_lead_choice_for_acting (W02, v18), breakdown_choice_encodes_character_independent_of_keys (video 66, this batch) — map to checklist point 6 (character/personality), which this build cannot measure directly (personality is not a motion quantity) but which the OTHER five points' measurements can be read together as evidence for"
+  ],
+  "style_variations": {},
+  "cadence_representation": "A genuinely useful FRAMING even though no single new measurement is required: five of the six checklist points already correspond to a real `ai/motion.js`/`ai/pose.js` measurement (balance, lead/lag, anticipation timing, curvature, and partially secondary bounce), meaning a 'breakdown quality audit' tool is mostly a matter of RUNNING AND PRESENTING existing measurements together under this checklist's own six headings, rather than building new capability. The sixth (character) is explicitly acknowledged by the source itself as 'abstract' and is not a motion quantity.",
+  "control_surface": "None currently packages these five measurements together under this checklist's framing; each exists independently today.",
+  "detection_and_measurement_methods": "Directly buildable as a composite report: `ai/pose.js measurePose` (weight/balance), `analyseChain` (lead/lag), existing anticipation-phase timing, MOT-005 curvature (arcs), and an existing or near-existing vertical-bounce measurement, presented together per breakdown frame — no single new primitive required, only composition of what exists.",
+  "generation_or_modification_methods": "None currently generates or suggests a breakdown per this checklist; `author_motion`'s PoseSpec mechanism could in principle take structured guidance along these six axes.",
+  "failure_modes": [
+    "auditing a breakdown against only one or two of the six axes and missing the others, per the source's own insistence that all should be considered together",
+    "expecting the sixth axis (character) to be machine-measurable the way the other five are, when the source itself calls it 'abstract' and this build has no personality/temperament measurement"
+  ],
+  "roblox_considerations": "The five motion-measurable axes apply directly to any R15 rig breakdown authored in Cadence or via `AnimationTrack` in Studio; no Roblox-specific consideration beyond what the underlying measurements already state.",
+  "performance_implications": "None — a design-review framing, not a runtime concern.",
+  "examples": [
+    "'I have five pointers for you guys to think about when making these breakdowns: number one, weight distribution... number two, leading and delayed action... number three, anticipation and overshoots... number four, path of motion... number five, ups and downs' (video @ 14:09–14:54), confirmed in this session's frame at t≈14:19 showing an on-screen numbered list",
+    "'lastly, there's character... personality, attitudes, temperament, culture, physical condition' (video @ 15:04–15:22), confirmed in this session's frame at t=15:29 showing a '6. Character Performance' title card"
+  ],
+  "evidence_status": "video: https://youtu.be/wdPbiy-8BRo (Toniko Pantoja) @ 14:09–15:22 — the presenter states all six points directly as a numbered list, confirmed by matching on-screen numbered title cards in this session's frames; experimental until validated"
+}
