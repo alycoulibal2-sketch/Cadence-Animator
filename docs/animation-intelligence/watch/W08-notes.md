@@ -8,7 +8,7 @@
 - [x] 76. How to Animate a Sword Slash [Moon Animator] — Thundey (24:36)
 - [x] 77. How to ANIMATE a Perfect Sword Swing in Roblox Studio! (EASY) — Nobel Courses (8:01)
 - [x] 78. How to make WEAPON animations in ROBLOX STUDIO! [Moon Animator Tutorial] — MonkeyDev (11:29)
-- [ ] 79. How to ANIMATE Tools In Roblox Studio! — Rustysillyband (11:24)
+- [x] 79. How to ANIMATE Tools In Roblox Studio! — Rustysillyband (11:24)
 - [ ] 80. ROBLOX VFX Guide #1 - Particles — TrendyV2 (7:14)
 
 ---
@@ -297,4 +297,39 @@ a separate entry, since it's the same underlying "Handle property checklist" con
 mechanism.
 
 No capture candidate — a screen-recording tutorial throughout, a block R6 rig only.
+
+## Video 79 — How to ANIMATE Tools In Roblox Studio! — Rustysillyband (11:24)
+https://youtu.be/nKC3-pAtN5g — watched 2026-09-12, `balanced` detail, 59 frames (scene-aware, all 59
+candidates kept), captions transcript (295 segments). This batch's own promised subject: "tools,
+welds and the hand: the attachment rules `attach_item` mirrors" — and it delivered the single most
+directly `attach_item`-relevant finding of the whole batch.
+
+**`authoring_time_weld_and_runtime_grip_are_independent_systems`** (new entry, the batch's most
+directly useful finding for `attach_item`) — two completely separate, unsynced attach mechanisms:
+(1) a `WeldConstraint` added under a Rig Builder dummy purely so a tool is visible while posing in
+the Animation Editor (@ 00:47–02:00), never exported and never referenced again; (2) the real `Tool`'s
+own `Grip` CFrame, configured entirely separately, later, on a different instance, which is the ONLY
+thing that determines the runtime hand grip. Nothing carries the first into the second — demonstrated
+directly by the presenter's own surprise ("my sword grip is a little wonky") followed by five full
+playtest cycles of pure trial-and-error CFrame guessing (wrong axis, wrong sign, wrong axis again,
+wrong sign again) to find a correct Grip (@ 08:38–10:50, confirmed in this session's own frame at
+t=10:39). This directly sharpens the still-open question in `weapon_attach_under_root_avoids_
+subframe_chain_desync` (W05-43): in the real pipeline, an authoring attach offset is NOT
+automatically a runtime Grip — if `attach_item`'s own exact, computed offset isn't already being
+carried through `export_to_studio` into a derived Grip, that gap is exactly what this five-cycle
+guessing process is real evidence would be worth closing.
+
+**Enriched `W08-78-tool-activated-cooldown-gated-animation-playback.json`** (my own file from this
+same batch): this video's own near-identical activation script adds a load-bearing detail the first
+lacked entirely — whether the script is a LocalScript (animation visible only to the activating
+player) or a server Script (visible to everyone) is a deliberate, stated choice with real gameplay
+consequences, not an implementation detail. Folded in as a new failure mode, example, and
+evidence_status entry rather than a separate concept.
+
+Cross-check, not a new entry: the Creator-account-vs-group publishing distinction ("if you're making
+a game within a group... otherwise the animation is not going to work for everybody," @ 03:22–03:54)
+is a real, specific team-workflow gotcha but has no mechanism/measurement shape to write up — noted
+here for the merge session's awareness rather than forced into an entry.
+
+No capture candidate — a screen-recording tutorial throughout, a block R15 rig only.
 
