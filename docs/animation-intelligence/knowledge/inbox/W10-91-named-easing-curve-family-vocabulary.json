@@ -1,0 +1,35 @@
+{
+  "concept": "named_easing_curve_family_vocabulary",
+  "category": "advanced",
+  "definition": "Blender's per-key 'Set Keyframe Interpolation' menu exposes the interpolation choice as two independent axes rather than raw Bezier handles: a base shape (Constant / Linear / Bezier) and, for Bezier-like easing, a named EASING FAMILY (Sinusoidal, Quadratic, Cubic, Quartic, Quintic, Exponential, Circular) plus three named 'Dynamic Effects' curves that deliberately overshoot or oscillate rather than settle monotonically (Back, Bounce, Elastic) — the same named taxonomy popularised by Robert Penner's easing functions and now shared by most animation and UI-motion tools, not a Blender-specific vocabulary.",
+  "purpose": "Give an animator a small, memorized set of NAMED curve shapes to reach for by intention (\"give this a Back ease because it should overshoot\") instead of hand-sculpting Bezier handles from scratch for every key.",
+  "visible_effect": "One menu choice applies a uniform, repeatable per-family curve shape to a key's tangent instead of manual handle-dragging; Back/Bounce/Elastic visibly overshoot or oscillate past the target value before settling, while Sinusoidal-through-Circular do not.",
+  "psychological_or_gameplay_effect": "not applicable as a distinct effect from ordinary easing — the eventual chosen curve does change how motion reads (overshoot vs settle, gentle vs sharp acceleration), but the taxonomy itself is an authoring vocabulary, not a viewer-facing effect separate from easing in general.",
+  "physical_interpretation": "Each named family approximates a different acceleration profile: Quadratic/Cubic/Quartic/Quintic are successively sharper power-curve accelerations, Sinusoidal is the gentlest, and Back/Bounce/Elastic are explicitly non-physical dynamic effects (overshoot-and-settle, bounce-decay, spring-oscillation) layered on top of an otherwise-monotonic ease.",
+  "use_cases": [
+    "choosing a curve shape by naming the intended READ (a spring-like settle, a sharp snap, a gentle drift) rather than sculpting handles to approximate it",
+    "getting a consistent, repeatable curve shape across many keys without re-sculpting handles identically each time"
+  ],
+  "non_use_cases": [
+    "a curve whose exact shape is dictated by a physical or gameplay constraint that no named family matches — direct handle manipulation is still the only exact tool for that",
+    "treating 'Bezier' as one setting rather than a family — a Bezier interpolation type still needs one of these named sub-choices, or hand-tuned handles, to have a specific shape at all"
+  ],
+  "interactions": [
+    "Cadence's own `ai/plan.js` overshoot step (documented in CLAUDE.md's pitfalls as 'a Back-easing formula') is already an implementation of exactly one member of this same named family — this entry is the first evidence-backed confirmation that the one curve Cadence already draws is part of a standard, cross-tool taxonomy rather than a bespoke choice invented for this project."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Partially represented: CLAUDE.md documents `ai/plan.js`'s `overshoot` step as a Back-easing formula, which is exactly the 'Back' member of this family. This session found no evidence that Cadence exposes the rest of the family (Bounce, Elastic, or the Sinusoidal-through-Circular power-curve ladder) as named, selectable easing choices anywhere — only the one member the overshoot/anticipation edit path needed.",
+  "control_surface": "`set_easing` for whichever members it already supports; this session did not check its full option list against this family.",
+  "detection_and_measurement_methods": "not measurable in this build as a choice of GENERATION vocabulary, since it is a naming convention rather than a property `ai/motion.js` samples from an existing curve — though a produced curve's actual velocity/acceleration/jerk shape is measurable after the fact, which is how any of these families would be told apart post hoc if that were ever needed.",
+  "generation_or_modification_methods": "`set_easing`, to whatever extent its option list already includes members of this family beyond Back; expanding it to name the rest of the family directly would be a vocabulary addition, not a new generation capability, since `ai/plan.js` already proves at least one named shape (Back) can be produced.",
+  "failure_modes": [
+    "hand-tuning Bezier handles to approximate a named shape (e.g. Bounce) that a direct named choice would have produced exactly and consistently across every key",
+    "confusing the 'Dynamic Effects' curves (Back/Bounce/Elastic, which deliberately overshoot or oscillate) with the plain easing ladder (Sinusoidal through Circular, which do not), and applying an overshoot curve where only a sharper monotonic ease was wanted"
+  ],
+  "roblox_considerations": "Roblox's own `TweenService` EasingStyle enum (Linear, Sine, Quad, Cubic, Quart, Quint, Exponential, Circular, Back, Bounce, Elastic) is this exact same named family end to end — a Cadence-authored curve that matches one of these families closely could in principle be described to Roblox's own tween system BY NAME rather than only as baked keys, which `export_to_studio`/`export_property_script` do not appear to do today (not checked in code this session).",
+  "performance_implications": "None.",
+  "examples": [
+    "frame at t=08:10 (local time of the video, captured on a focused re-extraction after the full-video pass under-sampled this span) shows Blender's 'Set Keyframe Interpolation' menu naming Interpolation (Constant/Linear/Bezier) in one column and 'Easing (by strength)': Sinusoidal, Quadratic, Cubic, Quartic, Quintic, Exponential, Circular in a second, with 'Dynamic Effects': Back, Bounce, Elastic below it — the full named taxonomy visible in one screenshot"
+  ],
+  "evidence_status": "video: https://youtu.be/vKgO3NsYORo, focused re-extraction on the locally downloaded file at --start 6:59 --end 13:44 (the full-video pass had no frame between 04:07 and 15:18, missing this span entirely) — frame at t=08:10 shows Blender's interpolation-type menu naming the full easing family directly on screen; the full-video pass's transcript at 07:28-07:34 only says 'we have constant, linear, and basier [bezier]... basier is essentially spine', without naming the finer families, so the fuller taxonomy is FRAME evidence only, not transcript evidence; experimental until validated"
+}

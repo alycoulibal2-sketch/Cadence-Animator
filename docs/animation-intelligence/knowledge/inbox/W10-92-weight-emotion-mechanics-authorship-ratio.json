@@ -1,0 +1,37 @@
+{
+  "concept": "weight_determines_emotion_vs_mechanics_authorship_ratio",
+  "category": "advanced",
+  "definition": "For an arm lifting or holding an object, the object's implied WEIGHT sets the ratio between how much of the arm's motion should be authored from the character's emotional/mental state versus how much should be authored from physical mechanics: a light object (a pencil) is animated almost entirely from what the character is thinking or feeling about using it, while a heavy object pulls the authoring toward physical strain and adjustment, blended with whatever the character emotionally expected going in.",
+  "purpose": "Give a concrete, weight-scaled dial for deciding WHERE an arm's motion should come from — the character's inner state, or the physical demands of the load — rather than treating 'weight' only as a struggle/strain sequence to insert before a lift.",
+  "visible_effect": "A light-object arm motion is driven by expressive, personality-first gestures with no physical strain visible at all; a heavy-object arm motion shows visible physical adjustment and strain (regripping, bracing, leaning) layered under and blended with whatever emotional anticipation the character brought to the lift.",
+  "psychological_or_gameplay_effect": "Sells believable weight without necessarily needing exaggerated struggle animation: a character who EXPECTED an object to be heavy and physically prepared for it reads as competent and aware, while an object that surprises the character with its weight (expected light, mechanically wasn't ready) reads as a distinct, funnier or more dramatic beat than a simple 'heavy = lots of strain' rule would produce.",
+  "physical_interpretation": "not applicable beyond the general fact that a real heavier load genuinely does require more physical bracing and strain — this entry's contribution is the AUTHORING ratio between that physical fact and the character's mental/emotional state, not a new physical claim.",
+  "use_cases": [
+    "animating a character picking up an object whose weight is dramatically important, deciding how much of the arm's motion should read as 'thinking/feeling' versus 'physically working'",
+    "creating a mismatch beat on purpose: a character who emotionally expected a light object to be heavy (or vice versa), where the ratio is deliberately set wrong relative to the object's TRUE weight for comedic or dramatic effect"
+  ],
+  "non_use_cases": [
+    "an object whose weight carries no dramatic weight of its own (a background prop lifted incidentally), where neither axis needs deliberate authorship",
+    "a pure mechanical simulation context with no character emotional state to blend in at all"
+  ],
+  "interactions": [
+    "weight_then_strength_formula (existing corpus entry, W02) — that entry's struggle-then-release SEQUENCING and this entry's emotion-vs-mechanics RATIO are two different dials on the same subject (weight-selling arm motion): sequencing answers 'in what order', this answers 'how much of each ingredient'. Both can apply to the same lift simultaneously."
+  ],
+  "style_variations": {
+    "comedic": "deliberately inverting the expected ratio (treating a heavy object as if light, or vice versa) is itself a standard comedic device the presenter implies but does not name outright — flagged here as an inference, not a directly cited claim."
+  },
+  "cadence_representation": "Not represented as a distinct authoring dial: Cadence has no existing knowledge card or measurement that scores or blends 'how much of this motion reads as emotional/mental state' against 'how much reads as physical mechanics' — `ai/style.js`'s per-style multipliers (Part 35) adjust vocabulary DIMENSIONS (a style pull), which is a different axis than this entry's weight-driven emotion/mechanics ratio; whether the two could be composed was not checked this session.",
+  "control_surface": "None specific to this ratio; general pose/timing authoring tools would be used to express whichever blend an author chooses by hand.",
+  "detection_and_measurement_methods": "not measurable in this build — 'how much of a motion reads as emotional versus mechanical' is an authorial judgment call the video itself frames as such, not a property `ai/motion.js` samples from resulting keys.",
+  "generation_or_modification_methods": "not applicable — an authoring judgment call to be made by whoever poses the lift, not a generation operation this build performs.",
+  "failure_modes": [
+    "animating a heavy lift with ONLY mechanical strain and no emotional anticipation, which can read as physically correct but emotionally flat",
+    "animating a light object with visible physical strain, which contradicts the object's implied weight and undercuts the read entirely unless the mismatch is the deliberate point (see style_variations)"
+  ],
+  "roblox_considerations": "None specific — a pure character-acting authoring judgment independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own contrast, verbatim: 'a character with a pencil isn't going to worry about lifting and moving that pencil around so it's all about the emotions and thoughts... meanwhile if a character expects something to be heavy... emotionally they'll be prepared to lift it... but mechanically they would be straining and adjusting their arms according to how heavy it is for them' (transcript 7:29-7:53)"
+  ],
+  "evidence_status": "video: https://youtu.be/JnkAlwMjalc @ 7:14-8:00 — Doodley states the weight-as-emotion/mechanics-ratio framing directly, contrasting a pencil (pure emotion/thought) against an expected-heavy object (emotion blended with physical strain); experimental until validated"
+}

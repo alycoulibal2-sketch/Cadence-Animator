@@ -1,0 +1,36 @@
+{
+  "concept": "normalized_curve_view_for_cross_channel_comparison",
+  "category": "specialized",
+  "definition": "A graph-editor display mode (Blender's 'Normalize') that rescales every visible F-curve to fit the same +-1 vertical range regardless of its native unit, so channels measured in incompatible units — degrees of rotation, studs/meters of location, a dimensionless scale factor — can be read side by side on one screen without hunting for each channel's own value range.",
+  "purpose": "Let a single glance compare the RELATIVE shape of several differently-scaled channels at once — steepness, number of extrema, symmetry — which the raw-unit view makes impractical because one channel's real range can dwarf another's on the same plot.",
+  "visible_effect": "Every selected curve is force-fitted between +1 and -1; a location channel moving 0.3 studs and a rotation channel sweeping 340 degrees appear as comparably-sized waves instead of one being a flat line next to the other.",
+  "psychological_or_gameplay_effect": "not applicable — a pure authoring-view convenience with no effect on the finished, played-back motion.",
+  "physical_interpretation": "none — the rescaling is a DISPLAY transform only; it never touches the stored keyed values, so nothing about the motion itself changes, only what is legible on screen.",
+  "use_cases": [
+    "comparing the relative timing/shape of several channels of different units on the same held pose or action, e.g. is the rotation channel's peak velocity happening before or after the location channel's",
+    "a workspace setup step done once per file so every later session of curve-reading benefits, per the presenter's own framing"
+  ],
+  "non_use_cases": [
+    "reading an actual absolute value off a curve (\"how many degrees is this key\"), which the normalized view actively hides since every channel is rescaled to the same visual range",
+    "comparing two SEPARATE curves' real magnitude against each other, which normalization specifically defeats by design"
+  ],
+  "interactions": [
+    "No existing Cadence knowledge card names a curve-reading technique, since Cadence currently exposes no per-channel value-vs-time graph view for pose tracks to read this way in the first place (see cadence_representation)."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented — Cadence's timeline (`renderer/js/timeline.js`) draws per-part keyframe positions on a shared frame axis, not a per-channel F-curve view, so there is currently no screen where two differently-scaled channels could even be overlaid to normalize. The VFX side has per-modifier curves (`vfx_get_curve`/`vfx_set_curve` exist as MCP tools) which is a closer analogue if a future curve view is ever built there; whether that surface already normalizes for display was not checked this session.",
+  "control_surface": "None currently; would be a display toggle on any future per-channel curve view, not a mutation.",
+  "detection_and_measurement_methods": "not measurable in this build — a display convention, not a property of the underlying keys `ai/motion.js` samples.",
+  "generation_or_modification_methods": "not applicable — no generation step; a viewer preference only.",
+  "failure_modes": [
+    "misreading a normalized curve's on-screen height as an absolute value instead of a relative shape, especially for a viewer unfamiliar with the convention",
+    "leaving normalize on while trying to eyeball an actual keyframe value, then hand-typing a wrong number because the view no longer shows true scale"
+  ],
+  "roblox_considerations": "None — a pure authoring-tool display convention independent of the runtime engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter overlays a tail rig's location, rotation and scale channels (three different units) at once with Normalize on, calling it 'very, very important' and something he 'always have on' as an animator (video @ 2:57-3:31)",
+    "the same presenter contrasts this against Normalize off, where finding a channel's own range takes 'a lot of scrolling up and down' — shown directly by his own on-screen struggle (video @ 3:18-3:29)"
+  ],
+  "evidence_status": "video: https://youtu.be/vKgO3NsYORo @ 2:57-3:31 — BrianKouhi demonstrates Blender's graph editor Normalize option forcing every channel to fit the same +-1 range regardless of native unit, and contrasts it against Normalize-off requiring extensive scrolling to find a channel's own range; frames at t=03:38-04:07 show the resulting multi-colour overlaid curves (visible on screen through an unrelated sponsor-read segment at that timestamp, which is why the frame evidence and the transcript evidence cover different spans); experimental until validated"
+}

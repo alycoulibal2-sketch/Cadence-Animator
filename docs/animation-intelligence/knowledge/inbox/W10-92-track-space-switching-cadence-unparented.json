@@ -1,0 +1,38 @@
+{
+  "concept": "track_space_switching_matches_cadence_unparented_toggle",
+  "category": "advanced",
+  "definition": "Authoring a joint's motion relative to a DIFFERENT reference frame than its immediate hierarchical parent: normally a limb's controller is in its parent's ('shoulder' or 'upper body') space and rotates with it; switching it to WORLD space means it still moves with the rig's overall position but no longer inherits any intermediate joint's rotation, which is what lets an animator raise a shoulder without dragging the whole arm along, or lock a contact point (a hand, an elbow) in place while the rest of the body keeps moving and reacting around it.",
+  "purpose": "Decouple a limb's motion from an unwanted inherited rotation (an intermediate joint bending or turning) without giving up the naturalism of still following the rig's overall movement through space, and without needing to hand-counter-animate every affected key to cancel the inherited motion out.",
+  "visible_effect": "A world-space limb keeps tracking the rig's root/overall translation but stops visibly reacting to an upstream joint's own rotation the instant it is switched; a shoulder can be raised with the arm itself staying where it was, or a contact point (a stuck hand or elbow) holds its position while the torso continues to move.",
+  "psychological_or_gameplay_effect": "Named directly by the presenter as the fix for the single most 'obvious' beginner IK mistake: a body that keeps moving while the hands look stuck in place, versus IK (or any joint) deliberately kept in a moving parent's space so it 'feels a lot more natural' to follow the upper body.",
+  "physical_interpretation": "A real limb's motion is the SUM of every joint between it and the root (shoulder rotation, then elbow, then wrist all compound); switching a joint's authored value to be relative to the root directly, rather than relative to its immediate parent, is a re-expression of the same physical position using fewer compounded rotations — not a different physical claim about the body.",
+  "use_cases": [
+    "raising a shoulder without the whole arm following its rotation, for a natural-looking shrug or shoulder-lead reaction",
+    "leaning an arm or resting an elbow on a surface (a wall, a table) where the contact point must stay fixed in place regardless of how the rest of the body moves",
+    "one arm in IK stuck to a moving object (two hands on a pole) while the other arm stays in FK and moves freely"
+  ],
+  "non_use_cases": [
+    "a limb whose motion should always track its parent's full rotation (ordinary parent-relative animation), where switching space would remove a naturalistic inherited motion for no benefit",
+    "a single held pose with no reference-frame conflict to resolve — space-switching solves a problem that only exists across a CHANGE in what a joint should follow"
+  ],
+  "interactions": [
+    "fk_ik_deliberate_mid_action_switch (this same batch) — the two are usually reached for together: an IK limb is exactly the case where 'stuck in world space' is the whole point, and an FK limb can independently also be put in world space for the shoulder-raise case the video names.",
+    "staged_fk_space_switch_ik_handoff_for_contact_action (this same batch) — the specific multi-joint recipe that chains this mechanism with FK and IK across one action."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Already implemented, not merely representable, and this session verified it directly in `renderer/js/state.js` and `app.js` rather than assuming from the tool name: `set_track_space`/`get_track_space` (MCP tools) toggle a joint track between 'local' (parent-relative Transform, the default) and 'world' (origin-relative CFrame). `state.js setTrackSpace` takes an optional `convertValue` callback, and `app.js setUnparented` supplies one that re-derives EVERY existing key's value from the rig's actual solved pose at that key's own time via `solvePoseWorlds` — the code's own comment states the conversion is 'exact and lossless in both directions... switching back and forth never drifts the pose'. 'World' here is relative to the rig's own `@origin` track (`resolveItemOrigin`), which itself can move or be attached to something else — matching the video's 'still moves with the upper body' half of the claim. This session did NOT verify whether Cadence's binary local/world toggle also reproduces the video's more specific 'follows the parent's position but not its rotation' partial-decoupling hybrid (some other tools expose that as a separate, finer-grained constraint) — the two may not be exactly the same mechanism, and that distinction was not checked against real authored data.",
+  "control_surface": "`set_track_space` / `get_track_space`, backed by `state.js setTrackSpace` and `app.js setUnparented`/`toggleUnparentedFlow`.",
+  "detection_and_measurement_methods": "`get_track_space` already reports a track's current space directly (`'local'` or `'world'`) — this is a measured fact about the project, not an inference.",
+  "generation_or_modification_methods": "`set_track_space`, which is already the exact operation the video describes, including the lossless re-derivation that avoids a pop at the moment of switching.",
+  "failure_modes": [
+    "switching a track's space WITHOUT the lossless re-derivation (calling something that changes interpretation but not the stored values) would cause a visible pop at the switch frame — Cadence's implementation already avoids this by design, but a future change to `setUnparented`'s `convertValue` logic could reintroduce it if not tested",
+    "assuming 'world space' means literally the fixed Roblox world origin rather than the rig's own (possibly moving) `@origin` track — the two are different, and treating them as the same would mispredict how a world-space limb behaves when the rig itself is walking or attached to something"
+  ],
+  "roblox_considerations": "Roblox's own `Motor6D` joints are always parent-relative by construction (a `C0`/`C1` offset from the parent part), so 'world space' as this entry describes it is a Cadence AUTHORING-time convenience, not a Roblox runtime feature — an exported clip still has to resolve to ordinary parent-relative Motor6D transforms; Cadence's `setUnparented` conversion is exactly what makes that resolution exact rather than approximate.",
+  "performance_implications": "None — the conversion happens once, at the moment of switching, not per frame.",
+  "examples": [
+    "frames at t=08:36 and t=09:15 show 'SPACE'/'SPACES' title cards marking the start of this section",
+    "the presenter's own words, verbatim: 'if your FK arm is in World space then you could say raise the shoulder without raising the whole arm' and 'I personally prefer doing as much animation as possible while the FK arms are in World space because I think it creates... the most naturalistic looking animation' (transcript 8:47-9:09)"
+  ],
+  "evidence_status": "video: https://youtu.be/JnkAlwMjalc @ 8:02-9:11 — Doodley explains space-switching for both IK and FK arms directly, including the shoulder-raise example; cross-checked in this session against `renderer/js/state.js` lines 1100-1111 and `renderer/js/app.js` lines 1346-1372 (`setTrackSpace`, `setUnparented`), confirming Cadence already implements the described mechanism losslessly; experimental until validated against real authored data for the finer partial-decoupling nuance noted above"
+}

@@ -1,0 +1,38 @@
+{
+  "concept": "forearm_twist_constraint_realism_vs_cartoon_convention",
+  "category": "advanced",
+  "definition": "A real forearm can only bend in and out at the elbow (flexion), not independently twist or rotate along its own length — actual twisting (as in turning a doorknob) originates at the UPPER arm/shoulder, not the forearm. Cartoon animation deliberately breaks this constraint, bending or twisting the forearm itself in directions real anatomy would not allow, which is named directly as a major reason motion capture looks stiff or wrong when applied to cartoon-proportioned or cartoon-styled characters: mocap is anatomically correct (twist stays at the shoulder), while cartoon convention routinely violates that same constraint for a springier, goofier feel.",
+  "purpose": "Explain, with a specific mechanical cause rather than a vague 'looks stiff' complaint, why motion capture and cartoon animation are not interchangeable inputs for the same rig, and give animators a concrete, nameable rule to break ON PURPOSE for a springy/cartoony read rather than breaking it accidentally.",
+  "visible_effect": "A cartoon forearm can be posed twisting or bending along axes a real forearm cannot move on at all, producing an exaggerated, rubbery, 'springy and goofy' silhouette change through the forearm itself, distinct from ordinary elbow flexion.",
+  "psychological_or_gameplay_effect": "Reads as stylised looseness and energy when done deliberately; the SAME deviation, arriving accidentally via retargeted motion-capture data forced onto a cartoon-proportioned rig, instead reads as visibly wrong or 'stiff' because the capture data is anatomically correct and the violation the style wants was never actually introduced.",
+  "physical_interpretation": "A real forearm (radius/ulna) can pronate/supinate (a genuine twist) but the VISIBLE 'twisting your own arm' sensation the presenter cites is dominated by shoulder rotation carrying the whole arm, not an independent forearm-only twist; the forearm's own available motion at the elbow joint is fundamentally a hinge (flexion/extension), not a free rotation.",
+  "use_cases": [
+    "deliberately twisting or bending a cartoon character's forearm off-axis for a springy, exaggerated, non-realistic read, done as a conscious style choice",
+    "diagnosing why an imported motion-capture clip looks stiff or wrong on a cartoon-proportioned or cartoon-rigged character — the specific, nameable mechanical cause to check first"
+  ],
+  "non_use_cases": [
+    "a realistic or semi-realistic style where anatomical correctness at the forearm is the goal — here the constraint should hold, not be broken",
+    "a rig whose forearm joint genuinely models a hinge already (no twist DOF to begin with), where this entry's warning about accidentally allowing forearm twist does not apply"
+  ],
+  "interactions": [
+    "The CLAUDE.md pitfall documenting the R15 upper-arm's angled bone geometry (elbow pivot 0.5 studs outboard, 0.728 down from the shoulder pivot) is a related but distinct upper-ARM fact; this entry is about the FOREARM/elbow joint's rotational freedom, not the upper arm's bone vector."
+  ],
+  "style_variations": {
+    "realistic": "the constraint holds — forearm twist should be avoided or minimised",
+    "cartoon/stylised": "the constraint is deliberately broken for a springy, exaggerated read, per the video's own framing"
+  },
+  "cadence_representation": "Confirmed absent, not merely unconfirmed: this session checked `renderer/js/ai/riggraph.js` directly, which states 'joint_limits is null on every joint: Cadence stores no joint limits, so \"unknown\" is the honest answer — do not read it as \"unlimited\"'. This means Cadence currently has NO mechanism to declare that an elbow joint (named `LeftElbow`/`RightElbow` in `rigs/builtin.json`, confirmed present across all three bundled R15 rig variants) should be restricted to fewer rotational degrees of freedom than a ball-and-socket joint like the shoulder — nothing distinguishes an anatomically-hinged joint from a free one, and nothing would flag an authored or imported forearm rotation that violates real anatomy, whether that violation was deliberate (a style choice) or accidental (a mocap/import artifact).",
+  "control_surface": "None — no joint-limit declaration or check exists on any joint, per `joint_limits: null`.",
+  "detection_and_measurement_methods": "not measurable in this build — there is no declared 'expected DOF' per joint for a measurement to compare an authored rotation against; `ai/motion.js` can measure the rotation that exists but has nothing to call it anatomically implausible against.",
+  "generation_or_modification_methods": "not applicable — no Cadence operation currently distinguishes or enforces per-joint rotational degrees of freedom.",
+  "failure_modes": [
+    "an imported motion-capture clip retargeted onto a cartoon-proportioned Cadence rig carrying real anatomical elbow behaviour that then looks stiff next to hand-authored forearm exaggeration elsewhere in the same project, with nothing in the build able to name WHY the two don't match stylistically",
+    "hand-authoring an unintentional forearm twist on a realistic-style project (a rotation entered on the wrong axis) that nothing currently flags as anatomically implausible, since no joint declares what its plausible range even is"
+  ],
+  "roblox_considerations": "Roblox's own R15 rig does define a `LowerLeftArm`/`LowerRightArm` (this build's `LeftElbow`/`RightElbow`) as a single hinge-like Motor6D joint in its default avatar, so the anatomical constraint the video names is already the DEFAULT skeletal assumption on the platform Cadence targets — the gap this entry identifies is that Cadence's OWN data model does not encode that assumption anywhere, even though the target platform's own rig implicitly agrees with it.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'if you try twisting your own arm in real life you'll notice that the rotation starts at your upper arm instead of the forearm... nothing is really stopping you from animating the forearm going in other directions and cartoon [or] animation will break this rule all the time... this is actually one of the many reasons that motion capture can look really stiff when applied to cartoon characters' (transcript 6:15-6:48), naming 'Mars Needs Moms' directly as the cited example of mocap-on-cartoon stiffness"
+  ],
+  "evidence_status": "video: https://youtu.be/JnkAlwMjalc @ 5:55-6:51 — Doodley states the forearm-twist anatomical constraint and its cartoon-convention violation directly, naming 'Mars Needs Moms' as the mocap-stiffness example; cross-checked in this session against `renderer/js/ai/riggraph.js`'s `joint_limits: null` comment and confirmed `LeftElbow`/`RightElbow` joint names in `rigs/builtin.json`; experimental until validated"
+}

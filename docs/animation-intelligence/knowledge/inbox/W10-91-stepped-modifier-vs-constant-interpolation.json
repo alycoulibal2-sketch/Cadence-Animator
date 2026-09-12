@@ -1,0 +1,35 @@
+{
+  "concept": "stepped_modifier_vs_constant_key_interpolation_distinct_mechanisms",
+  "category": "advanced",
+  "definition": "Blender's graph editor offers two separate, independently-toggleable ways to make a curve read as held/stepped rather than continuously interpolated: (1) setting a key's own per-key Interpolation type to 'Constant', which changes what that individual key does and is committed key-by-key; versus (2) adding a 'Stepped Interpolation' F-Curve MODIFIER on top of an otherwise-continuous (e.g. Bezier) curve, which re-quantizes the already-continuous curve's evaluated output at a chosen step size non-destructively, can be restricted to a frame range, and can be removed later without having touched any key's own interpolation setting.",
+  "purpose": "Let an animator choose between committing a hold directly into the keys (mechanism 1: permanent, key-by-key, part of the data) versus laying a removable, rangeable, non-destructive stepped LOOK over motion whose underlying keys stay smooth (mechanism 2: a reversible preview or ship-time convenience) — e.g. previewing or shipping a 'shot on twos' look without altering the original spline underneath it.",
+  "visible_effect": "Mechanism 1 shows a literal flat-then-jump square-wave curve built from the SAME keys as before, just re-typed. Mechanism 2 shows a smooth Bezier curve whose shape is still present underneath, quantized into a staircase only in the modifier's evaluated output — removing the modifier instantly restores the smooth curve.",
+  "psychological_or_gameplay_effect": "not applicable — an authoring-mechanism distinction; the two can produce a visually similar stepped READ, which is exactly why conflating them matters (see failure_modes).",
+  "physical_interpretation": "not applicable — neither mechanism claims to represent a physical process; both are stylistic/workflow choices for how a hold is stored, not how it should look physically.",
+  "use_cases": [
+    "committing a genuinely final stepped/on-twos look directly into the keys, where mechanism 1 is simpler and needs no modifier stack to survive an export",
+    "previewing a stepped look on top of in-progress spline animation without destroying the smooth curve underneath, or restricting the stepped look to only part of the timeline — mechanism 2 only"
+  ],
+  "non_use_cases": [
+    "assuming the two are interchangeable for export: a modifier-based stepped look (mechanism 2) is an evaluation-time effect and may not survive a pipeline that only reads baked key values, unlike mechanism 1's literal keys"
+  ],
+  "interactions": [
+    "Directly extends two concepts already sitting in other still-unmerged watch batches rather than this one: a stepped-keyframes-for-2D-read finding from the W06 batch, and procedural curve-modifier findings (loop/noise, and a stepped-interpolation bulk-apply) from the W07 batch — both describe pieces of this same Blender feature from a different teacher's tutorial. This entry is a further independent confirmation of the modifier's existence, and the first of the three to also name the competing PER-KEY mechanism explicitly side by side with it."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence has an analogue of mechanism 1 only: an existing knowledge card (`external_force_easing_override`) already notes that a key's `interpolation_type` is measured by `ai/motion.js`, so a per-key stepped/abrupt style is expressible today via `set_easing`. Mechanism 2 — a non-destructive, removable, range-restricted re-quantization layered OVER already-authored keys — has no confirmed Cadence analogue: the closest conceptual relative is a PNX modifier node (`pnx_add_node`/`vfx_add_modifier` exist as MCP tools), but whether either operates on a pose/property track's own curve the way this Blender modifier does was not checked this session.",
+  "control_surface": "`set_easing` for mechanism 1. No known surface for mechanism 2.",
+  "detection_and_measurement_methods": "Mechanism 1's result is measurable today via existing key-density/interpolation-type measurement (the same one `external_force_easing_override` already cites). Mechanism 2 is not applicable to measure in this build since Cadence has no operation that produces the kind of non-destructive modifier layer it would apply to.",
+  "generation_or_modification_methods": "Mechanism 1: `set_easing` per key. Mechanism 2: not buildable without a new non-destructive curve-modifier layer sitting between authored keys and the sampled/evaluated pose — a real, distinct capability gap, not merely an unwired measurement.",
+  "failure_modes": [
+    "applying mechanism 1 (retyping every key to Constant) when a removable preview toggle was what was actually wanted, then having to manually revert every key's interpolation type to undo it",
+    "assuming a stepped look seen in a reference video came from mechanism 1 when it was actually mechanism 2 (or vice versa) — which matters for reproducing the reference exactly rather than only its visual result"
+  ],
+  "roblox_considerations": "Roblox's own animation track editors do not appear to offer an equivalent non-destructive stepped-modifier layer (not verified against Studio directly this session) — a Roblox-bound Cadence export would need mechanism 2's result baked into real stepped keys (mechanism 1) before export, since there is nowhere in a Roblox `KeyframeSequence` for a 'modifier' to survive the round trip.",
+  "performance_implications": "None for mechanism 1. Mechanism 2, if ever built, would be an extra evaluation step per sample rather than a stored key — a real but small per-frame cost paid only where used.",
+  "examples": [
+    "frame at t=08:20 shows a hard square-wave hold pattern produced by setting keys to Constant interpolation directly (mechanism 1)",
+    "frame at t=12:03 shows the 'Add Modifier' menu with 'Stepped Interpolation' listed as a distinct option alongside Noise, Cycles, Envelope, Limits, Generator and Built-In Function (mechanism 2); frame at t=12:53 shows the Noise modifier's own parameter panel (Blend Type, Scale, Strength, Offset, Phase, Depth, Influence) applied and visibly roughening an otherwise-smooth curve from the same menu"
+  ],
+  "evidence_status": "video: https://youtu.be/vKgO3NsYORo, focused re-extraction on the locally downloaded file at --start 6:59 --end 13:44 — frame at t=08:20 shows a Constant-interpolation square-wave curve; frame at t=12:03 shows the Add Modifier menu naming 'Stepped Interpolation' as a separate mechanism from per-key interpolation; the full-video pass's transcript at 11:13-11:29 has the presenter's own words: 'you can use modifiers to add noise quickly to your animation... you can also add a stepped interpolation to make your animation look like it was done on twos'; experimental until validated"
+}

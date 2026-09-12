@@ -1,0 +1,37 @@
+{
+  "concept": "euler_discontinuity_filter_unwraps_rotation_jumps",
+  "category": "advanced",
+  "definition": "A one-click curve-repair operation ('Discontinuity (Euler) Filter', under Channel in Blender's graph editor) that rewrites a rotation F-curve's keyed values to an equivalent angle within a continuous range (e.g. replacing an accumulated 700 degrees with 60 degrees, the same physical orientation) whenever consecutive keys on the same rotation channel differ by more than they physically should — it removes a numeric discontinuity the rotation representation can introduce, without changing the resulting pose at any key.",
+  "purpose": "Prevent a rotation channel's raw stored value from carrying a large, arbitrary jump or wrap (an artifact of Euler-angle representation, repeated full turns, or baked physics) that would otherwise corrupt anything computed FROM the raw values — an interpolated in-between frame, or a velocity/acceleration measurement taken along that channel — even though the finished, keyed poses themselves are visually correct before and after the fix.",
+  "visible_effect": "The rotation curve's plotted shape changes from a large sharp cliff/discontinuity to a smooth, continuous line spanning a much smaller numeric range; the actual posed orientation at every existing key is unchanged.",
+  "psychological_or_gameplay_effect": "not applicable — a numeric-representation fix with no visible effect on the finished pose at any authored key; the risk it prevents is invisible until something (an interpolation, a measurement) reads the raw value between or around the discontinuity.",
+  "physical_interpretation": "Euler angles (and Euler-decomposed rotations baked from physics or motion capture) are only defined up to a 360-degree wrap and up to a gimbal-order ambiguity, so the same physical orientation has infinitely many valid numeric encodings; a channel authored or baked without keeping consecutive keys in the same 'branch' of that ambiguity will interpolate through the wrong long way around, producing a spurious extra spin or a velocity spike between two keys that never should have been numerically far apart.",
+  "use_cases": [
+    "a rotation channel baked from a physics simulation or a multi-turn spin, where the raw stored values can drift arbitrarily far from a small, human-authored range",
+    "an imported motion-capture or Studio-captured rotation channel, checked before it is used as the basis for a further edit or measurement"
+  ],
+  "non_use_cases": [
+    "a rotation channel hand-keyed key-by-key within a bounded range to begin with, which never accumulates the ambiguity this filter exists to remove",
+    "fixing an actual POSE mistake — the filter only changes the numeric encoding of an already-correct orientation, never the orientation itself"
+  ],
+  "interactions": [
+    "Directly relevant to Cadence's own capture/import pipeline (`import_from_studio`, `import_animation_file`, the cross-project motion library's 'captured' provenance) and to `ai/motion.js`'s velocity/acceleration/jerk measurements — CLAUDE.md's own pitfall list already notes Cadence's rig stores rotation as 'degrees about named axes in the rig's own convention', which is exactly the Euler-style representation this filter exists to repair.",
+    "`motion.classifyVariation`'s deliberate 'unclassified' verdict for an unexplained discontinuity (CLAUDE.md's pitfall list: jitter, procedural detail and an interpolation artefact are indistinguishable in project data) is the honest, existing safeguard against exactly the kind of spurious spike a representation artifact like this would produce if it ever reached a measurement."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and not known to be needed: this session found no evidence either way of whether `import_from_studio`/`import_animation_file`'s captured or imported rotation channels can carry this kind of discontinuity, or whether Roblox's own rotation encoding is immune to it by construction. This is a genuine OPEN QUESTION for the import pipeline, not a confirmed gap — the honest record is that the question exists and has not been checked against real imported data.",
+  "control_surface": "None currently in Cadence. In Blender: Channel -> Discontinuity (Euler) Filter, applied to selected rotation F-curves.",
+  "detection_and_measurement_methods": "not measurable in this build directly, though the SYMPTOM would be: `ai/motion.js`'s velocity/acceleration/jerk sampled across a rotation channel showing an isolated, implausibly large spike at one frame pair with no corresponding visual pose change — precisely the shape of evidence `motion.classifyVariation`'s 'unclassified' category is built to report honestly rather than misjudge as a real defect.",
+  "generation_or_modification_methods": "not applicable — no Cadence operation currently rewrites a rotation channel's numeric representation while preserving its posed orientation; this would be new capability only if the open question above turns out to matter against real imported data.",
+  "failure_modes": [
+    "an interpolated in-between frame taking the numerically-shorter but visually-wrong path through an unrepaired discontinuity",
+    "a velocity/acceleration measurement across an unrepaired rotation channel reporting a spurious spike that gets misdiagnosed as a real motion defect rather than a representation artifact"
+  ],
+  "roblox_considerations": "Roblox's own CFrame/Motor6D joints are matrix-based internally rather than raw stored Euler angles, which may make this specific failure mode less likely to survive into a Cadence rig already converted to Cadence's own axis-angle convention — but whether Cadence's own import step could introduce an equivalent discontinuity during THAT conversion is exactly the open question this entry cannot resolve without checking real code and real captured data.",
+  "performance_implications": "None.",
+  "examples": [
+    "frame at t=13:04 shows the 'Discontinuity (Euler) Filter' menu entry with its own on-screen tooltip: 'For large jumps and flips in the selected Rotation F-Curves arising from rotation values being clipped when baking physics'",
+    "the presenter's own stated example, verbatim: 'if you over rotate something by a bunch and you go to the value of like, you know, 700... it tries to fix it so that it keeps the same rotation but it makes it so that it's within the range of one to 360 degrees' (transcript 12:58-13:42)"
+  ],
+  "evidence_status": "video: https://youtu.be/vKgO3NsYORo, focused re-extraction on the locally downloaded file at --start 6:59 --end 13:44 — frame at t=13:04 shows the Euler filter menu and its on-screen tooltip naming the exact failure it repairs; the full-video pass's transcript at 12:53-13:42 has the presenter's own '700 to essentially 60' example; experimental until validated"
+}

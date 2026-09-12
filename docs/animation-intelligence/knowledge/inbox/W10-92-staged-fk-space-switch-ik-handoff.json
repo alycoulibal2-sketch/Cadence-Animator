@@ -1,0 +1,36 @@
+{
+  "concept": "staged_fk_space_switch_ik_handoff_for_contact_action",
+  "category": "advanced",
+  "definition": "A named multi-joint recipe for a contact action (a fist slamming onto a surface): raise the whole arm in FK, leading with the elbow (not the hand); as the elbow reaches contact, switch JUST the elbow to world/origin space so it holds its position ('sticks') independent of further shoulder motion; then bring the forearm down and switch the fist to IK so it lands and holds exactly at the contact point — three different joints on the same chain, each authored with the method suited to its own moment, in sequence, within one continuous action.",
+  "purpose": "Get a physically committed, weighted contact (the elbow and fist both genuinely stop and hold, not just visually slow down) while still allowing the shoulder and rest of the body to move and react naturally to the impact, without clipping the arm through the contact surface or having the whole limb go rigid the moment it lands.",
+  "visible_effect": "The elbow's position holds fixed in space from the moment of contact onward even as the shoulder keeps moving; the fist similarly locks at its landing point; the shoulder and torso are free to recoil, lean, or otherwise react to the impact without dragging the now-fixed elbow and fist along with them.",
+  "psychological_or_gameplay_effect": "Reads as a genuinely forceful, committed slam rather than a soft touch, specifically because the contact points visibly stop dead rather than continuing to drift with the rest of the body's motion — the same physical tell a real impact gives.",
+  "physical_interpretation": "Once a rigid part of the body contacts a rigid surface, that CONTACT POINT genuinely stops moving in world space (friction and the surface's own rigidity arrest it) even though the rest of the body's momentum carries other parts onward — this recipe reproduces exactly that physical asymmetry: one joint anchored, the rest still moving.",
+  "use_cases": [
+    "a fist, palm, or foot slam onto a surface where the contact point must visibly arrest while the rest of the body keeps reacting",
+    "any staged contact action where the LEADING part of a chain (the part that reaches contact first) needs to be locked in place before the TRAILING part (further down the chain) also arrives and needs its own lock"
+  ],
+  "non_use_cases": [
+    "a contact that is deliberately soft or glancing, where nothing should visibly arrest at all",
+    "a single-joint action with no multi-part chain to stage — this recipe's value is specifically in sequencing MULTIPLE joints' handoffs, not in any one switch alone"
+  ],
+  "interactions": [
+    "fk_ik_deliberate_mid_action_switch and track_space_switching_matches_cadence_unparented_toggle (both this same batch) — this entry is the specific worked SEQUENCE that combines both mechanisms across three joints (shoulder/whole-arm FK, elbow world-space lock, fist IK) rather than either mechanism used once in isolation."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly reproducible today as a manual sequence of existing tool calls (ordinary rotation keys for the FK raise, `set_track_space` on the elbow track at the contact frame, `solve_ik` for the fist) but not represented as a single named operation: `ai/workflows.js` (Part 52) declares 16 tool-chain workflows and none matched 'ik'/'fk'/'switch' in this session's search, so this specific staged handoff would currently have to be assembled call-by-call rather than invoked as one declared workflow the way other multi-step director's-loop tasks are.",
+  "control_surface": "Ordinary keyframe authoring (`set_keyframe`) for the FK raise; `set_track_space` on the elbow's track at the contact frame; `solve_ik` for the fist's landing key.",
+  "detection_and_measurement_methods": "not measurable in this build as a single check — a sequencing DISCIPLINE across three separate operations, not a property with one signature; each individual joint's resulting motion (whether it actually holds still after its own switch) is measurable via ordinary `ai/motion.js` velocity sampling once authored.",
+  "generation_or_modification_methods": "Achievable today by calling the three existing tools (rotation keys, `set_track_space`, `solve_ik`) in sequence at the right frames; a new declared workflow (Part 52-style) naming this exact sequence does not currently exist.",
+  "failure_modes": [
+    "switching the elbow to world space too early (before it actually reaches contact) or too late (after the shoulder has already dragged it out of the intended contact position), which requires the timing of the space-switch to be tied precisely to the contact frame",
+    "forgetting to also lock the trailing joint (the fist/IK) and leaving only the leading joint (the elbow) anchored, which produces an inconsistent contact where part of the limb holds and part keeps drifting"
+  ],
+  "roblox_considerations": "Every stage of this recipe bakes down to ordinary keyed Motor6D transforms once exported, per `track_space_switching_matches_cadence_unparented_toggle`'s own note — nothing about staging the sequence across three joints changes what the exported `KeyframeSequence` looks like; the staging only matters at AUTHOR time.",
+  "performance_implications": "None beyond the ordinary cost of the individual operations it chains.",
+  "examples": [
+    "frame at t=09:39 shows a photographed page from 'The Animator's Survival Kit - Animated' (Richard Williams) with a hand-drawn arm sketch labelled directly 'ELBOW LEADS GOING UP', the presenter's cited reference for leading a raise with the elbow before the recipe's space-switch/IK stages",
+    "the presenter's own words, verbatim: 'animate the arm in FK for the raise, lead with the elbow, and then as the elbow comes slamming down switch that elbow to World space so... it's going to stick in place, and then finally the forearm comes down and the fist switches to ik' (transcript 9:50-10:07)"
+  ],
+  "evidence_status": "video: https://youtu.be/JnkAlwMjalc @ 9:37-10:22 — Doodley walks through the full three-stage recipe naming Richard Williams' Animator's Survival Kit fist-slam demo directly, with frame at t=09:39 showing the cited book page and its 'ELBOW LEADS GOING UP' annotation; experimental until validated"
+}

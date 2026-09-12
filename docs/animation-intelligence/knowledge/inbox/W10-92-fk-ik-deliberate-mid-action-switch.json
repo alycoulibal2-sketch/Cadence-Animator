@@ -1,0 +1,37 @@
+{
+  "concept": "fk_ik_deliberate_mid_action_switch",
+  "category": "advanced",
+  "definition": "FK (rotation-based, authored from the root of a chain outward) and IK (position-based, authored by placing the end of a chain) are not a single either/or choice per limb or per shot: a skilled animator deliberately switches methods WITHIN one continuous action — e.g. winding up a punch in FK (precise, easy sweeping curves) then throwing it in IK (a straight line into the target, and the end effector stays exactly where it lands afterward because IK output is a position, not an accumulated rotation).",
+  "purpose": "Use whichever method's native strength matches what a given PHASE of the action needs — FK for control over rotation and big curved sweeps, IK for a straight push or for making an end effector stick exactly in place — instead of forcing one method to do the other's job for the whole action.",
+  "visible_effect": "A wind-up phase shows the smooth rotational arcs FK produces easily; the strike/contact phase shows a straight-line path IK produces naturally, and the point of contact holds its exact position afterward without additional keys, because IK's output already is that position.",
+  "psychological_or_gameplay_effect": "A punch that winds up with a curved, rotational anticipation and then drives straight into its target reads as more physically committed than one animated with a single method throughout — precisely because the two phases have physically different jobs (winding up vs. transferring force in a line).",
+  "physical_interpretation": "FK's rotation-first authoring naturally produces an arcing path (matching how a real limb swings from its joints); IK's position-first authoring naturally produces a straight or directly-targeted path (matching how a real strike or push is aimed at a specific point in space) — the method matches the physical shape of the sub-motion it is used for.",
+  "use_cases": [
+    "winding up an attack in FK, then throwing it in IK so the strike travels in a straight line and the point of contact holds exactly where it landed",
+    "keeping a hand or foot IK-stuck to a surface (a table, the ground, another character) while the rest of the limb or body continues to move and react around that fixed point",
+    "animating a single finger in IK to hold contact with a button or surface while the rest of the hand (FK) reacts around it"
+  ],
+  "non_use_cases": [
+    "a motion with no positional target or contact point to protect, where committing to one method for the whole action adds a switch with no payoff",
+    "forcing IK to produce a big sweeping curved motion, or FK to hit an exact spatial target — both are the OTHER method's native strength, and using the wrong one for that phase fights the tool instead of using it"
+  ],
+  "interactions": [
+    "track_space_switching_matches_cadence_unparented_toggle (this same batch) — the two are usually combined in practice: switching a joint to IK for a phase and locking it in place via world/origin space are two different mechanisms often reached for at the same moment (see staged_fk_space_switch_ik_handoff_for_contact_action, this same batch)."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Already representable, and more directly than in a rigged tool with a persistent FK/IK blend state: CLAUDE.md documents `ai/pose.js` (Part 32) compiling a PoseSpec into exact keys either as 'degrees about named axes' (FK-style) or as 'analytic two-bone IK onto a target in studs' — both paths are stated to compile into the SAME kind of stored keys, and `solve_ik` (an MCP tool) writes a key at a specific frame rather than toggling a persistent per-limb mode. This means Cadence structurally sidesteps the FK/IK-mode-ownership problem some rigged tools have: a caller can use `solve_ik` for the frames where IK behaviour is wanted and ordinary rotation keys for the frames where FK behaviour is wanted, on the SAME chain, without a blend weight or mode flag to manage. Whether any of `ai/workflows.js`'s declared 16 workflows already encodes 'wind up in FK, strike in IK' as a named tool chain was checked this session — no workflow name matching 'ik'/'fk'/'switch' was found, so this specific sequencing discipline is not currently a named workflow.",
+  "control_surface": "`set_keyframe`/rotation authoring for the FK phase; `solve_ik` for the IK phase, on the same chain within the same action.",
+  "detection_and_measurement_methods": "not measurable in this build as a single check — this is a GENERATION-time method choice, not a property with one measurable signature; the RESULT of either method (the resulting joint rotations over time) is measurable via ordinary `ai/motion.js` sampling, but nothing currently distinguishes 'this key came from solve_ik' from 'this key was hand-authored' after the fact.",
+  "generation_or_modification_methods": "`solve_ik` for the position-driven phase; ordinary keyframe authoring for the rotation-driven phase — both already exist as separate tools; nothing currently exists to combine them into one named multi-phase action the way a director's-loop-style workflow (Part 52) does for other tasks.",
+  "failure_modes": [
+    "animating an entire action in IK for convenience, then getting the 'obvious beginner' look the video names directly: the rest of the body moving while the hand looks stuck, because nothing was authored to make the IK limb follow the upper body naturally",
+    "never using IK at all and hand-keying a straight-line strike in FK, which is possible but fights the method — small rotation errors compound into a path that visibly isn't straight"
+  ],
+  "roblox_considerations": "Roblox has no native runtime IK solver for a `Motor6D`-jointed R15/R6 character (unlike Unity/Unreal's built-in IK rigs), so any IK behaviour has to be either baked into the exported keys at author time (which is exactly what `solve_ik` already does) or solved live in a running script — Cadence's approach of baking IK results into ordinary keys at export time is the practical fit for Roblox specifically, not a limitation relative to it.",
+  "performance_implications": "None — both methods produce the same kind of stored rotation keys once compiled; there is no runtime cost difference between a clip authored one way or the other after export.",
+  "examples": [
+    "frame at t=01:09 shows the 3D demo character labelled 'FK' directly on screen with both fists raised in a guard pose, illustrating the rotation-driven starting pose before the punch discussion",
+    "the presenter's own words, verbatim: 'you can wind up the punch in FK and then throw the punch in ik' and 'first you wind up the arm at FK and then have it come slamming down [in] ik and then because it's an ik it will stay there' (transcript 1:04-1:31)"
+  ],
+  "evidence_status": "video: https://youtu.be/JnkAlwMjalc @ 0:31-1:36 — Doodley states the FK/IK strengths directly (FK = rotation-based, precise, easy curves; IK = position-based, good at straight pushes and sticking) and gives the wind-up-in-FK/throw-in-IK example explicitly, with frame at t=01:09 showing the labelled FK demo pose; experimental until validated"
+}
