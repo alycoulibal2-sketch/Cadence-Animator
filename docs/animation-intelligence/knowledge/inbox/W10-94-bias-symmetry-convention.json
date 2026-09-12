@@ -1,0 +1,32 @@
+{
+  "concept": "breakdown_bias_symmetry_default_convention",
+  "category": "optional",
+  "definition": "A stated rule of thumb for a two-breakdown transition (one breakdown biased toward the starting pose, one biased toward the ending pose): by default, use a SIMILAR percentage bias on both breakdowns (e.g. both biased 70% toward their nearer pose) rather than choosing each independently, reserving deliberately mismatched bias for when an asymmetric ease-in/ease-out is specifically wanted.",
+  "purpose": "Give a sensible, low-effort default for the common case (a roughly symmetric ease-out/ease-in feel) while leaving the door open to deliberately break symmetry when a transition should accelerate differently than it decelerates.",
+  "visible_effect": "The fastest point of the motion sits at the midpoint between the two breakdowns; a symmetric bias choice puts that fastest point at the geometric middle of the whole transition, while an asymmetric one shifts it toward whichever end has the smaller bias.",
+  "psychological_or_gameplay_effect": "A symmetric default feels balanced and matches the shape of ordinary slow-in/slow-out; a deliberately asymmetric choice (a fast whip-out followed by a slow, lingering arrival, or vice versa) reads as a specific stylistic choice rather than an accident, precisely because it departs from the default.",
+  "physical_interpretation": "not applicable — a stated authoring default/heuristic, not a physical claim.",
+  "use_cases": [
+    "a first pass on any two-breakdown transition, where matching the bias percentage on both ends is a reasonable starting point before any deliberate asymmetry is considered"
+  ],
+  "non_use_cases": [
+    "a transition that should read as, for example, an explosive start with a long lingering settle (or the reverse) — there, mismatched bias is the correct choice from the start, not a default to override later"
+  ],
+  "interactions": [
+    "progressive_spacing_via_pose_density_before_curve_interpolation (this same batch, video 94) — this entry is a specific numeric convention used WITHIN that broader workflow, not a separate principle."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: `ai/plan.js`'s breakdown step requires an explicit numeric `bias` per call with no default value and no linkage between two breakdowns of the same transition — Cadence enforces THAT a bias must be stated (see progressive_spacing_via_pose_density_before_curve_interpolation, this same batch) but has no notion of keeping two breakdowns' bias values symmetric by convention; that judgment call is entirely on the caller today.",
+  "control_surface": "`authorMotion`'s breakdown step's `bias` parameter, called twice per transition with no built-in relationship enforced between the two calls.",
+  "detection_and_measurement_methods": "not measurable in this build — a caller-side default/convention, not a property of a resulting track.",
+  "generation_or_modification_methods": "not applicable — no Cadence operation currently applies or suggests a default bias value.",
+  "failure_modes": [
+    "choosing wildly different bias values for the two breakdowns of one transition without a specific stylistic reason, producing an unintentionally lopsided ease that reads as a mistake rather than a choice"
+  ],
+  "roblox_considerations": "None specific.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'I almost always use a similar percentage bias on my breakdown 2 towards pose B that I used on my breakdown one towards pose a[.] it's a general rule of thumb' (transcript 5:56-6:04)"
+  ],
+  "evidence_status": "video: https://youtu.be/v71G6TCw_0M @ 5:46-6:04 — Chester Sampson states the symmetric-bias-by-default rule of thumb directly, transcript-only per this video's detail setting; experimental until validated"
+}

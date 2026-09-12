@@ -1,0 +1,34 @@
+{
+  "concept": "ik_fk_blend_switch_requires_instantaneous_adjacent_frame_keying",
+  "category": "advanced",
+  "definition": "A rig whose IK/FK choice is stored as a continuous per-limb blend value (0 = fully FK, 1 = fully IK, as in 3ds Max's CAT rig) must still be KEYED as a discrete jump between the two extremes on two adjacent frames (e.g. value 0 on frame 20, value 1 on frame 21), never animated as a gradual blend through intermediate values — an intermediate blend value is named directly as producing 'unwanted results' rather than a usable in-between pose, because the FK-computed chain and the IK-solved chain generally do not agree on where every intermediate joint should be, only on where the end effector is.",
+  "purpose": "Get the benefit of switching methods (an IK-locked contact point becoming free to swing in FK, or vice versa) without ever passing through a blended pose that looks like neither method's intended result.",
+  "visible_effect": "The chain's pose changes instantaneously between one frame and the next at the switch point, with no visible intermediate blend state; before the switch it moves exactly as FK or IK predicts, and after the switch it immediately moves exactly as the other method predicts.",
+  "psychological_or_gameplay_effect": "not applicable — a purely mechanical authoring constraint; done correctly it produces no visible artifact at all, which is the point.",
+  "physical_interpretation": "not applicable — this is a property of how two DIFFERENT mathematical solving methods (rotation-driven vs position-driven) disagree about intermediate joint placement, not a claim about physical motion.",
+  "use_cases": [
+    "any FK-to-IK or IK-to-FK switch on the same limb within a continuous action — the switch itself should be treated as a single discrete event, keyed on two adjacent frames"
+  ],
+  "non_use_cases": [
+    "a rig or system (like Cadence, per track_space_switching_matches_cadence_unparented_toggle, this same batch) whose switch mechanism re-derives the new representation's value FROM the current solved pose at the moment of the switch — there, the 'blend' concern does not apply because there is no intermediate value to accidentally hold, only an instantaneous, pose-preserving re-expression"
+  ],
+  "interactions": [
+    "track_space_switching_matches_cadence_unparented_toggle (this same batch, video 92) — Cadence's `setTrackSpace`/`setUnparented` conversion re-derives a track's value from the rig's actual solved pose at the switch frame, which is a DIFFERENT and arguably more robust strategy than this video's rig: the CAT rig instead relies on a manual align step (see below) plus operator discipline (never key a mid-blend value) to avoid a pop, while Cadence's space conversion has no pop to avoid in the first place. Whether the same is true for an FK-rotation-keys-to-`solve_ik` switch specifically (as opposed to a track's local/world storage) was not checked this session and is a genuinely open question, not an assumed equivalence."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not directly represented, and the video's own workaround for the pop this switch risks is itself informative: the rig provides explicit align operations ('move IK target to palm', 'match FK to IK') that must be run BEFORE keying the switch, snapping one representation to match the other's current result so the instantaneous jump reads as continuous. Cadence's `solve_ik` and ordinary rotation keys are both independent per-frame GENERATION calls (Part 32) rather than a persistent blended rig state, so there is no stored slider value to corrupt with an accidental in-between — but whether a caller switching FROM FK keys TO a `solve_ik` call needs to pass a target matching the FK chain's current end position to avoid an equivalent pop (i.e. whether the burden this rig solves with an align button lands instead on the CALLER in Cadence) was not verified this session.",
+  "control_surface": "Not applicable in Cadence today for the FK/IK case specifically (see cadence_representation); in the source tool: a per-limb IK/FK blend slider plus 'move IK to FK' / 'match FK to IK' align buttons.",
+  "detection_and_measurement_methods": "not measurable in this build — a generation-time authoring discipline, not a property of a resulting track; though a pop AT a switch frame (if one occurred) would be measurable after the fact as an implausible single-frame jerk/acceleration spike via `ai/motion.js`, the same shape of evidence used elsewhere in this corpus for representation artifacts.",
+  "generation_or_modification_methods": "not applicable — no Cadence operation currently manages a persistent IK/FK blend value to key discretely.",
+  "failure_modes": [
+    "keying an intermediate IK/FK blend value (anything other than 0 or 1), which the presenter states directly produces unwanted results rather than a usable partial blend",
+    "switching methods without first aligning the target/chain to the other method's current result, producing a visible pop at the switch frame"
+  ],
+  "roblox_considerations": "Roblox has no native persistent per-limb IK/FK blend state to key at all (per fk_ik_deliberate_mid_action_switch, this same batch, video 92) — this entry's specific failure mode (an accidentally-keyed mid-blend value) cannot occur in a Roblox-bound Cadence export, since nothing there stores a blend weight in the first place.",
+  "performance_implications": "None.",
+  "examples": [
+    "frame at t=05:56 and t=06:02 show the demo character ('Barry') pushing a large green box with both arms visibly locked against its surface, the worked example the presenter uses for the FK-to-IK-and-back switch",
+    "the presenter's own words, verbatim: 'you should always change this from one frame to another, there are very few situations where you actually want [a] different value than 0 or 1 and it can create some unwanted results' (transcript 6:23-6:32), and the specific worked keying: 'in frame 20 he is done with pushing the box[,] he would key the slider in that frame and in the next one it should be on value 1 already' (transcript 6:12-6:23)"
+  ],
+  "evidence_status": "video: https://youtu.be/0a9qIj7kwiA @ 5:27-6:43 — Milos Cerny demonstrates the box-push FK-to-IK-to-FK switch on a 3ds Max CAT rig, states the adjacent-frame keying rule and warns against an intermediate blend value directly, with frames at t=05:56-06:13 showing the locked-arm push; experimental until validated"
+}

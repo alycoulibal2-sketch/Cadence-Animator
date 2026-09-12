@@ -1,0 +1,35 @@
+{
+  "concept": "moving_hold_via_retimed_ease_key",
+  "category": "advanced",
+  "definition": "A moving hold is produced not by authoring a new pose, but by taking the LAST already-made ease-in pose (which already has natural residual drift toward the final pose baked into its arc) and shifting its key LATER in time, then moving the final pose's own key later still to give the hold its length — the interpolator's own in-progress drift toward the final pose becomes the hold's subtle motion, rather than the hold being a separate held-still pose with no movement at all.",
+  "purpose": "Give a held pose a small, natural amount of residual drift ('so it doesn't feel completely stuck and stiff') using a motion that was already authored for a different reason, instead of hand-crafting a new breathing/idle motion from scratch for every hold.",
+  "visible_effect": "The character continues to settle very slightly toward its final pose throughout the hold, rather than freezing instantly — the same kind of drift a real body shows when it comes to rest but has not gone completely rigid.",
+  "psychological_or_gameplay_effect": "A hold with a touch of drift reads as alive and settling; a hold with zero motion at all reads as dead or stiff, per the presenter's own framing — stated as the default expectation 'for most animation styles outside of extremely cartoony ones'.",
+  "physical_interpretation": "A real body coming to rest does not stop all motion instantaneously — small settling motion (weight shifting fractionally, balance re-adjusting) continues briefly even after the 'main' motion is complete; this technique reproduces that residual settling using the already-authored ease-in arc rather than simulating it separately.",
+  "use_cases": [
+    "any held pose at the end of an action, in any style except an extremely cartoony one that specifically wants a hold to be perfectly, deliberately static"
+  ],
+  "non_use_cases": [
+    "a deliberately dead-stop, perfectly static hold (an extremely cartoony style, or a moment where stillness itself is the point), where adding drift would undercut the intended read"
+  ],
+  "interactions": [
+    "float_to_stop_settle (existing corpus entry, W02) — that entry's own subject (a MEASURED velocity signature for a float-to-stop) is the measurable RESULT this authoring technique would produce; this entry is the authoring MECHANISM (retime an existing key) rather than the measured signature."
+  ],
+  "style_variations": {
+    "extremely cartoony": "a hold may be deliberately perfectly static instead, per the presenter's own named exception"
+  },
+  "cadence_representation": "Directly achievable today: `move_keyframes` ('shift a list of keyframes in time by dt frames') is exactly the operation this technique needs — retiming an already-authored ease-in key later, then retiming the final pose's key later still to set the hold's length, with no new pose authored at all.",
+  "control_surface": "`move_keyframes`, applied to the final ease-in pose's key and the final pose's own key.",
+  "detection_and_measurement_methods": "The resulting drift is measurable via `ai/motion.js sampleMotion`'s velocity curve during the nominal 'hold' span — a genuinely dead hold would show at or near zero velocity throughout, while this technique's hold would show a small, continuously-decaying residual velocity, the same shape `float_to_stop_settle` and the queued `check: float_signature_detection` (LESSONS.md check #19) already look for.",
+  "generation_or_modification_methods": "`move_keyframes` on the two keys named above — no new capability required.",
+  "failure_modes": [
+    "authoring a perfectly still hold by mistake (not moving the final pose's key later at all), producing the 'stuck and stiff' read the presenter warns against for most styles",
+    "moving the WRONG key (the final pose's key without also retiming the ease-in key it depends on), which would not produce the intended drift-into-hold relationship"
+  ],
+  "roblox_considerations": "None specific — a pure keyframe-retiming technique independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'move our pose B up for however long we're going to hold in this pose for[,] and it'll allow our final easing that we've just created to serve as our moving hold pose[.] what that means is that when we let the computer interpolate between our poses it's going to have a slight drift so that it doesn't feel completely stuck and stiff' (transcript 10:31-10:47)"
+  ],
+  "evidence_status": "video: https://youtu.be/v71G6TCw_0M @ 10:26-10:53 — Chester Sampson describes the moving-hold-via-retimed-key technique directly, transcript-only per this video's detail setting; cross-checked in this session against `move_keyframes`'s MCP tool description; experimental until validated"
+}

@@ -1,0 +1,37 @@
+{
+  "concept": "lead_drag_decision_compounded_across_breakdowns",
+  "category": "advanced",
+  "definition": "In a multi-pose transition, which body part LEADS (chosen at the first breakdown) and which DRAGS (chosen at the second breakdown, deliberately a DIFFERENT part than the lead, to avoid confused directionality) is a decision made ONCE early in the workflow, then deliberately REINFORCED — pushed further, not re-decided — at every subsequent intermediate pose (the midpoint, then each ease-in/ease-out pose): 'now that we've done all the heavy lifting... by making all the decisions on what's leading and dragging we now just need to continue that... push the lead and drag even further.'",
+  "purpose": "Keep a transition's lead/drag read coherent across many intermediate poses by treating it as ONE decision compounded, rather than risking a different, conflicting lead/drag choice being made independently at each new pose added.",
+  "visible_effect": "The same body part reads as initiating motion, and the same (different) part reads as trailing/catching up, consistently across the entire transition, growing more pronounced (more offset, more delay) at each successive intermediate pose rather than resetting or wavering.",
+  "psychological_or_gameplay_effect": "A consistent, compounding lead/drag reads as a single coherent, intentional motion; a lead/drag choice that changes partway through a transition (or is decided fresh, inconsistently, at each new pose) reads as confused or directionless, which the presenter names directly as the risk of choosing an overlapping lead and drag part.",
+  "physical_interpretation": "not applicable — an authoring-sequencing discipline, not a new physical claim beyond the general fact that a real chain's leading and trailing parts stay consistent throughout one continuous motion.",
+  "use_cases": [
+    "any multi-pose (breakdown + midpoint + ease-in/out) transition, where lead/drag should be decided once at the first breakdown and then extended, not re-chosen, at every later pose"
+  ],
+  "non_use_cases": [
+    "a transition genuinely composed of multiple distinct sub-actions with their own separate lead/drag relationships — there, each sub-action's own first breakdown is where its own lead/drag decision belongs, not a single decision forced across unrelated motions"
+  ],
+  "interactions": [
+    "The existing corpus's lead/lag entries (`deliberate_lead_choice_for_acting`, `chain_depth_proportional_secondary_delay`, both W02) describe the MEASURABLE/physical lead-lag relationship a chain can show; this entry is about the AUTHORING-ORDER discipline of deciding that relationship once and compounding it, which is a workflow-sequencing fact those entries do not state.",
+    "progressive_spacing_via_pose_density_before_curve_interpolation (this same batch, video 94) — lead/drag compounding is one of the two things (with arcs) pushed further at every pose within that same six-step workflow."
+  ],
+  "style_variations": {
+    "realistic": "follow reference for what naturally leads/follows",
+    "cartoony": "deliberately lead with something unexpected/random, per the presenter's own explicit permission to break realism here for fun"
+  },
+  "cadence_representation": "Not represented: `ai/motion.js analyseChain` measures lead/lag as a per-frame or per-segment measurement, and nothing in the code this session checked encodes a persistent 'this action's declared lead/drag part' that later authoring calls are expected to check or extend — each `authorMotion` breakdown/settle call is independent, with no cross-call memory of an earlier lead/drag decision to compound.",
+  "control_surface": "None currently — no Cadence tool declares or persists a lead/drag choice across multiple authoring calls within one action.",
+  "detection_and_measurement_methods": "`analyseChain`'s existing lead/lag measurement could in principle be sampled at each of a transition's intermediate poses and checked for a CONSISTENT (monotonically compounding, not reversing) lead/drag relationship across them — this specific cross-pose consistency check is not one this session confirmed exists today.",
+  "generation_or_modification_methods": "not applicable — no Cadence operation currently persists or enforces a lead/drag decision across multiple authoring calls.",
+  "failure_modes": [
+    "choosing a different lead part at a later pose than was established at the first breakdown, producing a transition that reads as directionally confused rather than a single coherent motion",
+    "choosing the SAME part for both lead (breakdown one) and drag (breakdown two), which the presenter warns against directly as producing confused directionality"
+  ],
+  "roblox_considerations": "None specific — a pure authoring-sequencing discipline independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'make sure that you drag something that isn't the thing you were leading with... otherwise things can end up being a bit weird and confused in the directionality' (transcript 6:14-6:25), and the compounding instruction at the midpoint: 'now that we've done all the heavy lifting in our breakdown one and two by making all the decisions on what's leading and dragging we now just need to continue that in our midpoint so we can push the lead and drag even further' (transcript 7:27-7:39)"
+  ],
+  "evidence_status": "video: https://youtu.be/v71G6TCw_0M @ 4:16-4:24 and 6:09-6:25 and 7:27-7:39 — Chester Sampson states the once-decided, then-compounded lead/drag discipline across three separate steps of the same workflow, transcript-only per this video's detail setting; experimental until validated"
+}

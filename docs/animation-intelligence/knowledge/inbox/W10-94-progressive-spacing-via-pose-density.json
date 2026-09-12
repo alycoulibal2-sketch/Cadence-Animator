@@ -1,0 +1,38 @@
+{
+  "concept": "progressive_spacing_via_pose_density_before_curve_interpolation",
+  "category": "advanced",
+  "definition": "A six-step pose-to-pose workflow (golden poses, two biased breakdowns, a midpoint, then progressively-biased ease-out/ease-in poses, then a moving hold) exists to encode a progressive (accelerate-then-decelerate) spacing curve directly into the NUMBER and POSITION of discrete authored poses, before any curve interpolation is ever applied — the explicit stated rule is that spacing between poses must get 'bigger and bigger... and then slower and slower' as the action proceeds, and each added pose (breakdown, midpoint, ease-in/out) exists specifically to make that non-linear spacing survive even a naive linear/stepped playback, rather than relying on the interpolator to invent it afterward.",
+  "purpose": "Guarantee the SHAPE of a motion's spacing (its ease, its emphasis, where it moves fast versus slow) is a property of the authored poses themselves, so the animation still reads correctly even before spline/curve polish is applied, and so the curve stage only has to refine an already-correct shape rather than invent one from sparse, evenly-spaced keys.",
+  "visible_effect": "Poses cluster more densely (closer together in time, or closer together in the arc/spacing sense) near the start and end of a transition and are sparser through its fastest middle section, visible directly on a blocked, stepped pass before any spline is applied at all.",
+  "psychological_or_gameplay_effect": "The presenter states directly that watching the blocked, stepped-pose version already 'mostly holds up' once played through with interpolation on ones — evidence that the workflow's real ease/emphasis work happens at the pose-density stage, with curve polish only a refinement rather than where the ease is actually created.",
+  "physical_interpretation": "not applicable — a workflow/authoring-sequencing discipline, not a physical claim distinct from ordinary slow-in/slow-out.",
+  "use_cases": [
+    "any pose-to-pose transition where the ease/emphasis needs to survive being viewed as blocked (stepped) poses before any curve work happens",
+    "deciding HOW MANY intermediate poses (breakdowns, ease-ins, ease-outs) a transition needs: driven by how much of the progressive-spacing shape is not yet encoded by the poses already placed, not by an arbitrary fixed count"
+  ],
+  "non_use_cases": [
+    "a transition whose entire ease is intended to come from curve interpolation alone (e.g. a simple two-key move relying on the tool's own ease-in/ease-out curve), where this workflow's extra intermediate poses would be redundant work"
+  ],
+  "interactions": [
+    "This is independent confirmation, from a completely different named workflow, of exactly what CLAUDE.md documents `ai/plan.js` already doing: 'a breakdown's bias is a POSE fraction, not a time fraction... `bias: 0.22` at a frame a third of the way through the span is the whole of what makes an arc favour its anticipation' — the video's breakdown/midpoint/ease-in/ease-out poses and Cadence's `authorMotion` breakdown/settle steps are the SAME underlying idea (spacing encoded via pose position, not just curve type), arrived at independently.",
+    "lead_drag_decision_compounded_across_breakdowns and moving_hold_via_retimed_ease_key (both this same batch, video 94) — both are specific techniques used WITHIN this same six-step workflow, not separate workflows."
+  ],
+  "style_variations": {
+    "cartoony": "more bias (poses placed closer to one pose than the other), producing snappier motion with a longer, faster travel between breakdowns",
+    "organic/realistic": "less bias, more continuous motion — stated directly as the same dial, just turned the other way"
+  },
+  "cadence_representation": "Already implemented, confirmed by direct code reading rather than assumed: `ai/plan.js`'s `authorMotion` breakdown step requires an explicit numeric `bias` (a pose fraction between the two key poses, deliberately NOT a time fraction — throwing a `TypeError` if a caller omits it), and a settle/overshoot step is a ratio of the LAST TRANSITION's travel. This is exactly the video's own principle — spacing shape lives in POSE PLACEMENT, not only in the curve — already enforced as a required, non-optional input rather than left to a default.",
+  "control_surface": "`authorMotion`'s breakdown (`bias`) and settle (`ratio`) steps, per `ai/plan.js`.",
+  "detection_and_measurement_methods": "Partially measurable: `ai/motion.js sampleMotion`'s velocity/acceleration curve over a transition would show the progressive accelerate-then-decelerate shape this entry describes if it is present, and a flat/uniform velocity profile across a multi-pose transition would be evidence the progressive-spacing discipline was NOT followed — this specific cross-reference (declared pose count/placement against the measured velocity shape) is not a check this session confirmed exists today.",
+  "generation_or_modification_methods": "`authorMotion`'s breakdown and settle steps already generate exactly this — this entry documents WHY that design is correct against an independent, professionally-sourced workflow, not a new capability.",
+  "failure_modes": [
+    "placing breakdown/midpoint/ease poses at even time or pose fractions rather than progressively biased ones, which produces uniform (linear-feeling) spacing regardless of how much curve polish is applied afterward",
+    "relying on curve interpolation alone to create emphasis on a transition that has too few intermediate poses to encode the intended shape, producing a technically-eased but emotionally flat result"
+  ],
+  "roblox_considerations": "None specific — a pose-authoring discipline independent of the target engine; it applies identically whether the final export target is Roblox or anything else.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'our spacing is Progressive and not linear[.] what that means is between each of our poses our body parts need to be moving and getting bigger and bigger spacing and then slower and slower spacing as we get to our next pose' (transcript 8:11-8:38), and the direct payoff: 'if we allow the computer to interpolate and put it into spline on ones you can see the motion mostly holds up' (transcript 11:15-11:21) — confirming the shape was already correct before curve polish"
+  ],
+  "evidence_status": "video: https://youtu.be/v71G6TCw_0M @ 1:03-11:21 (the whole six-step workflow; the progressive-spacing principle stated explicitly at 8:07-8:38) — Chester Sampson describes and demonstrates the full golden-pose/breakdown/midpoint/ease/moving-hold workflow, transcript-only per this video's detail setting; cross-checked in this session directly against `renderer/js/ai/plan.js`'s breakdown/settle bias handling; experimental until validated"
+}

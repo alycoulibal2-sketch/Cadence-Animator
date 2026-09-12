@@ -1,0 +1,34 @@
+{
+  "concept": "default_ik_fk_body_part_convention_legs_ik_arms_fk",
+  "category": "advanced",
+  "definition": "A standing rig-setup default, independently confirmed by a second teacher and a different tool from fk_ik_deliberate_mid_action_switch (this same batch, video 92): legs default to IK and arms default to FK, because gravity makes a leg's job fundamentally about holding an exact ground-contact POSITION (IK's native strength), while an arm's job is more often gesture and rotation-driven reach (FK's native strength) — with named situational exceptions in both directions (free legs for underwater motion or a roundhouse kick; arms switched to IK to hold or place a hand somewhere it must stay put).",
+  "purpose": "Give a default starting assignment for a NEW rig or a new limb setup, chosen from which job (holding a position vs. sweeping a rotation) that limb does most of the time, rather than leaving IK/FK assignment arbitrary or chosen from scratch every time.",
+  "visible_effect": "A character's legs stay planted at their contact points as the pelvis moves above them (the default IK behaviour); the arms swing and gesture with natural rotational arcs by default (the default FK behaviour) unless a specific moment calls for switching one.",
+  "psychological_or_gameplay_effect": "A default that matches the body's ACTUAL constraints reads as correct without any extra authoring effort; fighting the default (e.g. legs in FK during ordinary walking) requires the animator to manually reproduce ground-contact behaviour IK would have given for free.",
+  "physical_interpretation": "Gravity and ground contact impose a genuine positional constraint on a standing/walking leg (the foot must be AT the ground, wherever that is relative to the moving pelvis) that has no equivalent default constraint on a gesturing arm — the convention follows directly from which constraint (position vs. rotation) actually governs each limb's ordinary job.",
+  "use_cases": [
+    "rigging or posing ordinary bipedal locomotion, where legs-in-IK is the correct default with no per-shot decision needed",
+    "an arm that must hold or place a hand somewhere it needs to stay put (leaning on a surface, gripping an object, pressing a button) — the named exception where switching that arm to IK is the better default for that moment"
+  ],
+  "non_use_cases": [
+    "non-grounded locomotion (swimming, flying, zero-gravity) or a deliberately airborne action (a roundhouse kick) — the presenter names both directly as cases where keeping legs free in FK is more useful than the ground-contact default"
+  ],
+  "interactions": [
+    "fk_ik_deliberate_mid_action_switch (this same batch, video 92) — that entry showed the SITUATIONAL case (an arm switched to IK mid-punch); this entry is the standing DEFAULT convention across the whole body a rig starts from before any situational switch is even considered, confirmed independently by a second teacher and a different tool (3ds Max CAT vs. the first teacher's own rig)."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a stated convention: Cadence's `solve_ik`/rotation-key generation methods (Part 32) are available per-chain per-call with no default assignment recorded anywhere per limb or per rig — nothing currently declares 'this rig's legs default to IK' the way this video's rig does. Since Cadence generates a specific pose on demand rather than maintaining a persistent per-limb mode, the practical question this convention would answer for Cadence is different: not 'which mode is this limb currently in' but 'which generation method should a caller reach for FIRST, absent any other instruction, for a leg versus an arm' — which is a reasonable default to write into any future higher-level pose-generation workflow, but does not exist today.",
+  "control_surface": "`solve_ik` and ordinary rotation-key authoring, called per-limb per-frame with no default assignment between them.",
+  "detection_and_measurement_methods": "not measurable in this build — a generation-method DEFAULT convention, not a property of a resulting track.",
+  "generation_or_modification_methods": "not applicable — no Cadence operation currently encodes a default IK/FK assignment per limb type.",
+  "failure_modes": [
+    "animating ordinary grounded locomotion with legs in FK, requiring the animator to manually reproduce exact ground-contact behaviour that IK would have provided as the default",
+    "leaving an arm that needs to hold a fixed contact point (a hand on a table, a grip on an object) in FK, producing the same 'obvious beginner' sliding-contact look named in fk_ik_deliberate_mid_action_switch"
+  ],
+  "roblox_considerations": "Roblox's default R15/R6 avatar has no native IK at all for either limb (confirmed in fk_ik_deliberate_mid_action_switch, this same batch) — this convention is entirely an AUTHOR-TIME default for how a Cadence session chooses to generate keys, with no analogue in what ships to the runtime engine either way.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'you can keep legs mostly in IK and arms in FK by default[.] if you want to hold on something or place [a] hand somewhere where they should stay put you switch to IK' (transcript 6:53-7:04), and the reasoning: 'it is usually more useful to keep legs in IK because in a real world we have gravity and that keeps us on the ground unless you are doing some roundhouse kicks[,] underwater animations or something like that' (transcript 4:43-4:55)"
+  ],
+  "evidence_status": "video: https://youtu.be/0a9qIj7kwiA @ 4:31-4:55 and 6:53-7:04 — Milos Cerny states the legs-IK/arms-FK default convention and its named exceptions directly, independently of the punch example in fk_ik_deliberate_mid_action_switch (video 92, a different teacher and tool); experimental until validated"
+}
