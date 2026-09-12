@@ -1,4 +1,4 @@
-# Cadence Animator — the learning loop (v2, written 2026-09-11, updated the same day)
+# Cadence Animator — the learning loop (v3, written 2026-09-11, updated 2026-09-12 after the W03–W10 merge)
 
 > **v1 is BUILT.** Sections 3A, 3B, 3C and 3E landed on `animation-intelligence` on 2026-09-11:
 > the cross-project library (`renderer/js/ai/library.js`, seven MCP tools, the IPC half in
@@ -12,10 +12,19 @@
 > that are theirs). The library is empty until somebody does those clicks; a session that invents
 > a corpus instead has invented data.
 >
-> **The other standing job is the merge**, every time a watch batch finishes:
-> `node tools/merge-knowledge-inbox.mjs --batch Wnn` — name the batch, because several watch
-> sessions run at once and merging a live inbox takes files out from under the session still
-> writing them. Then tick `WATCHLIST.md` and append to `LESSONS.md`.
+> **The merge is DONE, and so is the watch list (2026-09-12).** All ten batches W01–W10 are watched,
+> ticked and merged: 271 entries in `docs/animation-intelligence/knowledge/`, `knowledge/inbox/`
+> empty, 81 checks and 9 capture candidates in `LESSONS.md`. The merge procedure stays documented in
+> `watch/README.md` for any future batch the user adds at the bottom of `WATCHLIST.md`:
+> `node tools/merge-knowledge-inbox.mjs --batch Wnn` — always name the batch, because several watch
+> sessions run at once and merging a live inbox takes files out from under a session still writing
+> them. Validate every file mechanically before the commit (parses, 20 fields, valid category, no
+> duplicate concept); W09 caught a real bracket mismatch that way that per-entry review had missed.
+>
+> **One thing the merge could not decide and left for the user**: `category: "essential"` meant the
+> twelve compiled classical principles through W08, then W09 wrote 25 entries claiming it, so
+> `listKnowledge({ category: 'essential' })` now returns 37 rather than the canon. Enforce the
+> convention or drop it — both costs are in `LESSONS.md`.
 
 **Run this BEFORE `NEXT_SESSION_PROMPT.md`.** It builds the part of Cadence that makes Claude better
 at animation OVER TIME while the user works: a library of real motion Claude can measure against, a
@@ -147,6 +156,11 @@ The one thing every "learn with time" feature was blocked on is that nothing per
 
 ### C. The WATCH-AND-LEARN procedure (a skill)
 
+**DONE 2026-09-12 — all 100 videos watched and all ten batches merged.** The list, the ten batch
+prompts, the skill, the loader and the merge tool all exist and have now been run end to end: 271
+entries in `knowledge/`, an empty inbox, 100/100 ticked, 81 checks and 9 capture candidates in
+`LESSONS.md`. The procedure below stands for any batch the user adds later.
+
 Write `.claude/skills/cadence-learn/SKILL.md` (register it in the README), the procedure a session
 follows for one video:
 
@@ -270,6 +284,12 @@ Update the matrix honestly, append to `SHARED_TASK_NOTES.md` and `LESSONS.md`, b
 place, run §5 and say what actually happened, commit with a message that says what was built and
 what was deliberately not done, push. Then tell the user to give the next session
 `NEXT_SESSION_PROMPT.md`.
+
+**As of 2026-09-12 the only step of this prompt still open is §3D, the first corpus, and it is the
+USER's clicks** (`CORPUS.md`, plus the 9 capture candidates in `LESSONS.md`). Everything else here is
+built and has been run. A session handed this prompt now should read `LESSONS.md` and take a queued
+check — check #10 is the user's standing choice, and #64, #79, #73 and #38 are the strongest of the
+51 that arrived with the W03–W10 merge — rather than re-reading §3A–§3E as work to do.
 
 ## Appendix — the 100 videos (also in WATCHLIST.md, which is the file you tick)
 

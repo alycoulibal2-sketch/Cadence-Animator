@@ -16,7 +16,7 @@
   ],
   "interactions": [
     "SHOT-003/004 (camera model gap, LESSONS.md / W05 batch) — a concrete, simple, numeric authoring rule for exactly the camera-model capability that gap already flags as missing; unlike this batch's harder camera findings (parallax, midpoint framing), FOV is a single scalar property already directly settable, making this the cheapest possible SHOT-003/004-adjacent rule to encode",
-      "deliberate_thirds_placement_as_story_variable, lens_focal_length_distorts_character_off_model (W05-45) — sibling camera-authored perceptual effects; the second of those already covers focal-length distortion on a character's proportions specifically, while this entry is about the register/genre read of a LOW FOV value as a whole-shot choice"
+    "deliberate_thirds_placement_as_story_variable, lens_focal_length_distorts_character_off_model (W05-45) — sibling camera-authored perceptual effects; the second of those already covers focal-length distortion on a character's proportions specifically, while this entry is about the register/genre read of a LOW FOV value as a whole-shot choice"
   ],
   "style_variations": {
     "realistic": "the technique's own physical basis (real cinema lenses, longer focal lengths) is most directly meaningful in a realistic-rendering context",

@@ -16,7 +16,7 @@
   ],
   "interactions": [
     "SHOT-003/004 (camera model gap, LESSONS.md / W05 batch) — this is a concrete, named use case for exactly the missing capability that gap already flags: world-to-screen projection and camera-relative motion are precisely what would let a true 3D pipeline generate this same parallax-driven scale cue automatically, rather than requiring an animator to hand-simulate it",
-      "midpoint_framing_camera_with_side_auto_correction, deliberate_thirds_placement_as_story_variable (W05-49, W05-45) — sibling camera-authored perceptual effects from the same SHOT-003/004 family, all requiring camera-relative reasoning this build does not yet have"
+    "midpoint_framing_camera_with_side_auto_correction, deliberate_thirds_placement_as_story_variable (W05-49, W05-45) — sibling camera-authored perceptual effects from the same SHOT-003/004 family, all requiring camera-relative reasoning this build does not yet have"
   ],
   "style_variations": {
     "anime": "named directly as a hard problem 2D animators solve manually per-shot, with no general automatic solution in the medium",

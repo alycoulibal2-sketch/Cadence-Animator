@@ -19,12 +19,29 @@ prompt and continues from the first unticked video.
 
 ## The merge step (the learning-loop session, or any session after the batches)
 
+**All ten batches are merged as of 2026-09-12** — W01+W02 on 2026-09-11, W03–W10 on 2026-09-12.
+271 entries are in `knowledge/`, `knowledge/inbox/` is empty, and every one of the hundred videos is
+ticked. The steps below stand for any batch the user adds later.
+
+0. **Validate every inbox file mechanically before anything else**: it parses, it answers all 20
+   Part 25 fields, its category is one of the five, and its concept is unique against the other inbox
+   files AND the existing corpus AND the twelve compiled principles. The merge tool runs the two
+   gates; it does not catch a duplicate between two inbox files, and reasoning about a gate is not
+   running it — W09 found a real bracket mismatch (`style_variations` closed with `]`) only by
+   validating all 43 of its own files in one pass.
 1. Load every `knowledge/inbox/*.json` through `ai/knowledge.js`'s Part 72 gate (`validateProposedEntry`);
    a refused file is fixed or dropped with the reason written in `LESSONS.md`, never loaded as is.
 2. Accepted entries move to `knowledge/` (status `experimental` until a benchmark or the user validates them).
 3. Tick the watched videos in `WATCHLIST.md` from the notes files, with the date and the entries produced.
 4. Append each notes file's paragraphs to `LESSONS.md` under the batch id, and collect the `check:` lines
    and capture candidates into one list at the top of `LESSONS.md` for the next building session.
+5. **Hand all of `knowledge/*.json` to `registerUserEntries` afterwards** and report the counts. Moving
+   a file is not the same claim as the app being able to load it; the W03–W10 merge proved 271 accepted
+   / 0 refused / 12 skipped as `already_builtin` that way, and the 12 are the shipped seed
+   re-presenting the compiled principles, which is correct rather than a problem.
+6. A merge surfaces decisions it must not make. `category` is the live example: it is gate-legal but
+   convention-bound, W09 broke the convention at scale, and the merge wrote the number down instead of
+   re-categorising another session's 25 entries. Record; do not adjudicate.
 
 ## The batches
 

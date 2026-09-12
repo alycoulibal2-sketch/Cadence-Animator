@@ -13,7 +13,12 @@
   "non_use_cases": [
     "an object whose orientation is easy to read directly (an obviously front-facing mesh or rig) or which has no meaningful facing at all"
   ],
-  "interactions": [],
+  "interactions": [
+    "get_facing / get_rotation_degrees / set_view — Cadence answers the same authoring question directly and numerically, so this is recorded as a positive contrast rather than a gap (see cadence_representation); a session confirming a declared facing should reach for those, never build a stand-in light.",
+    "Roblox Future lighting — the trick depends on it, because only that pipeline renders the visible light SHAFT the animator is actually reading; under the default technology the surface light illuminates surfaces and shows no direction. A Roblox rendering-pipeline dependency, not a general technique.",
+    "ground_effect_slaved_to_invisible_proxy_part (video 81, same batch) — the sibling case: both are invisible auxiliary parts whose PLACEMENT carries the authoring intent, and both therefore need some way to be seen while being placed.",
+    "Authoring scaffolds that must be torn down — the single failure mode here is forgetting to remove the aid, which is a shipping-hygiene class rather than an animation one; the Studio \"show orientation indicator\" toggle the same video enables is removed in the same breath."
+  ],
   "style_variations": {},
   "cadence_representation": "Cadence already solves this authoring problem more directly, without needing a temporary visual prop: `get_facing`/`get_rotation_degrees` report an item's exact orientation numerically on demand, and the viewport itself renders the item's real gizmo/axes live in the 3D view (`set_view`) — so confirming a declared facing does not require attaching and later removing a stand-in light. This is a case where Cadence's tool-assisted authoring is a genuine improvement on the manual visual-proxy workaround this video demonstrates, worth recording as a positive contrast rather than only a gap.",
   "control_surface": "`get_facing`, `get_rotation_degrees`, `set_view` — already sufficient to confirm an item's orientation without a temporary prop.",

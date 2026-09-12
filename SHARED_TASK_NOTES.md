@@ -28,6 +28,13 @@ whole, and Part 7 explicitly says to load only what the work needs.
 ## Where the programme is
 
 - Branch: `animation-intelligence`, off `main` at `8343e2f` (v0.11.0).
+- **The 100-video watch list is finished and fully merged (2026-09-12).** All ten batches W01–W10
+  are watched, ticked in `WATCHLIST.md`, and merged: 271 knowledge entries in
+  `docs/animation-intelligence/knowledge/` beside the twelve compiled principles, and
+  `knowledge/inbox/` is empty. `LESSONS.md` now carries 81 queued checks and 9 capture candidates,
+  and **one decision waiting on the user** (the `category: "essential"` convention — see
+  `KNW-002`). Read `LESSONS.md` before picking work; it is the shortest path to what this system
+  already knows.
 - **Phases 0–9 are done.** Phase 9 (benchmarks and the architecture-improvement loop) landed
   2026-09-11 and was the last phase of Part 62's roadmap. Every phase's success condition is met
   and proven at the handler boundary; no `unplanned` P0 row remains. **What remains is not a
@@ -1223,3 +1230,83 @@ stored from project A is found and loaded in project B with the user's rig byte-
 `CORPUS.md` and the capture queue in `LESSONS.md` are what they need; do not invent one. After
 check #10, Slice F from `NEXT_SESSION_PROMPT.md`. The two evaluated architecture proposals and
 the starting-recipe question are still the user's.
+
+### The W03–W10 knowledge merge — the 100-video watch list is finished (2026-09-12, on the desktop)
+
+No code changed. This was the merge half of `LEARNING_LOOP_PROMPT.md` §3C, run once for all eight
+remaining batches after every watch session had closed: load each `knowledge/inbox/Wnn-*.json`
+through Part 72's two gates, move what passes into `docs/animation-intelligence/knowledge/`, tick
+`WATCHLIST.md`, and lift each batch's paragraphs, `check:` lines and capture candidates into
+`LESSONS.md`. Read the W03–W10 entry at the bottom of `LESSONS.md` before the per-batch sections; it
+carries the one decision this merge could not make for itself.
+
+**What moved.** 233 entries accepted (W03 23, W04 24, W05 42, W06 27, W07 21, W08 17, W09 43,
+W10 36), 0 collisions, 0 attempts to shadow a compiled principle. The corpus is **271 merged
+entries** beside the twelve compiled classical principles — 283 files — and `knowledge/inbox/` is
+empty for the first time since the inbox existed. `registerUserEntries` was then handed all 283 as
+proof the merge is usable rather than merely on disk: **271 accepted, 0 refused, 12 skipped as
+`already_builtin`** (the shipped seed re-presenting the twelve, which is the designed behaviour).
+The checks queue went 30 → **81** lines, the capture queue 7 → **9**, and `WATCHLIST.md` 20 → **100
+of 100** ticked, each line carrying its date, batch and entries.
+
+**Validated before merging, not after.** All 233 files were run through both gates plus three things
+the merge tool cannot check on its own — every file parses, every concept is unique across the inbox
+AND the existing corpus, and no concept shadows one of the twelve. 233/233 clean. Worth keeping as a
+merge step: W09's last session found a real bracket mismatch (`style_variations` closed with `]`)
+only because it validated all 43 of its own files mechanically instead of reasoning about the gate,
+and W10's session independently found the same file from outside and flagged it for W09 rather than
+editing another batch's work. Both halves of that are the behaviour to keep.
+
+**Two entries were refused and fixed rather than dropped**, both W09, both on the same field:
+`speed_floor_epsilon_avoids_zero_value_clipping` and
+`temporary_visible_proxy_for_authoring_invisible_facing` had `interactions: []`. Neither was thin —
+both answered the other nineteen fields fully — so the field was completed from cross-references
+their own `definition` and `cadence_representation` already stated (the orientation-mode coupling
+that makes a zero Speed degenerate at all; `get_facing` already answering the question the temporary
+light is a workaround for). Nothing empirical was added. Flagged here because a fix is a judgement
+and should be visible: the alternative was losing two evidenced entries to one blank array.
+
+**One convention broke at scale, and it is the user's call, not a session's.** Through W08,
+`category: "essential"` had meant exactly the twelve compiled classical principles — a convention
+W07's session followed deliberately (it downgraded one of its own drafts to `advanced`) and flagged
+as UNENFORCED, because `validateProposedEntry` does not police it. W09 then wrote **25 entries
+claiming `essential`** — its whole VFX-timing and camera-vocabulary cluster. All are legitimate
+entries, all legal under the gate, all merged as written. The consequence is concrete:
+`listKnowledge({ category: 'essential' })` now returns **37** rather than the canon, so any caller
+that used that filter to mean "the twelve" silently gets Roblox particle budgets in the result.
+Either enforce the convention (refuse `essential` from a user entry, re-categorise the 25) or drop it
+(and point callers wanting the canon at `listKnowledge({ includeUser: false })`, which already
+returns exactly the twelve). Both costs are written out in `LESSONS.md`. Nothing here re-categorised
+another session's 25 entries on its own judgement.
+
+**The headline result across all hundred videos: not one contradicted an existing card.** Eighty more
+videos — five studios' GDC talks, anime technique, Roblox tutorials, cinematography, curve craft —
+and no claim conflicted with a card already in the corpus. Two things did happen that
+"contradiction" undersells, and both are in `LESSONS.md`: cards were caught STALE against
+capabilities that had shipped since they were written (W03, which watched two cards get fixed
+underneath it mid-batch), and several videos SHARPENED a system's scope by naming a boundary
+condition it does not express (W06 on the Part 14 quality hierarchy, W10 against the source itself).
+
+**For whoever builds next, the queue triage is the useful output.** Of the 51 new checks, **37 are
+buildable today** from measurements already in this build, 5 need a declaration the project does not
+store (a relative weight, a moveset grouping, an arc shape, a per-clip context), and 9 are blocked on
+a named capability — **four of them on the same world-to-screen projection step**, which is now the
+single highest-leverage gap the whole watch track found, raised independently by W05's GDC talks and
+W09's cinematography videos. The strongest unblocked candidates are listed above the checks table:
+#64 (`root_velocity_vs_implied_leg_cycle_speed` — the idle-pop bug class, `sampleMotion` against
+`analyseChain`), #79, #73 and #38. Check #10 is still next and still the user's standing decision
+from 2026-09-11; none of this overrides it.
+
+Verified after the merge: `aitest` **390/390**, `coretest` **41/41**, `pnxtest` **298/298**,
+`tools/export-knowledge.mjs --check` clean (the seed still matches the module — the merge does not
+touch the compiled twelve), `tools/benchmark.mjs --compare` **no deterministic difference** (66
+cells). Smoketest **103/104, 0 console errors**: the one failure is *observation: baseline → scoped
+edit*, the pre-documented GPU pixel-comparison flake, and it is not attributable to this work for a
+reason stronger than the usual — this commit changes no executable code at all. *Classic clothing*,
+the other documented flake, passed this run. The two steps that exercise the merged corpus both
+passed: the knowledge/style/memory step, and the learning-loop step that stores a clip in one project
+and finds it from another (170 ms).
+
+The matrix moved no row's status, which is correct for a no-code change: 165 rows, implemented 90 ·
+benchmarked 9 · partial 30 · designed 7 · deferred 2 · blocked 1 · unplanned 26, recounted from the
+table. `KNW-001`, `KNW-002` and `KNW-006` changed in their Limits — `KNW-002` is the one to read.

@@ -18,7 +18,10 @@
     "motion_smear_readability (W01) — the same underlying readability mechanism (an extreme, individually-illegible shape read only as part of a transition), achieved here by an export-range decision on an ordinary keyframe rather than a drawn smear shape",
     "squash_stretch (compiled) — this is squash/stretch taken to a held-nowhere extreme specifically because the pose is guaranteed never to be seen at rest"
   ],
-  "style_variations": { "realistic": "excluded — depends on an exaggeration realism would not permit even briefly", "anime": "a natural fit — matches genre convention for extreme in-between/smear frames" },
+  "style_variations": {
+    "realistic": "excluded — depends on an exaggeration realism would not permit even briefly",
+    "anime": "a natural fit — matches genre convention for extreme in-between/smear frames"
+  },
   "cadence_representation": "Directly actionable against this build's own play-range tool: `set_play_range` / `get_play_range` already let a project declare which frames are the exported/looping range versus which exist only in the authoring timeline, which is exactly the mechanism this entry depends on (author the extreme frame, then set the play/export range to exclude it as a boundary while still passing through it in transit). Nothing currently validates or flags this pattern — a project using it today would look, to any automated check, like an ordinary keyframe sequence.",
   "control_surface": "`set_play_range` is the direct control surface — usable today to implement this technique, though no tool names or documents the technique itself.",
   "detection_and_measurement_methods": "`ai/motion.js sampleMotion`'s own measured values (rotation/scale amplitude) at the excluded extreme frame would show a magnitude well outside the range of any HELD (start/end) pose in the same clip — a real, buildable signature (an interior frame whose measured values exceed both boundary frames by a wide margin) that no code in this build currently checks for.",

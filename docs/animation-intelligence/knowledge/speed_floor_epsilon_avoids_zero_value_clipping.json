@@ -12,7 +12,11 @@
   "non_use_cases": [
     "an emitter using an orientation mode that does not depend on velocity (FaceCamera, FaceCameraWorldUp), where a literal zero speed is not reported as causing this problem"
   ],
-  "interactions": [],
+  "interactions": [
+    "Particle orientation mode — the whole effect is conditional on it, and that coupling is the real content of this entry: a literal zero Speed is harmless under an orientation mode that does not read velocity (FaceCamera), and degenerate only where the orientation is DERIVED from the velocity vector (VelocityParallel/VelocityPerpendicular). Speed in isolation is not the hazard.",
+    "VFXSpec (ai/vfxspec.js) — Cadence makes this case unreachable rather than guarded: raw Speed is subsumed into the chosen primitive/scale, so compile_effect cannot emit Speed = 0 at all. That is why detection_and_measurement_methods is `not applicable in this build` rather than a missing check, and why this is the first edge case to guard if per-particle velocity is ever exposed.",
+    "particle_pop_requires_fade_envelope_at_lifetime_extremes (video 82, same batch) — the same shape of problem from the other end: a property value that is perfectly legal but visually degenerate at an extreme. One is a degenerate zero in SPEED, the other a non-zero value at the START/END of a LIFETIME."
+  ],
   "style_variations": {},
   "cadence_representation": "Not applicable — VFXSpec does not expose a raw Speed field for a caller to set to zero in the first place (it is subsumed into the chosen `primitive`/`scale`), so this exact degenerate case cannot be produced through `compile_effect`'s own surface. If Cadence ever exposes per-particle velocity directly, this is a concrete edge case worth guarding against at that time.",
   "control_surface": "None — outside VFXSpec's current field set.",
