@@ -1,0 +1,34 @@
+{
+  "concept": "correlated_controller_keys_reviewed_and_moved_together_before_offsetting",
+  "category": "advanced",
+  "definition": "When several controllers are naturally correlated (the video's example: three spine controllers that always bend together), they should be reviewed and adjusted TOGETHER as a first pass during spline cleanup — selected and moved in tandem so their relationship stays intact — with staggering them apart (an intentional offset for overlap) treated as a deliberate LATER step, never the default of the first pass: 'it's gonna get to a point you're gonna have to offset those keys to make sure that you have the overlap of the spine, but as a first pass you need to make sure that they're all together, because you key them all together when you're doing the blocking.'",
+  "purpose": "Avoid accidentally breaking a correlated group's relationship while cleaning up curves — moving one controller's key without its correlated partners would introduce an unintended, un-reviewed change in how they relate, which is exactly backwards from the deliberate, later, DECIDED offset that creates real overlap.",
+  "visible_effect": "During the together pass, all of a correlated group's controllers change in lockstep, preserving whatever relationship was set during blocking; only in the later, deliberate offsetting pass do they separate in time from one another to create overlap/drag.",
+  "psychological_or_gameplay_effect": "not applicable — a cleanup-workflow discipline, not a viewer-facing effect on its own (the RESULT of a later offset pass is ordinary overlap/drag, already well covered by existing corpus entries).",
+  "physical_interpretation": "not applicable — a workflow-sequencing discipline for how to safely arrive at a physically-motivated overlap, not a new physical claim.",
+  "use_cases": [
+    "cleaning up or exaggerating any naturally-correlated multi-controller group (a spine chain, any set of controllers that were keyed together at blocking) — review and adjust together first, decide to offset later",
+    "identifying unwanted noise: reviewing correlated controllers TOGETHER on the same graph made a spurious, unintended small rotation on one of the three spine controllers visible as 'dirt' the presenter then deleted"
+  ],
+  "non_use_cases": [
+    "controllers with no real correlation to begin with, where nothing is at risk of being broken by adjusting them independently"
+  ],
+  "interactions": [
+    "drag_overlap_follow_through_sequence and chain_depth_proportional_secondary_delay (existing corpus, W02) describe the MEASURABLE overlap/lag result this workflow eventually produces; this entry is the authoring-ORDER discipline for getting there safely (together first, then offset), which those entries do not state."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly and precisely matched by an existing Cadence tool pair this session confirmed by reading the actual tool descriptions: `group_keys` ('group 2+ keyframes so they always move together in time from now on') is exactly the 'together' first pass this video describes, and `ungroup_keys` ('remove the group link for the given keyframes') is exactly the later, deliberate step that enables the offset/overlap pass. The video's workflow — group for review, ungroup to stagger — maps onto these two tools almost by name.",
+  "control_surface": "`group_keys` for the together pass; `ungroup_keys` immediately before the deliberate offsetting pass.",
+  "detection_and_measurement_methods": "not measurable in this build as a single check — a cleanup-order discipline; the RESULT (whether a correlated group's controllers ended up appropriately offset for overlap, or accidentally desynced) is measurable after the fact via `analyseChain`'s existing lead/lag measurement.",
+  "generation_or_modification_methods": "`group_keys` then `ungroup_keys`, in that order, is already the exact two-step capability this discipline needs — no new capability required, only naming the correct ORDER to call them in.",
+  "failure_modes": [
+    "adjusting one controller of a correlated group without its partners during cleanup, introducing an unintended, un-reviewed desync (the 'dirt' the presenter found and deleted) rather than a deliberate overlap",
+    "offsetting a correlated group's keys before the together pass has confirmed the base relationship is clean, compounding a hidden error into the very asymmetry the offset was supposed to create on purpose"
+  ],
+  "roblox_considerations": "None specific — a pure authoring-workflow discipline independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim, reviewing three spine controllers together: 'you want to pick up those three controllers at all times and see what happens together... I can see that there's some dirt right there... if I delete it[,] that better... there's a little bit of rotation over there' (transcript 15:57-16:29), and the explicit ordering rule: 'it's gonna get to a point you're gonna have to offset those keys to make sure that you have the overlap of the spine[,] but as a first pass you need to make sure that they're all together' (transcript 16:58-17:10)"
+  ],
+  "evidence_status": "video: https://youtu.be/TIBzcsOt2FU @ 14:52-17:10 — Harvey Newman demonstrates reviewing three correlated spine controllers together, finding and removing an unintended rotation, and states the together-then-offset ordering rule directly, transcript-only per this video's detail setting; cross-checked in this session against `group_keys`/`ungroup_keys`'s MCP tool descriptions; experimental until validated"
+}

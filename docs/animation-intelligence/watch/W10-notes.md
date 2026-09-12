@@ -4,7 +4,7 @@
 - [x] 92. Animating ARMS (FK vs. IK) - Doodley — Doodley (11:28)
 - [x] 93. FK and IK Explained - Which One to Use and When? — Miloš Černý Animation (7:47)
 - [x] 94. The Ultimate Animation Workflow for Beginners — Chester Sampson (12:59)
-- [ ] 95. Animation Power Tips - When to go from BLOCKING to SPLINE — Harvey Newman (20:24)
+- [x] 95. Animation Power Tips - When to go from BLOCKING to SPLINE — Harvey Newman (20:24)
 - [ ] 96. Why Your Stepped Animation Sucks in Spline — Sir Wade Neistadt (8:59)
 - [ ] 97. Tips for Polishing Animation from a Disney Animator — Sir Wade Neistadt (22:09)
 - [ ] 98. Animation Critique: How To Instantly Improve Your Blender Animation With Easy Tricks — CG Cookie (35:55)
@@ -209,3 +209,38 @@ filmed human performance.
 
 **No new checks queued** — all four findings are generation-time authoring disciplines already
 matched by existing Cadence code or tools, not new measurements.
+
+## Video 95 — Animation Power Tips - When to go from BLOCKING to SPLINE — Harvey Newman (20:24)
+https://youtu.be/TIBzcsOt2FU — watched 2026-09-12, `transcript` detail (a Maya screen-recorded talk),
+captions transcript (569 segments). Answers exactly the question its title asks, with a live A/B
+demonstration on the same shot — three entries, one of which is the best concrete confirmation this
+whole batch has produced for an already-queued LESSONS.md check.
+
+**`key_density_gates_spline_readiness_not_a_fixed_rule`** — splining a sparsely-keyed hip section live
+on screen produces 'a mush of information' and the character 'looks super bad'; splining a densely
+(near-ones) keyed kick-up section on the SAME shot looks 'pretty much getting there... moving with
+intent' (@ 4:54–9:23). This is a vivid, visual, independently-sourced demonstration of exactly
+LESSONS.md's already-queued `check: dps_floor_vs_action_duration` (#17) — I did not expect to find a
+check already sitting in the queue get this directly confirmed mid-batch.
+
+**`spline_should_refine_not_fix_posing_defects`** — spline should only make working animation better,
+never be where a posing problem gets solved for the first time, learned the hard way by the presenter
+himself ('I did it that way', @ 17:26–17:42). Checked directly against `ai/workflows.js`: `polish_
+animation` is declared but `implemented: false` for exactly this reason — Part 14's top three
+unmeasurable quality layers (intent, readability, pose design) are precisely what a polish pass would
+need to judge, so Cadence already refuses to guess at the same boundary this video states for humans.
+
+**`correlated_controller_keys_reviewed_and_moved_together_before_offsetting`** — three correlated spine
+controllers reviewed and adjusted TOGETHER first (catching one unintended stray rotation as 'dirt' in
+the process), with offsetting them for overlap treated as a deliberate later step, never the default (@
+14:52–17:10). Maps almost by name onto Cadence's own `group_keys`/`ungroup_keys` tool pair — group for
+the together pass, ungroup immediately before the deliberate offset pass.
+
+**Not written up separately**: 'you don't want to actually be flat[,] you want to add a little
+something to your tangent... so it's not a hundred percent flat' (@ 10:54–11:05) restates video 94's
+moving-hold drift principle in tangent-shaping vocabulary rather than adding a new mechanism.
+
+**Capture candidates: none** — a Maya viewport screen recording, no filmed human performance.
+
+**No new checks queued** — the batch's existing check #17 already covers the strongest finding here;
+the other two are workflow disciplines already matched by existing Cadence code/tools.

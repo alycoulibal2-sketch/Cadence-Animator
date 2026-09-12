@@ -1,0 +1,35 @@
+{
+  "concept": "key_density_gates_spline_readiness_not_a_fixed_rule",
+  "category": "advanced",
+  "definition": "The decision of WHEN a blocked (stepped) section is ready to convert to spline is not a fixed rule (a set frame rate, a fixed number of poses) but a judgment of whether ENOUGH KEYS/information have been added across that section — demonstrated directly by converting the same shot's sparsely-keyed hip section to spline (producing 'a mush of information', the character looking 'super bad') against its densely-keyed (near-ones) kip-up section converted the same way (looking 'pretty much getting there... moving with intent') — the interpolator (the presenter names Maya specifically) is 'the worst inbetweener in the world' and will only produce a good result between keys that already carry enough of the intended shape.",
+  "purpose": "Avoid committing to spline before a section has enough key density to interpolate well, since fixing a bad spline result by adding more information afterward is explicitly named as MORE difficult than adding that information while still in stepped/blocking form.",
+  "visible_effect": "A sparsely-keyed section converted to spline shows broken, mushy, silhouette-losing motion; the same conversion on a densely-keyed section shows recognisable, intentional motion with only fine-tuning left to do.",
+  "psychological_or_gameplay_effect": "not applicable — a workflow-staging discipline, not a viewer-facing effect distinct from ordinary under-posed animation reading poorly.",
+  "physical_interpretation": "not applicable beyond the general fact that any interpolator can only approximate motion using the information it is given between keys — this entry is about deciding when that information is sufficient, not a new physical claim.",
+  "use_cases": [
+    "deciding, section by section within one shot (not necessarily the whole shot at once), whether a blocked pass is ready to spline — the presenter explicitly treats different sections of the SAME shot differently based on their own key density",
+    "diagnosing why a spline pass looks bad: checking key density FIRST, before assuming the curves themselves need fixing"
+  ],
+  "non_use_cases": [
+    "a section that is already densely keyed (near-ones, as in the video's own kip-up example) and only needs fine curve refinement, where adding MORE keys would be unnecessary work"
+  ],
+  "interactions": [
+    "dps_floor_for_short_actions (existing corpus entry, W02) and the queued `check: dps_floor_vs_action_duration` (LESSONS.md check #17, 'key density against the action's own frame count; flag a pose count below what its speed plausibly needs to read') — this video is a vivid, concrete, visual before/after DEMONSTRATION of exactly that already-queued check, from an independent professional source, strengthening the case for building it.",
+    "spline_should_refine_not_fix_posing_defects (this same batch, video 95) — the two are companion rules: this one is the readiness GATE, that one is the discipline for what to do (and not do) once past it."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented as a workflow gate, though the underlying measurement already exists: `ai/motion.js`'s key density measurement (cited by the existing `dps_floor_for_short_actions` card) could in principle be checked against a track BEFORE any spline/easing decision is made, but nothing in this build currently frames key density as a readiness gate for a workflow stage transition — Cadence has no notion of 'blocking' versus 'spline' as distinct project stages at all; `authorMotion`'s breakdown/settle steps generate directly into whatever interpolation the caller specifies, with no intermediate stepped-review stage enforced.",
+  "control_surface": "None specific to a stage gate; the underlying key-density measurement (per `dps_floor_for_short_actions`) is the closest existing surface.",
+  "detection_and_measurement_methods": "`ai/motion.js`'s key density measurement (`keyDensity`, per the existing `dps_floor_for_short_actions` card) is exactly what this entry's readiness judgment needs — checking it against a section BEFORE applying an easing change is the specific cross-reference this session did not find already wired anywhere.",
+  "generation_or_modification_methods": "not applicable — a workflow-timing judgment call, not a generation operation.",
+  "failure_modes": [
+    "converting to spline (or applying `set_easing`) before a section has enough keys, producing broken/mushy motion that is then harder to fix than it would have been to add more keys first",
+    "treating key density as a fixed rule (always block on the same frame spacing) rather than judging it per section based on how much detail that section's motion actually needs"
+  ],
+  "roblox_considerations": "None specific — a pure authoring-workflow discipline independent of the target engine, though directly relevant to any Cadence session generating a fast, detailed action (the video's own example is a fast kick-up) where `authorMotion`'s default key density for a given phase may or may not be sufficient before an easing style is applied.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'if i actually were to change this into spline right now what i will get is basically a mush of information... the character looks super bad' (transcript 7:04-7:39), contrasted directly against a densely-keyed section: 'everything is at is on once pretty much and the animation looks a little bit more alive... if i press play look at that[,] it looks like the animation is pretty much getting there... he is moving with intent' (transcript 8:45-9:23)"
+  ],
+  "evidence_status": "video: https://youtu.be/TIBzcsOt2FU @ 4:54-9:23 — Harvey Newman demonstrates converting both a sparse and a dense section of the same shot to spline side by side, transcript-only per this video's detail setting; experimental until validated"
+}

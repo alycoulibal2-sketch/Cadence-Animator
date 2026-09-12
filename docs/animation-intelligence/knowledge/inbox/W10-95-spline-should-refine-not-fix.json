@@ -1,0 +1,34 @@
+{
+  "concept": "spline_should_refine_not_fix_posing_defects",
+  "category": "advanced",
+  "definition": "A discipline for what the spline/curve stage is FOR: it should only make an already-working animation better (smoother curves, added texture, small tangent adjustments), never be the stage where a posing or timing problem gets diagnosed and solved for the first time — solving those AFTER committing to spline is named directly as strictly harder than solving them while still in stepped/blocking form, because a graph editor full of curves is a much less direct way to see and fix a posing problem than the stepped poses themselves.",
+  "purpose": "Keep each production stage doing the job it is actually good at: blocking/stepped review for diagnosing and fixing WHAT the pose/timing is, spline for refining HOW it transitions — so that a spline pass never has to double as an emergency posing-fix session.",
+  "visible_effect": "A shot that follows this discipline reaches spline already reading correctly in its stepped form, with the spline pass changing only smoothness/texture; a shot that violates it enters spline still showing broken silhouettes or bad timing, forcing posing-level fixes to be made via curve manipulation instead of pose manipulation.",
+  "psychological_or_gameplay_effect": "not applicable — a production-discipline distinction, not a viewer-facing effect on its own.",
+  "physical_interpretation": "not applicable.",
+  "use_cases": [
+    "any point where an animator is deciding whether an observed problem should be fixed by adjusting POSES (still in stepped form) or by adjusting CURVES (already in spline) — this entry's answer is: fix posing problems as poses, first, and let spline be strictly a refinement pass"
+  ],
+  "non_use_cases": [
+    "a genuine curve-only refinement (adding a touch of texture to an already-correct pose sequence, softening an overly mechanical tangent) — this is exactly what spline SHOULD be used for"
+  ],
+  "interactions": [
+    "key_density_gates_spline_readiness_not_a_fixed_rule (this same batch, video 95) — the companion rule: that entry is the readiness GATE (is there enough information to spline at all), this entry is the discipline for what happens once past it (spline refines, it does not diagnose).",
+    "This directly matches CLAUDE.md's own documented reason `ai/workflows.js`'s `polish_animation` workflow is declared but `implemented: false`: 'choosing WHICH defect to correct and by how much is the judgement Part 14 orders and this build cannot make... the top three [quality layers] (intent, readability, pose design) are exactly the ones a polish pass would start from' — this video's rule, applied to a human workflow, is the same boundary Cadence's own code already refuses to cross automatically for the same reason."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly confirmed as already-recognised, not merely analogous: `ai/workflows.js`'s `polish_animation` entry (read directly in this session) is declared `implemented: false` specifically because deciding WHICH defect a polish/refinement pass should correct requires judging pose design, readability and intent — exactly the posing-level judgment this video says must happen BEFORE spline/polish, never during it. Cadence's refusal to guess at that judgment automatically is the same discipline this video states for a human workflow.",
+  "control_surface": "`review_shot`/`explain_motion_problem` (read-only diagnosis, per the `diagnose_frame` workflow) for identifying a posing problem; ordinary pose-authoring tools (not `set_easing`/curve tools) for fixing it, per this entry's own ordering rule.",
+  "detection_and_measurement_methods": "not measurable in this build as a single check — a workflow-discipline judgment (is this problem a posing problem or a curve problem) rather than a property with one measurable signature.",
+  "generation_or_modification_methods": "not applicable — a production-ordering discipline, not a generation operation.",
+  "failure_modes": [
+    "discovering a posing/timing defect only after committing to spline, then trying to fix it by manipulating curves/tangents in the graph editor instead of going back to fix the underlying poses — named directly as 'the most complicated way to go about it'",
+    "treating spline as an opportunity to redesign a pose rather than to refine an already-correct one, which blurs the line this discipline exists to keep clear"
+  ],
+  "roblox_considerations": "None specific — a pure production-workflow discipline independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'spline should be just about making your animation better instead of... sorting out the issues the animation have right now' (transcript 8:20-8:30), and the cautionary account of learning this the hard way: 'if you actually go into spline when you have very little keys and you're trying to sort out your animation when you are in your graph editor[,] that is basically the most complicated way to go about it... I did it that way' (transcript 17:26-17:42)"
+  ],
+  "evidence_status": "video: https://youtu.be/TIBzcsOt2FU @ 8:04-8:30 and 17:24-18:00 — Harvey Newman states the refine-not-fix discipline directly and recounts learning it the hard way, transcript-only per this video's detail setting; cross-checked in this session against `renderer/js/ai/workflows.js`'s `polish_animation` entry (`implemented: false`, with its blocking reason read directly); experimental until validated"
+}
