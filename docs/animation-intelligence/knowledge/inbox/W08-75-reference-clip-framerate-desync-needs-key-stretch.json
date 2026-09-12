@@ -1,0 +1,36 @@
+{
+  "concept": "reference_clip_framerate_desync_needs_key_stretch",
+  "category": "advanced",
+  "definition": "When a downloaded reference video clip (used for rotoscoping/limb-for-limb reference matching in Blender before transferring the motion to a Roblox rig) is imported at a framerate that does not match the animator's own project framerate, the resulting reference keys land at the wrong relative timing ('messes up your... framework') — the stated fix is to select all the imported reference keys as a group and uniformly stretch/scale their timing to realign them with the project's own frame rate, rather than re-timing each one by hand.",
+  "purpose": "Recover correct relative timing from a reference clip whose native framerate does not match the animating project's framerate, without manually re-positioning every individual reference-derived key.",
+  "visible_effect": "Before the fix, motion traced from the reference clip plays back faster or slower than the reference itself, or its internal beats fall on the wrong relative frames; after a uniform group stretch, the traced motion's relative timing is restored.",
+  "psychological_or_gameplay_effect": "Not applicable — a pipeline/technical-correctness issue, not a viewer-facing effect (an uncorrected desync WOULD eventually read as wrong timing to a viewer, which is exactly why the fix matters).",
+  "physical_interpretation": "A straightforward frame-rate conversion problem: a clip authored at one frame rate, sampled or imported assuming a different one, has every one of its frame-to-frame intervals scaled by the ratio between the two rates unless corrected.",
+  "use_cases": [
+    "any rotoscoping or reference-tracing workflow where a downloaded video clip's native framerate is unknown or unverified before its frames are used to place keys in a project running at a different framerate",
+    "reusing footage sourced from multiple different places (game capture, movie clips, personal recordings), which are unlikely to share one common framerate"
+  ],
+  "non_use_cases": [
+    "reference used only for VISUAL judgment (watched, not traced/keyed directly) — a framerate mismatch there affects only playback smoothness of the reference itself, not any transferred key data",
+    "a pipeline that already normalizes imported footage to the project framerate automatically before any keys are derived from it"
+  ],
+  "interactions": [
+    "rotoscoping_tracing_live_action_or_cg_reference (W07-62) — that card covers 2D hand-drawn rotoscoping's own failure modes (incompleteness, an uncanny mismatch with a stylized look, untranslated proportions); this entry is a DIFFERENT, pipeline-technical failure mode specific to importing reference footage into a 3D tool (Blender) as literal timed keys rather than drawing over it by eye, not covered by that card",
+    "physical_reference_timing_method (merged, W01) — a sibling case of deriving authored timing from real reference footage; this entry names a specific technical trap in doing that transfer mechanically (via import) rather than by eye"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not directly applicable to Cadence today — this build has no reference-video-import/rotoscoping pipeline (video reaches Cadence only through Roblox Studio's own Animation Capture, per this project's established route, never through a direct Blender rotoscope import). Worth remembering AS a pitfall class if a future capability ever imports timed data derived from external video: any such path should either normalize to the project's own framerate on import or explicitly surface the two rates so a caller can convert deliberately, rather than silently trusting the source clip's stated rate.",
+  "control_surface": "Not applicable — no existing tool in this build imports frame-timed data from external video.",
+  "detection_and_measurement_methods": "Not a motion measurement question — a frame-rate metadata mismatch, checkable by comparing a source clip's reported frame rate against the project's own before importing.",
+  "generation_or_modification_methods": "Not applicable to this build. In the source tool, the fix is a uniform group stretch/scale of the affected keys' timing — the same class of operation as this build's own `stretch_frames`.",
+  "failure_modes": [
+    "importing reference-derived keys without checking the source clip's framerate against the project's own, producing motion whose relative timing is wrong by the framerate ratio",
+    "attempting to fix the desync key-by-key rather than as one uniform group stretch, which is slower and more error-prone than correcting the whole affected range at once"
+  ],
+  "roblox_considerations": "Not Roblox-specific — a Blender-side reference-import pipeline issue that occurs before any data reaches a Roblox rig at all.",
+  "performance_implications": "None — a one-time authoring-pipeline correction.",
+  "examples": [
+    "the presenter's own account: 'the timing is a bit weird because sometimes when you download these videos and put in your Blender, it... messes up your... framework, but you can easily just select them all and just stretch it out' (video @ 07:49–08:01)"
+  ],
+  "evidence_status": "video: https://youtu.be/AH30avEEC9A @ 07:08–08:01 — Devgrams and Draco (the presenters) describe the failure and its fix directly from their own stated workflow experience; transcript-only, no frame falls on this Blender-side step since the video's own footage stays in Roblox Studio throughout; experimental until validated"
+}

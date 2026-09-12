@@ -4,7 +4,7 @@
 - [x] 72. How to Animate in ROBLOX the RIGHT way [NEW] {Tutorial} — DatBoiEle (10:47)
 - [x] 73. How to Make SUPER SMOOTH Roblox Animations with Moon Animator 2! | Beginner to Pro Tutorial — TnxBlox (16:56)
 - [x] 74. 3 Must-Know Moon Animator 2 TIPS for Better Roblox Animations — TnxBlox (2:41)
-- [ ] 75. Make Your Roblox Animations Feel REAL | Roblox Animation Tips 2026 — Devgrams and Draco (8:53)
+- [x] 75. Make Your Roblox Animations Feel REAL | Roblox Animation Tips 2026 — Devgrams and Draco (8:53)
 - [ ] 76. How to Animate a Sword Slash [Moon Animator] — Thundey (24:36)
 - [ ] 77. How to ANIMATE a Perfect Sword Swing in Roblox Studio! (EASY) — Nobel Courses (8:01)
 - [ ] 78. How to make WEAPON animations in ROBLOX STUDIO! [Moon Animator Tutorial] — MonkeyDev (11:29)
@@ -165,4 +165,38 @@ content. Neither fits this knowledge base's mechanism-and-measurement shape, so 
 into an entry.
 
 No capture candidate — a screen-recording tutorial throughout, no filmed human motion.
+
+## Video 75 — Make Your Roblox Animations Feel REAL — Devgrams and Draco (8:53)
+https://youtu.be/AH30avEEC9A — watched 2026-09-12, `balanced` detail, 12 frames (scene-aware, 1
+near-duplicate dropped — sparse, since much of the runtime is a two-person casual talking-head
+discussion over screen capture rather than dense UI change), captions transcript (218 segments).
+Two presenters (Devgrams live-editing, Draco narrating/discussing) walk through refining an arm
+swing into a sword M1 combo hit, then close with personal-improvement advice.
+
+**`calculate_motion_paths_overlays_computed_arc`** — Moon Animator's own 'Calculate Motion Paths'
+command draws the exact traced path of a selected effector directly in the 3D viewport (scope:
+full range, or the presenter's preferred narrower 'around frame' window, since full-range "gets a
+little hectic"), used here to catch and hand-fix a fast sword swing's arc (@ 03:20–04:49, path line
+confirmed — blurred by an in-video camera move — in this session's own frame at t=05:59). Distinct
+from the existing `onion_skin_arc_verification` card in a way worth being precise about: THAT
+technique is a human estimating a path from many overlaid 2D drawings; THIS one is the tool
+computing and drawing the exact path from real keyed transform data, one step closer to what
+Cadence's own `bow_studs` (MOT-005) already reports as a number rather than a line.
+
+**`reference_clip_framerate_desync_needs_key_stretch`** — a specific, concrete rotoscoping-pipeline
+pitfall distinct from the existing `rotoscoping_tracing_live_action_or_cg_reference` (W07-62, which
+covers 2D hand-drawn tracing's own failure modes, not this): importing a downloaded reference clip
+into Blender at a framerate that doesn't match the project's own desyncs the resulting keys' timing,
+fixed by selecting the affected keys as a group and stretching them uniformly rather than by hand,
+one by one (@ 07:49–08:01). Not applicable to Cadence today (no reference-video-import pipeline
+exists), but worth remembering as a pitfall CLASS if one is ever built.
+
+Cross-check, not a new entry: the M1 combo-swing build (anticipation lean-in, impact, overshoot,
+settle, then a deliberate small arm/torso offset "so it's not exactly lined up... a little bit of
+overlap," @ 04:52–06:18) restates principles already thoroughly covered (anticipation, overshoot,
+chain lead/lag) — including the detail that a combo's next hit starts from the previous hit's end
+pose, the same continuity idea `action_end_pose_must_match_idle_for_automatic_blend` (W04-37) already
+names for idle blending specifically, just in a combo-chaining context here rather than a new finding.
+
+No capture candidate — a screen-recording/talking-head tutorial throughout, no filmed human motion.
 

@@ -1,0 +1,37 @@
+{
+  "concept": "calculate_motion_paths_overlays_computed_arc",
+  "category": "advanced",
+  "definition": "Moon Animator 2's 'Calculate Motion Paths' command (right-click context menu, with a choice of scope: the whole selected key range, or a window 'around' the current frame — the presenter's own stated preference, since the full-range mode 'gets a little hectic') draws a computed line directly in the 3D viewport tracing an effector's actual path over the chosen span, used here specifically to check and hand-fix a sword-tip's arc after a fast combo swing was posed.",
+  "purpose": "Let an animator SEE the exact path an already-keyed effector traces through space, directly overlaid in the 3D scene, so an unintended kink, an overly-tight curve, or a good-but-not-quite-right arc can be spotted and hand-adjusted without guessing from the posed keys alone.",
+  "visible_effect": "A drawn line (confirmed in this session's own frame at t=05:59 as a bright magenta/pink trace) appears in the viewport following the selected part's position across the chosen frame range, updating live as keys are adjusted.",
+  "psychological_or_gameplay_effect": "Not applicable — an authoring aid, not a viewer-facing effect; the fixed-up arc it enables reads however a clean arc versus a broken one reads (see the existing `arcs` card).",
+  "physical_interpretation": "A direct, exact visualization of the same path data a strobe photograph or onion-skin overlay approximates by other means — here the tool computes and draws it directly from the actual keyed transform data rather than from a human's visual estimate.",
+  "use_cases": [
+    "checking and refining a fast action's arc (a weapon swing, a thrown object's path) immediately after a quick pose-to-pose block, before committing to the timing pass",
+    "any case where an animator wants to confirm an effector's path reads as a clean, intentional curve rather than trusting the posed keys alone to imply one"
+  ],
+  "non_use_cases": [
+    "checking a property that has no spatial path at all (an easing curve's timing shape, a texture swap) — this tool traces WORLD POSITION only",
+    "a rig or tool (like Cadence, see cadence_representation) where the same path data is already available as an exact reported number rather than requiring a drawn-and-eyeballed line"
+  ],
+  "interactions": [
+    "onion_skin_arc_verification (merged, W02) — the same underlying need (see an accumulated path to judge its shape) met by a different mechanism: that card's onion-skin is a 2D hand-drawn animator's technique relying on many overlaid drawings and a human eye; THIS tool computes and draws the path directly from exact keyed 3D transform data, no drawing or estimation involved — a strictly more direct, more exact version of the same verification instinct, one step closer to what Cadence's own measurement already does",
+    "single_frame_ghost_marker_for_spacing_reference (W08-71, this same batch) — a sibling Moon Animator visualization aid; that one shows a single frozen POSE, this one shows a continuous computed PATH"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Another case where Cadence's own existing measurement already IS the exact version of what this tool visualizes: `ai/motion.js`'s `bow_studs` (MOT-005) computes a path's exact perpendicular departure from its chord in studs, from the same kind of underlying transform data this tool traces as a line. The difference from the onion-skin case is narrower here: Moon Animator's motion-path line is itself already a COMPUTED overlay (not a human-estimated one), so the gap between it and Cadence's own number is purely about presentation (a drawn line an animator eyeballs vs. an exact reported figure) rather than about precision.",
+  "control_surface": "`analyze_motion` reports `bow_studs` per part directly as a number; no tool in this build draws the equivalent path as a visual line in the viewport the way this reference tool does, which could matter for a human reviewer who finds a line easier to read at a glance than a number.",
+  "detection_and_measurement_methods": "`ai/motion.js` (`bow_studs`, MOT-005) already computes this measurement exactly; the video's own tool computes the same underlying path but presents it as a drawn line rather than a number.",
+  "generation_or_modification_methods": "None — a read-only visualization; nothing in either Moon Animator's tool or Cadence's own measurement corrects a bad arc automatically.",
+  "failure_modes": [
+    "trusting a fast, hastily pose-to-pose-blocked action's implied path without checking it, and only noticing an unintended kink once the motion-path line (or, in Cadence, the `bow_studs` figure) is actually checked — the presenter's own account is that this exact check-and-fix step was needed after the initial fast block ('right here what I'm going to do is I'm going to just fix up the motion path a little bit... make sure the arcs look fine')",
+    "using the full-range mode on a long or dense span and finding the result too visually cluttered to read ('sometimes it gets a little hectic') — the source's own stated reason for defaulting to the narrower 'around frame' scope instead"
+  ],
+  "roblox_considerations": "A Moon Animator 2 plugin-UI feature with no Roblox runtime equivalent — the drawn path is an editor-only visualization aid and is never present in the exported animation.",
+  "performance_implications": "None — an editor-only overlay.",
+  "examples": [
+    "the presenter right-clicks a set of keys and selects 'Calculate Motion Paths' after a fast, hastily-blocked sword-swing pose, naming the range-vs-around-frame scope choice directly and preferring the narrower one (video @ 03:20–03:34, confirmed in this session's own frame at t=05:59 showing a bright pink/magenta traced line in the viewport)",
+    "using the drawn path specifically to catch and hand-fix an arc that did not look right after the initial fast block (video @ 04:43–04:49)"
+  ],
+  "evidence_status": "video: https://youtu.be/AH30avEEC9A @ 03:20–04:49 — Devgrams and Draco (the presenters) name and demonstrate the command directly, including both of its scope options and the specific reason for preferring one; the resulting path line is confirmed, if blurred by an in-video camera move, in this session's own frame at t=05:59; experimental until validated"
+}
