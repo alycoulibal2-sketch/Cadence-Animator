@@ -8,7 +8,7 @@
   "physical_interpretation": "A real optical property (a narrower FOV corresponds to a longer real-world focal length, which does produce perspective compression and background magnification) applied here as a deliberate authoring choice rather than a physically-necessitated one.",
   "use_cases": [
     "a cutscene, showcase animation, or promotional shot wanting to read as deliberately filmic rather than like default in-game gameplay footage",
-    "any authored camera shot where a specific numeric FOV target (the source's own example: 35) is a reasonable starting point before further adjustment"
+    "any authored camera shot where a specific numeric FOV target (this corpus now has two independent creators' working numbers: 35, and a 50-80 working range with 120 as a stated wide-shot ceiling) is a reasonable starting point before further adjustment"
   ],
   "non_use_cases": [
     "an active gameplay camera where a wide FOV is needed for player spatial awareness and peripheral visibility — lowering FOV there would cost functional visibility for a purely aesthetic gain",
@@ -33,7 +33,8 @@
   "roblox_considerations": "Directly relevant and directly named by the source in a Roblox authoring context specifically (Moon Animator's own camera FOV track, in a Roblox Studio workflow): Roblox's default `Camera.FieldOfView` (~70) versus a deliberately authored lower value (the source's own example, 35) for cutscenes, promotional renders, or in-engine cinematics.",
   "performance_implications": "None — a single scalar property choice.",
   "examples": [
-    "'add the camera to the file using the add camera action... select the field of view track, press plus to add a key frame... go ahead and set the field of view to 35 — a low field of view creates a cinematic look' (video @ 03:11–03:26)"
+    "'add the camera to the file using the add camera action... select the field of view track, press plus to add a key frame... go ahead and set the field of view to 35 — a low field of view creates a cinematic look' (video 67 @ 03:11–03:26)",
+    "independently confirmed by a second creator with a fuller numeric range: 'this is the FOV of the camera, which basically means a lens... think of this kind of like zoom, but the smaller the number, the closer it's going to be. The limit is 120 — this is a very wide shot, you probably wouldn't use this in many occasions, but around 80 to 50 is what I usually use the most, I'll say I probably use 50 the most' (video 68 @ 06:51–07:13), confirmed in this session's frame at t=06:59 showing the camera's FieldOfView track selected in Moon Animator's timeline panel"
   ],
-  "evidence_status": "video: https://youtu.be/q8tGNMo_jHg (six, \"Moon Animator 2 Basics - Official Tutorial\") @ 03:11–03:26 — the presenter (the tool's own author) states the specific value and its stylistic effect directly; experimental until validated"
+  "evidence_status": "video 67: https://youtu.be/q8tGNMo_jHg (six, \"Moon Animator 2 Basics - Official Tutorial\") @ 03:11–03:26 — the presenter (the tool's own author) states the specific value and its stylistic effect directly. video 68: https://youtu.be/267aFypaeWU (Nisky, \"Roblox ANIMATION Guide #1\") @ 06:51–07:13 — a second, independent creator confirms the same low-FOV-equals-close/cinematic relationship with a fuller working numeric range (50-80 typical, 120 wide-shot ceiling), gathered in the same W07 batch session as the original entry rather than by a separate merge; experimental until validated"
 }

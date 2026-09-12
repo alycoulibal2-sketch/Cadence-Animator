@@ -7,7 +7,7 @@
 - [x] 65. I Spent 30 Days ANIMATING this FIGHT SCENE!! — Shrimpy (16:31)
 - [x] 66. PWOW Workshop - Introduction to Animation Breakdowns — Toniko Pantoja (16:25)
 - [x] 67. Moon Animator 2 Basics - Official Tutorial — six (4:41)
-- [ ] 68. Roblox ANIMATION Guide #1 - Moon Animator (2026) — Nisky (12:07)
+- [x] 68. Roblox ANIMATION Guide #1 - Moon Animator (2026) — Nisky (12:07)
 - [ ] 69. Roblox Animation in Blender: Full Beginner Guide [2026] — Nisky (7:46)
 - [ ] 70. Roblox Animation in Blender: Advanced Guide (2026) — Nisky (31:26)
 
@@ -344,4 +344,46 @@ No capture candidate (screen recording of software, no performed motion). No new
 entry is directly measurable today with no new primitive.
 
 Entries written: `W07-67-low-field-of-view-reads-cinematic.json`. Passes `validateProposedEntry`
+(20/20) and `validateEvidenceSource`.
+
+## Video 68 — Roblox ANIMATION Guide #1 - Moon Animator (2026) — Nisky (12:07)
+https://youtu.be/267aFypaeWU — watched 2026-09-12, `balanced` detail; first pass hit the 100-frame
+cap so re-ran with `--max-frames 60` per §1 of W07.md; all 60 frames read (confirmed the per-part
+timeline panel, a dense keyframe grid for the punch anticipation, and the camera's FieldOfView
+track selected in the timeline), captions transcript (read in full).
+
+A community Moon Animator tutorial covering much the same practical ground as video 67 (the tool's
+own official basics), independently. Rather than write a near-duplicate entry, **enriched
+`W07-67-low-field-of-view-reads-cinematic.json` in place** (both files are this same batch's own,
+unmerged) with this video's independent confirmation and a fuller numeric range: "the smaller the
+number, the closer it's going to be... the limit is 120, this is a very wide shot... around 80 to
+50 is what I usually use the most, I'll say I probably use 50 the most" (@ 06:51–07:13) — the same
+low-FOV-reads-cinematic relationship as video 67's FOV-35 example, now with a working range and an
+explicit ceiling. Filed as a deliberate in-batch consolidation rather than two disconnected entries
+citing the same underlying claim; noted here for the merge session since the file still carries the
+`W07-67` name despite now citing both videos 67 and 68.
+
+One new entry: **`lower_export_framerate_for_choppier_2d_style`** — Moon Animator's timeline FPS
+default is 60; the source states directly that dropping it to 24 "is going to look pretty good" as
+a deliberate choppy, 2D-anime-adjacent style choice, not a technical compromise. Distinct from
+`differential_frame_rate_per_layer_for_performance_and_style` (W06-55, which mixes MULTIPLE
+simultaneous rates across layers within one real-time scene) — this is a single, coarser, whole-clip
+rate choice, and distinct from `hand_drawn_layer_hold_rate_convention_by_layer_type` (video 63,
+actual hand-drawn TV anime conventions run character drawings far sparser, 8-12/sec) — 24fps is a
+lighter step in that direction, not an attempt to literally match it.
+
+Two things considered and left as parity notes rather than knowledge entries, since they're Moon-
+Animator-workflow specifics rather than animation-craft principles: (1) "always animate the torso
+first" (a stated best practice avoiding a named failure, "a goofy Superman position") — likely a
+pitfall specific to Moon's flat per-part-track UI that Cadence's PoseSpec-based whole-pose authoring
+(`compile_pose`/`author_motion`) avoids by construction, since it never lets a caller key one limb
+in isolation before the rest of a pose exists; (2) the rig-to-rig animation retargeting workflow
+(export one rig's AnimSaves, import onto a different rig, paste keyframes, fix a root-height offset,
+mirror-flip with `Ctrl+R` for an asymmetric prop like a keyboard) — directly maps onto Cadence's own
+`import_from_studio` + `mirror_item`, worth the Moon-parity effort reading this account.
+
+No capture candidate (screen recording of software). No new check.
+
+Entries written: `W07-68-lower-export-framerate-for-choppier-2d-style.json` (new), plus an in-place
+enrichment of `W07-67-low-field-of-view-reads-cinematic.json`. Both pass `validateProposedEntry`
 (20/20) and `validateEvidenceSource`.

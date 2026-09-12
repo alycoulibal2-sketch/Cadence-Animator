@@ -1,0 +1,40 @@
+{
+  "concept": "lower_export_framerate_for_choppier_2d_style",
+  "category": "advanced",
+  "definition": "Deliberately lowering an animation FILE's overall keyframe sample rate from a default (Moon Animator's default is 60) down to a stated specific value (24) is named directly as a stylistic choice — not a mistake or a performance compromise — to make a 3D Roblox character animation read with a more 'choppy', hand-drawn/2D-anime-adjacent quality.",
+  "purpose": "Give a whole animation clip a deliberately lower, steppier sample rate as a genre/style dial (2D-anime-adjacent 'choppy' versus smooth 3D default), analogous to a hand-drawn production's own frame-rate conventions, but applied as a single project-wide setting rather than per-layer.",
+  "visible_effect": "The same authored motion plays back with visibly larger, more discrete steps between poses at 24fps than at 60fps, reading as more stepped/hand-drawn rather than continuously smooth.",
+  "psychological_or_gameplay_effect": "The source's own direct claim: lowering the rate 'is going to look pretty good' as a deliberate choppy aesthetic, framed as an available creative option rather than a technical limitation to avoid.",
+  "physical_interpretation": "None — a deliberate stylistic sample-rate choice, not a physical claim.",
+  "use_cases": [
+    "an anime-style or stylized character animation wanting a hand-drawn-adjacent stepped read rather than a smooth default 3D feel",
+    "matching a target platform/genre convention (this batch's own `hand_drawn_layer_hold_rate_convention_by_layer_type`, video 63, describes actual hand-drawn TV anime running its CHARACTER layer at roughly 8-12 unique drawings/second — 24fps sits well above that, so this is a lighter step toward the same stylistic direction, not an attempt to literally match it)"
+  ],
+  "non_use_cases": [
+    "a realistic or default-feeling 3D character animation, where the project's normal sample rate should stay smooth",
+    "an animation whose motion detail genuinely needs the higher rate to read correctly (fast, fine, or subtle movements), where dropping to 24fps could lose information the smooth default preserves"
+  ],
+  "interactions": [
+    "differential_frame_rate_per_layer_for_performance_and_style (W06-55) — a sibling but distinct axis: that entry mixes MULTIPLE simultaneous rates across different layers within one real-time scene (60fps character, 30fps effects); this entry lowers the ENTIRE clip's own sample rate uniformly as a single project-wide setting, a coarser and simpler version of the same underlying idea",
+    "hand_drawn_layer_hold_rate_convention_by_layer_type (video 63, this batch) — the 2D production convention (8-12fps character drawings within a 24fps deliverable) this entry's 24fps choice gestures toward without literally reaching; worth reading together as two different distances from the same hand-drawn-anime reference point",
+    "low_field_of_view_reads_cinematic (video 67, this batch, enriched by this same video) — a sibling simple, single-scalar-setting stylistic dial from the same source video, both directly and immediately authorable with no new capability"
+  ],
+  "style_variations": {
+    "anime": "the source states this explicitly as a way to get an anime-adjacent choppy look inside an otherwise smooth 3D rig pipeline",
+    "realistic": "contraindicated — a realistic character animation would normally want the smoother default rate, not a deliberately steppier one"
+  },
+  "cadence_representation": "Directly and fully authorable today: Cadence's project has a single declared frame rate the same way Moon Animator's timeline does, so deliberately choosing a lower project rate (or, more precisely, a coarser effective sample rate via sparser keying, since Cadence's own timeline is not a fixed-fps sample grid the way Moon Animator's export is) is reachable with existing tools. No preset currently frames 'choose a lower effective rate for a choppy 2D-adjacent style' as a named option.",
+  "control_surface": "`set_project_props` (or equivalent project-settings authoring) could already set a target frame rate; ordinary sparser keyframe spacing already achieves an equivalent choppier read without changing a declared rate at all.",
+  "detection_and_measurement_methods": "Directly measurable: `ai/motion.js keyDensity`/`sampleMotion` already reports effective key spacing, so a clip's declared or effective sample rate is already visible in existing measurements — nothing new required, only a convention for what counts as a deliberately 'choppy' target rate.",
+  "generation_or_modification_methods": "Ordinary keyframe authoring or a project frame-rate setting already reaches this; no preset proposes a target 'choppy' rate automatically.",
+  "failure_modes": [
+    "lowering the rate on an animation whose important motion detail needs the higher sample rate to read correctly, losing information rather than gaining style",
+    "applying this project-wide when only specific layers (per `differential_frame_rate_per_layer_for_performance_and_style`) were meant to be affected, over-applying a coarser rate to content that didn't need it"
+  ],
+  "roblox_considerations": "Directly relevant and directly named in a Roblox/Moon Animator authoring context: the timeline FPS setting the source describes is a real, exposed control in the exact tool Cadence targets parity with, so matching or exceeding this exact capability (a settable target export/sample rate) is a concrete Moon-parity data point.",
+  "performance_implications": "A lower keyframe sample rate for the same clip duration means fewer total keyframes, a minor authoring/storage saving; no meaningful runtime cost difference for an already-baked `AnimationTrack`.",
+  "examples": [
+    "'the default is 60, but if you want your animation to look a little more choppy, you can set this to 24, and it's also going to look pretty good — you can go ahead and test that out' (video @ 01:31–01:39), confirmed in this session's frame at t=01:20 showing Moon Animator's timeline-settings panel with the per-part track rows"
+  ],
+  "evidence_status": "video: https://youtu.be/267aFypaeWU (Nisky, \"Roblox ANIMATION Guide #1 - Moon Animator\") @ 01:31–01:39 — the presenter states the specific default and alternative values and the intended stylistic effect directly; experimental until validated"
+}
