@@ -1,0 +1,36 @@
+{
+  "concept": "sticky_trailing_contact_signals_material_adhesion",
+  "category": "advanced",
+  "definition": "When a soft-body mass leads a motion with one part (leading motion) and the rest trails behind, deliberately keeping the trailing material's contact point stuck/anchored to a surface a beat longer than momentum alone would dictate — rather than letting it roll or slide freely away like an inert solid (the video's own contrast: \"rather than just like rolling away like Play-Doh\") — communicates to the audience that the material is adhesive/sticky to the touch, purely through timing, with no additional visual detail needed.",
+  "purpose": "Communicate a specific tactile material property (stickiness/adhesion) using only the timing of an existing motion (leading motion with a lagging trailer), rather than adding texture, sound, or explicit visual cues.",
+  "visible_effect": "The trailing edge of a moving blob stays anchored to the ground/surface noticeably longer than its own momentum would require, then releases and catches up, rather than smoothly peeling or rolling away the instant the leading part moves.",
+  "psychological_or_gameplay_effect": "The audience infers a physical sensation (this would feel sticky/tacky to touch) purely from timing — the video frames this as a deliberate, general strategy: \"as an animator I'm always looking for ways to let the audience know what the physical Sensations in the scene might be.\"",
+  "physical_interpretation": "Approximates real adhesive/viscous behavior, where a material genuinely resists separating from a surface it is in contact with (surface tension, tackiness) rather than being free to slide the instant a force is applied elsewhere in its body.",
+  "use_cases": [
+    "any soft-body material meant to read as sticky, viscous, or adhesive (slime, syrup, wet paint) during a leading-motion move",
+    "generally: communicating a tactile material property through timing alone rather than added visual texture"
+  ],
+  "non_use_cases": [
+    "a material meant to read as non-adhesive/inert (the video's own named contrast, Play-Doh) — there, the trailing part should release and roll/slide freely as soon as momentum allows, with no extra held contact"
+  ],
+  "interactions": [
+    "motion_path_first_volume_second_authoring_sequence (this same video) — leading motion is described as \"exactly what we were doing with the magic blob earlier,\" i.e. the same lag/catch-up relationship between a leading point and trailing volume, here given a specific material-communication purpose",
+    "material_properties_via_spacing_alone (v10, compiled) — a closely related existing principle (material read from spacing/timing alone); this entry is a specific, concrete mechanism (an anchored trailing CONTACT POINT held longer than momentum requires) rather than spacing in general, so it is recorded as a sibling worth naming specifically rather than folded silently into the existing card"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence's contact/constraint model (`ai/constraints.js`, `measureContactDrift`) already represents a declared contact holding a part in place for a duration — the MACHINERY for \"this point stays put longer than free motion would produce\" already exists for rigid rig parts and effectors. What is missing is the same soft-body volume gap as this batch's other entries: Cadence has no deforming trailing material to apply an extended contact hold to, only rigid rig parts. If a rig-based effector (a hand, a foot) were used to convey a similar adhesive read, the existing contact/hold machinery could already express the TIMING half of this technique.",
+  "control_surface": "`lock_constraint`/contact markers could hold a rig effector in place for a declared duration, the closest existing analogue for the timing half of this technique on a rigid part.",
+  "detection_and_measurement_methods": "`measureContactDrift` already measures how long/how firmly a declared contact holds; applying that measurement to judge whether a hold is longer than momentum alone would produce (and therefore reads as \"sticky\") is not something this build currently interprets — the raw measurement exists, the material-property inference from it does not.",
+  "generation_or_modification_methods": "`lock_constraint` extends a contact's hold duration on a rig part; no soft-body equivalent exists.",
+  "failure_modes": [
+    "letting a soft-body trailer release and move freely the instant the leading part does, losing the sticky/adhesive read entirely and defaulting to an inert-material impression",
+    "holding the contact so long it reads as the material being stuck/broken rather than merely tacky"
+  ],
+  "roblox_considerations": "None — a 2D hand-drawn technique.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"I'm letting the trailing slime stick to the ground a little too rather than just like rolling away like Play-Doh this gives the audience a clearer idea of what the Slime might feel like to touch\" (video @ 11:22–11:36)",
+    "reapplied later in the same scene: \"you can see I've let it stay a bit sticky to the ground which once again adds a bit of physical sensation to the scene\" (video @ 14:26–14:33)"
+  ],
+  "evidence_status": "video: https://youtu.be/VjAbB9492VA @ 11:22–11:36, 14:26–14:33 — Alex Grigg names the technique and its communicative purpose explicitly, applying it twice in the same demonstration; experimental until validated"
+}

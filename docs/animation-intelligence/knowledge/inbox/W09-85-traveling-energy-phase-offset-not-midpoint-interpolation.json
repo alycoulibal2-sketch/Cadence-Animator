@@ -1,0 +1,41 @@
+{
+  "concept": "traveling_energy_phase_offset_not_midpoint_interpolation",
+  "category": "essential",
+  "definition": "For an effect that shows energy passing THROUGH a material (a wave in slime or water, wind through a flag) rather than the whole material moving as one, the correct in-between shape is NOT the geometric/linear midpoint between a start and end keyframe — naively interpolating each point on the outline halfway to its counterpart moves the WHOLE mass partway to its end state at once, which reads as visibly wrong, because a real wave has only PART of the material displaced at any instant while the rest has not yet started moving (or has already returned).",
+  "purpose": "Correctly animate any effect whose motion is a travelling disturbance through a material, rather than a uniform translation of the whole shape, by planning the disturbance's own position over time (as if it were a separate travelling point) instead of blending the material's two endpoint silhouettes.",
+  "visible_effect": "A correct wave shows a localized bulge/crest that has clearly moved only PART of the way across the material at the midpoint in time, with the rest of the material's outline still close to its rest shape; a naive linear-midpoint blend instead shows the ENTIRE outline partway between its start and end positions everywhere at once, which reads immediately as wrong even before a viewer can articulate why.",
+  "psychological_or_gameplay_effect": "The correct version reads as a physical medium actually carrying a disturbance through itself; the naive version reads as the whole object simply being somewhere between two arbitrary poses, with no sense of a force traveling anywhere.",
+  "physical_interpretation": "Models real wave propagation directly: a wave's energy moves through a medium at its own speed, distinct from and generally much faster than any bulk translation of the medium itself — the two are physically different motions, and treating them with the same interpolation method conflates them.",
+  "use_cases": [
+    "any liquid/wave motion where energy visibly travels through a body of material (this video's slime wave, and its own worked example of energy building through a blob before a jump)",
+    "cloth/flag motion where wind passes through the material as a traveling ripple rather than moving the whole cloth uniformly (the video's own Felix Colgrave / Double King flag example)",
+    "any effect description involving \"energy passing through,\" \"a ripple,\" or \"a wave traveling along\" something, as a signal this technique applies rather than ordinary in-betweening"
+  ],
+  "non_use_cases": [
+    "a rigid or whole-body motion (a ball moving, a character turning) where the naive halfway-point approach the video contrasts this against is explicitly said to work fine — \"if I want to make a ball move from here to here I can put a frame halfway between them and it's going to start to look all right\"",
+    "the magic-blob technique from the same video, which DOES track a single leading point (motion_path_first_volume_second_authoring_sequence) — that is for a mass moving as a (laggy but singular) whole, not for a disturbance traveling through a stationary-based mass"
+  ],
+  "interactions": [
+    "motion_path_first_volume_second_authoring_sequence (this same video) — explicitly contrasted by the presenter as the DIFFERENT case: a wave needs multiple points (representing the traveling disturbance) mapped through the material, not one leading point the whole mass follows",
+    "phase_offset_dual_emitter_for_persistent_glow (W09-82) — a structurally similar insight from a completely different domain (Roblox particle systems): there too, the correct result comes from staggering multiple simultaneous instances at different PHASES of the same cycle, rather than treating the system as a single state interpolated in time",
+    "CLAUDE.md's own breakdown-authoring rule (\"a breakdown's bias is a POSE fraction, not a time fraction\") — a related but distinct correction to naive interpolation for RIGID rig breakdowns; this entry is the same family of correction (linear blending is not automatically physically correct) applied to a travelling-wave effect instead of a single joint's timing"
+  ],
+  "style_variations": {},
+  "cadence_representation": "This is a direct, sharp gap: Cadence's whole edit/generation model compiles a change as an interpolation between declared poses/keys (`ai/pose.js compilePose`, `ai/plan.js`'s phase/breakdown steps) — appropriate for the RIGID-body case the video explicitly says works fine with a naive halfway point. Cadence has no soft-body/wave/traveling-disturbance representation at all, so the exact failure mode this video warns against (treating a wave like an ordinary two-key interpolation) is not just unbuilt but architecturally outside a rig-of-rigid-parts model. If Cadence ever adds a deformable/cloth/liquid item type, this is the first principle that build would need: a travelling disturbance is authored as its OWN position-over-time, phase-offset from the material's own rest state, never as a blend of two material silhouettes.",
+  "control_surface": "None — no soft-body/wave item type exists to apply this to.",
+  "detection_and_measurement_methods": "not applicable in this build — there is no deformable-material track this could be measured against; `ai/motion.js` measures rigid-part transforms only.",
+  "generation_or_modification_methods": "not applicable in this build.",
+  "failure_modes": [
+    "applying a plain linear (or eased) interpolation between a wave's start and end keyframe, producing the whole material partway to its end state everywhere at once instead of a localized traveling bulge",
+    "not recognizing which category a given effect falls into — treating a genuinely rigid motion with unnecessary wave-style multi-point planning, or a genuine traveling disturbance with an ordinary two-key blend"
+  ],
+  "roblox_considerations": "None specific — a 2D hand-drawn animation principle, medium-independent.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"if I want to make a ball move from here to here I can put a frame halfway between them and it's going to start to look all right... now let's look at this really simple liquid animation... what comes next when new animators look at this problem they'll often try to solve it in the same way... straight away we can kind of tell that something's wrong\" (video @ 07:36–08:22)",
+    "\"we often need to show energy passing through the thing we're trying to animate so for fire it has convection energy traveling upwards and in liquid animation like slime we often need to show movement energy moving through the slime in the form of waves... we're not moving all of the liquid we're just moving parts of it\" (video @ 08:23–08:51)",
+    "the Felix Colgrave flag example, cited directly as the same principle scaled up to a complex production shot: \"he's animating the energy flowing through the flag by starting with these really simple shapes first\" (video @ 09:28–09:42), confirmed in this session's own frame read of the Double King flag clip",
+    "the presenter's own final scene applying the same idea to a full-body jump: \"I want to show that we're building up energy and that energy is traveling through the blob before it jumps... The Energy starts traveling from the rear of the slime in the direction that we're going and then it kind of rolls through the Slime and launches into the air\" (video @ 13:28–13:52)"
+  ],
+  "evidence_status": "video: https://youtu.be/VjAbB9492VA @ 07:36–08:51, 09:28–09:42, 13:28–13:52 — Alex Grigg states the naive-midpoint failure and the traveling-energy correction explicitly and directly, with three independent worked examples (the simple wave, the Colgrave flag, and his own final jump scene), the flag example confirmed in this session's own frame read; experimental until validated"
+}

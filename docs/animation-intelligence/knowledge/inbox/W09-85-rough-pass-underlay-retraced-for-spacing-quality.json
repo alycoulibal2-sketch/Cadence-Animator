@@ -1,0 +1,35 @@
+{
+  "concept": "rough_pass_underlay_retraced_for_spacing_quality",
+  "category": "advanced",
+  "definition": "After a rough animation pass has already established correct timing, group and fade its drawings down to low opacity on the first frame (so the reduction is not itself animated), then redraw a clean version on a new layer directly over it — with the second pass's explicit goal being to re-examine and correct the SPACING between each drawn contour, not to improve line quality or redesign the shape.",
+  "purpose": "Separate \"is the timing right\" (already solved by the rough pass) from \"is the spacing between frames clean and controlled\" (the specific thing a second pass is for), so a cleanup pass has one clear job instead of vaguely \"making it better.\"",
+  "visible_effect": "The cleaned-up animation keeps the same overall timing as the rough pass but reads as noticeably smoother, because each frame-to-frame gap along every contour has been deliberately controlled rather than drawn loosely.",
+  "psychological_or_gameplay_effect": "Rough, inconsistent spacing between otherwise well-drawn frames reads as jittery/unpolished even when every individual pose is fine; controlled spacing on the same poses reads as smooth and deliberate — the video frames this as often more important than drawing quality itself.",
+  "physical_interpretation": "Not applicable — a cleanup-authoring workflow, not a motion concept in itself (though its target, consistent spacing, is what communicates weight and physicality).",
+  "use_cases": [
+    "any hand-drawn animation where a fast, rough first pass nailed the timing but the frame-to-frame spacing is uneven",
+    "specifically effects/liquid animation, which the presenter says is MORE spacing-sensitive than ordinary animation because every contour around a blob's whole outline needs consistent spacing, not just one or two moving points"
+  ],
+  "non_use_cases": [
+    "a rough pass whose TIMING itself is still wrong — that should be fixed in a further rough iteration before investing in a clean spacing-focused retrace, not papered over by careful tracing of bad timing"
+  ],
+  "interactions": [
+    "staged_keyframe_then_straight_ahead_workflow (v15, compiled) — a related but distinct staging idea; that card is about the ORDER of keys vs. straight-ahead frames during authoring, while this entry is about a SECOND, later pass whose explicit target is spacing quality specifically, using the first pass as a light-table underlay",
+    "motion_path_first_volume_second_authoring_sequence (this same video) — this cleanup pass is the natural third step after that entry's two: plan the path, wrap volume around it roughly, then retrace for spacing"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not applicable as a workflow Cadence needs: Cadence's tracks are already exact numeric keyframes with a declared easing style per key (`set_easing`), so there is no hand-drawn \"spacing looks rough\" problem to clean up in a second pass — spacing between any two keys is already whatever the easing curve exactly specifies, not an eyeballed drawing gap. This is a technique that exists specifically to solve a problem hand-drawn 2D animation has and keyframe/curve-based animation does not.",
+  "control_surface": "Not applicable.",
+  "detection_and_measurement_methods": "not applicable — Cadence's spacing is already exact by construction (`interpolation_type`/key timing), never in need of a visual cleanup pass.",
+  "generation_or_modification_methods": "not applicable.",
+  "failure_modes": [
+    "skipping the rough timing pass and trying to solve both timing and spacing/shape quality in one drawing pass, making both harder",
+    "retracing for line/shape quality while not actually paying attention to spacing, missing the entire point of the second pass"
+  ],
+  "roblox_considerations": "None — a 2D hand-drawn technique.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"I think I can do a cleanup pass on this animation... I'll select the drawings and group them and I'll make them transparent... The thing I'm trying to look at is the spacing between the outlines and controlling them. You can have lots of beautifully drawn frames of Animation but if the spacing is messy the motion is going to feel rough\" (video @ 04:00–04:49)"
+  ],
+  "evidence_status": "video: https://youtu.be/VjAbB9492VA @ 04:00–04:49 — Alex Grigg performs and narrates the exact cleanup-pass workflow live; experimental until validated"
+}

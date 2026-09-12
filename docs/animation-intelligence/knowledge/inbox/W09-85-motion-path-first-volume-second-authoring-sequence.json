@@ -1,0 +1,40 @@
+{
+  "concept": "motion_path_first_volume_second_authoring_sequence",
+  "category": "essential",
+  "definition": "Before drawing any deforming volume (a blob, a liquid mass, a soft body), first animate its motion as a single point — a dot moved frame by frame along a smooth arc, with spacing tuned purely by eye until the timing feels right — then draw the actual volume AROUND that already-correct dot path on a new layer/track, treating the dot as the mass's centre and letting the deforming edges lag behind and catch up to it (like a magnet pulling goo) rather than moving in perfect unison with it.",
+  "purpose": "Separate the two hardest problems in soft-body/liquid animation — getting the TIMING AND ARC of the motion right, and getting the VOLUME's deformation right — into two passes, so neither has to be solved simultaneously from scratch; a wrong dot path is far faster to fix than a wrong dot path tangled up with a wrong-looking blob.",
+  "visible_effect": "A soft, deforming mass appears to be pulled through space from a single leading point, with its trailing edges catching up a moment later, producing a gloopy, stretchy quality rather than a rigid shape simply translating.",
+  "psychological_or_gameplay_effect": "Reads as genuinely soft and liquid, because the shape visibly does not move as one rigid unit — the source (magic dot) reads as the material's effective centre of mass/energy, and everything else visibly follows it.",
+  "physical_interpretation": "The dot approximates the mass's own centre of mass/momentum; treating the surrounding volume as dragged behind it (rather than rigidly attached) approximates how a real viscous material's surface lags its bulk motion.",
+  "use_cases": [
+    "any soft-body or liquid effect (slime, goo, fire, smoke, water) where the overall path/timing is the harder problem to get right and can be validated cheaply before investing in detailed volume work",
+    "a beginner's first attempt at effects animation, since a single dot's spacing/arc is a small, easy problem compared to a whole deforming shape"
+  ],
+  "non_use_cases": [
+    "an effect whose motion is simple enough (rigid, ballistic, no lag) that a single planning pass already captures everything — the presenter's own more advanced final scene (see below) skips the explicit dot pass entirely and plans arcs directly, though the same mental model is still present",
+    "a wave/energy-transfer effect where DIFFERENT PARTS of the material move at different phases simultaneously — that needs the different technique in traveling_energy_phase_offset_not_midpoint_interpolation, not a single leading dot"
+  ],
+  "interactions": [
+    "traveling_energy_phase_offset_not_midpoint_interpolation (this same video) — the two techniques are named by the presenter as siblings: the magic-dot/blob technique tracks a single mass's own path, while a wave effect needs multiple phase-shifted points because energy moves through only PART of the material at a time",
+    "chain_depth_proportional_secondary_delay (v16, compiled) and drag_stretch_coupling (v14, compiled) — the same lag/catch-up idea already in the corpus for rigid chains; this entry is the same principle applied to a continuous deforming volume rather than discrete rigid links, and specifically frames it as an AUTHORING SEQUENCE (plan the path, then wrap volume around it) rather than only a measured property",
+    "squash_stretch (compiled) — the presenter's own volume-conservation rule (stretch the goo thinner as it stretches longer) is a direct restatement of this existing card, not a new finding"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence's `ai/pose.js`/`ai/plan.js` already separate a similar concern for rigid rig motion: `line_of_action`, a volume-proxy `center_of_mass_target`, and phase authoring steps (`start`, `key_pose`, `breakdown`, `hold`, `settle`) exist independently of any one part's deformation. But Cadence has no soft-body/blob volume representation at all — a rig's parts are rigid meshes on FK/IK joints, never a deforming outline dragged behind a tracked point — so the SECOND half of this technique (drawing volume around an already-planned path, with lag) has no analogue to apply it to. The FIRST half (plan the path before the detail) is already exactly how `ai/plan.js authorMotion` is meant to be used.",
+  "control_surface": "`plan_motion`/`author_motion` for the path-planning half; no Cadence surface for the volume/lag half, since there is no deformable-volume item type.",
+  "detection_and_measurement_methods": "`ai/motion.js sampleMotion` on a tracked point's path (position, curvature, spacing) could validate the FIRST pass exactly as authored here; nothing measures a deforming volume's edges against that path, since Cadence holds no such volume.",
+  "generation_or_modification_methods": "`author_motion`'s phase/pose steps generate the path half; the volume half is entirely outside this build's authoring surface.",
+  "failure_modes": [
+    "trying to draw a correct-looking deforming volume without first locking down its underlying motion path, fighting timing and shape problems at the same time",
+    "letting the volume move perfectly rigidly with the dot instead of lagging behind it, which loses the gloopy/stretchy read entirely",
+    "over-animating fully-detached trailing material instead of the production shortcut of simply shrinking it to nothing once it has visually broken off (a related time-saving detail from the same pass)"
+  ],
+  "roblox_considerations": "None specific — a 2D hand-drawn technique (Procreate Dreams), not tied to Roblox.",
+  "performance_implications": "None — an authoring-time technique.",
+  "examples": [
+    "\"the goal is to bring a DOT to life with animation... I'll try to keep the dot moving on a nice smooth Arc\" (video @ 01:10–02:01)",
+    "\"I'm going to draw a little Blobby shape around the dot... think about the dot like a magnet and it's pulling this goo around as the dot moves faster some of the goo might take a moment to catch up to the dot\" (video @ 02:49–03:12)",
+    "\"you can think about breaking parts of the goo off that get left behind... I've just let them slowly shrink down to nothing so I don't have to keep animating them\" (video @ 03:43–03:50)"
+  ],
+  "evidence_status": "video: https://youtu.be/VjAbB9492VA @ 01:10–03:50 — Alex Grigg demonstrates the full dot-then-blob sequence live in Procreate Dreams, confirmed in this session's own frame reads of the dot being drawn in flipbook mode; experimental until validated"
+}

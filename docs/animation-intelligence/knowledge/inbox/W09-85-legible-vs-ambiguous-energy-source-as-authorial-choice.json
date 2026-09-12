@@ -1,0 +1,42 @@
+{
+  "concept": "legible_vs_ambiguous_energy_source_as_authorial_choice",
+  "category": "essential",
+  "definition": "Whether the audience can identify WHERE an effect's driving energy comes from — an external force (gravity, wind, an impact), an internal will (a character-like source, \"a mind of its own\"), or deliberately nothing identifiable at all — is a specific, nameable authorial choice with its own perceptual consequence, not an afterthought; the same underlying animation technique (e.g. the magic blob) reads as \"magical\"/uncaused specifically when no source is legible, and reads as characterful/alive when an internal source is implied.",
+  "purpose": "Deliberately choose what the audience will (or will not) attribute an effect's motion to, since that attribution is a real part of what the effect communicates, independent of the motion's technical quality.",
+  "visible_effect": "The identical class of squash/stretch/lag motion reads differently depending on context: with no apparent external cause it reads as whimsical/magical; staged with directional force cues (gravity, wind) it reads as physically caused; staged with volition-like pauses, hesitation, or direction changes with no external cause it reads as having a mind of its own.",
+  "psychological_or_gameplay_effect": "This is the mechanism itself: attribution of causation is a perceptual/narrative effect achieved through animation choices (or the deliberate absence of them), not a separate layer added after the motion is finished.",
+  "physical_interpretation": "Not applicable — this concerns what the audience infers about causation, not the motion's own physical correctness.",
+  "use_cases": [
+    "a whimsical or cartoonish effect meant to feel unforced and uncaused (the video's own \"magic blob\" exercise, deliberately not grounded in any legible force)",
+    "an effect meant to read as reactive to physics (gravity pulling slime down, wind bending a flag)",
+    "an effect meant to read as having agency or intent (the video's own Phantom Limb slime, animated with pauses and independent direction changes so it reads as thinking/deciding rather than being pushed)"
+  ],
+  "non_use_cases": [
+    "not applicable as a technique to avoid — this is a dimension every effect necessarily sits somewhere on, whether or not the choice was deliberate"
+  ],
+  "interactions": [
+    "motion_path_first_volume_second_authoring_sequence (this same video) — the SAME magic-blob technique is the vehicle for the \"magical\"/uncaused reading in the tutorial exercise, and for the \"mind of its own\" reading in the Phantom Limb example; the difference is entirely in what surrounding cues (or their absence) are staged around it, not in the core technique",
+    "the video's own worked example of a legible source: \"we're going to have the Slime pause at the top of this rock and that gives it the sense that it's deciding what to do next\" is a concrete implementation of the internal-will end of this spectrum, achieved with a hold/pause rather than any new motion vocabulary"
+  ],
+  "style_variations": {
+    "uncaused_magical": "no directional force cue is staged at all — the default read for a simple, undirected soft-body exercise",
+    "externally_caused": "staged with a clear directional cue (gravity pulling down, wind bending sideways) so the audience attributes the motion to that force",
+    "internally_willed": "staged with pauses, hesitation, or direction changes uncorrelated with any visible external force, so the audience attributes the motion to the subject's own intent"
+  ],
+  "cadence_representation": "Not represented, and likely not representable as a checkable property: whether an audience attributes a motion's cause to gravity, an external force, or the subject's own will is a narrative/perceptual inference `ai/motion.js` has no model of — it measures curves, not attribution. The closest existing Cadence concept is declarative rather than perceptual: a phase's `camera_readability_notes`/goal fields in `ai/cal.js` PASS THROUGH a caller's prose intent unvalidated (CAL-003), which could in principle carry a stated energy-source intent the same way it carries a silhouette goal — but nothing checks whether the resulting motion actually achieves it.",
+  "control_surface": "None — outside any measurable Cadence surface.",
+  "detection_and_measurement_methods": "not measurable in this build — an audience-attribution question, not a motion-data question.",
+  "generation_or_modification_methods": "not applicable.",
+  "failure_modes": [
+    "an effect that unintentionally reads as \"magical\"/uncaused when a physically-grounded or characterful read was actually intended, because no source cue was staged either way",
+    "mixing cues from more than one category inconsistently (e.g. gravity-driven motion that also pauses to \"think\"), muddying which attribution the audience is meant to make"
+  ],
+  "roblox_considerations": "None specific — applies to any effects-animation medium.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"we don't really get a sense of where the energy is coming from so it kind of feels magical\" describing the tutorial's own magic blob (video @ 06:16–06:22)",
+    "\"you can draw slime where the only energy in the scene is gravity pulling it down or you could do something like these shots from my short film Phantom limb where the Slime feels like it's got a mind of its own\" (video @ 06:28–06:40), shown against this session's own frame reads of the Phantom Limb clips (a red-hooded character enveloped by a yellow slime mass with an expressive, deliberate-looking pause)",
+    "\"I'm going to let my slime pause at the top of this rock and that gives it the sense that it's deciding what to do next\" (video @ 13:11–13:17), the internally-willed variant implemented purely with a hold"
+  ],
+  "evidence_status": "video: https://youtu.be/VjAbB9492VA @ 06:16–06:40, 13:11–13:17 — Alex Grigg names the energy-source distinction explicitly and demonstrates both ends of it with his own short-film and tutorial footage, corroborated by this session's own frame reads; experimental until validated"
+}
