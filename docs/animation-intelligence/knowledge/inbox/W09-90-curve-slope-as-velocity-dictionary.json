@@ -1,0 +1,36 @@
+{
+  "concept": "curve_slope_as_velocity_dictionary",
+  "category": "essential",
+  "definition": "An exact, three-rule dictionary for reading any animation curve's slope as velocity, independent of which attribute (translation, rotation, or scale) it drives: (1) a FLAT segment means zero motion — no velocity, no acceleration, nothing changing; (2) a STRAIGHT (non-curving) segment at any nonzero angle means constant velocity — moving at one unchanging speed, never accelerating or decelerating, however steep or shallow that angle is; (3) a CURVING segment's steepness relative to vertical IS the acceleration signal — the closer to vertical, the faster the motion at that instant, the closer to horizontal, the slower, and a perfectly vertical (undefined-slope) segment is the limiting case: an instantaneous, zero-duration jump (a stepped/teleporting change).",
+  "purpose": "Give a precise, general-purpose way to look at ANY curve on ANY channel and read off exactly what the resulting motion will do, so that diagnosing \"why does this feel slow/floaty/snappy\" becomes a direct read of the curve's shape rather than guesswork or repeated playback.",
+  "visible_effect": "A flat curve segment produces a held, motionless pose; a straight sloped segment produces smooth, unaccelerated constant-speed motion; a curve bending toward vertical produces visibly accelerating motion, bending toward horizontal produces visibly decelerating motion, and a vertical segment produces an instantaneous snap with no perceptible travel time at all.",
+  "psychological_or_gameplay_effect": "Not applicable directly — a diagnostic/authoring skill, though its output (correctly-read acceleration and deceleration) is what produces every timing-related perceptual effect elsewhere in this corpus.",
+  "physical_interpretation": "This is literally the calculus relationship between position and velocity restated in animator's terms: slope of a position-over-time curve IS velocity, and the slope's own rate of change (curvature) IS acceleration — the source names this explicitly (\"the velocity derivative graphs are literally the graph editor\") while noting no formal math knowledge is required to apply the rule.",
+  "use_cases": [
+    "diagnosing why a specific moment in an animation feels too slow, too floaty, or too snappy, by looking directly at the curve's slope and curvature at that moment rather than only at the rendered motion",
+    "applying the SAME three rules uniformly across translation, rotation, and scale channels, and across every DCC tool, since the rule is about slope/curvature reading, not about any one attribute or program"
+  ],
+  "non_use_cases": [
+    "not applicable as a technique to avoid — this is a universal reading skill for any keyframe curve, not a situational technique"
+  ],
+  "interactions": [
+    "curve_shape_does_not_generally_match_viewport_motion_shape (this same video) — a necessary companion warning: this dictionary reads VELOCITY correctly from any curve, but the curve's on-screen SHAPE (as a 2D line) generally has no visual resemblance to the motion's own visible shape in the viewport, and conflating the two is the most common way this dictionary gets misapplied",
+    "broken_tangents_for_independent_approach_and_departure_easing (this same video) — applying rule 3 independently to the incoming and outgoing sides of one keyframe is exactly what a broken tangent is for"
+  ],
+  "style_variations": {},
+  "cadence_representation": "This dictionary is already Cadence's own measured reality rather than merely a human reading heuristic: `ai/motion.js`'s `linear_velocity`/`angular_velocity` (central difference of position/rotation) and `acceleration`/`angular_acceleration` (second difference) ARE exactly rules 1–3 computed numerically rather than read off a graph by eye, and `interpolation_type` already reports each key's easing style/direction. Maya/Blender's named tangent MODES (auto, spline, linear, flat, step — all confirmed in this video) are that same tool's curve-authoring vocabulary for producing these slopes; Cadence's own per-key easing style+direction is a different, named-style (rather than raw-tangent-handle) authoring surface for the same underlying velocity concept, and `set_easing`'s existing style options already cover flat/linear/eased/stepped equivalents.",
+  "control_surface": "`set_easing` (style + direction per key) is Cadence's authoring surface for producing these slope shapes; `ai/motion.js sampleMotion` already measures the resulting velocity/acceleration numerically.",
+  "detection_and_measurement_methods": "Already fully implemented: `linear_velocity`, `angular_velocity`, `acceleration`, `angular_acceleration`, and `interpolation_type` in `ai/motion.js MEASUREMENTS` are precisely this dictionary, computed rather than eyeballed — no gap to record here, a rare case in this batch of a video whose central lesson Cadence already measures completely.",
+  "generation_or_modification_methods": "`set_easing` sets a key's style/direction, the authoring-side lever for shaping a curve according to this dictionary.",
+  "failure_modes": [
+    "reading a curve's steepness relative to the wrong axis or scale (steepness is relative to the graph's own time/value scaling, not an absolute visual angle, so two curves at different zoom levels can look equally steep while representing very different actual speeds)",
+    "on a compound multi-axis rotation, trying to diagnose a confusing combined motion without first blocking enough explicit keys — the source's own caution to \"block things really smart and have lots of keys before you let the computer do any work,\" since auto-tangent smoothing across many simultaneous axes can become hard to attribute to any one channel"
+  ],
+  "roblox_considerations": "None specific — applies to any keyframe curve in any animation tool, including Roblox's own Animation Editor curves.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"rule number one flat means no motion... rule number two if the line is straight... that's a constant velocity... rule number three if a line is going farther away from flat... it's getting steeper... it can't get a totally vertical line... that becomes step tangent\" (video @ 10:05–14:59), the full three-rule dictionary stated directly and demonstrated on a translating cube",
+    "the same rules reapplied to rotation to show they are attribute-independent: \"all of this works exactly the same for rotations and scales... if I take this over and make this a steeper line it means it's going to rotate really really fast versus a more kind of shallow line it's going to rotate slower\" (video @ 15:23–16:07)"
+  ],
+  "evidence_status": "video: https://youtu.be/RQ31vjgJM2c @ 10:05–16:07 — Sir Wade Neistadt states and demonstrates the three-rule dictionary directly on both translation and rotation channels; experimental until validated"
+}

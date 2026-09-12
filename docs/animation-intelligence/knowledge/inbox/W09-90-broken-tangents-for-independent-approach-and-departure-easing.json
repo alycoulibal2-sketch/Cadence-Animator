@@ -1,0 +1,36 @@
+{
+  "concept": "broken_tangents_for_independent_approach_and_departure_easing",
+  "category": "advanced",
+  "definition": "At a single keyframe where motion reverses direction (a ball's contact frame between falling and bouncing back up), the incoming (approach) and outgoing (departure) curve segments need INDEPENDENT steepness/shape — a falling ball should keep accelerating all the way to contact with no slowdown, then reverse and decelerate as it rises — which a normal unified tangent handle cannot express, since moving it reshapes both sides together; \"breaking\" the tangent decouples the two handles so each side of the same keyframe can be shaped on its own.",
+  "purpose": "Author a physically-correct reversal (accelerate all the way in, then decelerate all the way out, or any other asymmetric pairing) at a single shared keyframe, when the default symmetric handle would force both sides to match and produce an incorrect matching ease on both the approach and departure.",
+  "visible_effect": "Without breaking the tangent: adjusting the curve to prevent an unwanted slowdown approaching contact also disturbs the curve leaving contact (or vice versa), since one handle drives both. With the tangent broken: the falling side can be shaped to keep accelerating right up to the contact frame with no ease-out at all, while the rising side is shaped completely independently (e.g. easing out as it reaches the top of the bounce).",
+  "psychological_or_gameplay_effect": "An unbroken, symmetric tangent at a bounce's contact frame produces an unphysical soft cushioning into the ground that reads as wrong; breaking the tangent to keep the approach sharp (accelerating right to the point of contact) and shaping the departure independently is what makes the reversal read as a real, hard bounce rather than a cushioned catch.",
+  "physical_interpretation": "A real bounce's approach and departure ARE physically independent phenomena that only happen to share one instant in time (the contact moment) — a falling object does not decelerate before impact, and what happens after impact (how it launches back up) is governed by a completely separate physical process (the collision/rebound), so authoring them as independently-shaped curve segments matches the actual physics more closely than a single symmetric handle ever could.",
+  "use_cases": [
+    "any contact/reversal keyframe where the approach and departure should NOT mirror each other — a ball's bounce, a hand slamming down then lifting, any hard stop-and-reverse",
+    "the source's own further stylization once the base asymmetry is working: independently adjusting each side further to create a longer \"hang time\" at the top or a sharper, more aggressive change of direction at the bottom, entirely by reshaping the two broken handles independently"
+  ],
+  "non_use_cases": [
+    "a smooth reversal where the approach and departure genuinely should mirror each other (a gentle pendulum-like motion), where a normal unified tangent is correct and breaking it would add needless complexity"
+  ],
+  "interactions": [
+    "curve_slope_as_velocity_dictionary (this same video) — this technique is a direct application of that dictionary's rule 3 (steepness = speed) applied independently to the two sides of one keyframe",
+    "CLAUDE.md's own documented rule that Cadence keys carry an easing STYLE and DIRECTION rather than raw tangent handles — directly relevant to whether this exact technique is expressible in Cadence today, see below"
+  ],
+  "style_variations": {},
+  "cadence_representation": "An open, worth-checking question rather than a confirmed gap: Cadence's own documentation states a key carries an easing STYLE and DIRECTION (e.g. `ease_in`, `ease_out`, `linear`, stepped) rather than a raw bezier tangent-handle pair — and \"direction\" strongly suggests the incoming and outgoing sides of one key CAN already be given different styles independently (an `ease_in` on approach, a distinct `ease_out` on departure, both stored on the same key), which would already cover this exact technique without needing raw tangent handles at all. This should be verified directly against `set_easing`'s actual parameters rather than assumed either way — if confirmed, this technique requires no new Cadence capability; if a key's style is a single value applied symmetrically to both sides, it would be a genuine gap matching this batch's `external_force_easing_override` card's own note that `slow_in_slow_out` already supports per-key style choice, which is the same question this entry is really asking.",
+  "control_surface": "`set_easing`, if it accepts independent incoming/outgoing styles per key (to be confirmed); otherwise no equivalent surface exists.",
+  "detection_and_measurement_methods": "`ai/motion.js interpolation_type` already reports a key's easing style/direction — sufficient to detect whether a given key's approach and departure already differ, whichever way the open question above resolves.",
+  "generation_or_modification_methods": "`set_easing`, pending confirmation of whether it exposes independent incoming/outgoing control per key.",
+  "failure_modes": [
+    "leaving a bounce's contact keyframe on a single symmetric ease, producing an unwanted soft cushioning into the ground instead of a sharp, physically-correct impact",
+    "over-adjusting one side while trying to fix the other on an unbroken handle, since the two are coupled and cannot be tuned independently until broken"
+  ],
+  "roblox_considerations": "None specific — a curve-authoring concept independent of target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"moving this handle isn't going to work because you can see it's moving both sides and we don't want that we just want to control the down and then the up separately which is what this little V is for break tangents... now what we have is... a flat line as it slowly gets sharper and it falls quickly it never slows down it just gets more and more vertical and then it hits the point of contact and it has to reverse\" (video @ 17:45–18:29)",
+    "the further stylization once broken: \"we wanted to stop for longer... I just have a sharper more vertical fall-off so what we'll do is we'll just stretch out this curve... now it spends more of its time up than it does down it has this hang time\" (video @ 18:52–19:31)"
+  ],
+  "evidence_status": "video: https://youtu.be/RQ31vjgJM2c @ 17:45–19:31 — Sir Wade Neistadt demonstrates breaking the tangent and independently reshaping each side directly, including a further stylized hang-time variant; experimental until validated"
+}

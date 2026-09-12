@@ -22,7 +22,7 @@
     "uncaused_magical": "no directional force cue is staged at all — the default read for a simple, undirected soft-body exercise",
     "externally_caused": "staged with a clear directional cue (gravity pulling down, wind bending sideways) so the audience attributes the motion to that force",
     "internally_willed": "staged with pauses, hesitation, or direction changes uncorrelated with any visible external force, so the audience attributes the motion to the subject's own intent"
-  ],
+  },
   "cadence_representation": "Not represented, and likely not representable as a checkable property: whether an audience attributes a motion's cause to gravity, an external force, or the subject's own will is a narrative/perceptual inference `ai/motion.js` has no model of — it measures curves, not attribution. The closest existing Cadence concept is declarative rather than perceptual: a phase's `camera_readability_notes`/goal fields in `ai/cal.js` PASS THROUGH a caller's prose intent unvalidated (CAL-003), which could in principle carry a stated energy-source intent the same way it carries a silhouette goal — but nothing checks whether the resulting motion actually achieves it.",
   "control_surface": "None — outside any measurable Cadence surface.",
   "detection_and_measurement_methods": "not measurable in this build — an audience-attribution question, not a motion-data question.",

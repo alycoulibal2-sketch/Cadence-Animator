@@ -11,7 +11,7 @@
 - [x] 87. Ultimate Guide to Camera Movement — StudioBinder (29:09)
 - [x] 88. 7 Rules of Cinematic Framing and Composition — Kellan Reck (9:29)
 - [x] 89. Animate Cameras like a Pro (Blender Tutorial) — CG Boost (23:10)
-- [ ] 90. How to Animate with the Graph Editor — Sir Wade Neistadt (21:04)
+- [x] 90. How to Animate with the Graph Editor — Sir Wade Neistadt (21:04)
 
 ---
 
@@ -114,4 +114,32 @@ Three entries: **linear interpolation deliberately overriding the default ease, 
 What surprised me: this video's core insight (decouple a camera's PATH, its SPEED ALONG the path, and its AIM into three independently-editable things) is a genuinely different flavor of gap from most of this batch's other camera entries — those were mostly about a MEASUREMENT Cadence cannot make (screen-space projection, MOT-006); this one is about an AUTHORING STRUCTURE Cadence's single fused CFrame track does not offer at all, independent of any camera-projection question. Both kinds of gap point at the same underlying theme (Cadence's camera model is presently the least developed part of its data model), but they would be closed by different work: one needs a renderer/projection model, the other needs a richer camera item schema (or a general constraint/rig system extended to cameras). Worth keeping the distinction sharp when this batch is reviewed.
 
 No capture candidates (a Blender screen-capture tutorial, no character rig performance). Nothing contradicted an existing card. No new check queued: all three entries are authoring-architecture gaps, not measurable-quantity gaps, and are recorded as such rather than stretched into invented checks.
+
+## Video 90 — How to Animate with the Graph Editor (Sir Wade Neistadt, 21:04) — 2026-09-12
+
+Watched via transcript (676 caption segments), deliberately — a precise, foundational Maya graph-editor lesson where every rule is stated in exact, quotable prose and demonstrated on a plain cube/ball before any character complexity is introduced; no frame pass was needed, matching this batch's other live-software-tutorial videos. The single most foundational video in this whole batch, and the best match yet for the plan's own gloss ("curves as the expressive object").
+
+Three entries: **the curve-slope-as-velocity dictionary** (flat = zero motion, straight-at-any-angle = constant velocity, curving toward vertical = accelerating, toward horizontal = decelerating, fully vertical = an instantaneous step — a complete, general, attribute-independent reading of any curve, and remarkably, the one video in this entire ten-video batch whose central lesson Cadence's `ai/motion.js` already measures in full: `linear_velocity`, `acceleration`, and `interpolation_type` ARE this dictionary, computed rather than eyeballed); **curve shape does not generally match viewport motion shape** (a named, explicit student misconception — a vertical bounce's curve happens to visually resemble its own trajectory, which is the deceptive exception, not the rule, and the source flags it unprompted before it can mislead); and **broken tangents for independently-shaped approach and departure at one reversal keyframe** (a bounce's fall and launch are physically separate processes sharing one instant, and need independently-controllable curve segments — this entry surfaces a genuinely open question rather than an assumed gap: whether Cadence's own per-key easing style+direction already covers this, which CLAUDE.md's own wording suggests but does not confirm outright).
+
+What surprised me: video 86 and this video, from opposite ends of the batch (game VFX timing vs. classical Maya keyframe curves), independently arrive at the same underlying claim — that a curve/envelope's SHAPE is doing the expressive work, not the raw values it passes through — and this video is the one that finally states the exact, general, attribute-independent version of that claim (the three-rule dictionary) which the whole rest of the batch's timing-and-easing entries (W09-82's phase offsets, W09-85's traveling energy, W09-86's archetype curves, W09-89's linear-flow override) have each been a specific instance of without naming the general rule directly. If a building session reads only one entry from this whole batch to re-ground Cadence's own easing/velocity documentation, this is the one.
+
+No capture candidates (a Maya screen-capture tutorial on primitive shapes, no character rig performance). Nothing contradicted an existing card — this video's dictionary is a confirmation, in fact the most complete and explicit confirmation in the batch, of measurements `ai/motion.js` already makes.
+
+---
+
+## Batch W09 close-out — all ten videos watched, 2026-09-12
+
+**All ten videos watched in one session; 43 knowledge entries written** (recomputed directly from the files in `knowledge/inbox/W09-*.json`, not from a running tally): video 81 — 5, video 82 — 6, video 83 — 2, video 84 — 4, video 85 — 5, video 86 — 6, video 87 — 5, video 88 — 4, video 89 — 3, video 90 — 3.
+
+**Zero capture candidates across the whole batch.** Every video was either 2D/hand-drawn, a static-posed Roblox R6 demo rig, a slide deck, licensed film clips, or a Blender/Maya screen-capture tutorial on a primitive cube or ball — none showed a performed 3D character motion worth a reference clip. This is a real result, not a gap in the watching: a VFX-and-camera-themed batch (E/F sections) was always going to skew this way, unlike the body-mechanics-heavy W02-W04 batches.
+
+**Six checks queued** (sticky_contact_hold_duration_vs_momentum_baseline, effect_decay_phase_presence, effect_pair_timing_distinguishability, dolly_zoom_size_invariant, static_camera_against_concurrent_high_motion_subject, subject_background_world_space_separation) — full detail under each video's own paragraph above. Of these, only `subject_background_world_space_separation` is unblocked today; the rest wait on either a counterfactual-simulation capability or the active-camera/projection model named below.
+
+**Nothing in this batch contradicted an existing knowledge card.** Two general confirmations were noted rather than re-carded: `squash_stretch` (video 85) and `physical_reference_timing_method` (video 85); `slow_in_slow_out` was independently reconfirmed by both video 86's slide and video 89's own camera-easing discussion.
+
+**The one structural thing this batch found, spanning six entries across three unrelated videos:** naive linear/uniform interpolation is specifically untrustworthy for anything that is really energy or phase moving through a system rather than one thing moving as a whole — W09-82's phase-offset dual emitters, W09-85's traveling-energy-not-midpoint wave insight, W09-86's four archetype intensity curves (especially the explosion's inverse-to-size shape), and W09-90's own general slope dictionary are four independent angles on one idea. A building session should read these together.
+
+**The second structural thing, spanning five entries across two videos (87, 88):** an active-camera/projection model (MOT-006, currently unplanned) is the single highest-leverage capability gap surfaced by this batch — it would unlock the dolly-zoom invariant check, rule-of-thirds placement, leading-lines convergence, and looking-room balance all at once, since all four are blocked on the same missing projection step. Distinct from this: W09-89's camera-rigging entries found a SECOND, unrelated camera gap (no decoupled path/progress/aim channels, no constraint-influence system) that a projection model would not itself fix — worth keeping the two gaps separate when scoping any future camera work.
+
+**Next session starts fresh on W10** (this was the last batch of the ten; W10's own status should be checked independently before assuming it is still open, per this project's own standing caution that a batch's "unwatched" status can go stale between sessions).
 

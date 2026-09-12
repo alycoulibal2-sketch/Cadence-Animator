@@ -1,0 +1,34 @@
+{
+  "concept": "curve_shape_does_not_generally_match_viewport_motion_shape",
+  "category": "essential",
+  "definition": "A named, common student misconception: a vertical bounce's up-down position curve happens to visually resemble the ball's actual up-and-down trajectory in the viewport, which misleads new animators into expecting a curve's 2D SHAPE (as drawn on the graph) to generally resemble the motion's own visible shape — in general (any rotation, any combined multi-axis motion, most real character work) the two have NO visual resemblance to each other at all, and the graph must be read as an abstract slope/value-over-time diagram, never as a literal picture of the motion.",
+  "purpose": "Prevent a specific, named, recurring point of confusion by explicitly flagging the one deceptively-matching case (vertical translation) as the exception rather than the rule, before it teaches the wrong intuition.",
+  "visible_effect": "A vertical bounce's translate-Y curve happens to look like a series of arcs resembling the ball's own path; a rotation curve for the same ball flipping over, by contrast, is just a rising or falling line with no visual resemblance whatsoever to \"a ball flipping\" as seen in the viewport.",
+  "psychological_or_gameplay_effect": "Not applicable — an authoring-literacy point about how to correctly interpret a graph editor, not a viewer-facing effect.",
+  "physical_interpretation": "Not applicable.",
+  "use_cases": [
+    "any curve on a rotation channel, a scale channel, or any translation axis not aligned with the obvious visual direction of motion — none of these should be expected to visually resemble the corresponding on-screen motion",
+    "teaching or learning the graph editor for the first time, specifically to avoid over-generalizing from the one coincidentally-matching example (a simple vertical bounce) most tutorials lead with"
+  ],
+  "non_use_cases": [
+    "the specific, narrow case of a straightforward vertical bounce, where the curve's shape and the ball's visible trajectory genuinely do resemble each other — explicitly named as the exception, not grounds for a general rule"
+  ],
+  "interactions": [
+    "curve_slope_as_velocity_dictionary (this same video) — this entry is the necessary caveat to that one: the slope-as-velocity dictionary is universally true and must be applied to the curve as an abstract diagram, specifically BECAUSE the curve's overall shape cannot be trusted to resemble the motion itself"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not a capability gap — a purely conceptual/pedagogical clarification about how a human should INTERPRET a curve, with no corresponding Cadence tool behavior to check or measure. Worth recording anyway because it is exactly the kind of misconception a future explanatory or teaching-oriented feature (or an AI assistant narrating a curve to a user) could just as easily reproduce if it described a rotation curve's shape as if it visually mapped onto the resulting motion.",
+  "control_surface": "not applicable.",
+  "detection_and_measurement_methods": "not applicable — a human-interpretation caveat, not a measurable project property.",
+  "generation_or_modification_methods": "not applicable.",
+  "failure_modes": [
+    "expecting a rotation or multi-axis curve's 2D shape to visually resemble the resulting motion, then being confused when it does not",
+    "over-generalizing from a single vertical-bounce example (the most common first graph-editor lesson) to assume all curves work that way"
+  ],
+  "roblox_considerations": "None specific.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"in this very particular case when you're doing a ball bounce and you're doing the up-and-down of the ball the actual motion of the ball and the way the curve looks happen to look and act the same, that's not a normal thing... don't expect that your rotations and all of your translations are going to look the way they look in the viewport... and exactly match the curve of a line... this is something animation students struggle a little bit with\" (video @ 02:17–02:51)"
+  ],
+  "evidence_status": "video: https://youtu.be/RQ31vjgJM2c @ 02:17–02:51 — Sir Wade Neistadt names this exact misconception and its one deceptive exception explicitly, unprompted, before teaching the graph editor further; experimental until validated"
+}
