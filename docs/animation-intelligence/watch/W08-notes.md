@@ -2,7 +2,7 @@
 
 - [x] 71. How I Animate: An Unofficial Moon Animator 2 Tutorial — Tycoon (45:46)
 - [x] 72. How to Animate in ROBLOX the RIGHT way [NEW] {Tutorial} — DatBoiEle (10:47)
-- [ ] 73. How to Make SUPER SMOOTH Roblox Animations with Moon Animator 2! | Beginner to Pro Tutorial — TnxBlox (16:56)
+- [x] 73. How to Make SUPER SMOOTH Roblox Animations with Moon Animator 2! | Beginner to Pro Tutorial — TnxBlox (16:56)
 - [ ] 74. 3 Must-Know Moon Animator 2 TIPS for Better Roblox Animations — TnxBlox (2:41)
 - [ ] 75. Make Your Roblox Animations Feel REAL | Roblox Animation Tips 2026 — Devgrams and Draco (8:53)
 - [ ] 76. How to Animate a Sword Slash [Moon Animator] — Thundey (24:36)
@@ -115,4 +115,34 @@ Cadence's own tooling already being ahead of the manual technique being taught.
 
 No capture candidate — a screen-recording tutorial throughout (the presenter's own on-camera intro
 segment is a real person, but shows no motion worth capturing as a reference).
+
+## Video 73 — How to Make SUPER SMOOTH Roblox Animations with Moon Animator 2! — TnxBlox (16:56)
+https://youtu.be/EAW6F6PnW0w — watched 2026-09-12, `balanced` detail, 17 frames (scene-aware, 1
+near-duplicate dropped — very sparse for 17 minutes, since the screen barely changes from one
+continuous Moon Animator panel view throughout), captions transcript (396 segments, noticeably
+noisier auto-captions than the previous two videos — several numeric values read off Roblox's move
+tool come through garbled, e.g. "six negative 8.14", not treated as reliable evidence below).
+Mismatch worth flagging (same discipline as W07): the batch list's one-line gloss for this video says
+"easing choices on R15; what 'smooth' costs in weight," but the video is actually an R6 walk-cycle
+built from scratch, key spacing (10/5/15-frame cadences), the same keyframe-bisection technique as
+videos 71–72, and a torso/head lag offset — no R15 content and no explicit weight discussion.
+
+**`recursive_keyframe_bisection_increases_pose_density`** (new entry) — the clearest, fullest
+description yet of the 'M' key technique already glimpsed in videos 71 and 72: selecting a keyframe
+span and pressing M inserts an interpolated midpoint key, repeatable to keep halving the span
+further ("the more times you press the button, the more times it cuts the frames," @ 13:37–14:13,
+confirmed in this session's own frame at t=14:37). With three independent creators now converging on
+the identical keybind and mechanism within this one batch, this crossed the bar for its own entry
+rather than staying folded into general spacing/density cards — directly measurable today via
+`ai/motion.js`'s existing `keyDensity` (the same measurement `dps_floor_for_short_actions`, W02,
+already uses), with the gap being a convenience "bisect N times" helper, not a new measurement.
+
+Cross-checks, not new entries: (1) staggering the torso/head's movement cadence a few frames behind
+the legs/arms (@ 14:29–15:42) is the same "chain lead/lag" family already covered in depth by nine
+W02 entries plus video 71's "keyframe offsetting" — confirmatory, not new; (2) the specific numeric
+stud/frame values given for leg and arm offsets are not trusted as evidence here — the auto-captions
+for this stretch are visibly garbled (mismatched or nonsensical numbers in several spots) and no
+frame lands precisely enough on the property panel to cross-check them visually.
+
+No capture candidate — a screen-recording tutorial throughout, no filmed human motion.
 

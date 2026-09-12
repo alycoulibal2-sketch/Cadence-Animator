@@ -1,0 +1,38 @@
+{
+  "concept": "recursive_keyframe_bisection_increases_pose_density",
+  "category": "advanced",
+  "definition": "Moon Animator 2's 'M' keybind, applied to a selected span of keyframes, inserts a new keyframe at the midpoint of that span with an interpolated value, and can be pressed repeatedly on the same (now-subdivided) span to keep halving it further — each press roughly doubling the local pose density rather than adding a single fixed inbetween, used specifically to soften a sharp direction change or generally increase perceived smoothness on an already-blocked-out animation.",
+  "purpose": "Increase a motion's key density (and therefore its perceived smoothness) directly on an already-posed span, without the animator manually choosing and hand-posing each new inbetween.",
+  "visible_effect": "A path that visibly kinks or reverses direction sharply at a single key becomes a rounder, more gradual turn after one or more bisections; a walk cycle blocked out with sparse, evenly-spaced poses reads as visibly smoother and less mechanical after the technique is applied across it.",
+  "psychological_or_gameplay_effect": "A sparse, blocky pose-to-pose result (all three sources independently describe their own pre-technique blockout as 'robotic'/lacking smoothness) reads as more polished and less obviously hand-stepped once density is increased this way, without requiring the animator to have judged where a new pose belongs.",
+  "physical_interpretation": "The interpolated value at the new midpoint key is whatever the track's existing interpolation between the two original keys already computes for that time — so a bisection on a LINEAR span merely adds a redundant point on the same straight interpolation (no visible change on its own) while a bisection on an EASED or curved span can materially change subsequent hand-editing since the new key becomes an independent, separately-movable point.",
+  "use_cases": [
+    "softening a single sharp corner in an otherwise-good path — apply once, locally, to just the offending span",
+    "a broad, repeated smoothing pass across an entire pose-to-pose blockout to increase overall density before moving on to secondary/offset detail work"
+  ],
+  "non_use_cases": [
+    "a span that is already dense enough that its perceived smoothness is limited by pose CHOICE rather than pose COUNT — adding more interpolated points between two already-good poses cannot fix a badly-chosen intermediate shape, only a sparse one",
+    "a deliberately sharp, snappy transition (an impact, a hard stop) where the sharpness is the intended read — bisecting it would work against the intent"
+  ],
+  "interactions": [
+    "dps_floor_for_short_actions (merged, W02) — that card is about MEASURING whether key density is too low for an action's speed; this entry is the concrete AUTHORING mechanism an animator reaches for to raise density once it's judged too low, evidenced independently across three different creators in this same batch",
+    "boundary_key_pair_isolates_constant_velocity_middle_segment (W08-71, this same batch) — a sibling case of a specific extra-keyframe-insertion recipe changing a curve's shape; this entry is a simpler, single-keybind version of 'add more keys to change the curve', done recursively rather than by hand-placing two specific boundary keys"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly buildable today: Cadence already has ordinary keyframe insertion and interpolation evaluation, so a 'bisect this span N times' operation requires no new capability, only a specific convenience wrapper around inserting a key at the interpolated midpoint value of an existing span (repeated recursively). No such wrapper exists in this build currently — a caller would have to compute and insert each midpoint key manually.",
+  "control_surface": "No existing tool performs this in one call; ordinary keyframe insertion already supports adding a key at any interpolated point, so the missing piece is only the specific 'bisect N times' convenience, not new track/interpolation capability.",
+  "detection_and_measurement_methods": "`ai/motion.js`'s `keyDensity` (`dps_floor_for_short_actions`'s own measurement) directly reports the resulting change: density measured before and after a bisection pass should show roughly a doubling per pass in the affected span, and this is trivially verifiable by counting keys before/after.",
+  "generation_or_modification_methods": "Not implemented in this build; the natural shape (matching the pattern already used elsewhere in this codebase for other queued-but-unbuilt checks) would be a helper that inserts a key at a span's interpolated midpoint, callable repeatedly or with an explicit bisection count.",
+  "failure_modes": [
+    "repeatedly bisecting a LINEAR span expecting a smoothing effect and seeing none, because the new keys' interpolated values all lie exactly on the same straight line the original two keys already defined — the technique only changes anything once the span has curvature (from easing) or once the new keys are subsequently hand-adjusted",
+    "over-bisecting to the point where an animator's later hand-edits on individual keys become tedious across a now much denser span than intended"
+  ],
+  "roblox_considerations": "A Moon Animator 2 plugin keybind operating on its own internal keyframe representation before export; the resulting exported Roblox KeyframeSequence simply has more keyframes in the affected span, with no Roblox-specific behavior beyond that.",
+  "performance_implications": "More keys in an exported animation costs a small amount of extra data but no meaningful runtime cost; excessive bisection could bloat an exported KeyframeSequence's key count well beyond what the motion's actual complexity needs.",
+  "examples": [
+    "smoothing a sharp direction reversal in a moving part's path by selecting the offending in-between key and pressing M repeatedly until the turn reads as a curve rather than a corner (video 71 @ 19:10–19:26)",
+    "a blanket 'select all the frames and press M' pass described as 'the secret' to an instantly smoother-looking result on a full character animation (video 72 @ 04:33–04:52)",
+    "the fullest description of the mechanism: 'select the frames that are on the middle and click M... it will cut the frames in half... the more times you press the button, the more times it cuts the frames... it makes more extra frames that makes the animation a little bit smoother' — demonstrated on a full walk cycle blockout (video 73 @ 13:37–14:13, confirmed in this session's own frame at t=14:37 showing a dense, color-coded keyframe track panel after the pass)"
+  ],
+  "evidence_status": "video 71: https://youtu.be/Yzf3iGZis7A @ 19:10–19:26 — Tycoon demonstrates a single local bisection to fix one sharp turn. video 72: https://youtu.be/dqAAa9aubM8 @ 04:33–04:52 — DatBoiEle demonstrates a full-selection blanket pass, calling it a little-known 'secret'. video 73: https://youtu.be/EAW6F6PnW0w @ 13:37–14:13 — TnxBlox gives the fullest mechanism description (recursive halving) applied to a full walk-cycle blockout; UI confirmed in this session's own frame at t=14:37. Three independent creators converging on the identical keybind and mechanism within the same batch, gathered directly rather than via a separate merge; experimental until validated"
+}
