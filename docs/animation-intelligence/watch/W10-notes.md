@@ -7,7 +7,7 @@
 - [x] 95. Animation Power Tips - When to go from BLOCKING to SPLINE — Harvey Newman (20:24)
 - [x] 96. Why Your Stepped Animation Sucks in Spline — Sir Wade Neistadt (8:59)
 - [x] 97. Tips for Polishing Animation from a Disney Animator — Sir Wade Neistadt (22:09)
-- [ ] 98. Animation Critique: How To Instantly Improve Your Blender Animation With Easy Tricks — CG Cookie (35:55)
+- [x] 98. Animation Critique: How To Instantly Improve Your Blender Animation With Easy Tricks — CG Cookie (35:55)
 - [ ] 99. How to use video reference for Animation — Chester Sampson (11:40)
 - [ ] 100. The COMPLETE Guide to Reference for Feature Animation — owenferny (38:06)
 
@@ -318,3 +318,45 @@ human reference performance shown on screen.
 
 **No new checks queued** — all five findings are workflow disciplines or a code-verification question,
 not new runtime measurements.
+
+## Video 98 — Animation Critique: How To Instantly Improve Your Blender Animation With Easy Tricks — CG Cookie (35:55)
+https://youtu.be/r_wQmGKUdZ4 — watched 2026-09-12, `efficient` detail, 50 frames (keyframe pass, 249
+near-duplicates dropped — a talking-head-plus-viewport critique of a student's bouncing-ball exercise),
+captions transcript (838 segments). Per W10.md's own hint ('how a reviewer talks; the review tool's
+tone and order'), most of the specific animation notes (arcs, spacing, squash/stretch-before-contact,
+anticipation-matching-the-move) restate ground this corpus already covers well — the real find is in
+the STRUCTURE of the critique itself. Three entries.
+
+**`certainty_ordered_feedback_matches_cadence_review_sorting`** — the single cleanest correspondence in
+this whole batch between an external practice and an already-built Cadence mechanism: the reviewer
+explicitly separates 'stuff I'm certain on' from 'stuff to try' and says to fix the certain items first
+(@ 16:12–17:13). Checked directly against the actual code rather than assumed: `ai/certainty.js`'s five
+ranked `CERTAINTY` levels and `ai/review.js`'s `sortFindings`/`certaintyRank` already do EXACTLY
+this — certain findings sorted first, artistic suggestions kept in a fully separate array, with a
+`confidence_summary` counting each level. Cadence isn't just representable here; it's already ahead of
+what the human reviewer does by hand.
+
+**`recurring_pattern_flagged_once_with_repeated_instances_named`** — the same mistake (squashing
+instead of stretching before ground contact) is flagged at three separate points in one submission,
+with the second occurrence explicitly named as a pattern ('this is what I've noticed in a lot of the
+bounces') rather than three unrelated notes (@ 7:00–7:28, 11:46–12:10, 15:13–15:18). Cadence's
+`orderedDefects` sorts by certainty but this session found no evidence it GROUPS repeated instances of
+the same root cause into one pattern-level finding.
+
+**`specific_praise_interspersed_not_only_front_loaded`** — specific, located praise ('I really like how
+you've pushed this platform down') given throughout, not just as an opening formality, naming exactly
+what to preserve while fixing nearby problems. A genuine third category this session found no Cadence
+equivalent for: `review_shot` reports defects and artistic suggestions, but nothing surfaces a
+passing/already-correct measurement as its own located 'preserve this' finding.
+
+**Not written up separately**: the recurring scribble technique (drawing both the observed arc and the
+intended one directly over the viewport, confirmed in frames at t=06:42 and t=14:06) is a genuine
+communication technique loosely resonant with `ai/simulate.js`'s before/after diffed-by-quality-layer
+report, but this session judged the connection too speculative to write up as a grounded finding rather
+than a guess.
+
+**Capture candidates: none** — a Blender viewport screen recording with a talking-head overlay, no
+filmed human performance.
+
+**No new checks queued** — all three findings are about review-OUTPUT structure and communication, not
+new runtime measurements.

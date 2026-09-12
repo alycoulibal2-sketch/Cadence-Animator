@@ -1,0 +1,33 @@
+{
+  "concept": "specific_praise_interspersed_not_only_front_loaded",
+  "category": "advanced",
+  "definition": "A professional critique names SPECIFIC things the submission does well throughout the review, not only as a single generic opening pleasantry — praise cites the exact choice being praised (making the exercise 'your own' with an added seesaw and tongue-flip; a specific platform-push reaction; a specific stretch-into-contact) and is placed right next to the frame or moment being discussed, interleaved with the corrections rather than separated from them.",
+  "purpose": "Keep specific things that are already working from being accidentally changed or lost while fixing nearby problems, and make clear that critique is about specific execution details, not a verdict on the whole piece — distinct from generic encouragement, which carries no information about what to keep doing.",
+  "visible_effect": "not applicable — a property of how feedback is communicated, not of the animation itself.",
+  "psychological_or_gameplay_effect": "Specific, located praise ('I really like how you've pushed this platform down as he pushes off') tells the recipient exactly which choice to preserve while revising nearby details, versus generic praise ('good job') which gives no such guidance and risks a well-intentioned revision accidentally undoing something that was already correct.",
+  "physical_interpretation": "not applicable.",
+  "use_cases": [
+    "any review process, human or automated, that both approves specific existing choices and requests changes nearby — naming the approved choice specifically prevents it from being swept away by an adjacent fix"
+  ],
+  "non_use_cases": [
+    "a review that is purely about defects with nothing working yet to preserve"
+  ],
+  "interactions": [
+    "This maps onto the distinction CLAUDE.md already draws between `orderedDefects` and `artistic_suggestions` in `ai/review.js` in spirit, but is not the same axis: those two categories are both about what needs ATTENTION (a problem to fix or a subjective idea to consider); this entry is about explicitly naming what is ALREADY CORRECT and should be protected, which is a third category this session found no equivalent for in Cadence's review output."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: `review_shot`'s output (per CLAUDE.md and `ai/review.js`) reports `orderedDefects` and `artistic_suggestions` — nothing this session found reports a positive, specific 'this is working, preserve it' finding tied to a location the way a defect is tied to one. Nothing prevents a caller acting on a nearby defect from inadvertently changing something the review would have called out as already correct, because that already-correct fact is never surfaced as its own data point.",
+  "control_surface": "None currently — no Cadence review output names a specific, located strength the way it names a specific, located defect.",
+  "detection_and_measurement_methods": "not measurable in this build as a distinct category — some individual measurements that WOULD already be favorable (e.g. a correctly-shaped stretch-into-contact, a well-matched anticipation-to-action ratio) are measurable via existing `ai/motion.js`/`ai/pose.js` functions, but nothing currently surfaces a passing measurement as an explicit 'preserve this' finding the way a failing one is surfaced as a defect.",
+  "generation_or_modification_methods": "not applicable — a review-output category, not a generation operation.",
+  "failure_modes": [
+    "a review or automated fix pass that only ever reports problems, giving no signal about which nearby choices are already correct and should survive a revision unchanged",
+    "generic, unlocated praise that provides no actionable information about what specifically to preserve"
+  ],
+  "roblox_considerations": "None specific — a feedback-communication practice independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim, specific and located rather than generic: 'what I love about your submission... is that you've gone and made this exercise your own... you've even gone ahead and rigged a tongue' (transcript 1:13-1:30), and later, interleaved with corrections: 'I really like how you've pushed this platform down as he pushes off[,] really[,] really great' (transcript 13:20-13:25) and 'it's great how you are stretching down here to make contact[,] that's exactly what we want to see' (transcript 5:11-5:17)"
+  ],
+  "evidence_status": "video: https://youtu.be/r_wQmGKUdZ4 @ 1:13-1:30, 5:11-5:17, 13:20-13:25 — Wayne Dixon (CG Cookie) gives specific, located praise at the opening and again interleaved with corrections throughout the critique, `efficient` detail with 50 keyframes; experimental until validated"
+}

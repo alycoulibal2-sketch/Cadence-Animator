@@ -1,0 +1,34 @@
+{
+  "concept": "recurring_pattern_flagged_once_with_repeated_instances_named",
+  "category": "advanced",
+  "definition": "When the same underlying mistake appears at multiple separate points across one submission (e.g. squashing instead of stretching right before ground contact, repeated across several of a bounce sequence's landings), a professional critique names it ONCE as a recurring pattern with its own identity ('this is what I've noticed in a lot of the bounces') rather than only listing each occurrence as an unrelated individual note — while still pointing out each specific instance so the recipient can find and fix all of them.",
+  "purpose": "Help the recipient learn the underlying PRINCIPLE being violated (so they stop making the mistake in future work), not just patch the specific frames flagged — treating repeated instances as evidence of one systemic gap in understanding rather than several unrelated local errors.",
+  "visible_effect": "not applicable — a property of how feedback is organized, not of the animation itself.",
+  "psychological_or_gameplay_effect": "Naming a pattern explicitly ('this is what I've noticed in a lot of the bounces') reframes several small corrections as one lesson learned, which is more likely to generalize to the recipient's future work than the same corrections presented as unrelated one-offs.",
+  "physical_interpretation": "not applicable.",
+  "use_cases": [
+    "any review covering a submission with more than one instance of the same class of action (multiple bounces, multiple footsteps, multiple attacks), where a systemic mistake is likely to recur and is worth naming once with all instances cross-referenced",
+    "distinguishing a one-off local error from a pattern the recipient should specifically watch for on their next piece of work"
+  ],
+  "non_use_cases": [
+    "a genuinely one-off, isolated mistake with no other instances in the submission, where treating it as a 'pattern' would be misleading"
+  ],
+  "interactions": [
+    "certainty_ordered_feedback_matches_cadence_review_sorting (this same batch, video 98) — a companion structural finding: that entry is about ordering feedback by CONFIDENCE, this one is about grouping feedback by ROOT CAUSE across repeated instances, a different organizing axis."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented: `ai/review.js`'s `orderedDefects` list (per `certainty_ordered_feedback_matches_cadence_review_sorting`, this same batch) sorts individual findings by certainty but this session found no evidence it GROUPS multiple findings that share the same root cause (e.g. several separate 'squash before contact' instances across different bounces) into one named pattern-level finding — each instance would presumably surface as its own separate finding rather than being cross-referenced as repeated evidence of the same systemic issue.",
+  "control_surface": "None specific — would be a grouping/deduplication step over `review_shot`'s own `orderedDefects` output, not a new measurement.",
+  "detection_and_measurement_methods": "Partially measurable: if several findings share the same `concept`/underlying check across different frames or items, grouping them by that shared identity is a mechanical operation over existing review output — this session did not confirm such grouping exists today.",
+  "generation_or_modification_methods": "not applicable — a review-output organization step, not a generation operation.",
+  "failure_modes": [
+    "presenting several instances of the same root-cause mistake as unrelated individual notes, which obscures the systemic lesson and makes the feedback feel longer and more scattered than it needs to",
+    "over-applying pattern-naming to a mistake that only genuinely occurred once, inflating a local error into a false systemic claim"
+  ],
+  "roblox_considerations": "None specific — a feedback-organization practice independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim, naming the SAME mistake across multiple separate bounces in one submission: 'don't squash him before he hits the ground[.] you want to stretch him[.] you want to show the stretch before he hits the ground... this is what I've noticed in a lot of the bounces where you've got him squashed on the landing[,] but show the stretch first' (transcript 11:46-12:10), after already flagging the identical issue earlier in the same critique (@ 7:00-7:28) and again later (@ 15:13-15:18)"
+  ],
+  "evidence_status": "video: https://youtu.be/r_wQmGKUdZ4 @ 7:00-7:28, 11:46-12:10, 15:13-15:18 — Wayne Dixon (CG Cookie) flags the same stretch-before-contact mistake at three separate points in one submission and explicitly names it as a recurring pattern the second time, `efficient` detail with 50 keyframes; experimental until validated"
+}

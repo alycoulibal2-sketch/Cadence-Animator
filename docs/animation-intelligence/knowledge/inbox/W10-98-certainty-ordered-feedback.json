@@ -1,0 +1,33 @@
+{
+  "concept": "certainty_ordered_feedback_matches_cadence_review_sorting",
+  "category": "advanced",
+  "definition": "A professional critique explicitly separates feedback into two confidence tiers and states the order to act on them: fixes the reviewer is CERTAIN about (a clear technical error against a stated principle) versus notes that are genuinely 'stuff to try' (an open judgment call with no single right answer, e.g. how many contact frames look best) — with explicit instruction to do all the certain fixes first, then return to experiment with the uncertain ones.",
+  "purpose": "Prevent a recipient from treating every note as equally authoritative, and prevent wasted effort second-guessing a confident technical fix while an open judgment call is still unresolved — certainty about the FEEDBACK ITSELF, communicated explicitly, not left for the recipient to infer.",
+  "visible_effect": "not applicable — a property of how feedback is communicated and ordered, not of the animation itself.",
+  "psychological_or_gameplay_effect": "not applicable.",
+  "physical_interpretation": "not applicable.",
+  "use_cases": [
+    "any critique or automated review that mixes clear-cut technical defects with open-ended stylistic or numeric judgment calls — state which is which, and recommend doing the certain fixes first"
+  ],
+  "non_use_cases": [
+    "a review where every finding really is equally certain, where this distinction would add nothing"
+  ],
+  "interactions": [
+    "not applicable — this is the single clearest correspondence found in the whole batch between an external professional practice and an already-built Cadence mechanism, rather than a connection to another finding in this corpus."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Already implemented, verified by reading the actual code rather than assumed: `renderer/js/ai/certainty.js` defines exactly five levels — `CERTAIN`, `HIGHLY_LIKELY`, `POSSIBLE`, `SUBJECTIVE`, `USER_INTENT_REQUIRED` — ranked in that order, and `ai/review.js`'s `sortFindings`/`certaintyRank` already sort every defect by this ranking, with `CERTAIN` findings first. `ai/review.js` also keeps `artistic_suggestions` in a SEPARATE array from `orderedDefects` (CLAUDE.md's own stated rule: 'defects and artistic suggestions never merge'), and reports a `confidence_summary` counting findings at each certainty level. This is exactly the two-tier, certain-first structure the video's reviewer describes doing by hand — Cadence's review tool already enforces it as data, not merely as a stated intention.",
+  "control_surface": "`review_shot` (Part 49), which returns `orderedDefects` (sorted by `certaintyRank`) and `artistic_suggestions` (kept separate) plus a `confidence_summary`.",
+  "detection_and_measurement_methods": "Directly measured today: every finding `review_shot` produces already carries a `certainty` field from the `CERTAINTY` enum, and the sort order IS the measurement.",
+  "generation_or_modification_methods": "not applicable — `review_shot` is read-only (Part 11); nothing here generates or modifies animation.",
+  "failure_modes": [
+    "presenting an uncertain, exploratory note with the same confidence as a certain technical defect, which the video's own reviewer explicitly avoids by naming which of his own notes are 'stuff to try'",
+    "a review tool merging defects and artistic suggestions into one undifferentiated list, which CLAUDE.md's own rule (and this video's practice) both reject"
+  ],
+  "roblox_considerations": "None specific — a feedback-communication practice independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'some of the feedback that I'm going to give you is some stuff to try[.] so what I want you to do is do all the other stuff that I'm certain on first and then come back and... mess around with the other things[.] so this is one of those notes where I'm not sure...' (transcript 16:12-16:31), given specifically about an open numeric judgment call (how many contact frames to show on the platform)"
+  ],
+  "evidence_status": "video: https://youtu.be/r_wQmGKUdZ4 @ 16:12-17:13 — Wayne Dixon (CG Cookie) explicitly separates certain fixes from exploratory suggestions and states the certain-first order directly, `efficient` detail with 50 keyframes; cross-checked in this session directly against `renderer/js/ai/certainty.js` and `ai/review.js`'s `sortFindings`/`certaintyRank`/`artistic_suggestions` handling; experimental until validated"
+}
