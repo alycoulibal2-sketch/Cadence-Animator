@@ -1,0 +1,42 @@
+{
+  "concept": "obari_punch_camera_facing_pose_sequence",
+  "category": "specialized",
+  "definition": "A named four-beat pose sequence (on-screen label 'obari punch', credited to animator Masami Obari, first appearing in the 'Fist of the North Star' films per the source): (1) an initial pose, (2) pulling the punching arm back, (3) a thrusting chest with a head tilt, (4) the punch itself launched toward the camera — the defining trait being the strike's final direction is straight at the viewer rather than across the frame.",
+  "purpose": "Give a punch maximum perceived power and screen presence by aiming its final extension at the camera (filling/breaching the frame) rather than past it, using a specific, repeatable four-beat pose order to get there.",
+  "visible_effect": "A figure winds up with an arm pulled back and torso coiled, then launches toward the viewpoint with the striking limb foreshortened and enlarged in frame as it approaches the camera — confirmed in this session's frame at t=12:15 (a figure launching directly toward the viewer with a foreshortened leading arm/weapon).",
+  "psychological_or_gameplay_effect": "The camera-facing final extension makes the viewer the implied target of the strike's full force, a stronger and more visceral read than the same punch thrown across the frame; the source notes this exact four-beat pattern recurs across many different characters/shows specifically because it is what makes a strike identifiable as 'an Obari punch'.",
+  "physical_interpretation": "An exaggerated, stylized pose sequence rather than a literal biomechanical claim; the source notes weapon variants exist, meaning the sequence is about the POSE/CAMERA relationship, not specifically an unarmed strike.",
+  "use_cases": [
+    "a hero/villain power-strike beat wanting maximum screen presence and perceived force",
+    "a finishing move or signature attack where a distinctive, recognizable pose formula helps a character's strikes read as their own identifiable style",
+    "adaptable to a weapon strike, per the source's own stated variation, not only an unarmed punch"
+  ],
+  "non_use_cases": [
+    "a strike meant to read as fast/practical rather than a showcase beat — the four-beat wind-up-to-camera structure is a deliberate SHOWCASE pose sequence, not a quick, functional attack",
+    "a shot where the camera cannot plausibly be positioned along the strike's final line of travel"
+  ],
+  "interactions": [
+    "the master directive's open starting-recipe question (`project_cadence_animation_intelligence` memory, prompt §7.3) — this is a concrete, named, evidenced candidate for exactly the kind of parameterized starting recipe (wind-up angle, chest-thrust/head-tilt amount, camera-relative launch direction) that question is about, alongside the other named pose-sequence entries already in this corpus (`weight_then_strength_formula` W02 v19, sword-combat named-frame entries W04)",
+    "fixed_camera_licenses_invisible_pose_cheats (W05-43) — this pose sequence's whole payoff depends on a specific camera-relative launch direction (toward the viewpoint), a further example of camera placement being load-bearing for a pose's read, which this corpus's SHOT-003/004 gap already flags as unmeasured",
+    "peak_spacing_immediately_before_impact (W04-34) — the same impact-proximity structure (build-up then a fast final approach) applied to a named four-beat template with a stated camera-relative payoff this earlier entry does not itself specify"
+  ],
+  "style_variations": {
+    "anime": "a named, recognized signature pose formula per the source, with 'a lot of variations' including weapon strikes",
+    "realistic": "contraindicated — a camera-facing full-force strike toward the audience is an explicitly non-diegetic, stylized choice"
+  },
+  "cadence_representation": "Directly relevant to `renderer/js/ai/pose.js`'s existing PoseSpec/`authorMotion` machinery: this is exactly the shape of thing `authorMotion` already takes as input (declared phase frames + a PoseSpec per phase) — an initial pose, a pulled-back wind-up pose, a chest-thrust/head-tilt pose, and a punch-extension pose, PLUS one requirement `authorMotion` does not yet reason about at all: the final extension's direction should be evaluated relative to the ACTIVE CAMERA, not just the rig's own local space, which is the same SHOT-003/004 camera-model gap this corpus keeps re-surfacing.",
+  "control_surface": "`compile_pose` / `author_motion` could author the four component poses today as an ordinary phase sequence; nothing currently checks or steers a strike's final extension direction against the active camera's viewing axis specifically.",
+  "detection_and_measurement_methods": "The four-beat key-pose structure itself is measurable today via existing phase/key timing (as `layered_anticipation_present`-style checks already do); the camera-facing payoff is NOT measurable without a camera model — the same gap SHOT-003/004 names, applied here to a strike's final direction rather than to framing generally.",
+  "generation_or_modification_methods": "`author_motion` can already generate the four-phase pose sequence; it has no way to target the final pose's extension direction at the active camera specifically.",
+  "failure_modes": [
+    "a strike that reads as launched across the frame rather than toward the viewpoint, losing the technique's defining trait",
+    "omitting the chest-thrust/head-tilt beat and jumping straight from wind-up to punch, per the source's own stated four-part structure",
+    "using the formula for a fast/practical strike where its deliberately showcase-paced wind-up would read as too slow"
+  ],
+  "roblox_considerations": "Directly authorable as an `AnimationTrack` phase sequence today; the camera-facing payoff would need the shot's `Camera`/`CFrame` to be known at author time so the punch's final extension can be aimed at it — not reachable from rig-local pose authoring alone.",
+  "performance_implications": "None beyond ordinary keyframe authoring.",
+  "examples": [
+    "'Obari punch is mainly a punch where it usually goes to the camera, it was invented by the animator Masami Obari and it first appeared in the anime Fist of the North Star... the common movement... is the initial pose, a pulling back of the punching arm, a thrusting chest and head tilt, and finally the punch itself towards the camera' (video @ 11:55–12:18), confirmed on-screen label 'obari punch' in this session's frame at t=12:15"
+  ],
+  "evidence_status": "video: https://youtu.be/iMV9Tlpo1wY (SinChi) @ 11:55–12:28 — on-screen label 'obari punch' confirmed in this session's frame at t=12:15; experimental until validated"
+}

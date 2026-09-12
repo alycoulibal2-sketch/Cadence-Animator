@@ -1,0 +1,41 @@
+{
+  "concept": "rotoscoping_tracing_live_action_or_cg_reference",
+  "category": "advanced",
+  "definition": "Tracing directly over filmed live-action footage or a rendered CG model, frame by frame, to produce the final drawn animation — a stronger, more literal practice than merely watching reference for timing: the traced footage IS the motion, redrawn at proportions that differ from the reference performer's own.",
+  "purpose": "Achieve fluid, well-choreographed motion (especially for complex fight choreography) that would be very hard to key from imagination alone, by capturing a real performance's actual movement and translating it into the drawn character's different proportions.",
+  "visible_effect": "Drawn character motion whose timing, weight-shift and spacing tracks a real filmed performance closely — confirmed in this session's frames showing the source's own filmed choreography reference (two performers with motion-capture-style markers on a gridded floor, t=03:32) directly adjacent to the resulting anime cut.",
+  "psychological_or_gameplay_effect": "Done well, reads as unusually fluid and well-choreographed motion; done under time pressure, reads as 'uncanny' or 'too realistic' in a way some viewers dislike, per the source's own stated criticism some animators receive.",
+  "physical_interpretation": "A direct capture-and-redraw of real human motion, not an invented or exaggerated pose sequence — the closest thing in this batch's 2D-only sources to Cadence's own Roblox-Studio-Animation-Capture pipeline for 3D.",
+  "use_cases": [
+    "complex fight choreography that benefits from a real, physically-blocked performance (the source's named example: a schoolgirl action series using it heavily so its fights read as fluid and well-choreographed)",
+    "any motion an animator would otherwise struggle to key convincingly from imagination alone"
+  ],
+  "non_use_cases": [
+    "a production without enough schedule to finish the rotoscoped work properly — the source states directly that an incomplete/rushed rotoscope pass 'can look bad'",
+    "a character whose proportions differ drastically from any available performer, where the source notes real translation work (redrawing hair, build, proportions) is still required and is nontrivial — rotoscoping is not a shortcut past drawing skill"
+  ],
+  "interactions": [
+    "physical_reference_timing_method (W01, v9) — that entry is filmed reference informing TIMING/spacing decisions the animator then keys by hand; this entry is the more literal practice of tracing the reference footage itself frame-by-frame, a stronger dependency on the source performance",
+    "REF-001 / Roblox Studio Animation Capture (per this program's LEARNING_LOOP_PROMPT) — Cadence's own closest equivalent: Studio's Animation Capture estimates R15 keyframes directly from video, the same 'trace real motion onto a different-proportioned character' structure this entry describes, and is subject to the same proportion-mismatch caveat this entry raises for hand-rotoscoping"
+  ],
+  "style_variations": {
+    "anime": "an established, named production technique with both respected practitioners and known failure cases per the source",
+    "realistic": "not applicable as a distinct technique — rotoscoping IS the realistic-motion route by construction"
+  },
+  "cadence_representation": "Not directly representable as a 2D drawing process, but its underlying idea — deriving keyframes from real filmed motion rather than authoring them by hand — is exactly what Roblox Studio's Animation Capture already does for this project's own pipeline (per `docs/animation-intelligence/LEARNING_LOOP_PROMPT.md`), with the same proportion-translation caveat this entry's non_use_cases raises: a captured/rotoscoped clip must be re-targeted to the receiving rig's own proportions, never assumed to transfer 1:1.",
+  "control_surface": "`import_from_studio` + `add_to_library` (provenance `captured`, `estimated: true`) is Cadence's reachable equivalent pipeline stage.",
+  "detection_and_measurement_methods": "Not measurable in this build as a 2D production technique; the CAPTURED-clip analogue is already governed by `add_to_library`'s existing estimated/licence validation rather than a new measurement.",
+  "generation_or_modification_methods": "None directly (2D drawing process); the 3D analogue's generation path is Roblox Studio's Animation Capture, already documented elsewhere in this programme.",
+  "failure_modes": [
+    "an incomplete or rushed rotoscope pass reading as choppy or unfinished, per the source's own named example",
+    "reading as uncannily realistic in a way that clashes with a stylized production's established look, per the source's own stated criticism some rotoscoped work receives",
+    "assuming the reference performer's proportions transfer directly to the drawn character without translation work, which the source states is still required and nontrivial"
+  ],
+  "roblox_considerations": "Directly analogous to Roblox Studio's Animation Capture (Body/Face) pipeline already documented in this programme: a captured clip is a pose ESTIMATE that must be retargeted to the R15 rig's own proportions and stays labelled `estimated: true`, never presented as exact.",
+  "performance_implications": "Not applicable to a 2D production technique; the 3D analogue's cost is the Animation Capture process itself, already characterized elsewhere (~1 minute to process a short clip).",
+  "examples": [
+    "'rotoscoping is basically tracing over live-action footage or CG models... you still need talent to trace the live-action footage to anime because the proportions are different' (video @ 03:27–04:00), confirmed in this session's frame at t=03:32 showing the source's own filmed choreography reference (two performers, markers, gridded floor) beside the anime result",
+    "'a good example for live-action rotoscoping use... they use a lot of them so that the fights look more fluid and the choreography is better... but if you don't have time to finish the work, rotoscoping can look bad' (video @ 04:21–04:35)"
+  ],
+  "evidence_status": "video: https://youtu.be/iMV9Tlpo1wY (SinChi) @ 03:27–04:35 — on-screen label 'Rotoscoping' confirmed in this session's frames at t=03:32–04:24; experimental until validated"
+}

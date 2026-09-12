@@ -1,0 +1,42 @@
+{
+  "concept": "itano_circus_multi_projectile_evasion_choreography",
+  "category": "specialized",
+  "definition": "A named shot type ('Itano Circus', credited on-screen to originating animator Ichiro Itano, first used in 'Densetsu Kyojin Ideon' per the on-screen credit and popularized in Macross, 1982): a single character or vehicle dodges, or is pursued by, a large swarm of independently-moving homing projectiles (missiles, lasers, tentacles, chains) whose individual paths visibly curve and converge on the evading target, rather than traveling as one simple volley.",
+  "purpose": "Sell overwhelming, near-inescapable danger and a skilled, narrow escape by showing many simultaneous independent threats converging on one target, rather than implying danger with a single projectile or an off-screen barrage.",
+  "visible_effect": "Numerous distinct, curving projectile trails converging from different angles toward one evading subject, confirmed in this session's frame at t=06:39 (glowing streaks converging toward a single dark silhouette) and the source's own historical example frame at t=07:13 (a zigzagging exhaust/missile trail against a mecha, credited to Ichiro Itano and 'Densetsu Kyojin Ideon').",
+  "psychological_or_gameplay_effect": "Reads as the target being simultaneously and overwhelmingly outnumbered by threats, with the evasion itself (weaving between many independent paths) as the display of skill; the source notes the technique originated in mecha shows specifically because of their missile-heavy combat, and has since spread into other genres and mainstream shows.",
+  "physical_interpretation": "An exaggeration of a real multi-projectile engagement: real homing weapons would not typically curve as visibly or converge as theatrically, but the underlying scenario (many simultaneous threats, one evading target) is physically motivated rather than purely symbolic.",
+  "use_cases": [
+    "a boss or set-piece encounter wanting to read as overwhelming/inescapable before a skilled dodge resolves it",
+    "any genre borrowing mecha combat's missile-swarm structure for a different weapon type (lasers, tentacles, chains, per the source's own list of the technique's generalizations)",
+    "a game combat 'bullet hell' or barrage-dodge encounter, which shares this shot's exact structural problem: many independent projectile paths, one evading target"
+  ],
+  "non_use_cases": [
+    "a single, simple threat where implying overwhelming danger would be dishonest to the actual stakes of the moment",
+    "a target that is not meant to evade skillfully — the technique's payoff depends on the dodge reading as narrow and deliberate, not lucky or passive"
+  ],
+  "interactions": [
+    "SHOT-003/004 (camera model gap, LESSONS.md / W05 batch) — a multi-projectile evasion shot is a demanding camera-framing case for whatever eventually fills this gap: it must keep one evading subject AND enough of the converging threat paths legible at once, a harder version of the single-subject framing problem W05's camera findings already describe",
+    "single_axis_attack_flag (LESSONS.md check #11) — the opposite structural case: that check flags an attack whose path stays near one axis; an Itano Circus shot is defined by MANY simultaneously divergent paths around one target, a multi-body extension neither that check nor any existing measurement currently generalizes to"
+  ],
+  "style_variations": {
+    "anime": "originated in and remains strongly associated with mecha/sci-fi action per the source, now generalized to other genres and weapon types (including a named modern mainstream example)",
+    "game_combat": "structurally identical to a 'bullet hell'/barrage-dodge encounter pattern already common in action games, per this entry's own use_cases"
+  },
+  "cadence_representation": "Not represented: Cadence's `ai/motion.js` measures a single chain's motion (lead/lag, curvature) and has no multi-body / multi-projectile relative-path measurement at all. This is a genuinely new capability class, not a gap in an existing one — closer to a new MOT category (simultaneous independent paths relative to one evading target) than to anything `sampleMotion`/`analyseChain` currently generalizes to.",
+  "control_surface": "None. Authoring many independent projectile items with individually keyed paths is possible with ordinary items/tracks today, but nothing coordinates them as a named 'converging swarm around a target' pattern.",
+  "detection_and_measurement_methods": "Not measurable in this build: would need a multi-item relative-motion measurement (each projectile's closing distance and angle to the evading target over time, and a check that paths remain individually distinguishable rather than overlapping into one blob) that does not exist yet.",
+  "generation_or_modification_methods": "None currently authors a coordinated multi-projectile convergence pattern; each item would need individual hand-keying today.",
+  "failure_modes": [
+    "projectile paths that don't visibly curve/converge, reading as a simple simultaneous volley rather than this specific 'circus' effect",
+    "too many overlapping paths for the evading subject to remain legible, defeating the shot's own point",
+    "an evasion that reads as lucky/passive rather than a skilled, narrow dodge, undercutting the payoff the technique is built to deliver"
+  ],
+  "roblox_considerations": "Directly relevant to Roblox combat games specifically (per this entry's own game_combat style_variation): a boss barrage/bullet-hell encounter is exactly this shot's game-mechanical equivalent, typically implemented as many independently-scripted projectile parts with homing/curving `BodyMover`/tween paths — an encounter-design and VFX-authoring concern more than a rig-pose one.",
+  "performance_implications": "A genuinely multi-body scenario: many simultaneously active projectile paths would cost proportionally more than a single-projectile attack, though the exact cost is an encounter-design/engine question outside this entry's scope.",
+  "examples": [
+    "'Itano Circus is a name where a character... could be controlling AA or jet to dodging or getting pursued by a bunch of projectiles, it could be missiles, lasers, tentacles, chains and more, the creator Ichiro Itano first used this style of shot in an episode of Densetsu Kyojin Ideon... it was popularized in 1982 with the series Super Dimension Fortress Macross' (video @ 06:27–07:06), confirmed on-screen label 'itano circus' and credit 'Ichiro Itano, Key Animation' / 'Densetsu Kyojin Ideon' in this session's frames at t=06:39/06:54",
+    "'while back then it's mainly used in mecha shows since there's a lot of missiles in them, now it's seeping into other genres of anime and even in mainstream shows like JJK [Jujutsu Kaisen]' (video @ 07:12–07:18)"
+  ],
+  "evidence_status": "video: https://youtu.be/iMV9Tlpo1wY (SinChi) @ 06:27–07:18 — on-screen labels 'itano circus' and the originating credit ('Ichiro Itano, Key Animation', 'Densetsu Kyojin Ideon') confirmed in this session's frames at t=06:39, 06:54, 07:13; experimental until validated"
+}

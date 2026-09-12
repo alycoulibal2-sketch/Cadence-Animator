@@ -1,0 +1,45 @@
+{
+  "concept": "stutter_frame_diminishing_counter_motion",
+  "category": "advanced",
+  "definition": "A shake/vibration effect built as a second pass over an already-animated ease: after animating a normal slow-down (a standard decelerating spacing sequence), an extra 'stutter' frame is inserted immediately AFTER each normal frame, showing the same pose displaced backward (opposite the direction of travel) relative to where the base motion actually is at that instant; the backward displacement shrinks with each successive stutter frame across the sequence, so the counter-motion visibly decays to nothing as the base motion approaches its stop.",
+  "purpose": "Add a shaky, effortful, mechanical-feeling vibration on top of an otherwise smooth deceleration, reportedly reading like a wind-up or 'loading a strike' rather than a smooth stop, without altering the underlying eased motion itself.",
+  "visible_effect": "A base sequence of poses spaced according to a normal ease-out is interlaced with an equal number of secondary poses, each nudged backward from its neighboring base pose by a decreasing amount across the sequence; on playback this reads as a shaky, juddering pulse riding on top of the smooth slow-down, fading out as the motion settles.",
+  "psychological_or_gameplay_effect": "The source's own direct description of the visual result: 'it almost looks like he's loading up a strike' — the shake reads as building tension/effort rather than as an error or technical artifact, specifically because the counter-motion visibly diminishes rather than staying constant or appearing random.",
+  "physical_interpretation": "Not claimed as physically real by the source; presented purely as a constructed graphic effect layered onto a normal ease, with no real-world basis offered — unlike this same video's smear technique, which the source explicitly grounds in long-exposure photography.",
+  "use_cases": [
+    "a wind-up or hold-and-charge beat wanting to read as effortful/mechanical rather than smoothly decelerating",
+    "any slow-down/ease-out sequence the animator wants to add a decaying shake to without redesigning its underlying spacing",
+    "a stylized 2D pipeline where a second interlaced pass of offset frames is cheap to add"
+  ],
+  "non_use_cases": [
+    "a smooth, calm deceleration where no effort/tension read is wanted",
+    "a shake that should NOT fade out (a sustained tremor or an external vibration source) — this technique's defining trait is a diminishing, not constant, counter-motion amplitude",
+    "constant-amplitude or random jitter, which the source distinguishes from this specific diminishing, interlaced construction"
+  ],
+  "interactions": [
+    "spacing_curve_asymmetry, multi_segment_pacing_signature (LESSONS.md checks #13, #14) — a stutter sequence is a concrete, extreme case of 'more than one local extremum' in a phase's velocity curve: each interlaced stutter frame is a deliberate local sign reversal in velocity, which those already-queued checks would currently treat as undifferentiated extrema rather than recognizing the decaying-oscillation SHAPE this technique produces",
+    "prep_smear_slowdown_three_phase_smear_structure (W06-60) — a sibling case of building an expressive beat as a deliberate second layer on top of an otherwise ordinary base motion, rather than redesigning the base motion itself",
+    "vibe_timing_anti_pattern (W01, v9) — this technique is the opposite of an un-evidenced 'vibe' timing choice: it is a named, reproducible construction rule (interlace, displace backward, diminish) rather than freehand shaking"
+  ],
+  "style_variations": {
+    "anime": "not addressed directly by this source; consistent with this batch's general finding that stylized action readily interlaces extra non-physical frames for effect",
+    "realistic": "contraindicated as described — the source offers no physical basis for this technique, unlike its smear technique in the same video"
+  },
+  "cadence_representation": "Not directly representable as a drawing technique (Cadence has no 2D interlaced-frame layer), but the underlying MOTION SIGNATURE — a base decelerating curve with a superimposed, decaying-amplitude backward oscillation — is a property system output tracks already carry: it could in principle be authored as ordinary keyframes on any 3D property (a limb rotation, a camera offset) without needing a drawn frame at all, since the technique is really 'add decaying oscillation to an existing ease,' not something inherently 2D.",
+  "control_surface": "None currently; a bespoke 'add decaying oscillation to selected keys' operation does not exist. `stretch_frames`/`offset_frames` reshape existing keys but do not synthesize new interlaced ones with a decay envelope.",
+  "detection_and_measurement_methods": "Partly buildable today: `ai/motion.js sampleMotion`'s velocity curve would show a base monotonic decel with periodic sign reversals whose amplitude shrinks over the phase — a new named signature (successive local-extrema amplitudes decreasing monotonically, superimposed on an otherwise monotonic base trend) rather than a wholly new measurement primitive. `analyseChain`/existing curvature tools do not currently classify this shape.",
+  "generation_or_modification_methods": "None currently synthesizes an interlaced, decaying counter-motion layer automatically; it would need to be hand-keyed.",
+  "failure_modes": [
+    "constant (non-diminishing) counter-motion amplitude, which would read as a sustained shake/glitch rather than this technique's intended settling effect",
+    "displacing the stutter frames in a random direction rather than consistently backward (opposite the direction of travel), losing the coherent 'loading up' read",
+    "inserting stutter frames BEFORE rather than after each base frame — the source is specific that 'a stutter frame would come after frame one, then after frame two...'"
+  ],
+  "roblox_considerations": "Directly reachable with ordinary keyframe authoring on an `AnimationTrack` — no bespoke engine feature required, since the technique is fundamentally a spacing/offset pattern rather than a rendering effect.",
+  "performance_implications": "None — same order of magnitude key count as the base ease, roughly doubled by the interlaced stutter frames.",
+  "examples": [
+    "'you start a stutter by animating a regular slow down... after each of these frames, you're inserting a stutter frame... the stutter frames are red, they are moving the opposite direction... these red frames are coming afterwards' (video @ 05:31–06:56), confirmed in this session's frame at t=06:11 showing a red color-picker mid-selection beside the SLOW DOWN/circle diagram",
+    "'these stutters are diminishing — the next one's smaller, we didn't move it back as much... eventually the stutter starts to fade away' (video @ 07:58–08:21), confirmed in this session's frames at t=08:03/08:48/08:54 showing a hand-drawn '(DIMINISHING)' arc with shrinking paired circles",
+    "'right, it almost looks like he's loading up a strike... click, click, click, click, and then the stutter diminishes' (video @ 08:28–08:40)"
+  ],
+  "evidence_status": "video: https://youtu.be/EMXSFQ4pdUM @ 05:14–08:56 — NobleFrugal Studio names and diagrams the full construction (base slow-down, interlaced backward stutter frames, diminishing amplitude), confirmed in this session's frames at t=05:46, 05:54, 06:04, 07:30, 08:03, 08:48, 08:54; experimental until validated"
+}

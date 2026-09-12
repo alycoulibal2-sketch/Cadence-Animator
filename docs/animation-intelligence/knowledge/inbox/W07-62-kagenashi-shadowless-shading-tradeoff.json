@@ -1,0 +1,38 @@
+{
+  "concept": "kagenashi_shadowless_shading_tradeoff",
+  "category": "advanced",
+  "definition": "'Kagenashi' ('shadowless', on-screen label) omits cast shadows on characters entirely across a whole production, either as a deliberate flat visual style or specifically to reduce the linework and coloring workload that shadows add — freeing that budget toward drawing more/clearer motion instead of rendering depth cues.",
+  "purpose": "Trade shadow-based depth rendering for either a distinct flat visual style, or for spending the linework/coloring time shadows would have consumed on more frames or clearer line-work instead.",
+  "visible_effect": "A character rendered with flat, evenly-lit color fields and no cast-shadow shapes, confirmed directly in this session's frame at t=07:54 (an explicit on-screen 'No Shadows' vs. 'Shadows' side-by-side comparison of the same lighting situation).",
+  "psychological_or_gameplay_effect": "Not itself an emotional signal; the source frames it purely as a production/workload and stylistic-clarity decision, not a mood or intensity device the way this batch's impact/smear techniques are.",
+  "physical_interpretation": "An explicit departure from real lighting behavior (real light always casts some shadow); presented as a stylization, not a claim about the scene's lighting.",
+  "use_cases": [
+    "a production wanting a distinct flat visual identity independent of workload concerns",
+    "a fast-moving action sequence where shadow linework would slow down both drawing and coloring, and clarity of the moving lines matters more than depth rendering (the source's named example: Naruto Shippuden's flatter coloring 'so that the drawing could move more clearly')"
+  ],
+  "non_use_cases": [
+    "a production or shot wanting depth conveyed through lighting, where the source notes shadows are 'there to convey depth that leads to very detailed drawings' — omitting them sacrifices that cue on purpose",
+    "a slow, static, or already fully-detailed shot with time budget to spare, where the workload-saving justification does not apply"
+  ],
+  "interactions": [
+    "dps_floor_for_short_actions (W02, v11), low_frame_rate_draft_pass_for_fast_iteration (W04-35) — a sibling budget-reallocation decision from a different axis: those trade FRAME COUNT for clarity/speed of production, this trades PER-FRAME RENDERING COMPLEXITY (shadows) for the same ends",
+    "aesthetic_and_functional_fidelity_are_independent_adaptation_goals (W06-53) — kagenashi is a concrete instance of choosing functional clarity (readable moving lines) over one specific aesthetic-fidelity cue (shadow depth), independently of each other"
+  ],
+  "style_variations": {
+    "anime": "a named, recognized stylistic choice with at least one major named production example (Naruto Shippuden) per the source",
+    "realistic": "contraindicated — omitting all cast shadows is an explicit departure from realistic lighting"
+  },
+  "cadence_representation": "Not represented and largely out of scope: Cadence's rigid Motor6D rigs are lit by the viewport's real-time renderer (three.js), not hand-shaded per frame, so there is no per-character 'draw a cast shadow or not' authoring decision analogous to 2D cel shading. The closest real lever is scene/material lighting configuration, which is a rendering-pipeline concern outside `ai/**`'s pose/motion scope.",
+  "control_surface": "None within `ai/**`; any equivalent would be a renderer/material-level toggle (e.g. disabling shadow-casting on a light or material), not a pose or motion property.",
+  "detection_and_measurement_methods": "Not measurable in this build: no measurement represents per-frame shading/shadow complexity, only pose and motion data.",
+  "generation_or_modification_methods": "None within `ai/**`'s scope.",
+  "failure_modes": [
+    "not confirmable beyond the source's own stated tradeoff: omitting shadows for a style not committed to it consistently across a production would read as inconsistent rather than intentional"
+  ],
+  "roblox_considerations": "A comparable effect in Roblox would be a material/lighting configuration choice (e.g. disabling `CastShadow` on parts, or a flat unlit material), not a rig-animation concern — outside this build's animation-authoring scope entirely.",
+  "performance_implications": "Disabling shadow casting is typically a rendering-performance WIN in most real-time engines including Roblox, though the source's own stated motivation is artist workload, not runtime performance — worth noting the two benefits are distinct even though they point the same direction.",
+  "examples": [
+    "'Kagenashi... meaning shadowless, it's a style where shadows are non-existent, it's mostly used either for a visual style or making things less complicated... a very popular example is with Naruto Shippuden, the colors were very [flat/simplified] dimensional so that the drawing could move more clearly' (video @ 08:02–08:31), confirmed on-screen label 'kagenashi' and an explicit 'No Shadows' vs. 'Shadows' comparison frame at t=07:54"
+  ],
+  "evidence_status": "video: https://youtu.be/iMV9Tlpo1wY (SinChi) @ 08:02–08:31 — on-screen label 'kagenashi' confirmed in this session's frame at t=08:06 and the explicit no-shadows/shadows comparison at t=07:54; experimental until validated"
+}

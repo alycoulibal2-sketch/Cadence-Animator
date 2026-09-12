@@ -1,0 +1,42 @@
+{
+  "concept": "yutapon_cubes_versus_cubic_debris_timing_distinction",
+  "category": "advanced",
+  "definition": "Two named debris techniques look alike (both render explosion/impact debris as simple cube shapes) but differ in exactly one dimension the source states directly: 'cubic debris' (on-screen label) is purely decorative — cubes fly around with no particular sense of timing, chosen because cubes are easy to draw from any perspective — while 'Yutapon cubes' (on-screen label, credited to animator Yutaka Nakamura) are timing-DEPENDENT, built around a deliberate hold-then-release beat rather than continuous scatter.",
+  "purpose": "Choose deliberately between a purely decorative debris shape and a timing-carrying one, rather than treating 'cube-shaped debris' as a single undifferentiated look.",
+  "visible_effect": "Cubic debris: small dark cube shapes scattered continuously across an impact/explosion with no held pause (confirmed in this session's frame at t=01:58, cubes strewn across a cracked white surface). Yutapon cubes: a cluster of pale cube/particle shapes that holds in place around a moving subject before releasing outward on a timed beat (confirmed in this session's frame at t=02:15, cube particles trailing a diving figure against water).",
+  "psychological_or_gameplay_effect": "Cubic debris reads as generic environmental destruction dressing; Yutapon cubes' hold-then-release specifically emphasizes the INSTANT of release as a beat, the same emphasis-through-timing mechanism this batch's other impact/beat techniques rely on.",
+  "physical_interpretation": "Neither is physically realistic — the source notes cubic debris is 'a more unrealistic way of drawing debris' chosen because cubes are easy to draw consistently across perspectives, not because real debris is cuboid.",
+  "use_cases": [
+    "cubic debris: continuous environmental destruction dressing (explosions, wreckage) where no specific beat needs marking",
+    "Yutapon cubes: a charge-up-and-release beat (a power attack, an energy build) where the audience should feel one specific instant of release, not a continuous scatter"
+  ],
+  "non_use_cases": [
+    "using continuous, untimed cubic debris where the audience needs a clear held-then-released beat — the source is explicit that ordinary cubic debris 'flies around everywhere without any sense of timing', which would blur exactly the beat Yutapon cubes exist to mark",
+    "using the timed hold-and-release Yutapon-cube structure for background destruction dressing that doesn't need a beat, adding unnecessary held-frame cost"
+  ],
+  "interactions": [
+    "layered_anticipation, readable_hold_duration (LESSONS.md check #4), weight_strength_beat_sequence (W02, v19) — Yutapon cubes' hold-then-release is another named instance of this batch's recurring hold-before-release timing family, applied to a particle/debris layer rather than to the character's own pose",
+    "external_force_easing_mismatch (LESSONS.md check #10, next to be built) — the same marker-plus-motion-curve data that check would use (a declared event marker crossed against a motion curve) is exactly what would distinguish a genuine held-then-released beat from continuous scatter",
+    "pose_hold_density (W01, v1) — the general hold-duration vocabulary that Yutapon cubes' particle-layer hold is a specific application of"
+  ],
+  "style_variations": {
+    "anime": "both are native anime VFX vocabulary per the source; cubic debris is described as popularized among 'web-gen' (digitally-native) animators generally, Yutapon cubes specifically by Yutaka Nakamura and animators he inspired",
+    "realistic": "neither applies — both are explicit non-physical stylizations of debris"
+  },
+  "cadence_representation": "The cube SHAPE itself is a VFX-authoring detail Cadence could reach today (a particle emitter with a cube mesh/texture, no different in kind from any other emitter shape `ai/vfxspec.js` already supports); the more valuable half — the timing-dependent hold-then-release distinction — is not represented as a named pattern, but is built from data this build already has: a declared event marker (`ai/events.js`) plus the emitter/particle system's own timeline.",
+  "control_surface": "`vfx_new_effect`/`vfx_add_layer` can already author a cube-shaped emitter; no named preset currently distinguishes a 'hold then release' timing profile from continuous emission.",
+  "detection_and_measurement_methods": "The shape choice itself is not motion data and is not measurable; the TIMING distinction is: a near-zero-velocity hold phase on the emitter/attachment immediately followed by a sharp velocity spike at a declared marker is checkable with `ai/motion.js sampleMotion` against `ai/events.js` markers, the same measurement shape as check #4 (`readable_hold_duration`) and check #27 (`weight_strength_beat_sequence`).",
+  "generation_or_modification_methods": "A cube-shaped particle emitter is authorable today via `vfx_add_layer`; a named 'charge-hold-release' emission preset does not exist.",
+  "failure_modes": [
+    "treating the two as interchangeable because they look similar in a single still frame, losing the timing distinction that is the source's whole point",
+    "applying Yutapon-style held timing to background dressing with no beat to mark, wasting a held frame's worth of anticipation on something the audience isn't meant to track",
+    "applying continuous cubic-debris scatter to a moment meant to read as a single charged release, diluting the beat"
+  ],
+  "roblox_considerations": "A `ParticleEmitter` with a cube-shaped texture/mesh reaches the visual shape directly; the hold-then-release timing would be authored as an emission-rate or `Enabled` toggle keyed to the same marker driving the character's own charge/release pose, not a property of the particle system alone.",
+  "performance_implications": "A held cluster of particles (Yutapon cubes) that then bursts is likely a brief spike in active-particle count at the release instant rather than a sustained cost, opposite to continuous cubic-debris scatter's steadier ongoing cost; inferred, not stated by the source.",
+  "examples": [
+    "'cubic debris is the name says it when debris are cubes... it's a stylistic choice for visual pleasurement... a good example is Hiro Mashima [creator name as heard] that uses cubic debris quite a bit' (video @ 01:53–02:21), confirmed on-screen label 'cubic debris' in this session's frames at t=01:58",
+    "'Yutapon cubes are more timing dependent, there's a big emphasis on the hold and release, where for cubic debris it just flies around everywhere without any sense of timing... popularized by Yutaka Nakamura' (video @ 02:32–02:47), confirmed on-screen label 'yutapon cubes' in this session's frames at t=02:15/02:48, credited on-screen to 'Shingo Yamashita, Key Animation' for the specific cut shown"
+  ],
+  "evidence_status": "video: https://youtu.be/iMV9Tlpo1wY (SinChi) @ 01:53–03:05 — the presenter states the definitional distinction directly and both names are confirmed by on-screen corner labels ('cubic debris', 'yutapon cubes') rather than relying on the auto-caption transcript alone, which mistranscribed the latter as 'uton cubes'; experimental until validated"
+}

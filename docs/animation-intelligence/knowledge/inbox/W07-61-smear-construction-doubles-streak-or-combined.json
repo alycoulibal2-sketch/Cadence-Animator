@@ -1,0 +1,46 @@
+{
+  "concept": "smear_construction_doubles_streak_or_combined",
+  "category": "advanced",
+  "definition": "A smear frame (an artificial motion-blur pose bridging a fast action) can be built by one of three named construction methods: DOUBLES (drawing discrete duplicate copies of the moving object at successive past positions within the same frame, like a timing chart made visible), STREAK/BLUR (a single flowing, elongated line shape tracing and exaggerating the path of motion with no discrete copies), or BOTH combined (doubles overlaid with connecting streak lines) — the source's own stated preference and 'most natural-looking' of the three.",
+  "purpose": "Give the animator interchangeable construction techniques for the same underlying smear-frame goal (implying long-exposure motion blur) rather than one fixed drawing method, with a stated ranking of which combination reads best.",
+  "visible_effect": "Either several distinct, separated silhouette copies of the moving object trailing its current position (doubles); or a single continuous flowing/streaking line shape connecting the object's start and current position with no discrete copies (blur); or both layered together.",
+  "psychological_or_gameplay_effect": "Reads as one continuous fast motion despite being represented by a sparse set of drawn frames, by supplying the visual information a real long-exposure photograph would have captured; the combined method is reported as the most convincing of the three.",
+  "physical_interpretation": "A drawn simulation of long-exposure photography: the source frames it explicitly via a camera/shutter/sensor analogy — the longer a shutter stays open, the more of the object's path is visibly exposed at once — and states that smear density along the path was itself taken from filmed reference footage, not invented freehand.",
+  "use_cases": [
+    "a fast swing or strike where filmed reference shows how blur density should be distributed along the motion path",
+    "a beginner-facing explicit menu of three named options (doubles / blur / both) rather than one undifferentiated 'draw a smear' instruction",
+    "a fast action animated on ones, where the source states smears read best at that frame rate specifically"
+  ],
+  "non_use_cases": [
+    "smearing a slow or already well-spaced action, where no motion-blur bridging problem exists to solve",
+    "animating the smear on twos or another lower frame rate, which the source says reads worse than on ones",
+    "drawing smear density uniformly along the whole path when reference footage would show it concentrated near the impact instead"
+  ],
+  "interactions": [
+    "motion_smear_readability (W01) — that entry names the general technique and Cadence's inability to represent it (no mesh deformation); this entry adds the specific CONSTRUCTION vocabulary (doubles vs. streak vs. both) and a stated best-practice ranking that entry does not itself give",
+    "multiples_vs_smear_for_differently_weighted_fast_motion (W06-57) — that entry's 'multiples' (discrete offset copies read as heavier/slower than a smear) appears to be the same visual mechanism as this video's 'doubles', but the two sources frame it differently: W06-57 treats multiples and a smear as ALTERNATIVE style choices for different weight readings, while this video treats doubles and streak-blur as COMBINABLE sub-techniques within one smear with no weight distinction stated — an open terminology/framing overlap worth reconciling at merge time, not resolved here",
+    "peak_spacing_immediately_before_impact (W04-34) — a related but distinct impact-proximity gradient: that entry is about keyframe SPACING/velocity increasing into contact, this entry is about smear-drawing DENSITY (how many blur/double marks) increasing into contact — plausibly two visible symptoms of the same reference-informed acceleration, but neither source measured both at once",
+    "prep_smear_slowdown_three_phase_smear_structure (W06-60) — that entry gives the surrounding PREP/SMEAR/SLOWDOWN phase timing template; this entry is specifically about how to draw the SMEAR phase itself once inside it"
+  ],
+  "style_variations": {
+    "anime": "not addressed directly in this source; other sources in this corpus treat a smear as close to a default idiom for a fast strike in this style",
+    "realistic": "the source's own stated basis (long-exposure photography) suggests this technique is meant to read as physically motivated rather than purely stylized, unlike some of this batch's more overtly non-physical smear/impact techniques"
+  },
+  "cadence_representation": "Not represented, for the same reason as `motion_smear_readability`: Cadence has no mesh deformation and no drawn-2D layer, so neither discrete 'doubles' silhouettes nor a flowing streak shape can be produced on a rigid Motor6D rig. A VFX-trail approximation (`ai/vfxspec.js`) is the same substitute already named by that card and by `multiples_vs_smear_for_differently_weighted_fast_motion`, and the same open question about discrete-copy vs. continuous-ribbon trails applies here too.",
+  "control_surface": "None.",
+  "detection_and_measurement_methods": "Not measurable in this build: this is a 2D drawing technique with no rig-pose or track-property representation. The one adjacent, already-measurable idea — that blur/spacing density should increase approaching a declared impact/contact marker — is indirectly checkable via `ai/motion.js sampleMotion`'s existing velocity curve against `ai/events.js` markers, the same data `peak_spacing_immediately_before_impact` already relies on.",
+  "generation_or_modification_methods": "None — no mesh deformation or 2D drawing layer exists to generate a smear with.",
+  "failure_modes": [
+    "drawing smear density uniformly rather than concentrated near the impact point, contradicting what the source's own filmed reference showed",
+    "animating a smear on twos rather than ones, reported to read worse",
+    "treating doubles and streak-blur as mutually exclusive when the source's own stated best result combines both"
+  ],
+  "roblox_considerations": "Same as `motion_smear_readability`: no native mesh deformation, so a `ParticleEmitter`/`Beam` VFX trail is the practical Roblox-native substitute for either construction method, not a rig-pose technique.",
+  "performance_implications": "None beyond whatever a VFX-trail substitute would cost, outside this entry's scope.",
+  "examples": [
+    "'notice the blur is increasing towards the impact point — I'm not having a lot of blurs up near where the hammer started swinging from — if you check the reference, that's where I got that from' (video @ 01:22–01:39)",
+    "'two strategies I like to use for implementing smear frames — one is doubles ... the next one is blurs ... a bonus third strategy is using both blurs and doubles — this, in my opinion, produces the best effect, I think this is the most natural looking' (video @ 01:39–02:53), confirmed in this session's frames at t=01:45/01:58 (canvas labeled 'DOUBLES' and 'BLURS') and t=02:14 (labeled 'BOTH')",
+    "'last tip before we move on ... you want to make smears on ones, animating on ones, they look the best' (video @ 03:20–03:27)"
+  ],
+  "evidence_status": "video: https://youtu.be/EMXSFQ4pdUM @ 00:26–03:27 — NobleFrugal Studio states the long-exposure basis, demonstrates all three construction methods, and states the on-ones recommendation directly; visually confirmed in this session's frames at t=00:53 (camera/shutter/sensor diagram) and t=01:45–02:44 (labeled DOUBLES/BLURS/BOTH sketches); experimental until validated"
+}
