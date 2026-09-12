@@ -1,0 +1,38 @@
+{
+  "concept": "easyweld_join_in_place_preserves_relative_transform",
+  "category": "advanced",
+  "definition": "Moon Animator 2's EasyWeld plugin tool creates an attachment between two parts (a held prop and a hand, a lid and a box base, a light fixture and a torso) via one of two distinct operations the animator chooses between: 'Join', which welds the second part to the first WITHOUT preserving its current relative position (it snaps, typically requiring the animator to manually reposition the attached part afterward), and 'Join in Place', which welds it while preserving exactly the relative transform the two parts had at the moment of clicking — the attached part does not move or jump.",
+  "purpose": "Turn an arbitrary, previously-unconnected part into a child of the rig's animation hierarchy (appearing under its new parent in the rig/item tree, animatable from then on) without destroying the manual positioning work the animator already did to place it correctly.",
+  "visible_effect": "'Join' visibly snaps or merges the attached part, often leaving it embedded in or misaligned with its new parent and requiring a manual position correction pass afterward. 'Join in Place' produces no visible jump — the part stays exactly where it was placed, but is now listed under its parent and moves with it in the animator from then on.",
+  "psychological_or_gameplay_effect": "Not applicable — a rig-authoring/attachment operation, not a viewer-facing effect.",
+  "physical_interpretation": "None — a hierarchy operation. The two options correspond to two different underlying mechanisms: 'Join' is closer to a naive weld/merge at a default relative offset, and 'Join in Place' captures the CURRENT CFrame difference between the two parts as the weld's own offset, so playback reproduces the exact placement the animator saw when they clicked.",
+  "use_cases": [
+    "attaching a held prop (a cup, a weapon, a tool) to a hand or other body part after manually positioning it correctly in the animator — 'Join in Place' is the only one of the two that does not undo that positioning work",
+    "attaching a decorative or functional part (a lid to a box, a light fixture to a torso, a face-plate to a head) that must start from a specific hand-placed offset rather than the parent's own origin"
+  ],
+  "non_use_cases": [
+    "attaching a part with no meaningful current position (freshly inserted at the origin, or deliberately meant to snap to the parent's own origin) — plain 'Join' is simpler and the offset-preservation 'Join in Place' provides is irrelevant",
+    "any attachment already expressible as one of the rig's own built-in joints (an R15/R6 limb-to-torso connection) — EasyWeld is for attaching NEW parts the rig was not built with, not for the rig's own skeleton"
+  ],
+  "interactions": [
+    "weapon_attach_under_root_avoids_subframe_chain_desync (W05-43) — that entry is about WHICH part in the hierarchy an item should be parented under (root vs. a deep hand bone) to avoid a runtime interpolation defect; this entry is about the mechanical step that creates the parent/child relationship in the first place and whether it preserves a hand-placed offset. The two are complementary and independent: an animator could use 'Join in Place' to attach a weapon under either a good or a bad choice of parent part.",
+    "weapon_ik_decoupled_from_torso_overlap (W04-37) — a sibling case of deliberately routing an attachment through a mechanism that preserves independence/positioning rather than a naive direct parent snap"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Directly comparable to `attach_item`: the honest question this raises is whether Cadence's own attach operation preserves the attached item's CURRENT relative transform at the moment of attachment (this entry's 'Join in Place' behaviour) or resets it to some default/origin offset (this entry's plain 'Join' behaviour). This entry's source material does not itself resolve which `attach_item` does, since it describes a different tool — a future session should read `attach_item`'s implementation directly before assuming either answer.",
+  "control_surface": "`attach_item` is the tool this maps to; no test in this build currently asserts which of the two behaviours (offset-preserving vs. offset-resetting) it has.",
+  "detection_and_measurement_methods": "Not measurable by `ai/motion.js` from a sampled clip — this is a rig-hierarchy authoring choice, not a motion property. Directly checkable by reading `attach_item`'s source, or by attaching a test item at a known non-zero relative offset and reading back the resulting parent-relative transform; not done in this build today.",
+  "generation_or_modification_methods": "Not applicable — a one-time rig-setup operation, not a per-clip generation step.",
+  "failure_modes": [
+    "an animator using plain 'Join' after carefully hand-placing a prop, then having to redo the positioning because the weld reset it — the exact mistake the source video warns about by contrast with 'Join in Place'",
+    "any attach mechanism (in any tool, including Cadence) that silently resets an item's position on attachment forces every caller to re-position after every attach call, which is surprising if undocumented"
+  ],
+  "roblox_considerations": "A Roblox-plugin-specific mechanism (Moon Animator 2's EasyWeld) operating on ordinary Roblox weld/Motor6D-style joints; the underlying Roblox primitive it produces (a joint with a captured relative CFrame offset) is exactly what any Roblox-targeting export must also reproduce correctly.",
+  "performance_implications": "None — a one-time hierarchy/offset decision with no runtime cost difference between the two options.",
+  "examples": [
+    "a coffee cup attached to a character's right arm: 'Join' merges it into the arm requiring a manual re-position afterward, contrasted directly against the alternative (video @ 13:05–15:23)",
+    "a box lid attached to a box base with 'Join in Place': the lid keeps its already-correct hand-placed position and becomes animatable as a rig part with no visible jump (video @ 15:44–17:19)",
+    "a SurfaceLight part attached to a character's torso with 'Join in Place', preserving the light's carefully-aimed backlighting position so it moves with the character during playback (video @ 39:17–39:41)"
+  ],
+  "evidence_status": "video: https://youtu.be/Yzf3iGZis7A @ 13:05–17:19, 39:17–39:41 — Tycoon (the presenter) demonstrates both EasyWeld operations directly, narrating the difference and showing the visible consequence of each; UI confirmed in this session's own frame at t=14:45 (EasyWeld panel showing Target/Join/Join in Place buttons); experimental until validated"
+}

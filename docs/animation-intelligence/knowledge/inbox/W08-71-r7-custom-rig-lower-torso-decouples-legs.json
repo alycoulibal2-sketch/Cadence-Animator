@@ -1,0 +1,37 @@
+{
+  "concept": "r7_custom_rig_lower_torso_decouples_torso_from_legs",
+  "category": "advanced",
+  "definition": "'R7' is a community-built, non-default Roblox rig convention (built on top of R6, credited by the presenter to another creator's tutorial rather than invented here) that adds one extra joint in the lower-torso region beyond R6's own set. That joint sits between a new 'lower torso'/main-controller part and the ordinary torso, so the torso, arms and head can be rotated or moved WITHOUT the legs inheriting that motion — on plain R6, rotating the torso also rotates the legs (since they are direct children of it), forcing the animator to counter-rotate each leg by hand on every frame to keep them facing forward.",
+  "purpose": "Let an animator pose or move the upper body freely (a twisting torso lean, a turned-away-from-travel-direction upper body) without the extra, error-prone, per-frame work of re-countering the legs' inherited rotation that plain R6 requires.",
+  "visible_effect": "On R6, moving the torso visibly drags the legs with it, and the presenter's own side-by-side comparison shows the R6 version's legs swaying/rotating noticeably more during a walk cycle than the R7 version's, because the R6 animator could not perfectly counter every frame. On R7, the legs stay independently posed regardless of torso motion, shown in the same comparison holding a stable, forward-facing stance through the same walk cycle.",
+  "psychological_or_gameplay_effect": "The R6 version reads as slightly less controlled/more sloppy specifically in the legs during the same walk cycle both rigs perform side by side, purely as a side effect of rig topology rather than any difference in animator skill or intent on that section.",
+  "physical_interpretation": "A genuine kinematic-chain topology difference: R6's hip joints are children of the torso in the chain, so any torso rotation composes into the legs' world rotation; R7 inserts a joint that lets the torso branch move independently of the leg branch, i.e. it decouples what would otherwise be one shared rotational dependency into two.",
+  "use_cases": [
+    "any Roblox R6-based animation where the torso needs to lean, twist or counter-rotate against the direction the legs/hips are facing (a locomotion cycle with upper-body counter-rotation, a combat pose with a twisted torso) without hand-correcting the legs every frame",
+    "community/hobbyist Roblox animation work built on R6 rather than R15, where this custom extension is the practical way to get R15-like torso/hip independence"
+  ],
+  "non_use_cases": [
+    "any animation on Roblox's own standard R15 rig, which already has this independence built in via its own UpperTorso/LowerTorso split and Waist joint — R7 is specifically a workaround for R6's absence of that joint, not a capability R15 lacks",
+    "a simple animation where the torso and legs are never expected to move independently (e.g. a rigid held pose, a pure translation with no twisting) — the extra joint has no benefit there"
+  ],
+  "interactions": [
+    "hip_rotation_balance_correction (W02) — describes the SAME underlying problem (a rotation at the hip/torso propagating into the legs and needing a correction) from the posing-technique side; this entry names a RIG-TOPOLOGY fix to the same class of problem rather than a per-frame correction technique",
+    "combined_hip_weight_bearing_posing (W02-18) — a posing-choice card that assumes the animator CAN pose the hip independently of the legs; on plain R6 that assumption is only true with a fix like this one in place"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence's own target rig is R15 (per this build's rig conventions and `rigs/builtin.json`), and R15's own UpperTorso/LowerTorso/Waist structure already provides exactly the independence this community 'R7' extension retrofits onto R6 — so this specific pain point does not apply to Cadence's own authoring on its own rig. The finding worth carrying forward is comparative, not a gap: a meaningful share of community Roblox animation content (built in Moon Animator on R6, as this whole video is) is working around a joint limitation Cadence's R15 target does not have, which is useful context when comparing Cadence output against community reference clips built on R6/R7 rather than R15.",
+  "control_surface": "Not applicable to R15 authoring in this build; relevant only if Cadence were ever asked to import or compare against an R6/R7-rigged reference clip, where the rig topology itself (not just the pose data) would differ from Cadence's own.",
+  "detection_and_measurement_methods": "Not a motion measurement — a rig-topology fact, confirmed by reading the rig definition (joint count and parenting) rather than by sampling motion. `ai/riggraph.js`'s own knowledge of R15's joint hierarchy already reflects the equivalent (correct) topology for Cadence's own target rig.",
+  "generation_or_modification_methods": "Not applicable — a rig-construction decision, not a per-clip generation step, and out of Cadence's own animate-not-model scope regardless.",
+  "failure_modes": [
+    "animating a torso lean or twist on plain R6 without either this fix or manual per-frame leg counter-rotation, producing the visibly-swaying-legs artifact the presenter's own side-by-side comparison shows",
+    "assuming a reference clip built on R6/R7 and one authored natively on R15 share the same joint topology when comparing or importing motion between them — they do not, and a direct key-for-key copy would be wrong"
+  ],
+  "roblox_considerations": "R7 is explicitly a community convention, not a Roblox-provided rig type (Roblox itself ships only R6 and R15) — the presenter credits another creator's tutorial for how to build one rather than claiming to have invented it, so this is folk knowledge specific to the Moon Animator hobbyist community rather than an engine feature.",
+  "performance_implications": "One additional joint/part in the animated hierarchy versus plain R6; negligible on its own.",
+  "examples": [
+    "the presenter's own explanation of the added lower-torso joint and what it decouples (video @ 21:11–22:09)",
+    "a side-by-side comparison of the same walking animation on an R6 rig (left) versus an R7 rig (right): the R6 legs visibly sway more because every torso movement has to be manually countered in the legs, while the R7 legs stay stable (video @ 22:38–23:07)"
+  ],
+  "evidence_status": "video: https://youtu.be/Yzf3iGZis7A @ 21:11–23:07 — Tycoon (the presenter) explains the joint difference directly and demonstrates it with a real side-by-side comparison of the same animation on both rigs; visual confirmed in this session's own frame at t=21:25 (a plain rig on the R6/R7 test setup); experimental until validated"
+}

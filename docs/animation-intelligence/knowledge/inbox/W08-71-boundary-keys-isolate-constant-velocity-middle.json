@@ -1,0 +1,37 @@
+{
+  "concept": "boundary_key_pair_isolates_constant_velocity_middle_segment",
+  "category": "advanced",
+  "definition": "To get a three-phase accelerate/cruise/decelerate velocity shape between two widely-spaced keys (rather than one continuous ease across the whole span, which keeps accelerating and decelerating the entire time with no true constant-speed middle), insert two EXTRA keyframes at the two points where constant speed should begin and end, holding the same value as their nearest original endpoint, and set easing directions so the span between the two original endpoints and their nearest new neighbour eases (`in` leaving the start, `out` arriving at the end) while the span between the two new inner keys stays unaffected (constant/linear) — four keys total producing three distinct spacing regions instead of one continuous curve.",
+  "purpose": "Get a genuine held constant-speed middle within a longer move, rather than the continuously-varying speed that a single ease-in-out across the whole span always produces, when the desired motion is specifically 'speed up, travel steadily, then slow down' rather than one smooth accelerate-then-decelerate arc.",
+  "visible_effect": "The animated value visibly speeds up over the first short span, then moves at a constant, unchanging rate through the middle span, then visibly slows to a stop over the final short span — distinguishable on the tool's own position-by-time graph as a curve, then a straight line, then another curve, rather than one continuous S-curve.",
+  "psychological_or_gameplay_effect": "A single continuous ease across a long move reads as the object never quite settling into a steady travel speed; a true constant-speed middle reads as purposeful, steady travel bracketed by a deliberate start and stop — a different, more specific timing statement than a single smooth ease communicates.",
+  "physical_interpretation": "Approximates real accelerate-cruise-decelerate motion (a vehicle, a thrown object under a brief initial force then coasting, a moving platform) more literally than a single ease, which mathematically never reaches a truly constant rate at any single instant.",
+  "use_cases": [
+    "a camera move, prop translation, or any single-value animated property that should read as 'get up to speed, travel steadily, then come to a stop' rather than one smooth accelerate-decelerate arc",
+    "any long-duration move where a single ease-in-out would leave the middle portion perceptibly still changing speed rather than steady"
+  ],
+  "non_use_cases": [
+    "a short move where the 'cruise' phase would be imperceptibly brief anyway — a plain ease-in-out is simpler and the difference would not read",
+    "a move that should NOT have a genuine constant-speed middle (most organic character motion, where a truly constant rate often reads as mechanical/robotic rather than natural, per this same video's own separate observation about the higher-order easing curves)"
+  ],
+  "interactions": [
+    "multi_segment_pacing_signature (LESSONS.md checks queue, #14) — this entry is a concrete AUTHORING recipe that produces exactly the velocity-curve shape (more than one local extremum / a distinct middle plateau) that check #14 proposes measuring; a clip built this way is a natural positive test case for that check once built",
+    "mixed_hold_pacing_within_phase (merged, W08) — a sibling finding about a phase's pacing not being a single uniform ease; this entry is a specific two-extra-key technique for producing exactly that kind of mixed pacing deliberately"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Fully authorable today with existing tools: `set_easing` already applies a per-key easing direction, so this four-key pattern requires no new capability, only the specific choice to add the two inner keys. What is missing is any named GUIDANCE connecting the pattern (extra boundary keys, `out` leaving the start pair and `in` arriving at the end pair, linear/unchanged between the inner pair) to the 'constant-speed middle' result — a caller has to already know the recipe.",
+  "control_surface": "`set_easing` (per-key easing direction/style) and ordinary keyframe insertion are both already exposed; no preset currently proposes this four-key pattern for a stated 'cruise' intent.",
+  "detection_and_measurement_methods": "Directly measurable with `sampleMotion`: the resulting velocity curve should show a rising segment, a flat (near-constant) segment, and a falling segment — exactly `multi_segment_pacing_signature`'s (#14) local-extrema description, not yet wired to a knowledge entry with `measurement_keys`.",
+  "generation_or_modification_methods": "`set_easing` per key, plus ordinary keyframe insertion at the two new boundary points; no dedicated single-call tool builds this four-key pattern from a stated 'ease in, cruise, ease out' intent today.",
+  "failure_modes": [
+    "using a single ease-in-out across the whole span when a genuine constant-speed middle was wanted, producing a curve that never actually holds steady at any instant",
+    "the presenter's own observed failure case: placing the two inner boundary keys without enough separation between them, producing a visible speed inconsistency at the handoff rather than a clean constant middle — fixed in the video by moving the boundary keys further apart (more frames of 'cruise' time)"
+  ],
+  "roblox_considerations": "Not Roblox-specific — a general keyframe/easing authoring pattern applicable to any keyframed property in any engine.",
+  "performance_implications": "None — two extra keys on an already-keyed track.",
+  "examples": [
+    "a ball's position keyed at 0, 60, 180 and 240 frames: `out` easing leaving frame 0, default/unchanged between frames 60 and 180, `in` easing arriving at frame 240, producing visible accelerate-cruise-decelerate motion confirmed directly on the position-by-time graph panel (video @ 33:04–34:15, confirmed in this session's own frame at t=34:25 showing the easing graph panel with a ball part selected)",
+    "the presenter's own refinement after noticing an inconsistency: moving the inner boundary key 45 frames closer to shorten the accelerate phase and produce a cleaner-reading result (video @ 33:53–34:08)"
+  ],
+  "evidence_status": "video: https://youtu.be/Yzf3iGZis7A @ 33:04–34:15 — Tycoon (the presenter) builds this exact four-key pattern live, narrating the reasoning and pointing at the resulting position-time graph directly; UI confirmed in this session's own frame at t=34:25 (easing panel and graph visible with a ball part selected); experimental until validated"
+}

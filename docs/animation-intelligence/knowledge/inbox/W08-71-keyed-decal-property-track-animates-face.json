@@ -1,0 +1,38 @@
+{
+  "concept": "keyed_decal_property_track_animates_facial_expression_over_time",
+  "category": "advanced",
+  "definition": "A DIY Roblox face-rigging technique: small, scaled-down, normally-transparent parts holding a Decal are welded to the head (four here — eyes, eyebrows, mouth, and a spare), and the face is then ANIMATED by adding ordinary property keyframes on that Decal's `Texture` property over the animator's timeline, swapping which image is showing at different times (or on the mouth specifically, keying the holding part's `Size` to stretch it open) — not just picking one static expression for the whole clip, but changing which decal is active as the timeline plays, the same way a position or rotation track changes over time.",
+  "purpose": "Let an authored clip's facial expression change DURING the clip (react, speak, blink) rather than being fixed to one expression for the whole shot, using only ordinary property-track keyframing rather than any specialised face-animation feature.",
+  "visible_effect": "The character's eyes/eyebrows/mouth decals visibly swap between different drawn expressions at different points on the timeline as the animation plays, and the mouth part's visible width changes when its Size track is keyed, reading as the mouth opening/stretching.",
+  "psychological_or_gameplay_effect": "A held single expression for an entire shot reads as flat/lifeless by comparison; a face that visibly changes in sync with the body's action (or a line of dialogue) reads as reactive and alive — the source's own motivation for building the system at all.",
+  "physical_interpretation": "Not applicable — a 2D image-swap technique standing in for an expression, not a physical deformation.",
+  "use_cases": [
+    "any clip where the face needs to change expression, blink, or appear to speak DURING the shot rather than holding one static look throughout",
+    "a rig with no built-in facial rigging (a plain block head, or any custom rig without dedicated face bones), where flat welded decal planes are the only available face surface"
+  ],
+  "non_use_cases": [
+    "a shot where the face is deliberately held on one expression for its entire duration — a single static decal (no track needed) is simpler and sufficient",
+    "a rig with true sculpted/blended facial geometry available instead of flat decals — this technique is specifically a workaround for a rig that has none"
+  ],
+  "interactions": [
+    "easyweld_join_in_place_preserves_relative_transform (this same batch) — the face plates are attached to the head using exactly that same EasyWeld 'join in place' mechanism, so the rig-building HALF of this technique is a direct application of that entry, not a separate mechanism",
+    "withheld_facial_feature_as_protagonist_antagonist_signal, withheld_idle_fidget_as_deliberate_character_trait (earlier batches) — sibling cases of a facial/expressive choice carrying narrative weight; this entry is about the MECHANISM that makes a changing expression possible at all, which those entries assume already exists"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence has a comparable but narrower feature: `add_face_layer`/`apply_face_preset` stores `item.faceLayers` as flat image-plane overlays rendered just in front of the head mesh (`rigbuild.js #buildFacePlane`), which is a good analogue for the RIG-BUILDING half of this technique (Cadence renders the equivalent of a welded face-plate plane without the user having to build Parts by hand — a real advantage). But `state.js setItemFace` stores `faceLayers` explicitly 'separate from the item's animated pose/keyframes, so swapping faces never touches animation' — meaning a face layer today is a STATIC per-item property (swappable between takes, via `apply_face_preset`), not a value that can be KEYED to change partway through a single clip's timeline the way this video keys `Decal.Texture` frame by frame. Building the face-plate rig itself from raw parts is out of Cadence's animate-not-model scope regardless of this finding; the open, in-scope question is whether an already-built face (via `faceLayers` or a real Roblox Decal on an imported rig) can be animated to change mid-clip, and today it cannot through the specialised face tools.",
+  "control_surface": "`add_face_layer`/`apply_face_preset`/`clear_face` change or apply a face as a whole-item state, not a per-frame track. No existing tool keys a face-layer change to a specific frame within a clip.",
+  "detection_and_measurement_methods": "Not a motion measurement. Directly checkable by reading `state.js`'s `faceLayers` handling (confirmed in this session: it is excluded from the animated/undoable keyframe system by its own comment) and by attempting to set two different face layers at two different frames of the same clip and checking whether both are preserved on playback.",
+  "generation_or_modification_methods": "None in this build — no tool currently authors a mid-clip face change; `add_face_layer` replaces/adds a layer on the item as a whole, at whatever moment it is called, with no frame association.",
+  "failure_modes": [
+    "assuming `add_face_layer`/`apply_face_preset` can be called once per desired expression-change frame to build an animated face sequence — since `faceLayers` is not part of the tracked/keyframed state, this would not produce the intended per-frame result",
+    "on the Roblox side (not Cadence), forgetting to add a key at both the moment before AND the moment of a texture swap — an unkeyed Texture property does not interpolate meaningfully between two image ids, so the swap must be a hard cut at a specific frame, not an eased transition"
+  ],
+  "roblox_considerations": "Directly a Roblox mechanism: `Decal.Texture` (an asset id string) has no meaningful interpolation between two different images, so any Roblox-side keyed face-swap is necessarily a hard cut at the key's frame, never an eased blend — worth remembering if Cadence ever exports a face change, since easing settings on such a key would have no visual effect on the image itself (only on anything else keyed at the same time).",
+  "performance_implications": "Negligible — swapping which of a small number of pre-existing decal images is displayed costs nothing extra at runtime.",
+  "examples": [
+    "adding a Texture property track on the eyes/eyebrows/mouth decal parts specifically so the face can 'change throughout your animation' rather than staying fixed (video @ 27:11–27:33)",
+    "copying a specific decal's asset id from a face-pack model and pasting it into the eyes part's Texture key, then repeating for mouth and eyebrows, building up a full expression from three independently-keyed parts (video @ 27:39–28:42, confirmed in this session's own frame at t=27:40 showing the face-pack decal browser)",
+    "keying the mouth part's Size property over time (not just its Texture) to stretch it, layered on top of the texture changes, for a simple open/close mouth effect (video @ 29:00–29:24)"
+  ],
+  "evidence_status": "video: https://youtu.be/Yzf3iGZis7A @ 27:11–29:24 — Tycoon (the presenter) directly narrates keying the Texture property specifically so the face can change during playback, and demonstrates selecting and applying different decal images at different points; UI confirmed in this session's own frame at t=27:40 (face-pack decal grid); Cadence's own `faceLayers` behaviour confirmed by reading `renderer/js/state.js setItemFace` and `renderer/js/rigbuild.js #buildFacePlane` directly in this session, not assumed; experimental until validated"
+}

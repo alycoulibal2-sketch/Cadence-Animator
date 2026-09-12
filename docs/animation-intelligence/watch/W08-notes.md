@@ -1,0 +1,82 @@
+# W08 notes — videos 71–80 (E. Roblox and Moon Animator)
+
+- [x] 71. How I Animate: An Unofficial Moon Animator 2 Tutorial — Tycoon (45:46)
+- [ ] 72. How to Animate in ROBLOX the RIGHT way [NEW] {Tutorial} — DatBoiEle (10:47)
+- [ ] 73. How to Make SUPER SMOOTH Roblox Animations with Moon Animator 2! | Beginner to Pro Tutorial — TnxBlox (16:56)
+- [ ] 74. 3 Must-Know Moon Animator 2 TIPS for Better Roblox Animations — TnxBlox (2:41)
+- [ ] 75. Make Your Roblox Animations Feel REAL | Roblox Animation Tips 2026 — Devgrams and Draco (8:53)
+- [ ] 76. How to Animate a Sword Slash [Moon Animator] — Thundey (24:36)
+- [ ] 77. How to ANIMATE a Perfect Sword Swing in Roblox Studio! (EASY) — Nobel Courses (8:01)
+- [ ] 78. How to make WEAPON animations in ROBLOX STUDIO! [Moon Animator Tutorial] — MonkeyDev (11:29)
+- [ ] 79. How to ANIMATE Tools In Roblox Studio! — Rustysillyband (11:24)
+- [ ] 80. ROBLOX VFX Guide #1 - Particles — TrendyV2 (7:14)
+
+---
+
+## Video 71 — How I Animate: An Unofficial Moon Animator 2 Tutorial — Tycoon (45:46)
+https://youtu.be/Yzf3iGZis7A — watched 2026-09-12, `efficient` detail, 50 frames (keyframe pass, 190
+near-duplicates dropped; a representative ~15 of the 50 read closely against the transcript rather
+than all 50 mechanically, since this is a 45-minute screen-recording tutorial where the transcript
+already carries the substance precisely and the frames mainly confirm UI state — consistent with why
+this video is marked `efficient` rather than `balanced` in the batch list), captions transcript (1467
+segments). A general-purpose, very dense Moon Animator 2 walkthrough (a hobbyist's full personal
+workflow, not a single-technique tutorial) — five entries written, more than the usual one-to-four,
+justified by the content's density the same way W03/W04/W05 batches did on their densest videos.
+
+**`easyweld_join_in_place_preserves_relative_transform`** — Moon Animator's EasyWeld tool has two
+attach operations, 'Join' (snaps, loses the hand-placed offset) and 'Join in Place' (preserves the
+exact relative transform at the moment of attaching), demonstrated three times (a held cup, a box
+lid, a torso-mounted light @ 13:05–17:19, 39:17–39:41). Directly maps onto Cadence's own
+`attach_item` — worth a future session actually reading `attach_item`'s implementation to settle
+which behaviour it has, since this entry could not determine that from the video alone.
+
+**`r7_custom_rig_lower_torso_decouples_torso_from_legs`** — a community (not Roblox-default) R6
+extension adding a lower-torso joint so the torso/arms/head can move independently of the legs,
+demonstrated with a real side-by-side walk-cycle comparison showing the R6 legs visibly swaying more
+(@ 21:11–23:07). Checked directly against what Cadence targets: R15's own UpperTorso/LowerTorso/Waist
+structure already has this independence built in, so this specific pain point is an R6-community
+problem Cadence's own R15 target does not share — recorded as useful comparative context (community
+reference clips are often R6/R7, not R15) rather than a gap.
+
+**`keyed_decal_property_track_animates_facial_expression_over_time`** — the video builds a full DIY
+face rig (four welded, scaled, transparent decal-holding parts on the head @ 23:08–26:06) and then
+keys the Decal `Texture` property over the timeline so the expression changes DURING a clip (@
+27:11–29:24), not just once per shot. Checked directly against Cadence's own code before writing
+this up (not assumed): `rigbuild.js #buildFacePlane` shows `add_face_layer`/`faceLayers` already
+gives Cadence a good analogue for the RIG-BUILDING half of this technique (a rendered face-plate
+plane with no Parts required), but `state.js setItemFace`'s own comment states `faceLayers` is kept
+'separate from the item's animated pose/keyframes' — so today a Cadence face is a static per-item
+state (swappable between takes via `apply_face_preset`), not something that can be keyed to change
+mid-clip the way this video's Texture track does. That is a real, narrow, in-scope gap (animating an
+already-built face, not building one — building one stays out of Cadence's animate-not-model scope
+per [[feedback_cadence_scope_modeling_vs_animating]]).
+
+**`single_frame_ghost_marker_for_spacing_reference`** — the 'B' keybind drops one fixed silhouette at
+the current pose as a spacing reference (named directly for checking walk-cycle stride length, @
+12:36–13:00, confirmed in this session's own frame at t=12:50). Distinct from the existing
+`onion_skin_arc_verification` card (many frames, continuous path/arc shape) — this is one frozen
+frame, used for absolute distance/spacing rather than path shape. Same family of result as that
+card, though: Cadence's stored pose data already contains the exact number a human needs this tool
+to eyeball. **New check queued**: `check: stride_distance_between_named_contact_frames — the plain
+world-space distance between a named contact effector's position at two specified frames (e.g. two
+successive foot-plant frames in a locomotion cycle) — derivable today from existing pose/track data,
+no new capability — source: video 71 @ 12:36–13:00`.
+
+**`boundary_key_pair_isolates_constant_velocity_middle_segment`** — a concrete four-key recipe (two
+extra boundary keys, `out` leaving the start, `in` arriving at the end, unchanged between the two
+inner keys) for getting a genuine accelerate/cruise/decelerate shape rather than one continuous ease
+(@ 33:04–34:15, confirmed in this session's own frame at t=34:25 showing the position-time graph).
+Directly cross-referenced to the already-queued `check: multi_segment_pacing_signature` (#14 in
+LESSONS.md) as a natural positive test case for that check once built, rather than a new check of
+its own.
+
+The video also independently confirmed the existing `low_field_of_view_reads_cinematic` card
+(W07-67) a third time — FOV 35 for "a cinematic look" (@ 11:14–11:36) — but with a notable nuance
+worth flagging for the merge session rather than folding in myself (W07's own files are not mine to
+edit per the batch protocol): this presenter explicitly says "I forgot where I got this from, but I
+know this was from another animation tutorial," meaning the 35-FOV convention looks like it is being
+COPIED between Roblox tutorial creators rather than independently re-derived each time — worth noting
+as a cross-check, not a third independent data point, when W07-67 is next touched.
+
+No capture candidate — a screen-recording software tutorial throughout, no filmed human motion.
+

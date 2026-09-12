@@ -1,0 +1,36 @@
+{
+  "concept": "single_frame_ghost_marker_for_spacing_reference",
+  "category": "advanced",
+  "definition": "Moon Animator 2's 'B' keybind drops a single translucent silhouette ('ghost') of the selected part or rig at its CURRENT pose, which stays fixed in world space while the animator continues posing forward — a one-shot positional reference distinct from a full onion-skin (which shows many surrounding frames continuously), toggled on with one press of B and cleared with a second press.",
+  "purpose": "Let an animator judge an exact spatial relationship between the pose they just left and the pose they are building next — named directly for checking stride distance in a walking cycle (how far forward should the next planted foot land relative to the last one) — without having to scrub back and forth to compare by eye.",
+  "visible_effect": "A single static, reduced-opacity, single-color silhouette of the rig or part frozen at the pose it had when B was pressed, visible simultaneously with the live, fully-posed rig as the animator continues working; pressing B again removes it, and pressing it once more at a new point places a new one there instead.",
+  "psychological_or_gameplay_effect": "Not applicable — an authoring aid, not a viewer-facing effect.",
+  "physical_interpretation": "A recorded snapshot of a prior world-space pose, held fixed while time and the live pose continue to change around it — functionally a single frozen frame of what a motion-trail or strobe photograph would show at just that one instant.",
+  "use_cases": [
+    "checking stride length/foot placement consistency across a walk or run cycle by leaving a ghost at one foot's planted position while posing the next step",
+    "any case where an animator needs to judge a NEW pose's distance or spacing relative to a specific EARLIER pose, rather than relative to the immediately-neighbouring keys the timeline already shows"
+  ],
+  "non_use_cases": [
+    "judging the SHAPE of a path traced over many frames (an arc) — that is what a multi-frame onion-skin overlay is for (see onion_skin_arc_verification), not a single fixed ghost",
+    "any check expressible as an exact stored-data measurement rather than a visual judgment — see cadence_representation"
+  ],
+  "interactions": [
+    "onion_skin_arc_verification (merged, W02) — the closest existing card, but distinct: that technique overlays MANY surrounding frames continuously to reveal a continuous PATH/arc; this technique freezes exactly ONE chosen frame as a fixed reference to judge DISTANCE/spacing against, and does not move or update as the animator scrubs",
+    "walk_cycle_key_pose_spacing_and_heel_snap_subtiming (W06) — a sibling finding about walk-cycle spacing; this entry is the AUTHORING TOOL an animator would reach for to check exactly that kind of spacing by eye"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Another case, like onion-skin-for-arcs, where Cadence's own stored project data already contains the exact answer a human needs this visual aid to estimate: any two poses' effector positions are exact numbers in `project` data, so the stride distance this tool helps a human eyeball is directly computable (a plain coordinate difference) with no visual reference needed at all. No test or tool in this build currently reports it as a named check, though — it is unimplemented, not merely 'possible in principle'.",
+  "control_surface": "No existing tool reports a named 'stride distance' or 'spacing-to-a-prior-pose' figure; `get_pose`/`get_bounding_box` could supply the raw positions such a check would subtract, but nothing currently wires them into one.",
+  "detection_and_measurement_methods": "Directly buildable today with no new capability: read a contact effector's position at two named frames (e.g. two successive foot-plant frames in a locomotion cycle) via the existing pose/track data, and report the plain distance between them — the exact number this visual ghost tool helps a human estimate.",
+  "generation_or_modification_methods": "Not applicable — a read-only visual aid, not a generative step.",
+  "failure_modes": [
+    "judging spacing by eye against a ghost and being wrong by an amount too small to notice visually but large enough to read as inconsistent stride length across a full cycle once played back",
+    "leaving a ghost active and forgetting to clear it before a review pass, mistaking the frozen reference pose for a real, currently-authored key"
+  ],
+  "roblox_considerations": "A Moon Animator 2 plugin-UI feature with no direct Roblox runtime equivalent — the ghost is an editor-only visualization aid and is never present in the exported animation.",
+  "performance_implications": "None — an editor-only overlay.",
+  "examples": [
+    "the presenter describes pressing B to leave a ghost at the rig's last position specifically so a later pose (e.g. the next step in a walk cycle) can be checked against it, then pressing B again to clear it and place a new one at the next point (video @ 12:36–13:00, confirmed in this session's own frame at t=12:50 showing a solid red silhouette held behind the live-posed rig)"
+  ],
+  "evidence_status": "video: https://youtu.be/Yzf3iGZis7A @ 12:36–13:00 — Tycoon (the presenter) names the keybind directly and explains its walk-cycle spacing use case by name; visually confirmed in this session's own frame at t=12:50 (a red ghost silhouette behind the live rig); experimental until validated"
+}
