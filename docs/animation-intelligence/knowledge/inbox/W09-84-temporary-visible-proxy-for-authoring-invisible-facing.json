@@ -1,0 +1,32 @@
+{
+  "concept": "temporary_visible_proxy_for_authoring_invisible_facing",
+  "category": "specialized",
+  "definition": "While positioning an otherwise invisible directional object (here, a cutscene camera part), temporarily attach a visible directional indicator to it — a bright, narrow-angle SurfaceLight on its front face, with Future lighting technology enabled so the light shaft itself is visible — so its facing can be judged by eye in the 3D viewport, then delete the light (and any orientation-indicator toggle) before the object ships.",
+  "purpose": "See which way a purely logical, invisible directional object is actually pointing while placing it, without needing to read or trust raw orientation numbers alone.",
+  "visible_effect": "A visible cone/shaft of light extends from the object's front face in the direction it is oriented, while authoring; nothing is visible there once the temporary light is removed and the object ships.",
+  "psychological_or_gameplay_effect": "Not applicable — an authoring-time visualization aid with no player-facing presence.",
+  "physical_interpretation": "Not applicable.",
+  "use_cases": [
+    "positioning any invisible part whose FACING (not just position) matters — a camera, a spawn point, an AI patrol direction — where the direction is hard to judge from the part's shape alone",
+    "combined with Roblox's built-in \"show orientation indicator\" toggle for the same purpose on a part directly, which this video also uses and also disables before shipping"
+  ],
+  "non_use_cases": [
+    "an object whose orientation is easy to read directly (an obviously front-facing mesh or rig) or which has no meaningful facing at all"
+  ],
+  "interactions": [],
+  "style_variations": {},
+  "cadence_representation": "Cadence already solves this authoring problem more directly, without needing a temporary visual prop: `get_facing`/`get_rotation_degrees` report an item's exact orientation numerically on demand, and the viewport itself renders the item's real gizmo/axes live in the 3D view (`set_view`) — so confirming a declared facing does not require attaching and later removing a stand-in light. This is a case where Cadence's tool-assisted authoring is a genuine improvement on the manual visual-proxy workaround this video demonstrates, worth recording as a positive contrast rather than only a gap.",
+  "control_surface": "`get_facing`, `get_rotation_degrees`, `set_view` — already sufficient to confirm an item's orientation without a temporary prop.",
+  "detection_and_measurement_methods": "`get_facing`/`get_rotation_degrees` already report this exactly; no gap to record.",
+  "generation_or_modification_methods": "not applicable — nothing to generate; the capability already exists.",
+  "failure_modes": [
+    "forgetting to remove the temporary visualization light/indicator before shipping, leaving a stray visible light or gizmo in the final experience"
+  ],
+  "roblox_considerations": "Uses an ordinary SurfaceLight (range and angle adjusted) plus Roblox's \"Future\" lighting technology specifically because it renders visible light shafts, not just illumination on surfaces — a Roblox rendering-pipeline detail, not a general fact; also uses Studio's built-in per-part \"show orientation indicator\" toggle, disabled again before shipping.",
+  "performance_implications": "None once removed; a stray forgotten light would cost ordinary rendering overhead, not evidenced as an issue in this video.",
+  "examples": [
+    "\"I'm going to add a surface light... apply the surface light to the front... turn the range up turn the angle all the way down and I'm going to switch the lighting to Future so you can see exactly where the camera is pointing\" (video @ 04:23–04:40)",
+    "\"just to save yourself some work before we start just let drop off this orientation indicator and you can delete the lights from these cameras\" (video @ 05:09–05:17)"
+  ],
+  "evidence_status": "video: https://youtu.be/cd3fnYN2BQs @ 04:23–04:40, 05:09–05:17 — RKGAM3ZS adds the temporary light for placement and explicitly instructs removing it before finishing; experimental until validated"
+}

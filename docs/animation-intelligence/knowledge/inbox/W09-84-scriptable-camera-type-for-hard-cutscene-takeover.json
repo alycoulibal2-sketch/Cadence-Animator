@@ -1,0 +1,37 @@
+{
+  "concept": "scriptable_camera_type_for_hard_cutscene_takeover",
+  "category": "essential",
+  "definition": "To take over the player's view for a cutscene, set `Workspace.CurrentCamera.CameraType` to `Enum.CameraType.Scriptable` (which stops Roblox's default camera controller from responding to player input) and then assign `CFrame` directly from pre-placed, invisible camera part(s) (`cam1`, `cam2`, ...) to cut between shots; at the end, set `CameraType` back to `Enum.CameraType.Custom` to return normal player camera control.",
+  "purpose": "Fully and cleanly take over what the player sees for the duration of an authored cutscene, then hand control back exactly the way it worked before, with no lingering camera-control conflict.",
+  "visible_effect": "The player's view snaps to the first authored camera angle at cutscene start, hard-cuts to further authored angles at scripted moments, and returns to normal third-person follow-camera behaviour the instant the cutscene ends.",
+  "psychological_or_gameplay_effect": "A hard, sudden cut (rather than an interpolated pan) reads as a deliberate editorial cut between shots, the same grammar as a live-action cutscene; the same technique done without setting `CameraType` back to `Custom` would leave the player unable to look around afterward, which reads as the game being broken.",
+  "physical_interpretation": "Not applicable — a scripted view-control mechanism, not a physical camera motion.",
+  "use_cases": [
+    "any scripted cutscene that needs to override the default player camera entirely for its duration",
+    "hard cuts between distinct authored angles (this video: `cam1` then `cam2`), as opposed to a single continuously-moving shot"
+  ],
+  "non_use_cases": [
+    "a camera move meant to blend smoothly rather than hard-cut (this pattern as shown makes an instant CFrame assignment, not a tween — a smooth version would need to interpolate CFrame over time instead of assigning it once)",
+    "leaving `CameraType` at `Scriptable` after the cutscene ends — always paired with restoring `Custom`, per this video's own closing step"
+  ],
+  "interactions": [
+    "player_snapped_to_cutscene_pose_before_camera_cut (this same video) — the camera cut is only correctly framed because the player was snapped into the exact position the camera parts were authored around",
+    "camera_keyframes_relative_to_declared_reference_object (W09-83) — a sibling cutscene-camera concern from a different tool: that video's Moon Animator camera is keyed with a reference object for portability; this video's raw-CFrame-assignment camera has no such reference and simply reads a fixed, pre-placed camera part's CFrame directly"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence's own camera item (`add_camera`) already models a camera as a normal item with `@origin`/`@fov` tracks, and `export_camera_script` exists specifically to turn an authored camera track into a runtime Roblox camera script — so the AUTHORING half of this pattern (place cameras, key or position them) is exactly Cadence's existing model. The `CameraType.Scriptable`/`Custom` handoff itself is pure exported-script logic (when to seize and release control), which is outside what an authoring tool's own project data represents — the same authoring/runtime boundary already named in this batch's other entries.",
+  "control_surface": "`add_camera` to create and position the camera item(s) being cut between; `export_camera_script` to generate the runtime script that would apply a compiled camera's CFrame — though whether that generated script also handles the `CameraType` takeover/release itself is a fact about `export_camera_script`'s own output, not verified by this video.",
+  "detection_and_measurement_methods": "not applicable — a runtime camera-control state, not a keyframed quantity `ai/motion.js` measures.",
+  "generation_or_modification_methods": "`export_camera_script` generates a runtime script from an authored camera track; not confirmed whether it also emits the `CameraType` takeover/release around it.",
+  "failure_modes": [
+    "forgetting to set `CameraType` back to `Custom` after the cutscene, leaving the player's camera permanently locked",
+    "assigning `CFrame` directly for a shot meant to move smoothly, producing an unwanted hard pop instead of a pan (a tween/interpolation is needed for that case, not a bare assignment)"
+  ],
+  "roblox_considerations": "`Workspace.CurrentCamera` is a singleton the LocalScript reads once (`local cam = game.Workspace.CurrentCamera`); `Enum.CameraType.Scriptable` is the specific enum value that disables Roblox's built-in camera controller so a script's own `CFrame` assignments take effect, confirmed directly in this session's own frame read of the script at t≈11:16 (`cam.CameraType = Enum.CameraType.Scriptable`, `cam.CFrame = cam1.CFrame`) and its release at t≈14:19 (`cam.CameraType = Enum.CameraType.Custom`).",
+  "performance_implications": "None.",
+  "examples": [
+    "\"right when it does that we'll do cam. camera type equals ... scriptable ... we do cam. cframe equals cam 1. cframe\" (video @ 10:44–10:56)",
+    "\"I'll just make the camera change back to being normal so I'll copy this code paste it do custom instead of scriptable\" (video @ 14:07–14:16)"
+  ],
+  "evidence_status": "video: https://youtu.be/cd3fnYN2BQs @ 10:44–10:56, 14:07–14:16 — RKGAM3ZS builds both the takeover and release directly, confirmed in this session's own frame reads of the finished script; experimental until validated"
+}

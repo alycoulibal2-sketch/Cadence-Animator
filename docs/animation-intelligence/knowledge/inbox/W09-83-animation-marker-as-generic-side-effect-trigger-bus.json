@@ -1,0 +1,37 @@
+{
+  "concept": "animation_marker_as_generic_side_effect_trigger_bus",
+  "category": "advanced",
+  "definition": "The same named-marker-plus-GetMarkerReachedSignal mechanism used to trigger VFX (see animation_marker_triggered_vfx_emit, W09-81) is reused unchanged to trigger a categorically different kind of side effect — a subtitle TextLabel becoming visible, then automatically hidden again after a fixed duration — by attaching a different handler to a marker with a different name, on the same animation timeline.",
+  "purpose": "Drive arbitrarily many different kinds of downstream effects (particles, sounds, subtitles, camera cuts, black-border toggles) from one single animation timeline's marker events, rather than building a separate synchronization mechanism per effect type.",
+  "visible_effect": "A subtitle appears exactly when a named marker is reached during cutscene playback, and disappears again after a fixed wait, with no coupling to the animation's own frame data beyond the marker's name and position.",
+  "psychological_or_gameplay_effect": "Keeps every timed element of a cutscene (visual effects, subtitle text, any future addition) synchronized to the same authored performance, so nothing drifts relative to the pose the cutscene is showing at that moment.",
+  "physical_interpretation": "Not applicable — a software architecture pattern, not a motion concept.",
+  "use_cases": [
+    "any cutscene or sequence with more than one KIND of timed side effect (this video: VFX and subtitles, explicitly named together as \"the same technique\")",
+    "a subtitle or caption system timed to specific animation beats rather than to a flat wall-clock schedule"
+  ],
+  "non_use_cases": [
+    "a side effect that is not actually tied to a specific animation frame at all (an ambient background loop, a UI element present for the whole cutscene)"
+  ],
+  "interactions": [
+    "animation_marker_triggered_vfx_emit (W09-81) — the same underlying mechanism; this entry is the generalization, evidenced by a second, non-VFX use of it in this video",
+    "camera_keyframes_relative_to_declared_reference_object (this same video) — a sibling cutscene-authoring concern (space, not timing)"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence's own marker/event model (`add_marker`, `ai/events.js`) is already content-agnostic in exactly this way — a marker is a named frame, and nothing about it is VFX-specific. `compile_effect`'s `timing.event` is one CONSUMER of a marker's frame number, not the only one a project could have; this video is evidence from outside Cadence that the same \"declare a named beat once, let arbitrarily many independent systems key off it\" pattern is genuinely how professional Roblox cutscene work is structured, not just how Cadence happens to be built.",
+  "control_surface": "`add_marker`/`list_markers`/`ai/events.js` for the shared timeline; Cadence has no subtitle/GUI authoring surface itself, so the subtitle HALF of this video's demonstration has no Cadence analogue beyond the marker that would drive it.",
+  "detection_and_measurement_methods": "`ai/events.js` can report a marker's frame, same as for the VFX case; nothing distinguishes a marker's downstream CONSUMER type since Cadence's project data has no notion of a subtitle or GUI element to check timing against.",
+  "generation_or_modification_methods": "`add_marker`/`set_marker` as usual; the auto-hide-after-a-fixed-duration convention this video adds (show at marker, `task.wait(duration)`, then hide) has no Cadence equivalent since Cadence authors keyframed data, not imperative show/wait/hide script logic.",
+  "failure_modes": [
+    "building a separate, bespoke timing mechanism per effect type instead of reusing the same marker bus, multiplying the ways timing can drift out of sync with the animation",
+    "a subtitle's fixed show-duration outlasting or falling short of the beat it was meant to cover, if the duration is hand-tuned rather than derived from the marker spacing itself"
+  ],
+  "roblox_considerations": "Implemented via the same `AnimationTrack:GetMarkerReachedSignal(name)` as the VFX case; the video pairs it with a plain `ScreenGui`/`TextLabel` and a `task.wait(duration)` to hide it again — ordinary Roblox scripting, not a special cutscene API.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"Now we will get the event that you saved in the animation via get marker reached signal. Make sure the text in quotation marks is the name of the event that spawns the subtitle\" (video @ 02:33–02:44)",
+    "\"we'll make it so the text appears on this event and disappears after a certain duration... the duration of time you want the subtitles to show for\" (video @ 02:47–03:00)",
+    "\"You can use the same technique for adding VFX\" (video @ 03:19–03:22), stated immediately after building the subtitle system, confirming the mechanism is deliberately shared across effect types"
+  ],
+  "evidence_status": "video: https://youtu.be/APfRtdLkcYc @ 02:33–03:22 — Jayyy builds the subtitle system on the identical marker mechanism shown for VFX earlier in the same video, and states the reuse explicitly; experimental until validated"
+}

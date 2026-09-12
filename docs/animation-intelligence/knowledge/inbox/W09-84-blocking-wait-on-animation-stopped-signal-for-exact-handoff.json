@@ -1,0 +1,38 @@
+{
+  "concept": "blocking_wait_on_animation_stopped_signal_for_exact_handoff",
+  "category": "essential",
+  "definition": "At a cutscene's final hand-off moment (returning camera and movement control to the player), the script blocks on the reaction animation's own completion signal — `playerAnim.Stopped:Wait()` — rather than a guessed `task.wait(N)` duration, so control returns at exactly the frame the animation actually finishes, however long that turns out to be; everywhere else in the same cutscene, beat timing is sequenced with plain guessed `task.wait(N)` calls instead.",
+  "purpose": "Guarantee an exact handoff moment (control returns exactly when the animation is actually done) at the one point in the sequence where being early or late is most visible, instead of trusting a hand-tuned guess to still match the animation's real length after any future retiming.",
+  "visible_effect": "The player regains movement and camera control at the precise instant the final reaction animation completes, with no visible gap (control returned too late) and no truncation (control returned mid-animation, cutting it off).",
+  "psychological_or_gameplay_effect": "A handoff gated on a guessed duration reads as sloppy the moment the guess is even slightly wrong — either an awkward pause with nothing happening, or the animation visibly cut off before finishing; a handoff gated on the animation's own real completion cannot be wrong by construction.",
+  "physical_interpretation": "Not applicable — a scripting-precision distinction, not a motion concept.",
+  "use_cases": [
+    "any moment a script must resume exactly when a specific animation finishes, especially a hand-off of control back to the player",
+    "any animation likely to be retimed, re-authored, or swapped later, where a hard-coded wait duration would silently go stale"
+  ],
+  "non_use_cases": [
+    "a beat whose exact duration genuinely does not matter (an establishing pause before the next camera cut, which this same video sequences with plain `task.wait(N)` throughout, apparently without issue)",
+    "the presenter's own near-miss: calling the bare event `playerAnim.Stopped` with no `:Wait()` accomplishes nothing at all (a reference to the signal object, not a yield) — the fix specifically requires the `:Wait()` call"
+  ],
+  "interactions": [
+    "player_snapped_to_cutscene_pose_before_camera_cut (this same video) — the WalkSpeed/JumpHeight restoration this entry gates on completion is the other half of the same hand-off this video's snap-in step opened",
+    "the user's own stated standard for anything that ends up in the Cadence tool — exact (computed, never estimated) — this is precisely that same principle independently arrived at in a Roblox scripting context: prefer the exact signal over a guessed number"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence's own timing model is already exact in the relevant sense — a compiled effect's `timing` envelope and an animation's keys are frame-numbered and exactly known at authoring time, never a runtime guess. This video's lesson is about EXPORTED/RUNTIME script sequencing (waiting on a live AnimationTrack that has not finished yet), which is a different problem: Cadence knows an authored clip's exact length once compiled, but nothing in this build generates the surrounding Roblox script logic that would sequence a live cutscene against it (that is the same authoring/runtime boundary already named in this batch's other cutscene-pipeline entries).",
+  "control_surface": "None directly — Cadence can report an authored clip's exact frame length (ordinary track/key inspection), but has no cutscene-sequencing script generator to apply that fact to a `Stopped:Wait()`-equivalent pattern.",
+  "detection_and_measurement_methods": "not applicable — a runtime script-sequencing correctness property, not a keyframed quantity.",
+  "generation_or_modification_methods": "not applicable in this build.",
+  "failure_modes": [
+    "gating a hand-off on a guessed `task.wait(N)` that runs short, cutting the animation off before it visually finishes",
+    "gating it on a guess that runs long, leaving an awkward idle pause after the animation has already finished",
+    "referencing the bare `AnimationTrack.Stopped` event object without `:Wait()` (or `:Connect()`), which does nothing — the presenter's own documented mistake, immediately before the fix"
+  ],
+  "roblox_considerations": "`AnimationTrack.Stopped` is a Roblox `RBXScriptSignal`; `:Wait()` yields the calling script until it next fires (i.e. until the track naturally finishes, assuming it is not set to loop). Confirmed directly in this session's own frame read of the finished script at t≈13:53 (`playerAnim:Play()` immediately followed by `playerAnim.Stopped:Wait()`, then the camera/movement restoration lines).",
+  "performance_implications": "None.",
+  "examples": [
+    "\"I just did stopped instead of stopped colon weight so if you add that weight it will wait until the animation completes to go back to playing the animation... to complete to go back to doing the cut scene\" (video @ 14:38–14:52)",
+    "contrasted with the same script's other beats, sequenced by guessed durations: \"I'll make it wait like 3 seconds so the cut scene should begin\" (video @ 12:18–12:23) and \"we'll just do test out wait four or three whatever really\" (video @ 12:34–12:39)"
+  ],
+  "evidence_status": "video: https://youtu.be/cd3fnYN2BQs @ 12:18–12:39, 14:38–14:52 — RKGAM3ZS makes the mistake, names it, and fixes it on screen, contrasted against the guessed waits used elsewhere in the same script, confirmed in this session's own frame read of the finished code; experimental until validated"
+}

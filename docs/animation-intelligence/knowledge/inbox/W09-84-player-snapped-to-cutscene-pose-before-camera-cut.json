@@ -1,0 +1,37 @@
+{
+  "concept": "player_snapped_to_cutscene_pose_before_camera_cut",
+  "category": "essential",
+  "definition": "The instant a player-triggered cutscene begins, the player's own HumanoidRootPart CFrame is hard-set to match a pre-placed, invisible \"cutscene position\" part's CFrame (`char.HumanoidRootPart.CFrame = playerCutscenePos.CFrame`), and WalkSpeed/JumpHeight are zeroed — guaranteeing the player is standing in the exact authored spot and orientation the cutscene's cameras and the other performer's animation were designed around, regardless of where the player actually was or which direction they were facing when they triggered it.",
+  "purpose": "Make an authored camera framing and a co-performer's animation reliable despite the player's position being unpredictable at trigger time, by removing that unpredictability with a single teleport before anything else in the cutscene runs.",
+  "visible_effect": "The player character instantly snaps into a fixed pose/position/orientation at the moment the cutscene starts, then cannot walk or jump away for its duration, and the subsequent camera cuts and paired animation all read correctly because they were authored against that same fixed pose.",
+  "psychological_or_gameplay_effect": "Without the snap, a player who triggers the cutscene at a slightly different angle or distance each time would see a camera framing and a co-performer's animation authored for a DIFFERENT relative position — reading as misaligned or broken specifically because the rest of the scene assumes a fixed spatial relationship that was never actually enforced.",
+  "physical_interpretation": "Not applicable — a scripted correction, not a physical motion.",
+  "use_cases": [
+    "any player-triggered (touch/proximity/interact) cutscene that stages the player relative to another performer, prop, or camera setup authored at fixed, specific relative positions",
+    "any cutscene whose subsequent camera cuts assume a known player position (a two-shot, an over-the-shoulder framing, a matched eyeline)"
+  ],
+  "non_use_cases": [
+    "a cutscene with no dependency on the player's exact position (a pure cinematic cutaway the player merely watches, uninvolved in the framing)",
+    "a cutscene whose camera is deliberately built to track wherever the player happens to be, rather than assuming a fixed spot"
+  ],
+  "interactions": [
+    "scriptable_camera_type_for_hard_cutscene_takeover (this same video) — the camera cut that immediately follows this snap depends on it: the authored `cam1`/`cam2` framings were built around the player standing exactly at `playerCutscenePos`, so the snap and the camera takeover are two halves of one guarantee",
+    "blocking_wait_on_animation_stopped_signal_for_exact_handoff (this same video) — the same script restores WalkSpeed/JumpHeight (to Roblox's own defaults, 16 and 7.2) at the cutscene's end, gated on the reaction animation's actual completion rather than a guessed wait, so control is returned neither too early nor too late"
+  ],
+  "style_variations": {},
+  "cadence_representation": "No direct analogue: Cadence authors ONE project's own items and rig(s); it has no notion of a separate, unpredictable \"live player\" character to snap into place, since everything in a `.cadence` project is already at its authored, known position. This pattern belongs entirely to the exported/runtime side of the authoring boundary — the same boundary `raycast_derived_impact_vfx_placement` (W09-81) and `ground_effect_slaved_to_invisible_proxy_part` (W09-81) already named: a live game-state correction Cadence's keyframed, single-project model has no reason to represent.",
+  "control_surface": "None — outside Cadence's project model.",
+  "detection_and_measurement_methods": "not applicable in this build.",
+  "generation_or_modification_methods": "not applicable in this build.",
+  "failure_modes": [
+    "omitting the snap and assuming the player will always trigger the cutscene from the same spot, producing a framing/animation mismatch whenever they do not",
+    "snapping position but not orientation (or vice versa), leaving the player facing the wrong way for the authored shot even though they are standing in the right place"
+  ],
+  "roblox_considerations": "Implemented directly on `Humanoid.WalkSpeed`/`JumpHeight` (zeroed, then restored to Roblox's own movement defaults, 16 and 7.2) and `HumanoidRootPart.CFrame`; the reference part (`playerCutscenePos`) is an ordinary anchored, invisible, non-colliding BasePart placed once at authoring time.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"now directly under here we'll do char. humanoid root part. cframe equals player cutscene pos. cframe so I should snap you to in front of that little dude\" (video @ 10:25–10:39), confirmed directly in a readable code frame at t≈11:00 showing `char.HumanoidRootPart.CFrame = playerCutscenePos.CFrame` immediately after `char.Humanoid.WalkSpeed = 0` and `char.Humanoid.JumpHeight = 0`",
+    "the restoration at the cutscene's end: `char.Humanoid.WalkSpeed = 16` and `char.Humanoid.JumpHeight = 7.2`, confirmed in a code frame at t≈14:40"
+  ],
+  "evidence_status": "video: https://youtu.be/cd3fnYN2BQs @ 09:45–10:39, 14:16–14:30 — RKGAM3ZS builds and narrates the snap and restoration directly, both confirmed in this session's own frame reads of the script; experimental until validated"
+}

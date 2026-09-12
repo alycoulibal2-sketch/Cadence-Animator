@@ -1,0 +1,34 @@
+{
+  "concept": "camera_keyframes_relative_to_declared_reference_object",
+  "category": "essential",
+  "definition": "A cutscene camera's keyframes are authored with a declared reference object (in this video, the performing rig's HumanoidRootPart) set on the camera item, so the camera's keyed CFrame values are interpreted relative to that object's transform rather than as fixed absolute world coordinates.",
+  "purpose": "Let the same authored camera path be positioned and oriented correctly wherever the reference object actually is at playback time, rather than only working at the exact world position/orientation the camera happened to be authored against.",
+  "visible_effect": "The camera's motion during playback stays correctly framed on the performing rig even though the specific keyed CFrame numbers were authored once, because those numbers are read relative to the rig's root rather than as literal world coordinates.",
+  "psychological_or_gameplay_effect": "Not applicable directly — an authoring-correctness mechanism; its failure mode (see below) would read as a camera framing the wrong place entirely.",
+  "physical_interpretation": "Equivalent to parenting the camera's motion to a moving frame of reference rather than the world frame — the same distinction as a local versus world coordinate space for any tracked transform.",
+  "use_cases": [
+    "a cutscene camera authored once and meant to play correctly regardless of where in the world (or which rig instance) it is triggered against",
+    "any animated camera whose path is conceptually \"relative to the character being filmed\" rather than \"relative to the map\""
+  ],
+  "non_use_cases": [
+    "a camera path meant to stay fixed in absolute world space regardless of the subject's position (a static establishing shot not tied to a specific rig)"
+  ],
+  "interactions": [
+    "animation_marker_as_generic_side_effect_trigger_bus (this same video) — a sibling authoring concern in the same cutscene pipeline: this entry is about the SPACE camera keys are read in, that one is about WHEN paired effects fire"
+  ],
+  "style_variations": {},
+  "cadence_representation": "This is exactly Cadence's own track-space concept: `set_track_space`/`get_track_space` already let a track be declared as world-relative or parent/local-relative, and `add_camera` produces an ordinary item whose `@origin` track is subject to the same choice as any other item's. The Moon Animator \"reference object\" this video sets is the same idea under a different name — nothing new needs to be built for Cadence to represent this authoring pattern, only correctly SET the camera's track space to match the rig's root rather than leaving it at whatever the default is.",
+  "control_surface": "`set_track_space`/`get_track_space` on the camera item's `@origin` track; `add_camera` to create the item in the first place.",
+  "detection_and_measurement_methods": "`get_track_space` directly reports which space a track is currently in, so whether a camera's `@origin` track is declared relative to the intended reference object (versus left at a default/world space) is a directly inspectable, already-implemented fact, not a gap.",
+  "generation_or_modification_methods": "`set_track_space` changes a track's declared space; nothing automatically infers which reference object a camera SHOULD use from context — that remains a caller's declared intent, in Cadence exactly as in Moon Animator.",
+  "failure_modes": [
+    "leaving a cutscene camera's keys in world space when the intent was rig-relative, so the camera frames the wrong place if the rig is ever positioned differently from where the camera was originally authored",
+    "the reverse: a camera meant to be a fixed, independent establishing shot accidentally inheriting a reference object's transform"
+  ],
+  "roblox_considerations": "Specific to Moon Animator's own \"reference object\" property on a keyed item, a plugin-level convention rather than a native Roblox Instance property; the video calls it out as something the author has to set deliberately, not a default.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"It's also important to set the reference object as the rig's humanoid root part, as I show right now\" (video @ 00:31–00:35), immediately following the camera add/keyframe workflow"
+  ],
+  "evidence_status": "video: https://youtu.be/APfRtdLkcYc @ 00:07–00:35 — Jayyy demonstrates adding a Moon Animator camera, keying it, and setting the reference object explicitly, though without stating the underlying reason in words; experimental until validated"
+}
