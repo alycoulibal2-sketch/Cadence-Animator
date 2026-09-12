@@ -1,0 +1,43 @@
+{
+  "concept": "relative_motion_implies_subject_movement_without_animating_subject",
+  "category": "advanced",
+  "definition": "To sell a primary subject moving violently and fast, hold the subject itself nearly static (carrying forward its pose/momentum from the previous cut, 'vibrating' rather than travelling) and instead animate everything AROUND it — the background moving chaotically, and a secondary character's loose elements (hair, clothing) reacting as if buffeted — so the viewer infers the primary subject's fast motion entirely from relative motion cues rather than from the subject's own drawn movement.",
+  "purpose": "Convey extremely fast or violent primary-subject motion cheaply and coherently, without needing to draw that subject's own fast motion directly (which the source implies would be harder to keep consistent, especially for a large complex subject).",
+  "visible_effect": "A large subject (a dragon's head) stays visually near-static/'vibrating' across a cut, while the background streaks past chaotically and a nearby character's hair, clothing and belt whip around as if in a violent wind, all cut together as continuous with the previous shot's already-established fast head-shake.",
+  "psychological_or_gameplay_effect": "The source states this directly as a deliberate substitution: 'how do you show that the dragon is moving its head really fast? By not animating the dragon's head at all... the idea of relative motion comes into play here — we can tell that movement is happening because of how chaotically the background is moving' and how the nearby character's secondary elements react; the audience attributes the implied violent motion to the (nearly still) subject rather than noticing its stillness.",
+  "physical_interpretation": "A legitimate perceptual substitution (real vision also infers self/other motion partly from surrounding relative motion, e.g. vection), not a purely arbitrary trick — but deployed here specifically as a drawing-cost shortcut for a subject too complex to animate directly at that speed.",
+  "use_cases": [
+    "a large, geometrically complex subject (many independent scales/parts) whose fast motion would be very costly or hard to keep consistent if animated directly",
+    "carrying a cut's established momentum forward across a shot boundary without needing to re-animate the source of that momentum",
+    "any moment where secondary motion on a nearby character (hair, clothing) can plausibly stand in as the direction-of-motion cue for a subject the audience is not looking at directly"
+  ],
+  "non_use_cases": [
+    "a close, sustained shot where the audience's attention is squarely on the 'held' subject itself, where the substitution would likely read as the subject failing to move rather than as implied violent motion",
+    "a subject with no plausible nearby secondary-motion elements (background, another character's hair/clothing) to carry the relative-motion cue"
+  ],
+  "interactions": [
+    "layered_independent_look_targets_read_as_awareness, planted_foot_float_track_eliminates_transition_clips (W05-42) — sibling cases of substituting a cheaper, secondary signal for a directly-animated primary one and relying on the viewer's inference to fill the gap",
+    "hand_drawn_layer_hold_rate_convention_by_layer_type (video 63, this batch) — an extreme, deliberate case of that entry's general 'hold what doesn't need redrawing' economy, taken all the way to holding the PRIMARY subject completely while spending the drawing budget entirely on secondary/background elements instead",
+    "cross_clip_arc_continuity, physics_sim_blend_seam_mitigation (W01, v6/v7) — this technique explicitly carries momentum across a cut boundary ('he carried forth the dragon's head movement from the previous cut'), the same cross-clip continuity concern those entries already name, applied here to justify holding the subject rather than to blend a handoff"
+  ],
+  "style_variations": {
+    "anime": "a deliberate, named cost-saving substitution used specifically for fast/chaotic action beats, per the source's own account of this being characteristic of this particular animator's approach to such sequences",
+    "realistic": "the underlying perceptual mechanism (inferring motion from surrounding relative motion) is physically real and not style-specific, but relying on it AS A SUBSTITUTE for animating the subject directly is a stylized production shortcut rather than something a fully-rendered realistic pipeline would need"
+  },
+  "cadence_representation": "Not directly represented, but the underlying idea — holding one item's tracks static while other items carry the implied-motion signal — is authorable today with ordinary keyframing (simply not keying the held item). Nothing in `ai/**` currently recognizes or validates this as a DELIBERATE technique versus an oversight (a static item during a chaotic scene could equally be a forgotten track), which is the real gap: `ai/motion.js` has no way to distinguish 'intentionally held for relative-motion effect' from 'unanimated by mistake'.",
+  "control_surface": "None distinguishes an intentionally-held item from an unanimated one; ordinary keyframe absence looks the same either way today.",
+  "detection_and_measurement_methods": "Partially buildable: `sampleMotion` already reports near-zero velocity on a held item, and could in principle be cross-referenced against markedly high velocity/chaos on OTHER items in the same shot (background, a nearby character's secondary chains) at the same time window — a plausible signature for 'held subject + relative-motion substitute', though nothing currently frames this comparison as a named check.",
+  "generation_or_modification_methods": "Ordinary keyframe authoring already reaches 'hold this item, animate everything else around it'; no tool currently proposes this substitution deliberately.",
+  "failure_modes": [
+    "holding a subject the audience is looking at directly, where the stillness reads as an animation gap rather than as implied violent motion",
+    "not carrying enough surrounding chaotic/secondary motion to actually sell the illusion, leaving the held subject simply looking static",
+    "breaking cross-cut momentum continuity (not actually carrying forward the previous cut's established motion), undermining the technique's own setup"
+  ],
+  "roblox_considerations": "Directly reachable with ordinary `AnimationTrack` authoring: deliberately leave a large/complex rig's tracks unkeyed (or minimally keyed) during a fast beat while ensuring nearby accessories/hair (if simulated) and camera/background motion carry the chaos cue instead — a real cost-saving option for a complex rig too expensive to animate at full fidelity during a fast moment.",
+  "performance_implications": "A genuine authoring-cost saving (fewer keys needed on the complex held subject) and potentially a runtime saving too if the held item's transform updates are skipped/simplified during the held span.",
+  "examples": [
+    "'how do you show that the dragon is moving its head really fast, by not animating the dragon's head at all? So he carried forth the dragon's head movement from the previous cut, and the dragon's head is just vibrating — the idea of relative motion comes into play here, we can tell that movement is happening because of how chaotically the background is moving and how beautifully [the character] is animated... every element of his body that can move, which is the clothing, the belt, and also the hair, is moving as chaotically as possible' (video @ 17:40–18:07)",
+    "'even if he can't see the dragon moving its head, you can tell exactly in what direction it's moving its head just from the way the hair and clothing is animated on Stark' (video @ 18:26–18:34)"
+  ],
+  "evidence_status": "video: https://youtu.be/ibavOZYfsnQ (MankoMan) @ 17:40–18:34 — the presenter states the substitution mechanism directly and explicitly names it 'the idea of relative motion'; experimental until validated"
+}

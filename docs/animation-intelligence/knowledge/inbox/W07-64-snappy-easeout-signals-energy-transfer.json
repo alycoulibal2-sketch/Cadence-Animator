@@ -1,0 +1,40 @@
+{
+  "concept": "snappy_easeout_signals_energy_transfer_not_dissipation",
+  "category": "advanced",
+  "definition": "An ease-out's SPEED itself carries a physical claim: a normal, gradual ease-out reads as energy dissipating (the moving thing is slowing down because it's losing energy), while a deliberately fast/snappy ease-out on the same deceleration reads as energy being TRANSFERRED onward to a different body, because the motion stops too abruptly to have simply run out of steam — the source states this distinction explicitly, including naming what ease-out is 'for' (reducing energy) and why this cut deliberately avoids that reading.",
+  "purpose": "Choose an ease-out's rate deliberately based on where the motion's energy is meant to appear to GO — dissipated in place (slow ease-out) versus handed off to strike something else (fast, snappy ease-out) — rather than treating 'slow down smoothly' as the only correct way to end a fast motion.",
+  "visible_effect": "A fast head-shake motion comes to a very abrupt, sharp stop rather than gradually decelerating, immediately followed by the energy's effect appearing on a different body (a character being thrown/launched).",
+  "psychological_or_gameplay_effect": "The source's own direct framing: 'what ease-out is for is reducing the energy — what [the animator] wants to do here is, in a very snappy fashion, transfer all that energy onto a different body, and that's why it's so snappy,' explicitly distinguishing this from a normal ease-out's usual dissipative reading.",
+  "physical_interpretation": "A genuine physical distinction worth encoding: real momentum transfer between colliding bodies IS abrupt (a fast stop plus a corresponding launch elsewhere), whereas a body slowing under its own friction/air resistance IS gradual — this technique is choosing the ease-out shape to match which real physical scenario is intended, not an arbitrary stylistic pick.",
+  "use_cases": [
+    "a strike or collision where the striking body's motion should read as HANDED OFF to the struck body (a throw, a launch, a knockback) rather than merely stopping",
+    "any beat wanting to avoid the 'it just ran out of energy' reading that a standard gradual ease-out implies"
+  ],
+  "non_use_cases": [
+    "a motion that genuinely IS dissipating in place (coming to rest, no onward transfer to anything else) — a snappy stop there would read as wrong/discontinuous rather than as a handoff, since nothing receives the implied transferred energy",
+    "external_force_easing_mismatch's own failure case (LESSONS.md check #10) — an eased-IN key on a declared impact marker is a different, opposite-direction defect (approach softened when it should be sharp); this entry is specifically about the DEPARTURE/ease-OUT side of a beat, and about rate (fast vs. slow) rather than in versus out"
+  ],
+  "interactions": [
+    "external_force_easing_mismatch (LESSONS.md check #10, next to be built) — a direct sibling on the same underlying idea (easing SHAPE/rate carries a physical claim about a declared force event) applied to the opposite side of a beat: that check is about the key APPROACHING an impact being eased when it should be sharp; this entry is about the ease-out LEAVING a beat being sharp/snappy specifically to imply transferred momentum",
+    "peak_spacing_immediately_before_impact (W04-34) — a related but distinct impact-proximity signature: that entry is about spacing widening (speeding up) into contact; this entry is about the RATE of the deceleration immediately after, encoding where the energy is implied to go next",
+    "weight_then_strength_formula (W02, v19) — a sibling case of a specific curve shape being read as a physical/narrative claim rather than a purely aesthetic choice"
+  ],
+  "style_variations": {
+    "anime": "named directly as a deliberate choice by a specific animator (uton/Tatsuya Yoshihara lineage per the source's surrounding commentary), distinguished explicitly from the 'default' gradual ease-out",
+    "realistic": "the underlying physical logic (abrupt stop = momentum transferred elsewhere, gradual stop = energy dissipated in place) applies directly to realistic motion too, making this one of this batch's more physically-grounded (less purely stylistic) findings"
+  },
+  "cadence_representation": "Directly measurable and directly authorable today: `ai/motion.js sampleMotion`'s velocity curve already reports how quickly a deceleration reaches zero (the ease-out's own rate/shape), and `set_easing`/keyframe interpolation already lets an author choose a snappy versus gradual ease-out curve. What is missing is the SEMANTIC link this entry describes: nothing currently checks an ease-out's rate against whether the same moment declares an onward energy-transfer event (e.g. a linked launch/knockback on another item) versus no such event, the same kind of marker-plus-curve join `external_force_easing_mismatch` (check #10) is built around.",
+  "control_surface": "`set_easing` already authors the ease-out rate directly; no check currently cross-references it against a declared energy-transfer/impact-recipient event.",
+  "detection_and_measurement_methods": "Directly buildable with existing measurements: `sampleMotion`'s velocity-to-zero rate on the ending item, cross-referenced against `ai/events.js` markers on a SECOND item (the implied recipient) starting near the same instant — a fast ease-out with no corresponding recipient event would be the interesting edge case to flag, symmetrical to check #10's own marker-plus-curve join.",
+  "generation_or_modification_methods": "`set_easing` can already author either a gradual or snappy ease-out; nothing currently proposes the choice based on a declared energy-transfer intent.",
+  "failure_modes": [
+    "a gradual ease-out on a strike meant to read as transferring momentum onward, undercutting the handoff and making the strike look like it simply ran out of energy",
+    "a snappy, abrupt ease-out with no onward recipient of the implied transferred energy, reading as a discontinuity or a cut motion rather than a deliberate handoff"
+  ],
+  "roblox_considerations": "Directly authorable via ordinary `AnimationTrack` easing-style selection (e.g. choosing a steep-vs-shallow custom easing curve) on the striking limb/subject's ending keys, paired with a launch/knockback effect timed to the same instant on the receiving character.",
+  "performance_implications": "None — a curve-shape/easing-style choice only.",
+  "examples": [
+    "'he innovates with anticipation here, there's no buildup and release — the cut starts with release and then technically eases out, because the dragon's head is coming to a stop here, but the ease-out is done extremely quickly, extremely snappily, so that he can transfer all that energy, because he does not want to reduce the energy here — that's what ease-out is for, right, it's for reducing the energy — what [he] wants to do here is, in a very snappy fashion, transfer all that energy onto a different body, and that's why it's so snappy' (video @ 21:19–21:50)"
+  ],
+  "evidence_status": "video: https://youtu.be/ibavOZYfsnQ (MankoMan) @ 21:19–21:50 — the presenter states the distinction and its physical rationale directly and explicitly; experimental until validated"
+}

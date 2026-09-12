@@ -2,8 +2,8 @@
 
 - [x] 61. Types of Frames in Animation — NobleFrugal Studio (9:53)
 - [x] 62. Every (Anime) Animation Technique Explained in 12 Minutes — SinChi (13:01)
-- [ ] 63. The Art of Animators (or Sakuga) — RCAnime (7:44)
-- [ ] 64. Sakuga OVERKILL! | Animation Analysis: Stark vs Dragon — MankoMan (25:12)
+- [x] 63. The Art of Animators (or Sakuga) — RCAnime (7:44)
+- [x] 64. Sakuga OVERKILL! | Animation Analysis: Stark vs Dragon — MankoMan (25:12)
 - [ ] 65. I Spent 30 Days ANIMATING this FIGHT SCENE!! — Shrimpy (16:31)
 - [ ] 66. PWOW Workshop - Introduction to Animation Breakdowns — Toniko Pantoja (16:25)
 - [ ] 67. Moon Animator 2 Basics - Official Tutorial — six (4:41)
@@ -130,3 +130,90 @@ Entries written: `W07-62-yutapon-cubes-versus-cubic-debris-timing.json`,
 All five pass `validateProposedEntry` (20/20) and `validateEvidenceSource`. A full corpus + inbox
 sweep after writing (173 concepts: main `knowledge/` + inbox W03–W07) found zero concept-name
 collisions.
+
+## Video 63 — The Art of Animators (or Sakuga) — RCAnime (7:44)
+https://youtu.be/-aChpK2jcnQ — watched 2026-09-12, `efficient` detail, 50 keyframes (spread across
+the video's clip-montage format — mostly illustrative anime clips with no on-screen diagrams, so
+frames added little beyond confirming the montage format itself; one frame at t=01:57 confirmed
+"Panda and the Magic Serpent" (1958) as claimed), captions transcript (166 segments).
+
+An appreciation/history essay on animator craft rather than a tutorial: defines **sakuga** directly
+("the moment in anime in which animation quality improves drastically... otherwise known as the
+money shot... shows today still have stilted moments for the less important scenes, but when
+something big happens the quality bumps up"), credits Yasuo Otsuka as originating the concept
+(Hols: Prince of the Sun, 1968), then surveys ~15 named animators along a realism-to-surrealism
+spectrum (Hiroyuki Okiura, Katsuhiro Otomo/Akira, Mitsuo Iso, Koji Morimoto, Shinya Ohira, Masaaki
+Yuasa, and others). Left the animator survey itself as historical context in these notes rather
+than forcing it into entries — it's genuinely general ("different animators sit at different points
+on a realism/surrealism spectrum") rather than a specific, actionable technique, which the "specific
+beats general" rule argues against encoding.
+
+Two entries did meet the bar:
+
+- **`sakuga_localized_quality_spike_reserved_for_key_scenes`** — new. This is a PRODUCTION-level
+  budget-allocation policy (spend disproportionately on specific money-shot scenes, hold everything
+  else to a cheaper baseline) distinct from any single existing entry, which are all about budget
+  WITHIN one action/shot rather than allocation ACROSS a whole show's scenes.
+- **`hand_drawn_layer_hold_rate_convention_by_layer_type`** — new, but a close sibling of
+  `differential_frame_rate_per_layer_for_performance_and_style` (W06-55): both are "different layers
+  run at different effective rates" in shape, but this one is hand-drawn TV production's actual
+  numbers (24fps deliverable, characters held at 8-12fps-equivalent, backgrounds at 6-8), a
+  cost-driven PERMANENT convention traced historically to TV anime's schedule pressure (Astro Boy
+  cited as the rough early result), not W06-55's real-time-rendering performance/style motive.
+  Cross-referenced both directions rather than merged, per this batch's established practice for
+  same-shape-different-domain findings.
+
+No capture candidate (clip montage of existing anime, no original demonstrable motion). No new
+check beyond what's queued — the layer-hold-rate entry's comparison (background vs. character key
+density) is a straightforward extension of the already-existing `keyDensity` measurement.
+
+Entries written: `W07-63-sakuga-localized-quality-spike-key-scenes.json`,
+`W07-63-layer-hold-rate-convention-by-layer-type.json`. Both pass `validateProposedEntry` (20/20)
+and `validateEvidenceSource`.
+
+## Video 64 — Sakuga OVERKILL! | Animation Analysis: Stark vs Dragon — MankoMan (25:12)
+https://youtu.be/ibavOZYfsnQ — watched 2026-09-12, `efficient` detail, 50 keyframes (a reaction-
+video layout, webcam inset over the analyzed anime clip — frames mainly confirmed general moments
+rather than showing diagrams), captions transcript (781 segments, read in full).
+
+A shot-by-shot cut-analysis of one fight scene (Frieren: Stark vs. a dragon), heavy on industry
+credits/connections trivia (which freelance animator did which cut, who's "uton-inspired", studio
+politics about Jujutsu Kaisen "losing" animators to this show) that doesn't belong in the knowledge
+base — general industry commentary, not technique, left out entirely rather than forced into
+entries. Underneath the gossip, four genuinely specific and novel techniques surfaced, all from
+close reading of exactly what the analyst says is happening in specific cuts:
+
+- **`scale_ambiguity_resolved_via_rotation_parallax`** — a huge subject as flat stacked 2D layers
+  is ambiguous between "big and far" / "big and close"; rotating it (with the camera) resolves this
+  via parallax. Named explicitly as a hard 2D problem — and a case where Cadence's real 3D viewport
+  is already AHEAD of the 2D source technique (real rotation gives real parallax for free); the gap
+  is only in deliberately checking for it, which needs the still-unbuilt SHOT-003/004 camera model.
+- **`cast_shadow_as_connective_tissue_between_separate_layers`** — a moving cast shadow from one
+  separately-animated element sweeping across another is what makes two layers read as physically
+  interacting. Same "Cadence's 3D pipeline gets this for free" situation as the scale-parallax entry
+  — flagged an interesting tension with `kagenashi_shadowless_shading_tradeoff` (video 62): a
+  shadowless style forfeits this specific compositing tool.
+- **`relative_motion_implies_subject_movement_without_animating_subject`** — hold a complex primary
+  subject nearly static (carrying forward the previous cut's momentum) and animate everything AROUND
+  it instead (background, a nearby character's hair/clothing); the viewer infers the subject's
+  violent motion from surrounding relative motion alone. Named directly by the analyst as "the idea
+  of relative motion." A clean, cheap alternative to `hand_drawn_layer_hold_rate_convention_by_layer_
+  type`'s general economy, taken to its logical extreme.
+  - **`snappy_easeout_signals_energy_transfer_not_dissipation`** — an ease-out's SPEED carries a
+  physical claim: gradual reads as energy dissipating in place, deliberately snappy/abrupt reads as
+  energy transferred onward to another body. Direct sibling of check #10
+  (`external_force_easing_mismatch`, not yet built) but on the departure side of a beat rather than
+  the approach side — worth building together.
+
+Cross-check, not a new entry: a single ultra-detailed drawing held for one frame amid a fast
+sequence (~16:00) reconfirms `subliminal_single_frame_impact_pose` (W04-36).
+
+No capture candidate (existing broadcast anime footage, reaction-video format). No new check beyond
+what the four new entries' own `detection_and_measurement_methods` already specify (two of the four
+are directly buildable today with existing measurements: the snappy-easeout entry via `sampleMotion`
++ `ai/events.js`, cross-referenced the same way check #10 already is).
+
+Entries written: `W07-64-scale-ambiguity-resolved-via-rotation-parallax.json`,
+`W07-64-cast-shadow-as-connective-tissue.json`, `W07-64-relative-motion-implies-subject-movement.json`,
+`W07-64-snappy-easeout-signals-energy-transfer.json`. All four pass `validateProposedEntry` (20/20)
+and `validateEvidenceSource`.

@@ -1,0 +1,41 @@
+{
+  "concept": "sakuga_localized_quality_spike_reserved_for_key_scenes",
+  "category": "advanced",
+  "definition": "A whole-production budget-allocation strategy, not an in-shot technique: hold most scenes to a stilted, cost-efficient baseline quality, then deliberately spend a disproportionate share of the animation budget/time on specific 'money shot' scenes (a named 'sakuga' moment) where quality jumps drastically to sell a scene's dramatic or action peak, rather than spreading a fixed quality level evenly across an entire episode or film.",
+  "purpose": "Make limited total production time/budget serve the story's actual peaks, by deliberately under-spending on scenes that don't need it so specific scenes that do can receive far more.",
+  "visible_effect": "Most of a show holds to a visibly more limited, stilted baseline (few in-betweens, more still frames), then a specific scene abruptly shows drastically higher drawing density, more fluid movement, and often a distinct animator's personal style, before returning to the baseline afterward.",
+  "psychological_or_gameplay_effect": "The CONTRAST itself is part of the mechanism: a sakuga scene reads as more impactful specifically because it stands out against the show's own established baseline, not only because of its absolute quality — the same scene at uniformly higher quality throughout the whole show would not carry the same 'money shot' impact.",
+  "physical_interpretation": "Not applicable — a production-scheduling and budget-allocation decision, not a claim about the depicted motion.",
+  "use_cases": [
+    "a season or film with a fixed total budget wanting specific dramatic/action peaks (a finale fight, a turning-point scene) to land harder than the rest of the show",
+    "directors deliberately bringing in a specific specialist animator for one scene specifically because of this technique, per the source's account of directors 'going to specific animators' for these moments"
+  ],
+  "non_use_cases": [
+    "a production with an evenly high (or evenly constrained) budget throughout, where no baseline/peak contrast exists to exploit",
+    "a scene that is not actually a story peak — spending a quality spike on a low-stakes moment wastes the technique's whole contrast mechanism"
+  ],
+  "interactions": [
+    "dps_floor_for_short_actions (W02, v11) — that entry is about a MINIMUM key density an individual action needs to stay legible; this entry is a whole-production policy about WHERE, across many scenes, to exceed that floor by a large margin, not a floor itself",
+    "low_frame_rate_draft_pass_for_fast_iteration (W04-35) — a related but distinct budget technique: that one is a TEMPORARY draft stage every scene passes through before polish; sakuga is a PERMANENT, shipped, deliberately uneven final-quality allocation across scenes, never intended to be uniformly polished",
+    "hand_drawn_layer_hold_rate_convention_by_layer_type (video 63, this batch) — a sakuga scene is exactly where a production would spend MORE than the standard per-layer hold-rate convention that other entry describes, the concrete case where the baseline convention is deliberately broken"
+  ],
+  "style_variations": {
+    "anime": "named and dated directly by the source (Yasuo Otsuka credited as originating the concept, in Hols: Prince of the Sun, 1968), now a standard, recognized industry practice",
+    "realistic": "the underlying budget-allocation LOGIC (spend more where it matters most) is genre-agnostic, but the specific mechanism (a visible baseline/peak quality contrast within one continuous show) is a hand-drawn-production-era practice without a direct equivalent in a rendered/real-time pipeline with a single fixed rendering fidelity"
+  },
+  "cadence_representation": "Not represented, and not something a per-shot animation tool like Cadence would naturally allocate — this is a PRODUCTION/SCHEDULING decision made across an entire show's worth of shots, external to any single project file Cadence edits. The closer analogue within scope is a project deliberately investing more authoring time/iteration (`experiment.js` alternatives, more measured polish passes) into specific shots identified as high-stakes, which is a workflow/process decision rather than anything `ai/**` measures or enforces.",
+  "control_surface": "None — a production-planning decision outside any single project's data.",
+  "detection_and_measurement_methods": "Not measurable in this build: detecting a 'quality spike' would require comparing key density/motion complexity ACROSS many separate shots/projects in a production to find outliers, which is a cross-project analysis `ai/library.js`'s search could in principle support (comparing characteristics across stored entries) but nothing currently frames as a 'baseline vs. spike' analysis.",
+  "generation_or_modification_methods": "None — an external scheduling/resourcing decision, not an authoring operation.",
+  "failure_modes": [
+    "spending a quality spike on a scene the audience does not perceive as a story peak, wasting the contrast the technique depends on",
+    "raising the baseline too high everywhere, which the source implies would erode the very contrast that makes a sakuga moment read as special"
+  ],
+  "roblox_considerations": "The closest Roblox-relevant analogue is a game team choosing to hand-polish specific signature moments (a boss intro, a finishing move) far beyond the animation quality bar used elsewhere in the game, for the same budget-allocation reason — a production-planning decision, not an engine feature.",
+  "performance_implications": "None directly (a planning/authoring-time decision, not a runtime cost) — though a densely-keyed sakuga-equivalent shot would carry the same runtime cost as any other densely-keyed shot.",
+  "examples": [
+    "'sakuga is the moment in anime in which animation quality improves drastically, enhancing the drama or the action of a scene, otherwise known as the money shot... shows today still have stilted moments for the less important scenes, but when something big happens, the quality bumps up... these are the times where directors go to specific animators' (video @ 02:42–03:07)",
+    "'people such as Yasuo Otsuka, basically the father of this concept, who worked on Hols: Prince of the Sun... was essentially the beginning of the progressive era for anime, implementing different [artistic] styles from different animators' (video @ 03:07–03:22)"
+  ],
+  "evidence_status": "video: https://youtu.be/-aChpK2jcnQ (RCAnime, \"The Art of Animators (or Sakuga)\") @ 02:42–03:22 — the presenter defines the term directly and names its originator and originating work; transcript-only (montage-of-clips visuals, no on-screen diagram beyond the illustrative anime clips themselves); experimental until validated"
+}

@@ -1,0 +1,39 @@
+{
+  "concept": "scale_ambiguity_resolved_via_rotation_parallax",
+  "category": "advanced",
+  "definition": "A large subject rendered as flat, stacked 2D layers is inherently ambiguous between 'big and far' and 'small and close' from a single static angle — the source states this directly as a known hard problem for 2D animators — and is resolved by rotating the subject (and/or the camera around it) so its silhouette's parallax against the background reveals true depth and scale, rather than by any static compositional cue alone.",
+  "purpose": "Communicate a huge subject's TRUE scale unambiguously, when a flat silhouette alone cannot distinguish 'large and distant' from 'small and near'.",
+  "visible_effect": "The subject (a dragon's head) rotates through a turn while the camera simultaneously moves/zooms, with foreground and background elements shifting at different apparent rates (parallax) as the rotation proceeds — confirmed in this session's frames at t=12:02/22:21 showing the dragon's head at a dynamic rotated angle against a moving background.",
+  "psychological_or_gameplay_effect": "Without the rotation, the source states 2D animators 'have a very hard time conveying' true scale because 'everything is just 2D layers stacked on top of each other'; the rotation supplies the missing depth cue directly, resolving the ambiguity a static shot could not.",
+  "physical_interpretation": "A real depth cue (motion parallax) genuinely present in real vision and in true 3D rendering; the source frames this as specifically HARD in hand-drawn 2D because the medium has no native 3D depth to exploit automatically, unlike a true 3D pipeline.",
+  "use_cases": [
+    "establishing a huge subject's true scale for the first time in a shot, where a static angle would leave the audience unsure how big/far it actually is",
+    "any 2D production wanting to borrow a specifically 3D-native depth cue (motion parallax) without an actual 3D pipeline"
+  ],
+  "non_use_cases": [
+    "a subject whose scale is already established or unambiguous from context (a comparison object already in frame, a previously-shown wide shot)",
+    "a static or minimally-moving shot, where no rotation/parallax opportunity exists to exploit"
+  ],
+  "interactions": [
+    "SHOT-003/004 (camera model gap, LESSONS.md / W05 batch) — this is a concrete, named use case for exactly the missing capability that gap already flags: world-to-screen projection and camera-relative motion are precisely what would let a true 3D pipeline generate this same parallax-driven scale cue automatically, rather than requiring an animator to hand-simulate it",
+      "midpoint_framing_camera_with_side_auto_correction, deliberate_thirds_placement_as_story_variable (W05-49, W05-45) — sibling camera-authored perceptual effects from the same SHOT-003/004 family, all requiring camera-relative reasoning this build does not yet have"
+  ],
+  "style_variations": {
+    "anime": "named directly as a hard problem 2D animators solve manually per-shot, with no general automatic solution in the medium",
+    "realistic": "a true 3D/live-action pipeline gets this depth cue largely for free from an actual camera and 3D geometry, which is exactly why the source frames it as a distinctly 2D-medium difficulty"
+  },
+  "cadence_representation": "Directly and automatically available where a 2D production has to hand-simulate it: Cadence's viewport is a real three.js 3D scene, so rotating a rigged subject and/or moving the camera around it produces genuine motion parallax and correct scale cues without any special authoring — a rare case in this batch where Cadence's 3D-native pipeline is STRICTLY AHEAD of the 2D source technique it is learning from, rather than lacking a capability. The gap is only in DELIBERATELY authoring or checking for this cue via camera tools, which is exactly the unbuilt SHOT-003/004 camera model.",
+  "control_surface": "`add_camera`/`set_view` can already move a camera around a subject; nothing currently checks whether a shot actually achieves unambiguous scale-via-parallax, since that requires the camera model SHOT-003/004 does not yet have.",
+  "detection_and_measurement_methods": "Not measurable without a camera model: would need world-to-screen projection to compute apparent parallax between foreground/subject/background across a camera move, the same primitive SHOT-003/004's own spec-sketch (from W05) already calls for.",
+  "generation_or_modification_methods": "Ordinary camera and rig keyframing already reaches the rotation/parallax move itself; nothing currently proposes or validates one specifically to resolve a scale ambiguity.",
+  "failure_modes": [
+    "a shot leaving a huge subject at a static angle, per the source's own named difficulty, leaving its true scale ambiguous",
+    "rotating the SUBJECT without also accounting for camera/background parallax, which the source implies is what actually sells the depth (not rotation alone)"
+  ],
+  "roblox_considerations": "Directly reachable in Roblox exactly as in Cadence: a real 3D scene with a moving `Camera` and rigged model gets genuine parallax for free; the missing piece is the same camera-relative authoring/checking gap, not a rendering limitation.",
+  "performance_implications": "None beyond ordinary camera/rig animation cost.",
+  "examples": [
+    "'this model of the dragon, because it's a big model, you can't tell if it's big and far or big and close — that is an illusion that animators have a very hard time conveying, because everything is just 2D layers stacked on top of each other, but [the animator] conveys it brilliantly' (video @ 11:16–11:30), confirmed in this session's frames at t=12:02/22:21 showing the dragon mid-rotation against a moving background"
+  ],
+  "evidence_status": "video: https://youtu.be/ibavOZYfsnQ (MankoMan, \"Sakuga OVERKILL\") @ 11:04–11:30 — the presenter states the scale-ambiguity problem and its resolution directly while the cut plays; experimental until validated"
+}

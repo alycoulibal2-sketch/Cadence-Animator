@@ -1,0 +1,39 @@
+{
+  "concept": "cast_shadow_as_connective_tissue_between_separate_layers",
+  "category": "advanced",
+  "definition": "When two separately-animated elements (here, a giant creature's tail and a small character drawn on a different layer/cel) need to read as physically interacting or occupying the same space, a moving CAST SHADOW from one element sweeping across the other is what sells the contact — the source states this directly as the specific mechanism resolving what would otherwise look like two unconnected layers.",
+  "purpose": "Unify two independently-animated elements into one coherent physical space and interaction, using a shared light/shadow cue rather than requiring the elements' own drawn edges to visually overlap convincingly.",
+  "visible_effect": "A moving shadow shape sweeps over one element immediately before/as a second element's silhouette passes over it, so that by the time the two silhouettes visually overlap the shadow has already established which is in front and that they share a lit environment — confirmed in this session's frame at t=12:02, a large red creature's rotated silhouette against its own environment.",
+  "psychological_or_gameplay_effect": "Without this cue, the source implies the two layers would read as disconnected ('there's no interaction between the tail and Stark'); with the shadow, the same two drawings 'unite... flawlessly' into one believable interaction, purely from a shared lighting cue rather than any change to either element's own drawn motion.",
+  "physical_interpretation": "A real physical cue (a moving object casts a shadow on what it passes over) used deliberately to compensate for a production limitation (elements animated on genuinely separate layers with no native spatial relationship to each other).",
+  "use_cases": [
+    "compositing two independently-animated 2D elements (different animators, different layers) that must read as occupying one physical space and interacting",
+    "a giant-subject-versus-small-character shot specifically, where the size difference makes a shared shadow an especially strong and readable cue"
+  ],
+  "non_use_cases": [
+    "elements already animated as one continuous drawing/rig with a real spatial relationship, where no extra connective cue is needed",
+    "a flatly-lit or shadowless style (e.g. `kagenashi_shadowless_shading_tradeoff`, video 62 this batch) — that stylistic choice would forgo exactly this mechanism, a genuine tension between the two techniques worth noting rather than resolving"
+  ],
+  "interactions": [
+    "kagenashi_shadowless_shading_tradeoff (video 62, this batch) — a direct tension: shadowless shading saves linework/coloring budget but forfeits shadow-as-connective-tissue as an available tool for exactly this kind of multi-layer compositing problem",
+    "scale_ambiguity_resolved_via_rotation_parallax (video 64, this batch) — a sibling finding from the same cut: both are cases of a 3D-native depth/lighting cue (parallax, cast shadow) doing compositional work a flat 2D layer stack cannot do on its own"
+  ],
+  "style_variations": {
+    "anime": "a deliberate compositing technique named directly by the source for exactly this multi-layer-interaction problem",
+    "realistic": "true 3D rendering (or real-life compositing) gets a physically-consistent cast shadow automatically from actual geometry and a lighting model, without needing to hand-author it as a connective device"
+  },
+  "cadence_representation": "Automatically available, not needing separate authoring: because Cadence's rigid Motor6D rig items exist as real geometry in one shared three.js 3D scene with real-time lighting, a correctly-lit scene already produces a physically consistent cast shadow between any two items that occlude each other from the light's perspective — the same 'ahead of the 2D source technique' situation as `scale_ambiguity_resolved_via_rotation_parallax`. The only gap is that nothing in `ai/**` currently CHECKS whether two interacting items' shadows are actually being cast/received correctly, or flags a scene where shadow casting has been disabled and an intended interaction cue is therefore missing.",
+  "control_surface": "Ordinary scene/lighting setup already produces cast shadows between items; no `ai/**` tool currently verifies shadow-based contact cues specifically.",
+  "detection_and_measurement_methods": "Not measurable in this build: no measurement inspects rendered shadow/lighting interactions between items, only pose and motion data.",
+  "generation_or_modification_methods": "None within `ai/**`'s scope; a renderer/lighting-configuration concern.",
+  "failure_modes": [
+    "disabling shadow casting (for performance or a flat style) on a shot that depends on it for exactly this multi-element connective purpose, silently losing the cue",
+    "two elements whose shadows don't actually interact as intended (wrong light direction, no shared ground/contact surface) failing to unify them despite both being individually well-animated"
+  ],
+  "roblox_considerations": "Directly relevant: Roblox's real-time lighting already casts shadows between parts by default, so two separately-animated rigs/items sharing a scene get this connective cue automatically, PROVIDED `CastShadow`/lighting is not disabled on the relevant parts for performance reasons — worth flagging as a concrete thing to check before disabling shadows broadly for performance.",
+  "performance_implications": "Real-time shadow casting/receiving has an ordinary rendering cost; disabling it for performance is exactly the tradeoff this entry's failure_modes names as a risk when a shot depends on the cue.",
+  "examples": [
+    "'Stark already does this little rotation motion here and it still feels like there's no interaction between the tail and Stark, but then the tail just seamlessly goes over Stark — so what's blending everything together, what's blending the tail and the Stark here? It is the shadows... the shadow also beautifully animated here just unites the two different elements in the animation flawlessly' (video @ 11:31–12:00)"
+  ],
+  "evidence_status": "video: https://youtu.be/ibavOZYfsnQ (MankoMan) @ 11:31–12:00 — the presenter states the mechanism directly while the cut plays; experimental until validated"
+}

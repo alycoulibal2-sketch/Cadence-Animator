@@ -1,0 +1,41 @@
+{
+  "concept": "hand_drawn_layer_hold_rate_convention_by_layer_type",
+  "category": "advanced",
+  "definition": "Within a single TV anime deliverable running at a nominal 24 frames per second, character line art is conventionally drawn/held at roughly 8 to 12 unique drawings per second (each held across 2-3 delivered frames) and background art at roughly 6 to 8 (held across 3-4 delivered frames) — a standing PRODUCTION CONVENTION for how many actual drawings different layer types get within one shot, not a draft stage or a one-off choice.",
+  "purpose": "Make a fixed weekly TV production schedule affordable by permanently reducing how many unique drawings the least-scrutinized layers (background, and character motion outside a sakuga spike) require, while still delivering at a standard 24fps project rate.",
+  "visible_effect": "Character motion visibly steps in a way distinct from smooth 24-unique-drawings-per-second motion, and background art holds even longer/steps even more coarsely than the character layer moving in front of it — a persistent visible layering of held-rates, not merely a single project-wide 'on twos' choice.",
+  "psychological_or_gameplay_effect": "Establishes the baseline against which a `sakuga` quality spike (video 63, this batch) reads as a jump — the same source states this convention directly followed from TV anime's cost pressure (as opposed to the earlier, fully-animated theatrical-film era) and that early TV anime (Astro Boy) was noticeably choppier before the convention matured.",
+  "physical_interpretation": "None — a production-cost convention, not a claim about how objects actually move.",
+  "use_cases": [
+    "any hand-drawn TV production working within a weekly broadcast schedule, where uniform full-24fps drawing on every layer is not affordable",
+    "establishing a deliberate baseline specifically so a later sakuga quality spike (video 63, this batch) has something lower to contrast against"
+  ],
+  "non_use_cases": [
+    "a theatrical film or OVA with a schedule generous enough to afford fuller animation throughout, which the source notes was the norm before television anime's cost pressure created this convention",
+    "the sakuga scene itself, where the whole point is to exceed this baseline convention by a wide margin"
+  ],
+  "interactions": [
+    "differential_frame_rate_per_layer_for_performance_and_style (W06-55) — a sibling finding in a different domain: that entry is REAL-TIME GAME RENDERING deliberately mixing 60/30/24fps layers for performance and stylistic reasons; this entry is HAND-DRAWN TV PRODUCTION holding different layer types at different drawing counts for labor-cost reasons under a fixed 24fps delivery rate. Same structural shape (uneven rate across simultaneous layers), different domain, different mechanism, different motivating constraint — worth reading together, not merged",
+    "sakuga_localized_quality_spike_reserved_for_key_scenes (video 63, this batch) — this entry's convention IS the baseline a sakuga moment is measured against",
+    "low_frame_rate_draft_pass_for_fast_iteration (W04-35) — a related but distinct case: that technique is a TEMPORARY draft any scene passes through before polish; this is a PERMANENT, shipped production standard for TV anime specifically, never intended to be replaced by a fuller pass except during a sakuga scene"
+  ],
+  "style_variations": {
+    "anime": "the source frames this as specifically a TELEVISION anime convention, distinct from the fuller animation of the theatrical era it traces back to (Panda and the Magic Serpent, 1958, cited as close to Disney-style full animation at 24 unique drawings/second)",
+    "realistic": "not applicable as stated — this is a hand-drawn 2D production convention with no direct equivalent in a continuously-rendered pipeline"
+  },
+  "cadence_representation": "Same gap as `differential_frame_rate_per_layer_for_performance_and_style`: Cadence has one project-wide timeline with no declared per-item/per-layer target hold-rate. `ai/motion.js keyDensity` can already measure how sparsely an item's tracks are keyed, so comparing a character item's key density against a background/prop item's in the same project is a real, existing proxy for whether this convention (or its violation) is present — nothing currently frames it as a named per-layer-type convention with target ratios (roughly half-density for background versus character, per the source's own 6-8 vs. 8-12 numbers).",
+  "control_surface": "None declares a target hold-rate by layer type; ordinary keyframe authoring can approximate it today by choosing sparser key spacing on background/prop items than on character items.",
+  "detection_and_measurement_methods": "Partially buildable: `keyDensity` per item already exists; a new check comparing a background/prop item's key density against the character item's in the same shot, expecting roughly a 1.5-2x sparser rate on the former per this entry's stated 8-12 vs. 6-8 numbers, would be a straightforward addition using an existing measurement.",
+  "generation_or_modification_methods": "Ordinary keyframe authoring already reaches any target density per item; no preset currently encodes this convention's specific ratio.",
+  "failure_modes": [
+    "keying a background layer as densely as the character layer, which the source implies was never the historical convention and adds cost with little perceptual benefit since backgrounds draw less scrutiny",
+    "the early-TV-anime failure case the source names directly: pushing costs down so far that character motion becomes 'mostly still images and little animation for whenever the characters move' (Astro Boy), past the point the convention still reads as intentional rather than simply cheap"
+  ],
+  "roblox_considerations": "Not directly reachable as a rendering concept (Roblox characters and backgrounds are continuously rendered, not separately-held drawing layers), but the PRINCIPLE — key background/prop items more sparsely than the character items the player is actually watching — is directly appliable as an ordinary keyframe-density choice in `AnimationTrack` authoring.",
+  "performance_implications": "In the original hand-drawn context, a real, direct COST saving (fewer unique drawings needed per second of footage); in Cadence's keyframe context, sparser keys on background/prop items is a minor authoring-time saving with no meaningful runtime cost difference.",
+  "examples": [
+    "'today anime runs on 24 FPS, with character animations at 8 to 12 frames per second, and background animations at 6 to 8 — this change was due to the rise of television anime, where the most cost-efficient way was to produce an anime while it was airing' (video @ 02:04–02:18)",
+    "'this results in time constraints causing TV animation to be normally more choppy [than] film, as seen in the very first television anime ever, Astro Boy, where we see the first signs of animators using shortcuts with mostly still images and little animation... this of course got better by Samurai Giants in 1973, and then got real good by Space Dandy in 2014' (video @ 02:18–02:44)"
+  ],
+  "evidence_status": "video: https://youtu.be/-aChpK2jcnQ (RCAnime) @ 02:04–02:44 — the presenter states the specific frame-count convention and its cost-driven historical origin directly; transcript-only; experimental until validated"
+}
