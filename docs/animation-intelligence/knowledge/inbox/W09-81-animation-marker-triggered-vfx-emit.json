@@ -1,0 +1,41 @@
+{
+  "concept": "animation_marker_triggered_vfx_emit",
+  "category": "essential",
+  "definition": "An animation marker is placed on the exact frame representing the key action moment (e.g. the frame a shot releases), named descriptively (e.g. \"shoot\"); code listening for that marker fires paired VFX and sound at that exact moment, rather than starting the effect when the animation begins playing or on a separately-tuned timer.",
+  "purpose": "Lock a VFX's trigger moment to a specific frame of the driving animation, so the visual effect and the pose that causes it (a weapon's release, a footfall, a contact) stay frame-locked to each other regardless of how the animation is later retimed, blended, or interrupted.",
+  "visible_effect": "The particle/sound burst appears exactly in sync with the pose at that frame every time the animation plays, rather than drifting or requiring a hand-tuned delay that only happens to match one playback speed.",
+  "psychological_or_gameplay_effect": "Reinforces causality — the shot reads as caused by the arm's release pose because the flash appears exactly then, not slightly before or after it.",
+  "physical_interpretation": "Models the real coincidence of a physical event (a projectile leaving, a foot striking the ground) with a fixed moment in a repeatable motion, rather than approximating that coincidence with a wall-clock delay decoupled from the pose.",
+  "use_cases": [
+    "a ranged weapon's muzzle flash and fire sound, keyed to the exact release frame",
+    "footstep dust or sound, keyed to the exact ground-contact frame",
+    "an ability's cast effect, keyed to a gesture's peak frame"
+  ],
+  "non_use_cases": [
+    "a VFX whose trigger is not tied to any specific animation frame at all — a continuously looping ambient aura, or an effect triggered by an unrelated event such as taking damage",
+    "two logically separate effects that should NOT share one marker (in this same video, the muzzle flash is marker-triggered, but the impact effect is a distinct, later event gated on a hit query, not on the same frame)"
+  ],
+  "interactions": [
+    "attachment_anchored_vfx_with_server_authoritative_emit (this same video) — the marker says WHEN the effect fires; the attachment says WHERE it appears",
+    "raycast_derived_impact_vfx_placement (this same video) — a second, separate event in the same demo (the impact) that is deliberately NOT tied to the same marker, since it depends on a hit query rather than a fixed animation frame",
+    "Cadence's own VFX timing envelope (`ai/vfxspec.js`, Part 39) already models a `timing.event` frame plus `lead`/`attack`/`sustain`/`decay`/`peak`, with `lead` defined as how far BEFORE the event the effect peaks — this video's convention (fire exactly at the marked frame, no anticipation) is the `lead ≈ 0` case of that same model"
+  ],
+  "style_variations": {
+    "instant_responsive": "this video's own choice — the marker frame IS the trigger, with no anticipatory lead, favouring a snappy, immediate feel for a fast-firing weapon",
+    "telegraphed_heavy": "a heavier or more readable action would instead want a positive lead, so the effect's peak is visible before the marked contact frame arrives (not shown in this video, but the natural contrast per Cadence's own `lead` definition)"
+  },
+  "cadence_representation": "Close to a direct match for Part 39's existing model: a named marker on a frame (Roblox's `AnimationTrack:GetMarkerReachedSignal`) corresponds to Cadence's own `add_marker`/`ai/events.js` timeline, and the timed effect keyed from it corresponds to `compile_effect`'s `timing.event`/`lead`/`attack`/`sustain`/`decay`/`peak` envelope. Both halves of this technique already have direct Cadence analogues; what Cadence does not do is read a Roblox marker's NAME string and auto-derive the frame it sits on — the frame number has to be supplied to `compile_effect` directly, kept in sync by hand with wherever the marker actually is.",
+  "control_surface": "`add_marker`/`list_markers` to place and inspect the named frame; `compile_effect`'s `timing.event` to anchor an effect's envelope to that same frame number; `validate_effect_timing` to check the result.",
+  "detection_and_measurement_methods": "`ai/events.js` can report a marker's frame; `validate_effect_timing` already measures a compiled effect's `vfx_timing_alignment` (the distance in frames from the envelope's peak to the nearest event) — so a mismatch between where a marker sits and where an authored effect's envelope actually peaks is a measurable, already-implemented check, not a gap.",
+  "generation_or_modification_methods": "`compile_effect`'s timing fields as above; nothing currently reads a Roblox marker's name and auto-derives its frame number for that field.",
+  "failure_modes": [
+    "starting the VFX at animation PLAY time instead of at the marker frame, so it drifts out of sync whenever the animation is retimed, blended with another, or interrupted",
+    "tying two logically distinct effects (a muzzle flash and a later, hit-dependent impact) to the same single marker, when they are actually separate events with separate timing"
+  ],
+  "roblox_considerations": "Implemented via `AnimationTrack:GetMarkerReachedSignal(name)`; markers are authored as named points on the timeline in Roblox's own Animation Editor. An export from any other authoring tool has to preserve marker placement, or re-derive an equivalent trigger frame, for this pattern to survive the round trip.",
+  "performance_implications": "None specific.",
+  "examples": [
+    "\"I'm just going to add an animation event right here on the frame where the shot happens. I'll call it shoot and then publish it. Now, when this event is triggered, we can play both a sound and some particles exactly at that moment\" (video @ 03:08–03:23)"
+  ],
+  "evidence_status": "video: https://youtu.be/TkNZETIu0CM @ 03:08–03:23 — Develuper names the marker, its placement on the release frame, and the paired sound+particle trigger explicitly; experimental until validated"
+}

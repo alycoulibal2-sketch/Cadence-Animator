@@ -1,0 +1,35 @@
+{
+  "concept": "raycast_derived_impact_vfx_placement",
+  "category": "advanced",
+  "definition": "Rather than parenting an impact effect to a fixed, pre-declared part, its world position is computed at runtime by casting a ray from the attack's origin (e.g. the character's arm) toward the aim direction, and using the ray's actual hit point — falling back to the original aim target only if nothing was hit — as the position at which the impact VFX instance is placed.",
+  "purpose": "Place a hit-reaction effect exactly where the attack physically connected, rather than at an approximate or nominal point, so the effect reads as caused by that specific contact.",
+  "visible_effect": "The impact burst appears precisely on the surface or character actually struck, not offset from it or floating at a generic target position.",
+  "psychological_or_gameplay_effect": "Named directly by the presenter as making \"everything feel way more accurate\" — an impact that visibly lands exactly on the hit surface reads as more deliberate and precise than one placed at an approximate location.",
+  "physical_interpretation": "Models the real constraint that an impact happens exactly where two surfaces met, which for a fast or thin projectile is only knowable from a collision query, not from either party's rest position.",
+  "use_cases": [
+    "any ranged or melee hit-reaction VFX where the exact contact point varies shot-to-shot with aim direction and target geometry",
+    "anything already running a raycast for hit detection, which can hand back the exact hit point for free"
+  ],
+  "non_use_cases": [
+    "an effect whose anchor is always the same declared part regardless of where contact happens — a muzzle flash belongs at the weapon regardless of what was hit, see attachment_anchored_vfx_with_server_authoritative_emit",
+    "a melee weapon's own trail or glow, which should stay anchored to the weapon rather than jump to the target"
+  ],
+  "interactions": [
+    "attachment_anchored_vfx_with_server_authoritative_emit (this same video) — the direct counterexample: that pattern anchors to a DECLARED part known at authoring time; this one anchors to a COMPUTED point that exists only at the moment of the hit query"
+  ],
+  "style_variations": {},
+  "cadence_representation": "VFXSpec's `anchor` field is `{itemId, partId}` — a reference to a part Cadence already knows about when the effect is authored. A raycast hit point has no `itemId`/`partId` at all; it is a bare world position produced by a runtime query that Cadence's project model has no notion of (Cadence has no physics or raycast simulation). This pattern therefore sits entirely on the runtime/exported-script side of the authoring/runtime boundary: Cadence can author what the impact effect itself looks like (its VFXSpec), but not where in world space a live raycast will place it — that placement has to be generated code, never authored data.",
+  "control_surface": "None — outside what `compile_effect`'s `anchor` field can express.",
+  "detection_and_measurement_methods": "not measurable in this build — there is no keyframed position to sample; the position is decided by a runtime physics query with no project-data representation at all.",
+  "generation_or_modification_methods": "not applicable — Cadence has no raycast or hit-detection authoring surface.",
+  "failure_modes": [
+    "placing an impact effect at the original aim target instead of the actual hit point, so it floats off the struck surface whenever the target moved or the geometry was not flat",
+    "omitting the fallback-to-original-target branch, leaving a miss (no hit registered) with nowhere to place the effect at all"
+  ],
+  "roblox_considerations": "A `Ray`/raycast from the attacker's arm or weapon toward the aim direction, evaluated on the server (per this same video's client/server split) so the resulting hit position is authoritative rather than a client's unverified claim.",
+  "performance_implications": "One raycast per shot on the server; the video does not quantify a cost, and this build has no runtime in which to measure one either.",
+  "examples": [
+    "\"we cast a ray from the player's arm forward to detect where the shot actually hits. So, instead of just placing the effect randomly, we get the exact impact position. If the ray hits something, we use that position, otherwise, we just use the original target. And this is what makes everything feel way more accurate\" (video @ 04:44–05:09)"
+  ],
+  "evidence_status": "video: https://youtu.be/TkNZETIu0CM @ 04:44–05:09 — Develuper describes the raycast-to-hit-point placement and its fallback explicitly; experimental until validated"
+}

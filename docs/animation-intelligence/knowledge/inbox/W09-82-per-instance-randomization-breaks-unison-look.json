@@ -1,0 +1,36 @@
+{
+  "concept": "per_instance_randomization_breaks_unison_look",
+  "category": "essential",
+  "definition": "Particle-level properties (rotation, rotation speed, lifetime, speed, direction) are given a range rather than a single fixed value — authored in Roblox's particle editor as a comma-separated min,max pair (e.g. rotation \"-360,360\") — specifically so that many simultaneously-emitted particles do not all move, spin, or persist identically, which otherwise reads as an obviously synthetic, robotic unison rather than an organic scatter.",
+  "purpose": "Make a group of particles from one emitter read as many independent, organic instances instead of one repeated, mechanically identical shape.",
+  "visible_effect": "Particles visibly differ from each other in rotation, spin rate, speed and/or lifespan, rather than all sharing one identical, perfectly synchronized motion.",
+  "psychological_or_gameplay_effect": "Uniform, identical particle motion reads as artificial and low-effort; the same particle count with randomized per-instance parameters reads as a richer, more natural effect for very little extra authoring cost.",
+  "physical_interpretation": "Approximates the real-world fact that many small independent things (embers, dust, sparks) never move in perfect unison, even when they share a common cause.",
+  "use_cases": [
+    "any emitter producing more than one or two particles at a time, where identical per-particle motion would be visible",
+    "specifically named in the video for rotation, rotation speed, lifetime and speed, using the min,max comma convention"
+  ],
+  "non_use_cases": [
+    "a single, isolated particle instance where there is nothing else on screen for it to look identical to",
+    "an effect whose whole point is rigid, synchronized repetition (a mechanical readout, a strict grid) where uniformity is the correct read"
+  ],
+  "interactions": [
+    "concurrent_particle_budget_is_rate_times_lifetime (this same video) — randomizing lifetime specifically also changes the effective concurrent-particle count over time, since not every particle now expires on the same frame"
+  ],
+  "style_variations": {},
+  "cadence_representation": "No direct analogue: VFXSpec's fields (`colorStart`/`colorEnd`, `scale`, `timing`) are declared once per compiled effect, and the per-PARTICLE randomization ranges this video relies on (a rotation or speed range applied independently to each spawned particle) live inside the underlying `primitive` material archetype in `particleLibrary.js`, not as a VFXSpec-level authored field — so a caller cannot widen or narrow a primitive's internal per-particle randomization from `compile_effect` directly.",
+  "control_surface": "None at the VFXSpec level; whatever randomization ranges exist are baked into the chosen `primitive`'s own implementation.",
+  "detection_and_measurement_methods": "not measurable in this build — this is a property of the underlying particle system's per-instance value ranges, which Cadence's project data and `ai/motion.js` (built for keyframed rig/item motion) do not represent at all.",
+  "generation_or_modification_methods": "not applicable — no exposed control surface to modify this per primitive.",
+  "failure_modes": [
+    "leaving rotation, speed, or lifetime at single fixed values for a multi-particle emitter, producing a visibly synthetic, identical-looking swarm",
+    "randomizing a property so widely that the effect loses its intended read entirely (not evidenced in this video, but the natural overcorrection of the same technique)"
+  ],
+  "roblox_considerations": "Roblox's particle property fields accept a `min,max` pair directly in the same input as a single value (typed as e.g. \"-360,360\"), which is the specific UI convention this video demonstrates repeatedly across several different properties.",
+  "performance_implications": "None — randomizing a value range costs nothing extra over a fixed value.",
+  "examples": [
+    "\"With stuff like rotation, you can actually just put commas and it'll randomize the value. So, I can go -360 360\" (video @ 03:22–03:29)",
+    "\"it's always nice to mess with the speed of stuff cuz if they're all moving at the same speed, it doesn't look horrible, but it's a very easy way to make it look better if you just randomize the like lifetime and speed a bit\" (video @ 32:04–32:16)"
+  ],
+  "evidence_status": "video: https://youtu.be/u2o-wHKDlpw @ 03:22–03:29, 32:04–32:16 — Twist demonstrates the comma-range convention on rotation directly and later states the general principle for speed/lifetime explicitly; experimental until validated"
+}

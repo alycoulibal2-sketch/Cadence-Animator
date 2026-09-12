@@ -1,0 +1,33 @@
+{
+  "concept": "particle_pop_requires_fade_envelope_at_lifetime_extremes",
+  "category": "essential",
+  "definition": "A particle must have a size or transparency envelope that reaches its minimum (near-zero size, or fully transparent) at the very start and/or end of its lifetime, or it visibly pops into and out of existence at full opacity/size — described as a near-universal rule the presenter says he sees violated constantly (\"I see so many people put stuff in and they just like pop in and out of existence... Just fade it. It's so easy\").",
+  "purpose": "Remove the visible discontinuity of a particle appearing or disappearing at full strength, which reads as an obvious rendering glitch rather than an intentional effect.",
+  "visible_effect": "A particle fades smoothly in (and/or out) via a size or transparency curve, instead of snapping abruptly into or out of view at its spawn/despawn frame.",
+  "psychological_or_gameplay_effect": "A hard pop reads as broken or unfinished; the same particle with even a minimal fade reads as deliberate and polished — the presenter frames this as one of the cheapest, highest-value fixes available.",
+  "physical_interpretation": "Nothing in the physical world (other than an actual instantaneous flash) appears or vanishes with zero transition; the fade approximates the way real light/matter builds up or disperses gradually.",
+  "use_cases": [
+    "any particle whose spawn or despawn moment could be visible on screen — effectively every particle effect not otherwise hidden by occlusion or extreme speed"
+  ],
+  "non_use_cases": [
+    "an effect specifically meant to read as a hard, instantaneous flash or snap (rare, and not what the video is describing as the common case it is warning against)"
+  ],
+  "interactions": [
+    "external_force_easing_override (compiled card) — a related but distinct idea: that card is about the EASING STYLE of a keyed transform at a caused moment; this entry is about a particle's SIZE/TRANSPARENCY envelope specifically having nonzero value at its very extremes, a narrower and more literal existence-vs-nonexistence question"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Roblox's own particle Size/Transparency NumberSequence-over-lifetime has no direct VFXSpec field exposed for authoring per-particle fade-in/out shape; VFXSpec's `timing` envelope governs the EMITTER's overall rate ramp (when the emitter as a whole ramps up/down), not each individual particle's own size/transparency curve across its lifetime, which is a property of the underlying `primitive` archetype in `particleLibrary.js`. The two are easy to conflate: an emitter-level attack/decay ramp (already modelled) does not by itself guarantee each individual particle fades at its own birth/death (not modelled at the VFXSpec level).",
+  "control_surface": "`compile_effect`'s `timing` fields control the emitter's overall rate ramp; nothing exposes a per-particle size/transparency-over-lifetime curve for a caller to set directly.",
+  "detection_and_measurement_methods": "not measurable in this build — a per-particle size/transparency curve is not part of Cadence's project data or `ai/motion.js`'s measurements, which are built for keyframed rig/item motion, not a particle system's internal NumberSequence.",
+  "generation_or_modification_methods": "not applicable — no exposed control surface for this specific property at the VFXSpec level.",
+  "failure_modes": [
+    "a particle's size/transparency staying flat across its full lifetime, so it appears and disappears abruptly at full strength",
+    "fading only one end (in, but not out, or vice versa) when the other end is equally visible on screen"
+  ],
+  "roblox_considerations": "Directly a Size/Transparency NumberSequence authored on the ParticleEmitter; this is a Roblox-specific property mechanism, though the underlying rule (do not let something exist at 100% on its very first/last visible frame) is general VFX craft.",
+  "performance_implications": "None — a fade curve costs nothing extra over a flat value.",
+  "examples": [
+    "\"I see so many people put stuff in and they just like pop in and out of existence. Like you can see here. It looks stupid. Just fade it. It's so easy. There you go. It's all it took\" (video @ 14:35–14:48)"
+  ],
+  "evidence_status": "video: https://youtu.be/u2o-wHKDlpw @ 14:35–14:48 — Twist demonstrates the pop directly, applies a fade live, and states this as a rule he sees violated often; experimental until validated"
+}

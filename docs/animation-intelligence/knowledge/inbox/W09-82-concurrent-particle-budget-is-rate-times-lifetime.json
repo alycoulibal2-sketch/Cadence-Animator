@@ -1,0 +1,37 @@
+{
+  "concept": "concurrent_particle_budget_is_rate_times_lifetime",
+  "category": "essential",
+  "definition": "The number of particles visibly alive at once from one emitter is approximately its Rate (particles per second) multiplied by its Lifetime (seconds each particle persists) — so a HIGH rate is not automatically a performance or visual-clutter problem if Lifetime is correspondingly LOW, and the two properties should be judged together, never rate alone.",
+  "purpose": "Judge and control how visually busy (and how expensive) an emitter is by reasoning about the product of two properties together, rather than reacting to either one in isolation.",
+  "visible_effect": "The same apparent density of particles on screen can be produced by many different rate/lifetime pairs with the same product; conversely, a high rate paired with a high lifetime produces a visibly cluttered, \"spammed\" result even if neither value looks extreme alone.",
+  "psychological_or_gameplay_effect": "Too many simultaneous particles from one emitter reads as noisy/low-quality (\"it looks bad, but it's also just too many particles\"); the same visual richness achieved with fewer concurrent particles (low lifetime, higher rate) reads as controlled.",
+  "physical_interpretation": "A direct queueing-theory identity (arrival rate × dwell time = concurrent count) applied to particle emission, not a Roblox-specific rule.",
+  "use_cases": [
+    "judging whether an emitter is \"spammy\" before changing any one property blindly",
+    "deliberately trading rate against lifetime to keep a target concurrent-particle count while changing how fast individual particles appear to move through their lifecycle"
+  ],
+  "non_use_cases": [
+    "reading Rate alone as a performance signal — a high rate with a very short lifetime can have a low concurrent count, and this formula is exactly why that is not a contradiction"
+  ],
+  "interactions": [
+    "phase_offset_dual_emitter_for_persistent_glow (this same video) — that technique deliberately doubles concurrent count for one specific glow in exchange for removing a visible pulse, a cost this same formula makes legible",
+    "Cadence's `EFFECT_ROLES` budget shares (VFX-011, `ai/vfxspec.js`) cap `maxParticles` per role (primary 100%, supporting 50%, residual 25%) — a role's budget cap is exactly the ceiling this video's rate×lifetime product should be checked against"
+  ],
+  "style_variations": {},
+  "cadence_representation": "`VFXSPEC_FIELDS.budget` (`{maxParticles}`) already caps a compiled effect's particle count, scaled by its declared `role`'s share — but VFXSpec does not expose Rate and Lifetime as independently authored fields the way Roblox's ParticleEmitter does (both are subsumed into the chosen `primitive`/`scale`), so a caller cannot directly reason \"rate × lifetime\" against `maxParticles` the way this video's presenter does by eye. The video's mental model (two dials whose PRODUCT matters) is one level more granular than VFXSpec's declarative surface exposes.",
+  "control_surface": "`compile_effect`'s `budget.maxParticles`, capped by the `role`'s `EFFECT_ROLES` share; nothing exposes rate/lifetime individually for a caller to multiply and check against that cap.",
+  "detection_and_measurement_methods": "`pnx_profile`/`vfx_performance_report` measure a compiled effect's actual particle/performance cost at runtime — the closest existing analogue to eyeballing rate×lifetime, though measured after the fact rather than computed from the two authored dials directly.",
+  "generation_or_modification_methods": "`compile_effect`'s `budget`/`scale` fields adjust the ceiling and overall size/rate together; there is no direct per-field rate or lifetime control to multiply against it.",
+  "failure_modes": [
+    "reacting to a high Rate value by lowering it, when a shorter Lifetime would have solved the same clutter problem while keeping particles appearing more frequently",
+    "judging clutter from a single emitter's rate alone rather than its concurrent count, missing a genuinely spammy low-rate-but-long-lifetime emitter"
+  ],
+  "roblox_considerations": "Rate and Lifetime are both plain ParticleEmitter properties; this is Roblox-specific only in which two named properties multiply this way, not in the underlying arithmetic.",
+  "performance_implications": "Direct: concurrent particle count is the actual rendering cost driver, and this formula is how to estimate it from the two authored dials without needing to run the effect and count.",
+  "examples": [
+    "\"You can have a high rate, but still have a low lifetime and it won't really spam as much... it's just less particles at once, which is good\" (video @ 39:19–39:31)",
+    "\"if I put this down like six, it doesn't look all that much worse. And it's just less particles at once\" (video @ 39:43–39:50, lowering Rate specifically because the accompanying Lifetime was already short)",
+    "the presenter deliberately over-cranking a specs emitter's rate to demonstrate the bad case directly: \"I don't want to take something like this, like the specs, and crank it up. ... it looks bad, but it's also just too many particles\" (video @ 40:09–40:21)"
+  ],
+  "evidence_status": "video: https://youtu.be/u2o-wHKDlpw @ 39:19–40:21 — Twist reasons explicitly about rate against lifetime as a joint budget while auditing his own finished effect for particle spam; experimental until validated"
+}

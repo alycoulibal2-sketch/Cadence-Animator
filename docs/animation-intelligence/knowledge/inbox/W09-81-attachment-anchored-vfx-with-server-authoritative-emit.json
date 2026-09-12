@@ -1,0 +1,38 @@
+{
+  "concept": "attachment_anchored_vfx_with_server_authoritative_emit",
+  "category": "essential",
+  "definition": "Roblox VFX (particle emitters, beams, trails) are anchored to a moving target via a lightweight Attachment instance parented under the relevant rig part, so the effect translates and rotates rigidly with whatever the attachment is parented to; separately, because firing a ParticleEmitter from a client-side LocalScript is only visible to that one client, any effect other players must see is triggered on the server (directly, or via a RemoteEvent the client fires to request it) so it replicates to everyone.",
+  "purpose": "Solve two separate problems the same demonstrated workflow addresses together: getting a VFX to sit at the correct moving/rotating point in space (the attachment's job), and making sure every player who should see the effect actually does (the server-authority job).",
+  "visible_effect": "A particle/beam effect tracks a body part's motion exactly, including rotation, because it is parented to an attachment on that part; the same effect is visible identically to every client because it was fired from the server rather than a LocalScript.",
+  "psychological_or_gameplay_effect": "An effect only the local player can see reads as a bug or desync to everyone else in a multiplayer game — a shot with a visible muzzle flash on the shooter's own screen only breaks the read of \"something happened\" for every other player watching.",
+  "physical_interpretation": "Not applicable — a networking/authority concern layered on top of a simple parenting mechanism, not a motion-physics one.",
+  "use_cases": [
+    "any VFX that must move and rotate with a specific rig part (a muzzle flash on a gun barrel, a hand glow, a weapon trail)",
+    "any VFX that other players in a multiplayer session are expected to see, not only the player who triggered it"
+  ],
+  "non_use_cases": [
+    "a VFX anchored to a runtime-computed world point rather than a declared part (an impact placed via raycast hit position) — a different technique from the same video, see raycast_derived_impact_vfx_placement",
+    "a purely local, cosmetic effect nobody else needs to see (e.g. a first-person-only UI flourish), where server authority would be unnecessary overhead"
+  ],
+  "interactions": [
+    "animation_marker_triggered_vfx_emit (this same video) — the attachment says WHERE the effect appears; the marker says WHEN it fires. The video uses both together (attachment inside the arm, triggered at the animation's \"shoot\" marker)",
+    "raycast_derived_impact_vfx_placement (this same video) — the direct counterexample: an impact effect anchors to a computed hit point instead of a declared attachment, because its position is not known until the shot resolves"
+  ],
+  "style_variations": {},
+  "cadence_representation": "The anchoring half is already exactly what VFXSpec models: the `anchor` field (`{itemId, partId}`) parents the compiled `kind:'vfx'` emitter item to a declared part, the same relationship this video builds by hand with an Attachment instance. The server/client authority half has no Cadence analogue at all: Cadence authors a single project's keyframed data and exports it (`vfx_export_luau`, `export_to_studio`); it does not generate or reason about networking (a RemoteEvent, which script runs where), so whether an exported effect ends up client-local or server-authoritative is entirely a fact about what the exporting user does with the result, not something Cadence's tools check or enforce.",
+  "control_surface": "`compile_effect`'s `anchor` field for the parenting half. Nothing in the MCP surface inspects or asserts where a script runs, since Cadence does not author scripts.",
+  "detection_and_measurement_methods": "not measurable in this build — this is a fact about a generated script's runtime network behavior, and `ai/motion.js` measures keyframed motion inside one project, never where a script executes or who a replicated event reaches.",
+  "generation_or_modification_methods": "`compile_effect`'s `anchor` parameter sets the parent part; nothing generates the surrounding Roblox script (the RemoteEvent wiring, the server-side emit call) that the video's networking half is actually about.",
+  "failure_modes": [
+    "firing the effect from a LocalScript only, so only the triggering player ever sees it — reads as a desync or missing effect to everyone else",
+    "anchoring to the wrong part (or no attachment at all), so the effect floats at the part's origin instead of tracking the intended point"
+  ],
+  "roblox_considerations": "Attachment is a real Instance type and the standard way to give an emitter/beam a moving anchor point. ParticleEmitter/Beam effects fired with `:Emit()` from a LocalScript are LOCAL-ONLY to that client — anything meant to be seen by more than the triggering player must run on the server, directly or via a RemoteEvent the client uses to request it. This is a foundational Roblox networking fact independent of any authoring tool.",
+  "performance_implications": "None specifically measured in the video; it does mention cleaning up cloned effect instances a couple of seconds after use as good hygiene, not as a measured budget.",
+  "examples": [
+    "\"Attachments are basically points in your model that tell the effect where to appear... your VFX will move and rotate with whatever they're attached to\" (video @ 00:49–00:57), visually confirmed by this session's own frame at t≈00:39–00:49 showing a small magenta attachment gizmo appear on a plain wall surface in the Studio viewport",
+    "\"If you play effects locally, only you will see them. So, instead, we use the server to handle the VFX. That way, every player can see them\" (video @ 02:27–02:39)",
+    "\"Right here, I'm creating an attachment inside the arm, which is where the VFX will be played. The effects are cloned from replicated storage\" (video @ 03:44–03:54), corroborated by a code-editor frame at t≈03:41 consistent with an Attachment being created and parented to an arm part"
+  ],
+  "evidence_status": "video: https://youtu.be/TkNZETIu0CM @ 00:49–00:57, 02:27–02:39, 03:44–03:54 — Develuper demonstrates attachment-based anchoring and explicitly states the client/server visibility distinction; experimental until validated"
+}

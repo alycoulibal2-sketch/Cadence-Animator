@@ -1,0 +1,36 @@
+{
+  "concept": "phase_offset_dual_emitter_for_persistent_glow",
+  "category": "advanced",
+  "definition": "To fake a continuously-present, flicker-free glow from particles that individually fade in and out over a fixed lifetime, run TWO identical emitters with the same lifetime and a rate of one, started half a lifetime out of phase with each other, so that whenever one particle is fading out (transparency rising toward its end) the other is simultaneously fading in (transparency falling from its start) — their combined visible transparency stays roughly constant instead of pulsing to fully transparent once per cycle.",
+  "purpose": "Get a steady, non-flickering glow out of a particle system whose fundamental unit (one particle) necessarily fades in and out over its own lifetime, without needing a genuinely static, non-particle light source for the same visual role.",
+  "visible_effect": "A soft glow that appears to hold constant brightness over time, rather than visibly pulsing between full brightness and fully faded once per particle lifetime.",
+  "psychological_or_gameplay_effect": "A pulsing glow reads as a malfunction or a deliberate blink/warning signal; a steady one reads as an ordinary ambient light source, which is what this technique is for.",
+  "physical_interpretation": "Approximates a continuous light source (which a single decaying particle cannot be) by summing two out-of-phase decaying sources so their combined envelope is flatter than either alone — the same principle as crossfading two looping tracks to hide the seam.",
+  "use_cases": [
+    "a hand or body glow, or any point-light-like accent, built from particles rather than a true light and meant to look continuously present, not periodic",
+    "any single-particle effect whose per-instance fade is otherwise visually obvious because the rate is low enough that only one or two particles exist at a time"
+  ],
+  "non_use_cases": [
+    "a high enough particle rate that many overlapping instances already smooth out any single particle's individual fade — the trick is unnecessary once enough particles overlap on their own",
+    "an effect meant to visibly pulse or blink, where the periodic fade is the point rather than a problem to hide"
+  ],
+  "interactions": [
+    "concurrent_particle_budget_is_rate_times_lifetime (this same video) — this technique doubles the concurrent particle count for the glow specifically (two emitters instead of one) in exchange for removing the pulse, a deliberate, evidenced trade the budget principle should account for",
+    "simultaneous_activation_baseline_defeats_authoring_order_phase_drift (this same video) — the two emitters' relative phase offset here is DELIBERATE and must be preserved; that entry's authoring trap is about phase drift nobody intended, and the two ideas can be confused if a builder does not track which offsets are load-bearing"
+  ],
+  "style_variations": {},
+  "cadence_representation": "VFXSpec's `timing` envelope (Part 39: event/lead/attack/sustain/decay/peak/loop) is authored per ONE compiled `kind:'vfx'` emitter item — there is no field for a second emitter at a declared phase offset from the first. Reproducing this technique in Cadence today means calling `compile_effect` twice (two separate emitter items) and manually aligning their `timing.event` frames by the desired offset; VFXSpec has no single construct that declares \"a second copy of this, offset by half its own lifetime.\" A PNX graph could express two synchronized emission nodes directly, which is exactly the kind of multi-node composition `ai/vfxspec.js`'s own boundary decision defers to PNX rather than modelling in the simpler spec.",
+  "control_surface": "Two `compile_effect` calls with matching `primitive`/`timing.decay` (as the lifetime analogue) and `timing.event` frames offset by half that decay value; nothing enforces or checks the offset relationship between two independently compiled effects.",
+  "detection_and_measurement_methods": "Partially measurable in principle: `ai/motion.js key_density`/`interpolation_type` could read two `@rate` or `@transparency`-equivalent tracks and compare their phase, but nothing in this build currently cross-references two separate VFX items' envelopes against each other — `validate_effect_timing` judges one effect's envelope against a shot event, not one effect's envelope against a second effect's.",
+  "generation_or_modification_methods": "`compile_effect`'s `timing.event` sets each emitter's own phase; achieving the offset requires the caller to compute and pass the second value themselves (first event frame + half the shared lifetime).",
+  "failure_modes": [
+    "using only one emitter for a glow meant to read as continuous, producing a visible once-per-lifetime pulse",
+    "offsetting the two emitters by the wrong fraction of the shared lifetime (not half), leaving a visible dip or double-bright moment instead of a flat combined envelope"
+  ],
+  "roblox_considerations": "Both emitters are ordinary ParticleEmitters with identical `Lifetime`/`Rate` (rate one) parented under the same attachment; the offset is created purely by starting them at different moments (per the video, achieved by authoring them at different times and not resetting them together — see simultaneous_activation_baseline_defeats_authoring_order_phase_drift for why that same mechanism is also a trap when it happens by ACCIDENT rather than by design).",
+  "performance_implications": "Doubles the concurrent particle count attributable to this one glow (two low-rate emitters instead of one), a small, explicitly-reasoned cost for removing a visible pulse.",
+  "examples": [
+    "\"we have two of these going at once. They're offset by half a second. So, when one's here, the other one's also here. They'll add up. They will add up to zero[-fade]. ... When one's halfway through its lifetime, one will just be ending it, so it'll be at zero. And then the opposite for one. So, you'll see it'll stay there. And it works pretty well\" (video @ 12:47–13:09)"
+  ],
+  "evidence_status": "video: https://youtu.be/u2o-wHKDlpw @ 12:47–13:09 — Twist explains the phase-offset mechanism and its exact half-lifetime timing directly; experimental until validated"
+}

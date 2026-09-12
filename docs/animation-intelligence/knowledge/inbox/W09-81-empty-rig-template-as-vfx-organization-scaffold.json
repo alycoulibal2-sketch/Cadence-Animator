@@ -1,0 +1,39 @@
+{
+  "concept": "empty_rig_template_as_vfx_organization_scaffold",
+  "category": "advanced",
+  "definition": "Build a humanoid rig with all meshes/parts removed (kept only for its part names and hierarchy), and use it purely as a structured place to attach and organize a large set of effects — particle emitters, attachments, and folders grouping related effects such as \"transformation burst\" or \"lightning\" — that a server script later matches by PART NAME and clones onto a real spawned character, rather than authoring each effect directly on the live character.",
+  "purpose": "Keep a large multi-effect system (an aura plus transformation plus ground-effect plus sound package) organized and reusable across every character instance, by authoring it once against a name-matched template rather than repeating setup per spawn.",
+  "visible_effect": "At spawn, every character automatically carries the full effect set — auras, transformation burst, lightning, sounds — already wired up, because a server script walked the template and copied its attachments, particles, and beams onto the matching parts of the new character.",
+  "psychological_or_gameplay_effect": "Not applicable directly — an authoring/production-scale technique, though the reliability it buys (every spawned character has a complete, consistent effect set) supports whatever the effects themselves are meant to communicate.",
+  "physical_interpretation": "Not applicable.",
+  "use_cases": [
+    "a per-character effect package meant to apply identically to every instance of a character — any player, or any NPC of a given type",
+    "an effect set large or complex enough (multiple folders, both looped and burst effects, several body parts) that hand-wiring it onto each spawned character individually would not scale"
+  ],
+  "non_use_cases": [
+    "a one-off effect used in exactly one place, where a template-and-clone step is pure overhead",
+    "an effect that must be genuinely unique per character instance rather than identical, since this pattern propagates the same template to everyone"
+  ],
+  "interactions": [
+    "attachment_anchored_vfx_with_server_authoritative_emit (this same video) — the template itself is stored in ReplicatedStorage and applied by a server script, the same authority pattern",
+    "the loop-vs-burst distinction the presenter draws in the same breath (\"some of them are looped, like auras, and others are just quick bursts, like the transformation effect\") maps directly to VFXSpec's own `timing.loop` boolean field"
+  ],
+  "style_variations": {},
+  "cadence_representation": "No equivalent authoring concept exists: a `.cadence` project holds one rig instance's own items/effects, not a separate, disconnected template rig meant to be pattern-matched onto other rigs by name at runtime. The closest existing idea is the cross-project motion LIBRARY (`ai/library.js`), which stores reusable content outside any single project — but it stores MOTION profiles, not a bundle of VFX items meant to be cloned by name onto an arbitrary target rig. That specific \"author once, apply by name-match to any compatible rig\" capability for effects has no Cadence analogue today.",
+  "control_surface": "None directly; `vfx_send_to_animator`/`export_to_studio` move a single project's own effects into Studio, not a name-matched template system onto a different rig.",
+  "detection_and_measurement_methods": "not applicable — an authoring/production-pipeline pattern, not a motion or effect property to measure.",
+  "generation_or_modification_methods": "not applicable in this build.",
+  "failure_modes": [
+    "a template part name that does not match any part on the target character, silently leaving that effect unattached",
+    "failing to track which effects are per-character singletons, risking duplicate ground/aura effects each time a toggle fires"
+  ],
+  "roblox_considerations": "Relies on Roblox's ordinary Instance hierarchy and name matching (`FindFirstChild`/`GetDescendants`) to walk the template and the real character in parallel, and on ReplicatedStorage to make the template available to a server script.",
+  "performance_implications": "A one-time clone-and-attach pass per character spawn; the video does not quantify its cost.",
+  "examples": [
+    "\"the first thing you need is a rig template. I basically took a rig, removed everything, and used it to organize all my effects\" (video @ 05:49–06:10)",
+    "\"I also separated things like the transformation burst and lightning into their own folder\" (video @ 06:24–06:37)",
+    "\"the apply effects function basically goes through every part of the template, matches it with the character, and then copies all the attachments, particles, and beams into it\" (video @ 07:25–07:38)",
+    "\"Some of them are looped, like auras, and others are just quick bursts, like the transformation effect\" (video @ 08:06–08:14)"
+  ],
+  "evidence_status": "video: https://youtu.be/TkNZETIu0CM @ 05:49–08:14 — Develuper describes the empty-rig template, its folder organization, and the name-matched apply step explicitly; experimental until validated"
+}

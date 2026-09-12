@@ -1,0 +1,35 @@
+{
+  "concept": "simultaneous_activation_baseline_defeats_authoring_order_phase_drift",
+  "category": "advanced",
+  "definition": "When several emitters are authored (added or toggled on) at different moments during a build session, each keeps running from whenever IT was turned on, so their phases drift apart relative to each other purely as an accident of authoring order — before judging how a multi-emitter effect looks together, disable and re-enable every part of it at once, so every emitter starts from the same shared moment, matching how it will actually behave the first time it plays in the real game.",
+  "purpose": "Judge a composited multi-emitter effect's true, as-shipped visual coordination, rather than an authoring-session artifact where pieces happen to be out of phase only because they were switched on at different times while building.",
+  "visible_effect": "Before the reset: emitters with identical Lifetime/Rate appear to play independently, spread apart in time from each other. After a simultaneous re-enable: the same emitters visibly synchronize, which can look substantially different — the video calls the un-synced version \"really stupid\" by comparison.",
+  "psychological_or_gameplay_effect": "A synchronized multi-part effect reads as one coordinated event; the same parts drifted out of phase read as several unrelated things happening to overlap by chance.",
+  "physical_interpretation": "Not a physical effect — a pure artifact of authoring history (when each piece happened to be switched on) that has nothing to do with the effect's actual runtime trigger, which will always be simultaneous once wired to one real activation event.",
+  "use_cases": [
+    "any multi-emitter composited effect (an aura built from several particle systems, a transformation with body glow plus ground effect plus beams) reviewed mid-build, before final judgment on how the pieces read together",
+    "specifically effects using per-instance randomization or fixed lifetimes, where relative phase between emitters is visually meaningful (contrast with an effect where phase genuinely does not matter)"
+  ],
+  "non_use_cases": [
+    "a single emitter with no sibling effects to phase against",
+    "an effect where the individual emitters are meant to be independent and asynchronous by design, rather than a single coordinated activation"
+  ],
+  "interactions": [
+    "phase_offset_dual_emitter_for_persistent_glow (this same video) — the direct point of confusion this entry exists to prevent: THAT technique's phase offset is deliberate and load-bearing; THIS entry's phase drift is accidental and must be cleared before judging the result, and the two must not be mixed up when auditing a multi-emitter effect"
+  ],
+  "style_variations": {},
+  "cadence_representation": "Cadence has no equivalent authoring-session artifact to guard against: `compile_effect`'s `timing.event` is an explicit, declared frame on the SAME timeline for every effect in a project, not a wall-clock \"whenever I happened to enable this while building\" value — so relative phase between two compiled effects is always exactly what their declared `timing.event` frames say, never an accident of authoring order. This is a case where Cadence's authored, keyframe-native model is structurally immune to a failure mode that a live, toggle-driven Studio workflow has to actively guard against.",
+  "control_surface": "Not applicable — nothing to reset, since Cadence's declared timing has no session-order dependency to begin with.",
+  "detection_and_measurement_methods": "not applicable in this build, for the same reason: there is no wall-clock authoring-order state that could drift.",
+  "generation_or_modification_methods": "not applicable.",
+  "failure_modes": [
+    "judging a multi-emitter effect's coordination while it is mid-build and still phase-drifted from authoring order, and either accepting a look that will not reproduce at runtime or rejecting a look that would have been fine once synchronized",
+    "confusing accidental phase drift (this entry) with a deliberately offset pair (phase_offset_dual_emitter_for_persistent_glow) and \"fixing\" a synchronization that was actually load-bearing"
+  ],
+  "roblox_considerations": "Toggling ParticleEmitters (or their parent's `Enabled`) off and back on simultaneously restarts each one's internal phase from zero at that shared instant, which is exactly what a real game's single activation event (equipping, casting, spawning) will do the first time regardless of how the pieces were authored.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"We're going to disable and re-enable everything. I like to do that because in a real game it's all going to enable at the same time. If you make textures with the same lifetime and rate, but you add them at different times, they'll look like they're playing separately... when you re-enable them, they'll play at the same time\" (video @ 35:36–35:56)"
+  ],
+  "evidence_status": "video: https://youtu.be/u2o-wHKDlpw @ 35:36–35:56 — Twist states the authoring-order artifact and its fix explicitly, immediately before re-judging his own composited effect; experimental until validated"
+}

@@ -1,0 +1,30 @@
+{
+  "concept": "speed_floor_epsilon_avoids_zero_value_clipping",
+  "category": "specialized",
+  "definition": "A particle emitter's Speed property should never be set to a literal zero when the emitter uses an orientation mode such as VelocityPerpendicular, because a zero velocity vector leaves the orientation calculation undefined and the particle clips out of existence entirely; setting Speed to a tiny nonzero value (the presenter's convention: 0.001) keeps the particle visually stationary while avoiding the degenerate zero-velocity case.",
+  "purpose": "Achieve an effectively-stationary particle (no visible drift) without triggering a rendering failure that a literal zero value causes under velocity-dependent orientation modes.",
+  "visible_effect": "At Speed = 0 with an affected orientation mode, the particle is invisible/clipped entirely; at Speed = 0.001, the particle is visually indistinguishable from stationary but renders normally.",
+  "psychological_or_gameplay_effect": "Not applicable — a rendering-correctness workaround, not a perceptual/stylistic choice.",
+  "physical_interpretation": "Not applicable.",
+  "use_cases": [
+    "any particle meant to stay effectively in place, on an emitter using a velocity-dependent orientation mode (VelocityParallel/VelocityPerpendicular)"
+  ],
+  "non_use_cases": [
+    "an emitter using an orientation mode that does not depend on velocity (FaceCamera, FaceCameraWorldUp), where a literal zero speed is not reported as causing this problem"
+  ],
+  "interactions": [],
+  "style_variations": {},
+  "cadence_representation": "Not applicable — VFXSpec does not expose a raw Speed field for a caller to set to zero in the first place (it is subsumed into the chosen `primitive`/`scale`), so this exact degenerate case cannot be produced through `compile_effect`'s own surface. If Cadence ever exposes per-particle velocity directly, this is a concrete edge case worth guarding against at that time.",
+  "control_surface": "None — outside VFXSpec's current field set.",
+  "detection_and_measurement_methods": "not applicable in this build.",
+  "generation_or_modification_methods": "not applicable in this build.",
+  "failure_modes": [
+    "setting Speed to exactly 0 on an emitter using a velocity-dependent orientation mode, causing the particle to clip out of existence rather than simply hold still"
+  ],
+  "roblox_considerations": "Specific to Roblox's ParticleEmitter Speed property interacting with its Orientation modes (\"a lot of the time if you have face perpendicular, I think it just clips out of existence\"); the presenter is not fully certain of the exact mechanism either, only the reliable workaround.",
+  "performance_implications": "None.",
+  "examples": [
+    "\"Speed, that's how fast it comes out. You can crank it up. You can set to zero. I would not set it to zero because a lot of the time if you have face perpendicular, I think it just clips out of existence... So, I always set it to 0.001 cuz it still doesn't move, but it stays there. So, never put that to zero\" (video @ 03:45–04:08)"
+  ],
+  "evidence_status": "video: https://youtu.be/u2o-wHKDlpw @ 03:45–04:08 — Twist states the workaround as a firm personal rule, while noting he is not fully certain of the underlying cause; experimental until validated"
+}

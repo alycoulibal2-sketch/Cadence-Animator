@@ -1,0 +1,35 @@
+{
+  "concept": "ground_effect_slaved_to_invisible_proxy_part",
+  "category": "advanced",
+  "definition": "An effect meant to track a character's ground position (e.g. a glow ring or dust decal under the feet) is authored on a wholly separate, invisible auxiliary part with its own attachment, whose position is continuously updated from the character's position rather than the part being welded or parented directly to a foot or the root; one such proxy is tracked per character to avoid creating duplicates.",
+  "purpose": "Keep a ground-hugging effect visually locked to the ground under a moving character without inheriting the rotation or vertical bob of the character's own root part, which a direct parent or weld would carry along.",
+  "visible_effect": "A ground ring or decal stays flat on the ground and centred under the character as they move, rather than tilting or bobbing with the character's own pose.",
+  "psychological_or_gameplay_effect": "Reinforces the read of a persistent, ground-anchored state indicator (e.g. \"this character is transformed\") independent of whatever the character's own animation is doing at any instant.",
+  "physical_interpretation": "Models a projected shadow or decal, which in reality is a function of ground position only, not of the caster's full pose.",
+  "use_cases": [
+    "an aura or state-indicator ring that must stay level and ground-anchored regardless of character rotation, jumping, or pose",
+    "any decal-like effect whose correct orientation is the ground's, not the character's"
+  ],
+  "non_use_cases": [
+    "an effect that should inherit the character's full rotation and pose (a hand-anchored flame, a shoulder glow) — those attach directly to the relevant part instead, per attachment_anchored_vfx_with_server_authoritative_emit"
+  ],
+  "interactions": [
+    "a direct sibling of camera_slaved_to_animated_proxy_part (W08-72, this programme's batch W08) — both route an effect's transform through a dedicated auxiliary part instead of parenting to the obvious object directly, specifically to decouple one axis of motion: there, the camera's framing from a keyed part's full transform via an attach/detach toggle; here, a ground effect's flatness from the character's own rotation and pose via continuous position-only tracking. Worth reading together as the same underlying idea applied to camera authoring versus runtime VFX"
+  ],
+  "style_variations": {},
+  "cadence_representation": "VFXSpec's `anchor` field parents an effect rigidly to a declared part's full transform, position and rotation both — there is no \"position-only, ignore rotation\" anchor mode, so this exact decoupling is not expressible today. A Cadence project also has no notion of a live per-frame runtime update loop (a `RenderStepped`-driven position refresh against another object's current state); everything Cadence authors is a keyframed track, not a recomputation against a moving target at playback time.",
+  "control_surface": "None — outside `compile_effect`'s anchor model as it exists.",
+  "detection_and_measurement_methods": "not applicable — a runtime-tracking behaviour, not a keyframed property Cadence's project data could hold or `ai/motion.js` could sample.",
+  "generation_or_modification_methods": "not applicable in this build.",
+  "failure_modes": [
+    "parenting the ground effect directly to the root or a foot instead of a decoupled proxy, so it tilts or lifts off the ground whenever the character leans or jumps",
+    "failing to reuse/track one proxy per character, creating a duplicate ground effect every time the state is toggled"
+  ],
+  "roblox_considerations": "An ordinary invisible BasePart with an Attachment, its position updated every frame (or on a heartbeat/stepped connection) from the character's root position with the vertical axis locked to the ground; a per-character lookup table (keyed by player or character instance) is what prevents duplicates.",
+  "performance_implications": "One extra part plus one per-frame position update per active character carrying this effect; the video does not quantify a cost.",
+  "examples": [
+    "\"we also have another folder for ground effects. These are handled separately to avoid issues\" (video @ 06:54–06:59)",
+    "\"we create a separate effect that follows the player on the ground. It's just an invisible part with an attachment that updates its position constantly. This line stores the ground effect for each character to avoid duplicates\" (video @ 08:16–08:27)"
+  ],
+  "evidence_status": "video: https://youtu.be/TkNZETIu0CM @ 06:54–08:27 — Develuper describes the decoupled ground-effect proxy and its per-character deduplication explicitly; experimental until validated"
+}
