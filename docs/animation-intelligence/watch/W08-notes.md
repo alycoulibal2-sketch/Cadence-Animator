@@ -3,7 +3,7 @@
 - [x] 71. How I Animate: An Unofficial Moon Animator 2 Tutorial — Tycoon (45:46)
 - [x] 72. How to Animate in ROBLOX the RIGHT way [NEW] {Tutorial} — DatBoiEle (10:47)
 - [x] 73. How to Make SUPER SMOOTH Roblox Animations with Moon Animator 2! | Beginner to Pro Tutorial — TnxBlox (16:56)
-- [ ] 74. 3 Must-Know Moon Animator 2 TIPS for Better Roblox Animations — TnxBlox (2:41)
+- [x] 74. 3 Must-Know Moon Animator 2 TIPS for Better Roblox Animations — TnxBlox (2:41)
 - [ ] 75. Make Your Roblox Animations Feel REAL | Roblox Animation Tips 2026 — Devgrams and Draco (8:53)
 - [ ] 76. How to Animate a Sword Slash [Moon Animator] — Thundey (24:36)
 - [ ] 77. How to ANIMATE a Perfect Sword Swing in Roblox Studio! (EASY) — Nobel Courses (8:01)
@@ -143,6 +143,26 @@ W02 entries plus video 71's "keyframe offsetting" — confirmatory, not new; (2)
 stud/frame values given for leg and arm offsets are not trusted as evidence here — the auto-captions
 for this stretch are visibly garbled (mismatched or nonsensical numbers in several spots) and no
 frame lands precisely enough on the property panel to cross-check them visually.
+
+No capture candidate — a screen-recording tutorial throughout, no filmed human motion.
+
+## Video 74 — 3 Must-Know Moon Animator 2 TIPS for Better Roblox Animations — TnxBlox (2:41)
+https://youtu.be/xQHlThYcgz4 — watched 2026-09-12, `balanced` detail, 22 frames (scene-aware, all 22
+candidates kept), captions transcript (50 segments). Same creator as video 73. **Zero new knowledge
+entries — an honest null result, not a gap in how it was watched.**
+
+Tip 1 (M-key bisection, @ 00:27–00:59, confirmed in this session's own frame at t=00:53 showing a
+before/after split-screen comparison) is the SAME creator (TnxBlox) restating the exact technique
+already written up as `recursive_keyframe_bisection_increases_pose_density` from videos 71–73 —
+per this programme's own convention (see W07-68's enrichment note), a same-creator restatement is
+not independent corroboration and does not change or strengthen that entry further. Tip 2 ("face
+movement... can pique the viewer's interest... increase views") and Tip 3 ("never change the topic
+of what your animation is mainly about," an audience-retention/narrative-focus point) are both
+generic content-creation/channel-growth advice with no demonstrated mechanism, measurement, or
+Cadence-relevant hook — confirmed by checking the frames at both timestamps (t=01:17, t=02:14): a
+plain character shot with no technique being shown, consistent with the transcript being the whole
+content. Neither fits this knowledge base's mechanism-and-measurement shape, so neither was forced
+into an entry.
 
 No capture candidate — a screen-recording tutorial throughout, no filmed human motion.
 
