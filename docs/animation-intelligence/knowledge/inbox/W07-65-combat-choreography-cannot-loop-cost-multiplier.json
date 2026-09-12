@@ -1,0 +1,39 @@
+{
+  "concept": "combat_choreography_cannot_loop_cost_multiplier",
+  "category": "advanced",
+  "definition": "Idle/cyclic beats (breathing, running) can be built from a tiny looped set of frames (the source's own count: 4 to 7 frames, reused repeatedly) at low cost, but a genuine hand-to-hand combat exchange between two characters has no such repeatable unit — every single frame must be a unique drawing, because a contact-driven exchange between two independently-moving bodies never repeats itself — producing a large, directly-quantified labor-cost multiplier between the two categories of content within the same production.",
+  "purpose": "Recognize looping eligibility as a property of the ACTION TYPE, not an animator-skill or software choice: some actions (idle, cyclic locomotion) are structurally repeatable and some (a unique combat exchange) structurally are not, and budget/schedule accordingly rather than assuming any action could be made cheaper by looping if only it were animated more efficiently.",
+  "visible_effect": "A production's non-loopable combat sections show sharply higher frame counts and time cost than its loopable idle/cyclic sections for the same screen duration, confirmed directly by the source's own numbers (44 hours spent for 4 seconds of finished animation, on-screen at day 9, during the non-loopable combat act) versus 7 hours for 5 cuts' worth of rough sketch during the loopable-heavy first act.",
+  "psychological_or_gameplay_effect": "Not applicable — a production-cost property, not a perceptual effect.",
+  "physical_interpretation": "A structural fact about the content, not a stylistic choice: a true cyclic action (a repeating gait, a held breathing loop) is periodic by definition and can be represented by one period repeated; a contact-driven exchange between two independently-timed participants has no period to repeat.",
+  "use_cases": [
+    "scheduling/budgeting a production that mixes idle/locomotion beats with unique combat beats, expecting the combat sections to cost a large, disproportionate multiple of the idle sections' per-second cost",
+    "explaining, when reviewing a production's pacing, why a short combat exchange took far longer to produce than a much longer idle/traversal beat"
+  ],
+  "non_use_cases": [
+    "a stylized combat sequence deliberately built FROM repeated/looped strikes (e.g. a simple repeating attack animation in a game), which sidesteps this cost entirely by choosing not to have unique, contact-driven choreography in the first place",
+    "any action that is genuinely cyclic even though it looks complex (a complex but truly periodic locomotion cycle), where the walk_cycle_looping_vs_full_sequence_tradeoff (W03-28) card's considerations apply instead"
+  ],
+  "interactions": [
+    "walk_cycle_looping_vs_full_sequence_tradeoff (W03-28) — a direct sibling and useful contrast: that card is about a CHOICE between looping and full animation for an action that COULD be looped (locomotion), including a specific failure mode (mechanical sliding) of the cheaper choice; this entry is about a category of action (unique combat contact) that structurally CANNOT be looped at all, so no such choice exists — the two together give a fuller picture of when looping is an option versus never an option",
+    "hand_drawn_layer_hold_rate_convention_by_layer_type, sakuga_localized_quality_spike_reserved_for_key_scenes (video 63, this batch) — sibling production-economics findings; this entry supplies a rare concrete, first-person QUANTIFIED data point (44 hours for 4 seconds) for exactly the kind of budget asymmetry those entries describe in general terms"
+  ],
+  "style_variations": {
+    "anime": "the source is explicitly modeling professional anime combat conventions in an amateur/hobbyist 2D pipeline, so the same structural cost applies",
+    "game_combat": "a real-time game sidesteps this cost differently — by using a rig/skeleton and blending short attack animations rather than hand-drawing full unique sequences, which is exactly the domain Cadence itself targets"
+  },
+  "cadence_representation": "Directly relevant to why Cadence's rigged, blendable animation model is valuable in the first place: a Motor6D rig's combat animations are keyframed sequences on a reusable skeleton, not hand-drawn unique frames, so this specific 2D-production cost (every combat frame a brand-new drawing) does not apply to Cadence's own authoring model at all — worth recording as a case where the cost this video describes is a 2D-pipeline-specific problem Cadence's rig-based approach avoids by construction, not a gap to fill.",
+  "control_surface": "Not applicable — the cost this entry describes is specific to frame-by-frame 2D drawing, which Cadence's rig-based keyframe model does not incur.",
+  "detection_and_measurement_methods": "Not measurable in this build: a 2D hand-drawn production-labor cost, not a property of keyframe/motion data.",
+  "generation_or_modification_methods": "Not applicable to Cadence's authoring model.",
+  "failure_modes": [
+    "scheduling a combat sequence's production time using the same per-second rate as idle/cyclic content, badly underestimating the time required, per the source's own account of repeatedly falling behind schedule specifically during the non-loopable combat acts"
+  ],
+  "roblox_considerations": "Directly favorable to Cadence/Roblox's rig-based model: a unique combat exchange authored as keyframes on a shared R15 skeleton does not carry the 2D per-frame redrawing cost this entry describes, which is precisely the kind of production-cost problem a rigged 3D pipeline is structurally suited to avoid.",
+  "performance_implications": "None at runtime; the cost this entry names is entirely an AUTHORING-time cost specific to 2D hand-drawn production.",
+  "examples": [
+    "'I think the reason I was able to finish act one with a day to spare is because scenes like the breathing one and the running one were just four to seven frames looped over and over. But in act two, it's straight up fighting, there's no looping — every new frame is a new drawing. Each 4-second scene was taking me 4 hours on average to animate' (video @ 08:03–08:18)",
+    "on-screen counter confirming the cost directly: 'TIME SPENT ANIMATING: 44 HOURS' captioned over 'by the end of day nine, I'd completed just 4 seconds of animation' (video @ 07:59–08:03, confirmed in this session's frame at t≈09:00 showing the '44 HOURS' title card)"
+  ],
+  "evidence_status": "video: https://youtu.be/OVPfRoIP69Q (Shrimpy, \"I Spent 30 Days ANIMATING this FIGHT SCENE!!\") @ 08:03–08:18, with the on-screen '44 HOURS' counter confirmed in this session's frames around t=09:00; experimental until validated"
+}

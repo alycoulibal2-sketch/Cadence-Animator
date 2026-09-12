@@ -4,7 +4,7 @@
 - [x] 62. Every (Anime) Animation Technique Explained in 12 Minutes — SinChi (13:01)
 - [x] 63. The Art of Animators (or Sakuga) — RCAnime (7:44)
 - [x] 64. Sakuga OVERKILL! | Animation Analysis: Stark vs Dragon — MankoMan (25:12)
-- [ ] 65. I Spent 30 Days ANIMATING this FIGHT SCENE!! — Shrimpy (16:31)
+- [x] 65. I Spent 30 Days ANIMATING this FIGHT SCENE!! — Shrimpy (16:31)
 - [ ] 66. PWOW Workshop - Introduction to Animation Breakdowns — Toniko Pantoja (16:25)
 - [ ] 67. Moon Animator 2 Basics - Official Tutorial — six (4:41)
 - [ ] 68. Roblox ANIMATION Guide #1 - Moon Animator (2026) — Nisky (12:07)
@@ -217,3 +217,36 @@ Entries written: `W07-64-scale-ambiguity-resolved-via-rotation-parallax.json`,
 `W07-64-cast-shadow-as-connective-tissue.json`, `W07-64-relative-motion-implies-subject-movement.json`,
 `W07-64-snappy-easeout-signals-energy-transfer.json`. All four pass `validateProposedEntry` (20/20)
 and `validateEvidenceSource`.
+
+## Video 65 — I Spent 30 Days ANIMATING this FIGHT SCENE!! — Shrimpy (16:31)
+https://youtu.be/OVPfRoIP69Q — watched 2026-09-12, `balanced` detail; the first pass hit the 100-frame
+cap so re-ran with `--max-frames 60` per §1 of W07.md; all 60 frames read, captions transcript (479
+segments, read in full).
+
+A hobbyist creator's production-diary vlog (heavy sponsor content — Displate, XP-Pen — left out
+entirely) covering a full 2D pipeline for one fight scene: storyboard day, rough sketch/in-betweens,
+line work, coloring, backgrounds, After Effects compositing (pans, camera shakes, glows), sound
+design. Genuinely new technique content was thin under the vlog narrative, so this video produced
+one entry rather than forcing several:
+
+- **`combat_choreography_cannot_loop_cost_multiplier`** — a concrete, QUANTIFIED production-cost
+  data point, rare in this corpus: idle/cyclic beats (breathing, running) were built from 4-7 looped
+  frames cheaply, but genuine hand-to-hand combat has no repeatable unit at all — every frame is a
+  new drawing — and the creator's own on-screen counter confirms the resulting cost cliff (44 hours
+  for just 4 seconds of finished combat animation, versus 7 hours for 5 cuts of the loopable-heavy
+  first act). Distinct from `walk_cycle_looping_vs_full_sequence_tradeoff` (W03-28), which is about a
+  CHOICE between looping and full animation for content that COULD loop; this is about a category of
+  content (unique contact-driven combat) that structurally never can. Also flagged as a case where
+  Cadence's rig-based keyframe model sidesteps this specific 2D-production cost by construction —
+  worth noting as a real strength, not just a gap to fill.
+
+Two things considered and left out rather than forced: a physical action figure used as a 3D
+reference for a difficult 2D pose (too thin an account — one line, no elaboration — to write up
+against this programme's evidence bar); and the video's own three-act/day-budget schedule (this
+creator's own personal schedule, not a generalizable technique).
+
+No capture candidate: 2D hand-drawn throughout, nothing filmed of a real person to capture. No new
+check.
+
+Entries written: `W07-65-combat-choreography-cannot-loop-cost-multiplier.json`. Passes
+`validateProposedEntry` (20/20) and `validateEvidenceSource`.
