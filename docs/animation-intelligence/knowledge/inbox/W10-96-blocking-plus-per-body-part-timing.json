@@ -1,0 +1,38 @@
+{
+  "concept": "blocking_plus_per_body_part_timing_contrast",
+  "category": "advanced",
+  "definition": "A named technique ('Blocking Plus') for the extra blocking pass a shot needs before spline: rather than just adding generically more poses, deliberately stagger DIFFERENT BODY PARTS to different timing and contrast within the same pass — favoring one arm's pose to hold longer then arrive quicker, planting a leg sooner than the rest of the body so there is somewhere for the hips to shift weight into later — so 'not everything has to move all at once at one speed in one direction all stopping on the same frame'. The blunt numeric framing: a 200-frame shot blocked with only 20 keys hands the computer 90% of the shot's decisions the moment spline is hit.",
+  "purpose": "Give a concrete, per-body-part METHOD for the 'add more keys before spline' principle, rather than leaving 'more keys' as a vague quantity — specifically, stagger which part leads/holds/arrives when, using body-mechanics reasoning (where does the weight need to go, what has to plant first to receive it) rather than adding keys uniformly across every control.",
+  "visible_effect": "Different body parts visibly move at different times and speeds even within one continuous blocked action — one part held static while another moves, one part overshooting while another eases — rather than the whole body moving in lockstep and stopping together.",
+  "psychological_or_gameplay_effect": "Named directly as what makes a character 'feel more alive, fluid, organic' versus mechanical — the SAME contrast-in-timing idea existing corpus entries already cover for measured lead/lag, here framed as a deliberate BLOCKING-STAGE method rather than a post-hoc curve adjustment.",
+  "physical_interpretation": "A real body's parts do not start and stop simultaneously — a foot plants before the hips can shift weight onto it, an arm's follow-through lags a shoulder's initiation — this technique authors that physical asymmetry directly into the blocked poses rather than relying on physics simulation or curve interpolation to introduce it later.",
+  "use_cases": [
+    "any blocking pass on a shot with more than one moving body part, deciding per-part which one leads, which one holds, and which one arrives late, based on body-mechanics reasoning rather than uniform timing",
+    "specifically, planting a foot earlier than the rest of the body to create a base the hips can shift weight into on a later frame"
+  ],
+  "non_use_cases": [
+    "a shot or moment where genuinely simultaneous, uniform motion across all parts is the intended read (a rigid mechanical object, a specific stylistic choice for uniformity)"
+  ],
+  "interactions": [
+    "key_density_gates_spline_readiness_not_a_fixed_rule and spline_should_refine_not_fix_posing_defects (this same batch, video 95) — this entry is a THIRD independent confirmation of the same underlying principle (enough blocking-stage information before spline), with a specific, named method ('Blocking Plus') for what that extra information should actually contain, which neither of the video-95 entries state.",
+    "The existing corpus's chain lead/lag entries (W02) describe the MEASURABLE result of exactly this kind of staggering; this entry is the blocking-stage AUTHORING method for producing it deliberately, body-mechanics-first."
+  ],
+  "style_variations": {
+    "semi-realistic": "timing contrast follows real body-mechanics reasoning",
+    "stylized/goofy": "the same underlying contrast technique still applies, but the specific choices (what leads, what holds) can depart further from realistic reference — stated directly as still needing the same underlying skill, just aimed differently"
+  },
+  "cadence_representation": "Not represented as a named technique, though the underlying capability exists: `ai/motion.js analyseChain` already measures lead/lag, and `authorMotion`'s breakdown/settle steps can already place per-joint keys at different pose fractions — nothing currently packages 'stagger these specific body parts for a body-mechanics reason' as a guided step the way `authorMotion`'s other phases are guided.",
+  "control_surface": "Ordinary per-joint keyframe authoring (`set_keyframe`) with deliberately different timing per control; `authorMotion`'s breakdown/settle bias parameters, applied per-joint rather than uniformly.",
+  "detection_and_measurement_methods": "`analyseChain`'s existing lead/lag measurement would show this staggering directly if present, and a near-zero lag across all parts of a blocked action (per the existing `rigid_unit_motion_flag` check, LESSONS.md #29) would be evidence this technique was NOT applied.",
+  "generation_or_modification_methods": "Achievable today via per-joint keyframe authoring with deliberately different frame placements; no new capability required, only the body-mechanics judgment of WHICH part to stagger and why.",
+  "failure_modes": [
+    "adding more keys uniformly across every control (more density but no staggering), which raises key count without adding the contrast that actually reads as organic",
+    "staggering parts arbitrarily rather than for a body-mechanics reason (setting up where weight needs to go), producing motion that is busier but not more purposeful"
+  ],
+  "roblox_considerations": "None specific — a pure blocking-stage authoring technique independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'this could be as simple as just favoring an arm pose to stay in one position longer and then arrive quicker later[,] or it could mean having a leg shift faster[,] planting a foot much sooner so that there's somewhere to actually shift all this weight in the hips later on' (transcript 6:03-6:16), and the numeric framing: 'if you have a 200 frame shot and you only had say 20 keys to begin with... the computer is now responsible for 90% of your shot' (transcript 2:46-2:57)"
+  ],
+  "evidence_status": "video: https://youtu.be/KSRZg7PwgyU @ 2:24-2:57 and 5:24-6:22 — Sir Wade Neistadt names 'Blocking Plus' directly and demonstrates the per-body-part timing-contrast method with a worked backflip example, transcript-only per this video's detail setting; experimental until validated"
+}

@@ -1,0 +1,34 @@
+{
+  "concept": "random_frame_authorial_accountability_check",
+  "category": "advanced",
+  "definition": "A concrete self-diagnostic for whether a blocked shot has enough information before spline: pause on a RANDOM frame of the shot (not one you deliberately posed) and ask whether YOU can account for what is on screen — did you set that arm/leg pose, did you approve that timing, do you know exactly which controls produced that line of action — versus the frame being something the computer's interpolation produced without your review. A 'no' answer to any of those is the specific, checkable symptom of not having enough blocking-stage information.",
+  "purpose": "Turn a vague worry ('did I add enough keys?') into a concrete, repeatable test an animator can run on their own work at any point, rather than only discovering the shot lacked information after already disliking the spline result.",
+  "visible_effect": "not applicable — a diagnostic PROCEDURE, not itself a visible property of the animation.",
+  "psychological_or_gameplay_effect": "not applicable.",
+  "physical_interpretation": "not applicable.",
+  "use_cases": [
+    "spot-checking a shot's blocking-stage completeness before committing to spline, by sampling frames the animator did NOT deliberately pose and confirming they can still account for them",
+    "diagnosing, after a bad spline result, WHERE in the timeline the missing information actually was, by finding the specific frames that fail this accountability check"
+  ],
+  "non_use_cases": [
+    "a shot already known to be sparse everywhere, where the diagnosis is already made and the fix (adding more information) is already clear without needing to sample frames"
+  ],
+  "interactions": [
+    "key_density_gates_spline_readiness_not_a_fixed_rule (this same batch, video 95) and blocking_plus_per_body_part_timing_contrast (this same batch, video 96) — this entry is a specific DIAGNOSTIC PROCEDURE for the same underlying readiness question those entries answer with a principle; this one turns it into a repeatable per-frame test.",
+    "Cadence's own `diagnose_frame` workflow (`ai/workflows.js`) is a MEASURED, code-side version of a related but different question — 'why does this frame look wrong' rather than 'did a human decide this frame' — the two are complementary, not the same check."
+  ],
+  "style_variations": {},
+  "cadence_representation": "Not represented, and structurally a different KIND of question than anything Cadence measures: `diagnose_frame` (Part 46) explains why a frame looks wrong using motion measurements, but has no notion of 'was this frame's pose a deliberate human decision' — Cadence's project data does not distinguish a key an author placed on purpose from one an earlier automated step produced, so there is no way to answer this entry's specific question ('do you know exactly which controls have been messed with') from project data alone; it is inherently a question for the human who made the edits, not something derivable from the file.",
+  "control_surface": "None — a human self-check procedure, not a tool operation.",
+  "detection_and_measurement_methods": "not measurable in this build — this is explicitly a question about AUTHORIAL INTENT and review, which project data does not record (see cadence_representation).",
+  "generation_or_modification_methods": "not applicable — a diagnostic procedure, not a generation operation.",
+  "failure_modes": [
+    "running the check only on frames already known to be important (the golden poses) rather than genuinely random frames, which would miss exactly the unreviewed in-between frames this check exists to catch"
+  ],
+  "roblox_considerations": "None specific — a pure self-review procedure independent of the target engine.",
+  "performance_implications": "None.",
+  "examples": [
+    "the presenter's own words, verbatim: 'ask yourself when you watch your [spline]... if you had to pause on any random frame of the shot... who was more responsible for what you see on that particular frame, you or the computer[?] ...did you adjust the timing or favor the position of the hips for that frame range[?] do you know exactly which controls have been messed with to get that line of action...[?] if the answer is not yes to all of those[,] that's why it feels like you've lost control of your shot' (transcript 7:37-8:09)"
+  ],
+  "evidence_status": "video: https://youtu.be/KSRZg7PwgyU @ 7:37-8:09 — Sir Wade Neistadt states the random-frame accountability check directly as a diagnostic procedure, transcript-only per this video's detail setting; experimental until validated"
+}

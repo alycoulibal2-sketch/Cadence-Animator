@@ -5,7 +5,7 @@
 - [x] 93. FK and IK Explained - Which One to Use and When? — Miloš Černý Animation (7:47)
 - [x] 94. The Ultimate Animation Workflow for Beginners — Chester Sampson (12:59)
 - [x] 95. Animation Power Tips - When to go from BLOCKING to SPLINE — Harvey Newman (20:24)
-- [ ] 96. Why Your Stepped Animation Sucks in Spline — Sir Wade Neistadt (8:59)
+- [x] 96. Why Your Stepped Animation Sucks in Spline — Sir Wade Neistadt (8:59)
 - [ ] 97. Tips for Polishing Animation from a Disney Animator — Sir Wade Neistadt (22:09)
 - [ ] 98. Animation Critique: How To Instantly Improve Your Blender Animation With Easy Tricks — CG Cookie (35:55)
 - [ ] 99. How to use video reference for Animation — Chester Sampson (11:40)
@@ -244,3 +244,27 @@ moving-hold drift principle in tangent-shaping vocabulary rather than adding a n
 
 **No new checks queued** — the batch's existing check #17 already covers the strongest finding here;
 the other two are workflow disciplines already matched by existing Cadence code/tools.
+
+## Video 96 — Why Your Stepped Animation Sucks in Spline — Sir Wade Neistadt (8:59)
+https://youtu.be/KSRZg7PwgyU — watched 2026-09-12, `transcript` detail, captions transcript (306
+segments). A THIRD independent source (after videos 94 and 95) confirming the same underlying
+blocking-density principle, but this time with a named technique and a concrete diagnostic procedure
+neither earlier source stated — two entries.
+
+**`blocking_plus_per_body_part_timing_contrast`** — a named technique ('Blocking Plus'): stagger
+DIFFERENT BODY PARTS to different timing deliberately (favor one arm longer then arrive quicker, plant
+a leg early so there's somewhere for the hips to shift weight into later), with the blunt framing that
+a 200-frame shot blocked with only 20 keys hands the computer 90% of the shot (@ 2:24–2:57, 5:24–6:22).
+More specific than video 95's 'add more keys' — this names WHAT the extra keys should actually
+accomplish (body-mechanics-driven staggering), not just how many.
+
+**`random_frame_authorial_accountability_check`** — an actual repeatable self-test: pause on a RANDOM
+frame and ask whether you can account for it (did you set that pose, do you know which controls
+produced that line of action) — a 'no' is the specific, checkable symptom of insufficient blocking
+information (@ 7:37–8:09). Distinct in kind from Cadence's own `diagnose_frame` workflow, which answers
+'why does this frame look wrong' from measurements — this checks 'did a human decide this frame' at
+all, a question about authorial review that project data cannot answer on its own.
+
+**Capture candidates: none** — a screen-recorded 3D backflip demo, no filmed human performance.
+
+**No new checks queued** — both findings are human self-review disciplines, not measurements.
