@@ -8,7 +8,7 @@
 - [x] 66. PWOW Workshop - Introduction to Animation Breakdowns — Toniko Pantoja (16:25)
 - [x] 67. Moon Animator 2 Basics - Official Tutorial — six (4:41)
 - [x] 68. Roblox ANIMATION Guide #1 - Moon Animator (2026) — Nisky (12:07)
-- [ ] 69. Roblox Animation in Blender: Full Beginner Guide [2026] — Nisky (7:46)
+- [x] 69. Roblox Animation in Blender: Full Beginner Guide [2026] — Nisky (7:46)
 - [ ] 70. Roblox Animation in Blender: Advanced Guide (2026) — Nisky (31:26)
 
 ---
@@ -387,3 +387,43 @@ No capture candidate (screen recording of software). No new check.
 Entries written: `W07-68-lower-export-framerate-for-choppier-2d-style.json` (new), plus an in-place
 enrichment of `W07-67-low-field-of-view-reads-cinematic.json`. Both pass `validateProposedEntry`
 (20/20) and `validateEvidenceSource`.
+
+## Video 69 — Roblox Animation in Blender: Full Beginner Guide [2026] — Nisky (7:46)
+https://youtu.be/eg6COxaPCyo — watched 2026-09-12, `balanced` detail, 19 frames (all read; confirmed
+the R6 rig's own labeled "FRONT"/"F" faces, a nice small orientation aid built into the tutorial's
+rig, and the Blender pose-mode/dope-sheet/graph-editor UI), captions transcript (read in full). The
+Blender route: install two add-ons (an RBX animation importer, a "lazy viewport" QoL tool), pose in
+Blender, read the graph editor, export to Roblox.
+
+Most of the craft content here restates what's already deeply covered: reading a flat vs. steep
+F-curve as no-movement vs. fast-movement on an axis (basic curve literacy, not new); adding an
+"in-between movement" partway through two extremes to read as smoother (a from-scratch rediscovery
+of the classical breakdown concept video 66 covered in depth, from a THIRD independent context —
+worth noting as a cross-batch confirmation that breakdowns matter even to someone with no formal
+animation vocabulary, but not a new entry); and a "sway" where an arm "won't fully stop... extends
+and goes back" (a graph-editor-visible instance of `overshoot_recoil_settle_pose_sequence`, W04-31
+— cross-check, not new).
+
+One genuinely new capability-relevant finding:
+
+- **`procedural_curve_modifiers_for_loop_and_noise`** — Blender's graph editor can apply a non-
+  destructive "Cycles" modifier (repeats a curve's keyed motion without duplicating keyframes) or a
+  "Noise" modifier (procedural randomized perturbation with no hand-keyed jitter) directly to an
+  existing curve. Flagged as a genuine, scoped capability gap rather than an out-of-scope rendering
+  concern: Cadence's tracks are always explicit baked keyframes with no procedural-modifier concept
+  at all, squarely inside `ai/**`'s own pose/motion domain rather than a 2D-drawing or compositing
+  concern like most of this batch's other gaps. Directly in tension with `walk_cycle_looping_vs_
+  full_sequence_tradeoff` (W03-28) when misused for content needing per-repeat variation — noted
+  explicitly in the entry's own non_use_cases and failure_modes.
+
+Parity note (not a knowledge entry): the Blender→Roblox pipeline itself (two Blender add-ons, an
+"export animation"/copy-to-clipboard step, a matching Roblox Studio plugin "Blender Animations
+Ultimate Edition" that pastes from clipboard and uploads, optional reimport into Moon Animator for
+further editing) — a third distinct interop path alongside videos 67/68's AnimSaves-based flow,
+worth the Moon-parity effort having on record. Also: "click Save As, not Save" to avoid overwriting
+a reusable base rig file — pure file hygiene, not an animation technique, not recorded further.
+
+No capture candidate (screen recording of software). No new check.
+
+Entries written: `W07-69-procedural-curve-modifiers-for-loop-and-noise.json`. Passes
+`validateProposedEntry` (20/20) and `validateEvidenceSource`.

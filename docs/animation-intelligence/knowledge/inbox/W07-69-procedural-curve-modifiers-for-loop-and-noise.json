@@ -1,0 +1,38 @@
+{
+  "concept": "procedural_curve_modifiers_for_loop_and_noise",
+  "category": "advanced",
+  "definition": "Rather than hand-keying a repeating cycle or a randomized shake, apply a non-destructive PROCEDURAL MODIFIER directly to an existing keyframe curve — a 'Cycles' modifier repeats the curve's existing keyed motion indefinitely without duplicating keyframes, and a 'Noise' modifier layers randomized perturbation onto the curve without hand-authoring individual jitter keys.",
+  "purpose": "Get a looped or randomized-shake motion result from a curve that already has a small number of hand-placed keyframes, without manually duplicating keyframes for a loop or hand-keying individual random jitters for noise.",
+  "visible_effect": "A curve with only a few keyframes plays back as if it repeated indefinitely (Cycles) or as if random small perturbations were layered on top of the authored motion (Noise), without any additional keyframes existing on the curve.",
+  "psychological_or_gameplay_effect": "Not itself a perceptual effect — a curve-authoring METHOD (procedural vs. hand-keyed) that can reach the same visible results (a loop, a shake) other techniques in this corpus reach by hand-keying.",
+  "physical_interpretation": "None — a curve-editing capability, not a physical claim.",
+  "use_cases": [
+    "looping a short authored cycle (a subtle idle sway, a repeating gesture) without manually duplicating and re-pasting keyframes for each repeat",
+    "adding a randomized shake/jitter layer on top of an already-authored motion without hand-keying each jitter frame individually",
+    "quick iteration/prototyping where a procedural approximation is good enough before committing to hand-keyed detail"
+  ],
+  "non_use_cases": [
+    "a loop needing per-repeat variation to avoid the mechanical-read failure mode `walk_cycle_looping_vs_full_sequence_tradeoff` (W03-28) already names — a pure Cycles modifier repeats IDENTICALLY every time, which is exactly that failure mode's cause if the repeated content is a locomotion cycle rather than a genuinely uniform idle",
+    "the source's own explicit caveat: 'most of the time you won't really use those, but it's cool to know that you can do it' — presented as a lesser-used, novelty-adjacent capability rather than a default authoring method"
+  ],
+  "interactions": [
+    "walk_cycle_looping_vs_full_sequence_tradeoff (W03-28) — direct tension noted above: a Cycles modifier is the most literal, most failure-prone version of 'loop the cycle' that card already warns about, with no per-repeat variation at all unless combined with something else (e.g. Noise) to break the uniformity",
+    "stutter_frame_diminishing_counter_motion (video 61, this batch) — a contrasting construction METHOD for a similar shake-like result: that entry is a hand-keyed, deliberately DECAYING interlaced pattern; a Noise modifier is a procedural, non-decaying (unless separately faded) randomized perturbation — worth comparing when a future tool needs to choose between a controlled hand-authored shake and a cheap procedural one",
+    "overshoot_recoil_settle_pose_sequence (W04-31) — the same video's own 'sway' demonstration (extending a curve past its rest value and letting it settle back) is a hand-keyed, graph-editor-visible instance of exactly that existing card's pattern; a cross-check, not new"
+  ],
+  "style_variations": {},
+  "cadence_representation": "A genuine capability gap, not merely an unwired measurement: Cadence's tracks store explicit keyframes (`state.js`/`ai/motion.js` operate on keyed data), and no procedural curve-modifier concept (a Cycles-style repeat-without-duplicating-keys, or a Noise-style procedural perturbation layer) exists anywhere in `ai/**`. Every loop or shake this corpus can currently represent must be baked into explicit keys. This is worth flagging distinctly from this batch's more common 'not measurable, rendering-level' findings: this one is squarely inside the pose/motion domain `ai/**` already owns, and is a plausible, scoped future capability (a non-destructive modifier layer evaluated on top of explicit keys) rather than an out-of-scope rendering concern.",
+  "control_surface": "None. `fill_frames`/`repeat_frames`/`stretch_frames` bake a repeat or transform into explicit keys; nothing evaluates a non-destructive procedural layer on top of existing keys without baking it.",
+  "detection_and_measurement_methods": "Not directly measurable as a distinct authoring METHOD (Cadence has no notion of 'this track's motion came from a modifier' versus 'this track was hand-keyed') — but the RESULTING baked motion (a perfectly uniform repeat, or a randomized perturbation) is measurable via existing cross-repeat variance and `sampleMotion`, the same data `walk_cycle_looping_vs_full_sequence_tradeoff`'s own detection method already relies on.",
+  "generation_or_modification_methods": "None currently bakes a procedural repeat or noise layer onto an existing track automatically; both would need to be hand-keyed today.",
+  "failure_modes": [
+    "using a pure Cycles-repeated loop for content that needs per-repeat variation to avoid reading as mechanical, per `walk_cycle_looping_vs_full_sequence_tradeoff`'s own named failure mode",
+    "over-relying on Noise for a shake effect where a controlled, decaying, hand-authored pattern (per `stutter_frame_diminishing_counter_motion`) would read more deliberately"
+  ],
+  "roblox_considerations": "Not directly reachable in ordinary Roblox `AnimationTrack` authoring, which stores baked keyframes without a procedural-modifier concept; the closest Roblox-native equivalent would be a runtime script layering procedural noise onto a bone's CFrame each frame, a code-level technique rather than an animation-file-level one.",
+  "performance_implications": "In Blender's own pipeline, a modifier is evaluated non-destructively at playback/export time rather than stored as extra keyframes, which is cheaper to AUTHOR (no extra keys to place) but the exported result for Roblox would still need to be baked into explicit keyframes for `AnimationTrack` playback, since Roblox has no equivalent runtime modifier evaluation for animation curves.",
+  "examples": [
+    "'you can add a bunch of modifiers like cycles, that will basically loop the movement that you're doing... then you can also add noise, so you can kind of randomize the action here — as you can see, it's kind of shaking. Most of the time you won't really use those, but it's cool to know that you can do it' (video @ 05:33–05:49)"
+  ],
+  "evidence_status": "video: https://youtu.be/eg6COxaPCyo (Nisky, \"Roblox Animation in Blender: Full Beginner Guide\") @ 05:33–05:49 — the presenter states and demonstrates both modifiers directly in Blender's graph editor; transcript-only for this specific moment (the scene-change frame extraction did not land a distinct frame on the modifiers panel itself, though surrounding frames confirm the same graph-editor UI context); experimental until validated"
+}
