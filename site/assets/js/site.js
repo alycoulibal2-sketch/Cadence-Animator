@@ -1,15 +1,15 @@
 /* ==========================================================================
-   Cadence Animator — site behaviour
+   Cadence by Corvexsa — site behaviour
 
    Everything here is progressive enhancement. With JavaScript off every page
    is still fully readable, every download link still points at a real file,
    and every "not open yet" state is the one written in the HTML. Scripts only
-   ever add: a theme toggle, live numbers, a hash checker, and the Pro links
-   when config.js has them.
+   ever add: a theme toggle, the latest release, a hash checker, the Founders
+   count, a parent's request card, and key checks against the licence API.
 
    No third-party script runs on this site. The only network calls are to
-   api.github.com (numbers and the latest release) and, when configured, the
-   owner's own licence API.
+   api.github.com (the latest release) and, when configured, Cadence's own
+   licence API. Payments are not open: no page links to a checkout.
    ========================================================================== */
 
 (function () {
@@ -136,12 +136,17 @@
     var pending = false;
     function update() {
       var line = (window.scrollY || 0) + (nav ? nav.offsetHeight : 0) + 60;
-      var current = null;
+      // Links need not be in page order (the header lists Animator before
+      // Cadence AI, the page shows them the other way round), so pick by
+      // position: the section whose top is nearest above the reading line.
+      var current = null, best = -Infinity, lowest = null, lowestTop = -Infinity;
       targets.forEach(function (t) {
-        if (t.el.getBoundingClientRect().top + window.scrollY <= line) current = t;
+        var top = t.el.getBoundingClientRect().top + window.scrollY;
+        if (top <= line && top > best) { best = top; current = t; }
+        if (top > lowestTop) { lowestTop = top; lowest = t; }
       });
       var atBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 40;
-      if (atBottom) current = targets[targets.length - 1];
+      if (atBottom && window.scrollY > 0) current = lowest;
       var changed = false;
       targets.forEach(function (t) {
         var want = t === current;
@@ -172,21 +177,27 @@
 
   var PALETTE = [
     { label: 'Download Cadence', group: 'Get it', href: 'index.html#download' },
-    { label: 'See it in 60 seconds', group: 'Product', href: 'index.html#demo' },
+    { label: 'The animator — free, here today', group: 'Product', href: 'index.html#features' },
+    { label: 'Cadence AI — coming soon', group: 'Product', href: 'index.html#cadence-ai' },
+    { label: 'Get notified when Cadence AI ships', group: 'Product', href: 'index.html#notify' },
     { label: 'Animate — IK, onion skin, Moon keybinds', group: 'Product', href: 'index.html#animate' },
     { label: 'VFX Studio and the procedural engine', group: 'Product', href: 'index.html#vfx' },
     { label: 'Roblox Studio sync and Claude', group: 'Product', href: 'index.html#studio' },
     { label: 'Compared to Moon Animator 2', group: 'Product', href: 'index.html#compare' },
+    { label: 'Frequently asked questions', group: 'Product', href: 'index.html#faq' },
+    { label: 'Pricing — Free, Pro, Studio', group: 'Plans', href: 'pricing.html' },
+    { label: 'Founders — Pro forever, first 100', group: 'Plans', href: 'pricing.html#founders' },
+    { label: 'For parents', group: 'Plans', href: 'parents.html' },
+    { label: 'Ask a parent', group: 'Plans', href: 'parents.html#ask' },
+    { label: 'Your licence key', group: 'Plans', href: 'account.html' },
+    { label: 'Safe by design', group: 'Trust', href: 'index.html#safety' },
     { label: 'Is it safe? Proof, not claims', group: 'Trust', href: 'safety.html' },
     { label: 'Verify a download (SHA-256)', group: 'Trust', href: 'safety.html#verify' },
     { label: 'What Windows will show you', group: 'Trust', href: 'index.html#smartscreen' },
     { label: 'Privacy', group: 'Trust', href: 'privacy.html' },
-    { label: 'Pricing — Free and Pro', group: 'Product', href: 'index.html#pricing' },
-    { label: 'Frequently asked questions', group: 'Product', href: 'index.html#faq' },
-    { label: 'Roadmap', group: 'Project', href: 'index.html#roadmap' },
     { label: 'Changelog', group: 'Project', href: 'changelog.html' },
-    { label: 'Your account and licence key', group: 'Account', href: 'account.html' },
 
+    { label: 'Tutorials — watch, then do', group: 'Learn', href: 'learn.html' },
     { label: 'Install Cadence', group: 'Docs', href: 'docs.html#install' },
     { label: 'System requirements', group: 'Docs', href: 'docs.html#requirements' },
     { label: 'Connect Roblox Studio', group: 'Docs', href: 'docs.html#studio-setup' },
@@ -198,7 +209,7 @@
     { label: 'VFX Studio guide', group: 'Docs', href: 'docs.html#vfx-guide' },
     { label: 'Procedural engine guide', group: 'Docs', href: 'docs.html#procedural-guide' },
     { label: 'What the engine gained — flocking, liquid, events', group: 'Docs', href: 'docs.html#engine-additions' },
-    { label: 'Pro and your licence key', group: 'Docs', href: 'docs.html#pro' },
+    { label: 'Plans and your licence key', group: 'Docs', href: 'docs.html#pro' },
     { label: 'Set up MCP for Claude', group: 'Docs', href: 'docs.html#mcp' },
     { label: 'Keyboard shortcuts', group: 'Docs', href: 'docs.html#shortcuts' },
     { label: 'Phone companion', group: 'Docs', href: 'docs.html#mobile' },
@@ -402,17 +413,6 @@
       }, function () { btn.textContent = 'Press Ctrl+C'; });
     });
   });
-
-  /* ------------------------------------------------ demo: the honest state */
-
-  var demoPlay = $('#demoPlay');
-  if (demoPlay) {
-    demoPlay.addEventListener('click', function (e) {
-      e.preventDefault();
-      toast('The 60-second video is not published yet — what you see is an unedited screenshot of the shipping build. ' +
-            'Meanwhile: <a href="docs.html#first-animation">your first animation in six steps →</a>', 7000);
-    });
-  }
 
   /* --------------------------------------------- latest release (enhancement)
 
@@ -645,104 +645,193 @@
     }
   }
 
-  /* ------------------------------------------------ pricing: config-driven */
+  /* ------------------------------------------------ shared: support, licence API, plan words */
 
-  function replaceWithLink(placeholder, url, label, sub, primary) {
+  // A Corvexsa support address goes in config.js when there is one. Until
+  // then every contact line keeps the placeholder written in the HTML; no
+  // personal address is ever published here.
+  var SUPPORT = CONFIG.SUPPORT_EMAIL && String(CONFIG.SUPPORT_EMAIL).trim();
+  function supportLink() {
     var a = document.createElement('a');
-    a.className = 'btn ' + (primary ? 'btn-primary' : 'btn-ghost') + ' btn-block';
-    a.href = url;
-    a.textContent = label;
-    if (sub) {
-      var s = document.createElement('span');
-      s.className = 'btn-sub';
-      s.textContent = sub;
-      a.appendChild(s);
-    }
-    placeholder.parentNode.replaceChild(a, placeholder);
+    a.href = 'mailto:' + SUPPORT;
+    a.textContent = SUPPORT;
     return a;
   }
+  if (SUPPORT) {
+    $$('[data-support]').forEach(function (el) {
+      el.textContent = '';
+      el.appendChild(supportLink());
+    });
+  }
+  function supportHtml() { return SUPPORT ? supportLink().outerHTML : '[SUPPORT EMAIL]'; }
 
-  var buyFounding = $('#buyFounding');
-  var buyPro = $('#buyPro');
-  if (buyFounding || buyPro) {
-    var founding = CONFIG.PRO_FOUNDING_LINK && String(CONFIG.PRO_FOUNDING_LINK).trim();
-    var regular = CONFIG.PRO_LINK && String(CONFIG.PRO_LINK).trim();
-    var soldOut = false;
+  function esc(t) {
+    return String(t).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
 
-    if (buyFounding && founding) buyFounding = replaceWithLink(buyFounding, founding, 'Buy a Founding key', '$9 one-time', true);
-    if (buyPro && regular) buyPro = replaceWithLink(buyPro, regular, 'Buy Pro', '$12 one-time', !founding);
+  var licenceApi = CONFIG.LICENSE_API && String(CONFIG.LICENSE_API).trim().replace(/\/+$/, '');
 
-    var left = $('#foundingLeft');
-    var api = CONFIG.LICENSE_API && String(CONFIG.LICENSE_API).replace(/\/+$/, '');
-    if (left && api && window.fetch) {
-      fetch(api + '/stats', { headers: { Accept: 'application/json' } }).then(function (r) {
-        return r.ok ? r.json() : null;
-      }).then(function (j) {
-        var f = j && j.founding;
-        if (!f || typeof f.sold !== 'number' || typeof f.limit !== 'number') return;
-        var remaining = Math.max(0, f.limit - f.sold);
-        left.textContent = remaining > 0
-          ? remaining + ' of ' + f.limit + ' founding keys left'
-          : 'All ' + f.limit + ' founding keys are gone — the regular price applies';
-        left.classList.add('show');
-        if (remaining === 0 && buyFounding) {
-          soldOut = true;
-          var span = document.createElement('span');
-          span.className = 'btn is-disabled btn-block';
-          span.textContent = 'Founding keys sold out';
-          buyFounding.parentNode.replaceChild(span, buyFounding);
-        }
-      }).catch(function () { /* the counter stays hidden: no number is better than a wrong one */ });
+  function getJson(url) {
+    return fetch(url, { headers: { Accept: 'application/json' } }).then(function (r) {
+      if (!r.ok) {
+        var e = new Error('The licence server answered ' + r.status + '.');
+        e.status = r.status;
+        throw e;
+      }
+      return r.json();
+    });
+  }
+
+  var PLAN_NAMES = {
+    pro_monthly: 'Cadence Pro, monthly',
+    pro_yearly: 'Cadence Pro, yearly',
+    studio_monthly: 'Cadence Studio, monthly',
+    studio_yearly: 'Cadence Studio, yearly',
+    founder: 'Founders: Cadence Pro forever'
+  };
+
+  // One answer from /license or /verify, in words. The v1 service (live until
+  // v2 is deployed) answers only { key, email } or { valid, tier: 'pro', since };
+  // every key it knows came from the old one-time links, and those buyers are
+  // Founders. v2 names the tier itself: founder, pro or studio.
+  function describePlan(j) {
+    var tier = j && j.tier;
+    var legacy = !tier || (tier === 'pro' && !j.plan && !j.paid_until);
+    if (tier === 'founder' || legacy) return { badge: 'Founder · Pro forever', founder: true };
+    var every = /_yearly$/.test(j.plan || '') ? ' · yearly' : /_monthly$/.test(j.plan || '') ? ' · monthly' : '';
+    if (tier === 'studio') return { badge: 'Studio' + every };
+    if (tier === 'pro') return { badge: 'Pro' + every };
+    return { badge: String(tier) };
+  }
+  function renewLine(j) {
+    if (!j || !j.paid_until) return '';
+    return (j.renews === false ? 'Ends on ' : 'Renews on ') + fmtDate(j.paid_until) + '.';
+  }
+
+  var ICON = {
+    ok: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    no: '<path d="M7 7l10 10M17 7 7 17"/>',
+    wait: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    warn: '<circle cx="12" cy="12" r="8.5"/><path d="M12 8v5"/><path d="M12 16h.01"/>'
+  };
+  function noteHtml(icon, html) {
+    return '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      ICON[icon] + '</svg><span>' + html + '</span>';
+  }
+
+  /* ------------------------------------------------ pricing: the Founders count
+
+     "First 100 only" is written in the HTML and is the whole claim until the
+     licence service answers /stats with a Founders figure (v2, once the
+     Founders link exists). The old $9 "founding" counter is a different thing
+     and is never shown here. No number is better than a wrong one. */
+
+  var foundersCount = $('#foundersCount');
+  if (foundersCount && licenceApi && window.fetch) {
+    getJson(licenceApi + '/stats').then(function (j) {
+      var f = j && j.founders;
+      if (!f || typeof f.sold !== 'number' || typeof f.limit !== 'number' || f.limit <= 0) return;
+      var left = typeof f.left === 'number' ? f.left : f.limit - f.sold;
+      left = Math.max(0, Math.min(f.limit, left));
+      $('#foundersLeft').textContent = left > 0 ? left + ' of ' + f.limit + ' left' : 'All ' + f.limit + ' taken';
+      var meter = $('#foundersMeter');
+      if (meter) {
+        meter.setAttribute('aria-valuemax', String(f.limit));
+        meter.setAttribute('aria-valuenow', String(left));
+        if (meter.firstElementChild) meter.firstElementChild.style.width = (100 * left / f.limit).toFixed(1) + '%';
+      }
+      foundersCount.hidden = false;
+    }).catch(function () { /* the count stays hidden */ });
+  }
+
+  /* ------------------------------------------------ parents: a child's request
+
+     The app's "Ask a parent" link arrives as ?plan=<plan>&c=<code> (through
+     parent.html). Payments are not open, so the card only says so, calmly: it
+     names the plan that was asked for and shows the random code. Nothing is
+     charged, stored or sent. */
+
+  var askCard = $('#ask');
+  if (askCard && location.search) {
+    var q = new URLSearchParams(location.search);
+    var code = (q.get('c') || q.get('code') || '').trim();
+    var askedPlan = (q.get('plan') || '').trim();
+    if (/^[A-Za-z0-9_-]{16,200}$/.test(code)) {
+      if (!PLAN_NAMES[askedPlan]) askedPlan = 'pro_yearly';
+      var family = function (p) { return p.indexOf('studio') === 0 ? 'studio' : p === 'founder' ? 'founder' : 'pro'; };
+      $$('[data-req="default"]', askCard).forEach(function (el) { el.hidden = true; });
+      $$('[data-req="request"]', askCard).forEach(function (el) { el.hidden = false; });
+      var reqName = $('#reqPlanName');
+      if (reqName) reqName.textContent = PLAN_NAMES[askedPlan];
+      var reqCode = $('#reqCode');
+      if (reqCode) reqCode.textContent = code.replace(/^cad_/i, '').toUpperCase().replace(/(.{4})(?=.)/g, '$1-');
+      $$('#reqPlans li').forEach(function (li) {
+        var p = li.getAttribute('data-plan');
+        li.hidden = family(p) !== family(askedPlan);
+        li.classList.toggle('is-asked', p === askedPlan);
+      });
     }
   }
 
-  /* ------------------------------------------------ account: verify a key */
+  /* ------------------------------------------------ account: check a key */
 
   var accountForm = $('#accountForm');
   if (accountForm) {
-    var apiBase = CONFIG.LICENSE_API && String(CONFIG.LICENSE_API).replace(/\/+$/, '');
     var closed = $('#accountClosed');
     var status = $('#accountStatus');
-    var support = CONFIG.SUPPORT_EMAIL ? '<a href="mailto:' + CONFIG.SUPPORT_EMAIL + '">' + CONFIG.SUPPORT_EMAIL + '</a>'
-                                       : '<a href="https://github.com/' + REPO + '/issues">the issue tracker</a>';
-    if (!apiBase) {
+    var setStatus = function (kind, icon, html) {
+      status.className = 'note ' + kind + ' status show';
+      status.innerHTML = noteHtml(icon, html);
+    };
+    if (!licenceApi) {
       if (closed) closed.classList.add('show');
       $$('input, button', accountForm).forEach(function (el) { el.disabled = true; });
     } else {
       if (closed) closed.classList.remove('show');
       accountForm.addEventListener('submit', function (e) {
         e.preventDefault();
-        var email = ($('#accountEmail') || {}).value || '';
-        var key = ($('#accountKey') || {}).value || '';
+        var email = (($('#accountEmail') || {}).value || '').trim();
+        var key = (($('#accountKey') || {}).value || '').trim();
+        if (!email || !key) {
+          setStatus('note-warn', 'warn', 'Enter both the email you paid with and the key.');
+          return;
+        }
         var btn = $('button[type="submit"]', accountForm);
         btn.disabled = true;
-        status.className = 'note status show';
-        status.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg><span>Checking with the licence server…</span>';
-        fetch(apiBase + '/verify?email=' + encodeURIComponent(email.trim()) + '&key=' + encodeURIComponent(key.trim()), {
-          headers: { Accept: 'application/json' }
-        }).then(function (r) {
-          if (!r.ok) throw new Error('The licence server answered ' + r.status);
-          return r.json();
-        }).then(function (j) {
-          if (j && j.valid === true) {
-            status.className = 'note note-good status show';
-            status.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg>' +
-              '<span><strong>Valid.</strong> ' + (j.tier ? 'Tier: <strong>' + String(j.tier) + '</strong>. ' : '') +
-              (j.since ? 'Since ' + fmtDate(j.since) + '. ' : '') +
-              'Pro is the same download as Free: open Cadence, go to <strong>Settings → Pro</strong>, paste this key with this email, and the Pro features switch on. ' +
-              '<a href="index.html#download">Download the current build →</a></span>';
-          } else if (j && j.valid === false) {
-            status.className = 'note note-bad status show';
-            status.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>' +
-              '<span><strong>Not valid</strong> for that email. Keys are tied to the email used at checkout — check both for typos, or write to ' + support + ' with your Stripe receipt.</span>';
-          } else {
-            throw new Error('Unexpected answer from the licence server.');
-          }
-        }).catch(function (err) {
-          status.className = 'note note-warn status show';
-          status.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3 2 20h20L12 3Zm0 6v6m0 3h.01"/></svg>' +
-              '<span><strong>Could not check right now.</strong> ' + (err && err.message ? err.message : '') + ' Try again in a minute. Your key is still valid — a failed check never revokes anything.</span>';
-        }).then(function () { btn.disabled = false; });
+        setStatus('', 'wait', 'Checking with the licence server&hellip; if it was asleep, this can take up to half a minute.');
+        getJson(licenceApi + '/verify?email=' + encodeURIComponent(email) + '&key=' + encodeURIComponent(key))
+          .then(function (j) {
+            if (j && j.valid === true) {
+              var parts = [];
+              if (j.checked === 'offline') {
+                parts.push('<strong>The key matches this email.</strong> The licence server could not reach Stripe just now, so the plan itself was not checked &mdash; try again later for the details.');
+              } else {
+                var d = describePlan(j);
+                parts.push('<strong>Valid: ' + esc(d.badge) + '.</strong>');
+                if (d.founder) parts.push('You&rsquo;re a Founder: Pro forever, nothing to renew. Your key keeps working.');
+                if (j.seat && j.seat > 1) parts.push('This is friend key ' + esc(j.seat) + ' of ' + esc(j.seats || 3) + '.');
+                var rl = renewLine(j);
+                if (rl) parts.push(esc(rl));
+                if (j.since) parts.push('Since ' + esc(fmtDate(j.since)) + '.');
+                if (j.message) parts.push(esc(j.message));
+              }
+              parts.push('In Cadence, press Ctrl&nbsp;K and run <em>Cadence Pro: enter your key</em>, then paste this key with this email. <a href="index.html#download">Download the current build &rarr;</a>');
+              setStatus('note-good', 'ok', parts.join(' '));
+            } else if (j && j.valid === false) {
+              setStatus('note-bad', 'no', '<strong>Not valid</strong> for that email. ' +
+                (j.reason ? esc(j.reason).replace(/\.?\s*$/, '. ') : '') +
+                'Keys belong to the email used at checkout &mdash; check both for typos, or write to ' + supportHtml() + ' with your Stripe receipt.');
+            } else {
+              throw new Error('Unexpected answer from the licence server.');
+            }
+          })
+          .catch(function (err) {
+            setStatus('note-warn', 'warn', '<strong>Could not check right now.</strong> ' + esc(err && err.message ? err.message : '') +
+              ' Try again in a minute. Your key still works in the app &mdash; a failed check here never switches anything off.');
+          })
+          .then(function () { btn.disabled = false; });
       });
     }
   }
@@ -751,38 +840,50 @@
 
   var thanks = $('#thanks');
   if (thanks) {
-    var tApi = CONFIG.LICENSE_API && String(CONFIG.LICENSE_API).replace(/\/+$/, '');
     var params = new URLSearchParams(location.search);
     var sessionId = params.get('session_id') || '';
-    var states = ['thanksNoApi', 'thanksNoSession', 'thanksLoading', 'thanksKey', 'thanksError'];
-    function state(id) {
+    var states = ['thanksNoJs', 'thanksNoApi', 'thanksNoSession', 'thanksLoading', 'thanksKey', 'thanksError'];
+    var state = function (id) {
       states.forEach(function (s) { var el = $('#' + s); if (el) el.hidden = s !== id; });
-    }
-    var supportLine = CONFIG.SUPPORT_EMAIL ? '<a href="mailto:' + CONFIG.SUPPORT_EMAIL + '">' + CONFIG.SUPPORT_EMAIL + '</a>'
-                                            : '<a href="https://github.com/' + REPO + '/issues">the issue tracker</a> (never paste your key in a public issue)';
-    $$('[data-support]').forEach(function (el) { el.innerHTML = supportLine; });
+    };
 
-    function load() {
+    var load = function () {
       state('thanksLoading');
-      fetch(tApi + '/license?session_id=' + encodeURIComponent(sessionId), { headers: { Accept: 'application/json' } })
-        .then(function (r) {
-          if (!r.ok) throw new Error('The licence server answered ' + r.status);
-          return r.json();
-        })
+      getJson(licenceApi + '/license?session_id=' + encodeURIComponent(sessionId))
         .then(function (j) {
-          if (!j || typeof j.key !== 'string' || !j.key) throw new Error('No key in the answer yet');
+          if (!j || typeof j.key !== 'string' || !j.key) throw new Error('No key in the answer yet.');
           $('#thanksKeyValue').textContent = j.key;
           $('#thanksEmail').textContent = j.email || '(the email you entered at checkout)';
+          var d = describePlan(j);
+          var badge = $('#thanksPlan');
+          if (badge) badge.textContent = d.badge;
+          var renew = $('#thanksRenew');
+          if (renew) renew.textContent = d.founder ? 'Nothing to renew, ever.' : renewLine(j);
+          var seats = $('#thanksSeats');
+          if (seats) {
+            var keys = Array.isArray(j.seatKeys) ? j.seatKeys.filter(function (k) { return typeof k === 'string' && k; }) : [];
+            seats.hidden = keys.length < 2;
+            if (keys.length >= 2) {
+              $('#thanksSeat2').textContent = keys[0];
+              $('#thanksSeat3').textContent = keys[1];
+            }
+          }
           state('thanksKey');
         })
         .catch(function (err) {
           var msg = $('#thanksErrorMsg');
-          if (msg) msg.textContent = err && err.message ? err.message : 'Unknown error';
+          if (msg) {
+            msg.textContent = err && err.status === 402
+              ? 'The licence server says this checkout is not a paid Cadence purchase, or it was refunded since.'
+              : err && err.status === 404
+                ? 'The licence server could not find this purchase. If you paid a moment ago, wait a minute and try again.'
+                : (err && err.message ? err.message : 'Unknown error.');
+          }
           state('thanksError');
         });
-    }
+    };
 
-    if (!tApi) state('thanksNoApi');
+    if (!licenceApi) state('thanksNoApi');
     else if (!sessionId) state('thanksNoSession');
     else load();
 
