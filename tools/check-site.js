@@ -31,7 +31,13 @@ app.on('window-all-closed', () => {});
 
 const pages = [
   ['index.html', {}],
+  ['pricing.html', {}],
+  ['parents.html', {}],
+  // The request state the app's "Ask a parent" link lands on. (parent.html only hands
+  // its query on to parents.html with a script navigation, which loadFile reports as aborted.)
+  ['parents.html', { plan: 'pro_yearly', c: 'K7Q2MX9PABCDEFGH2345' }],
   ['docs.html', {}],
+  ['learn.html', {}],
   ['safety.html', {}],
   ['account.html', {}],
   ['thanks.html', { session_id: 'cs_test_123' }],
@@ -39,7 +45,7 @@ const pages = [
   ['changelog.html', {}],
 ];
 const widths = [360, 820, 1366];
-const SECTIONS = ['#demo', '#compare', '#proof', '#animate', '#vfx', '#studio', '#download', '#smartscreen', '#safety', '#verify-card', '#pricing', '#faq', '#roadmap'];
+const SECTIONS = ['#cadence-ai', '#preview', '#safety', '#pricing', '#features', '#compare', '#download', '#smartscreen', '#faq'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const PROBE = `(() => {
@@ -84,7 +90,7 @@ app.whenReady().then(async () => {
     win.webContents.setFrameRate(10);
     for (const [p, query] of pages) {
       errors = [];
-      const base = p.replace('.html', '') + '-' + w;
+      const base = p.replace('.html', '') + (Object.keys(query).length ? '-q' : '') + '-' + w;
       log(`load ${p} @ ${w}`);
       try {
         await win.loadFile(path.join(SITE, p), { query });
@@ -95,6 +101,11 @@ app.whenReady().then(async () => {
         // Full page (capped).
         win.setSize(w, Math.max(600, Math.min(info.h, 12000)));
         await sleep(700);
+        // Images are judged with the whole page in view: a loading="lazy" image below the
+        // first screen has not been fetched at the first probe, which is not a broken image.
+        info.badImgs = await win.webContents.executeJavaScript(
+          `[...document.images].filter((i) => !i.complete || i.naturalWidth === 0).map((i) => i.getAttribute('src'))`
+        );
         await shot(win, `${base}-full.png`);
         win.setSize(w, 900);
         await sleep(300);

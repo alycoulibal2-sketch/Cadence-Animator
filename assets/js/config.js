@@ -1,31 +1,32 @@
 /* ==========================================================================
-   Cadence Animator — site configuration
+   Cadence by Corvexsa — site configuration
 
-   The only file the owner edits to switch Pro on. Every value is a plain
-   string; an EMPTY string means "not open yet" and the pages render an honest
-   disabled state for it (never a fake or broken link, never an invented
-   number). Fill a value in, redeploy, done.
+   Every value is a plain string; an EMPTY string means "not open yet" and the
+   pages render an honest state for it (never a fake or broken link, never an
+   invented number).
+
+   Payments are NOT open. The paid plans (Pro, Studio, Founders) are written
+   in the HTML as "Opening soon" buttons that link nowhere, and no page links
+   to a checkout. The old one-time $9 / $12 Payment Links were removed from
+   the site on 2026-09-27; wiring the new plans' links is a separate, later
+   step (CadenceAI/design/research/money.md §13 step 3) that needs Aly's
+   "go live" first.
 
    Loaded before site.js on every page.
    ========================================================================== */
 
 window.CADENCE_CONFIG = {
-  /* Stripe Checkout / Payment Link for the Founding price (first 100 keys). */
-  PRO_FOUNDING_LINK: 'https://buy.stripe.com/00w5kEbZ5f4Qgb8bwU0Ny0d',
-
-  /* Stripe Checkout / Payment Link for the regular price. */
-  PRO_LINK: 'https://buy.stripe.com/cNi7sMd393m8gb80Sg0Ny0e',
-
-  /* Base URL of the licence API, with no trailing slash, e.g.
-     'https://licence.example.com'. The pages call:
-       GET {LICENSE_API}/stats                         -> { founding: { sold, limit } }
-       GET {LICENSE_API}/verify?email=...&key=...      -> { valid, tier, since }
-       GET {LICENSE_API}/license?session_id=...        -> { key, email }
-     Empty: pricing hides the founding counter, account.html and thanks.html
-     explain that verification opens with Pro. */
+  /* Base URL of Cadence's licence service, with no trailing slash. The pages call:
+       GET {LICENSE_API}/stats                    -> { founders?: { sold, limit, left } }   (pricing.html)
+       GET {LICENSE_API}/verify?email=...&key=... -> { valid, tier, plan?, paid_until?, since, ... }  (account.html)
+       GET {LICENSE_API}/license?session_id=...   -> { key, email, tier?, plan?, seatKeys?, ... }   (thanks.html)
+     Both the v1 answers (old keys: { valid, tier: 'pro', since } / { key, email })
+     and the v2 answers (tier founder / pro / studio) are understood. The service
+     must list this site's origin in its ALLOWED_ORIGINS, or the browser blocks
+     the answer. Empty: account.html and thanks.html say checks aren't connected. */
   LICENSE_API: 'https://cadence-license.onrender.com',
 
-  /* Where a buyer writes when a key does not arrive. Empty: pages point at
-     the GitHub issue tracker instead. */
+  /* The support address shown on every contact line. It must be a Corvexsa
+     address, never a personal one. Empty: the pages show "[SUPPORT EMAIL]". */
   SUPPORT_EMAIL: ''
 };

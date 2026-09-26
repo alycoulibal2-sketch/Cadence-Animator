@@ -1,33 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Hand-maintained: add a line when a public page is added. account.html and
-     thanks.html are deliberately absent (noindex — they are per-buyer pages).
-     The host is GitHub Pages until a custom domain lands; when it does, change
-     the base URL here, in robots.txt and in every page's canonical/og:url. -->
+<!-- Hand-maintained: add a line when a public page is added. account.html,
+     thanks.html and parent.html are deliberately absent (noindex — per-buyer
+     pages and the app's "Ask a parent" hand-off). The host is
+     cadence.corvexsa.com (see CNAME); if it ever changes, change it here, in
+     robots.txt and in every page's canonical / og:url. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://alycoulibal2-sketch.github.io/Cadence-Animator/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://alycoulibal2-sketch.github.io/Cadence-Animator/docs.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://alycoulibal2-sketch.github.io/Cadence-Animator/safety.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://alycoulibal2-sketch.github.io/Cadence-Animator/changelog.html</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://alycoulibal2-sketch.github.io/Cadence-Animator/privacy.html</loc>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url><loc>https://alycoulibal2-sketch.github.io/Cadence-Animator/learn.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cadence.corvexsa.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://cadence.corvexsa.com/pricing.html</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://cadence.corvexsa.com/parents.html</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cadence.corvexsa.com/docs.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cadence.corvexsa.com/learn.html</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://cadence.corvexsa.com/safety.html</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://cadence.corvexsa.com/changelog.html</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://cadence.corvexsa.com/privacy.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
 </urlset>
