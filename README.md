@@ -2,9 +2,17 @@
 
 # Cadence Animator
 
-A standalone Roblox animation app — animate rigs in a real desktop app (not a Studio plugin UI), then sync with Roblox Studio to bring rigs in and send finished animations back out.
+**Animate Roblox rigs in a free Windows desktop app.** Pose R6 and R15 characters in a 3D viewport, adjust hands and feet with IK, polish timing with onion skinning and curves, then send the animation to Roblox Studio.
 
-## Running it
+[Download Cadence](https://cadence.corvexsa.com/#download) · [Watch the 2-minute first animation tutorial](https://cadence.corvexsa.com/learn.html#first-animation) · [Read the docs](https://cadence.corvexsa.com/docs.html)
+
+![Cadence Animator showing an R15 rig, posing tools, and the timeline](site/assets/img/hero-animator.png)
+
+Cadence Animator **0.14.0 is available now** for Windows 10 and 11. No account or licence key is needed for the free animator. Cadence AI is planned for 10 October 2026 and is not part of this download.
+
+To try it: install the app, add an R15 rig, pose a limb and press **S** to key it, then move the playhead and pose it again. The [first animation tutorial](https://cadence.corvexsa.com/learn.html#first-animation) shows the entire loop. If you use Roblox Studio, the [Studio setup guide](https://cadence.corvexsa.com/docs.html#studio-setup) shows how to bring rigs in and send animations back.
+
+## Run from source
 
 ```
 npm install
@@ -43,9 +51,9 @@ Once connected, the chip turns green and shows the place name.
 
 One honest limitation: you can't literally drag an item out of Studio's Explorer panel into Cadence's window — Studio doesn't support that as an OS-level drag source. "Add from Studio selection" is the equivalent: select it in Explorer, one click in Cadence.
 
-## Everything autosaves
+## Saving your work
 
-There's no "save before you close or you lose your work" — every change writes to disk within a second, and the last 10 generations are kept as rolling backups. On launch, Cadence offers to restore your last session if it had anything in it.
+Press **Ctrl+S** (or **Numpad 0**) to save a project. Cadence asks whether to save unsaved changes when you close it. It does not autosave, so save during a long session.
 
 ## Rig types
 
