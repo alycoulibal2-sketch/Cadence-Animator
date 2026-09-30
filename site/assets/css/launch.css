@@ -1,0 +1,56 @@
+/* Launch announcement band (Cadence AI + subscriptions, 10 Oct 2026). */
+.launch-band { padding: clamp(8px, 2vw, 24px) 0 clamp(24px, 4vw, 56px); }
+.launch-card {
+  position: relative; overflow: hidden;
+  padding: clamp(28px, 4.5vw, 56px);
+  border-radius: var(--radius-l);
+  border: 1px solid var(--accent-line);
+  background:
+    radial-gradient(90% 120% at 100% -20%, var(--accent-glow), transparent 60%),
+    radial-gradient(60% 90% at 0% 120%, var(--accent-wash-2), transparent 60%),
+    var(--accent-wash);
+}
+.launch-badge {
+  display: inline-flex; align-items: center; gap: 9px; margin: 0 0 18px;
+  padding: 6px 14px; border-radius: 999px;
+  background: var(--accent-wash-2); border: 1px solid var(--accent-line);
+  color: var(--accent-text); font-size: 0.8125rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.launch-badge i {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  animation: launch-pulse 1.8s infinite;
+}
+@keyframes launch-pulse {
+  0% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  70%, 100% { box-shadow: 0 0 0 10px rgba(124, 140, 255, 0); }
+}
+.launch-card h2 {
+  margin: 0 0 16px; max-width: 24ch;
+  font-size: clamp(2rem, 1.2rem + 3.4vw, 3.5rem); line-height: 1.05; letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.launch-card h2 em { font-style: normal; color: var(--accent-text); }
+.launch-pitch { margin: 0 0 28px; max-width: 60ch; font-size: clamp(1.02rem, 0.98rem + 0.35vw, 1.2rem); color: var(--text-1); text-wrap: pretty; }
+.launch-count { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 28px; padding: 0; list-style: none; }
+.launch-count li {
+  min-width: 92px; padding: 14px 16px 12px; text-align: center;
+  border-radius: var(--radius-m); border: 1px solid var(--accent-line); background: var(--accent-wash);
+}
+.launch-count b {
+  display: block; font-size: 2.1rem; line-height: 1; font-weight: 700;
+  color: var(--text-0); font-variant-numeric: tabular-nums;
+}
+.launch-count span { display: block; margin-top: 6px; font-size: 0.75rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-2); }
+.launch-perks { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px 28px; margin: 0 0 28px; padding: 0; list-style: none; }
+.launch-perks li { display: flex; gap: 10px; color: var(--text-1); line-height: 1.5; }
+.launch-perks svg { flex: none; margin-top: 3px; color: var(--accent); }
+.launch-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.launch-when { margin: 0; color: var(--text-2); }
+.launch-when strong { color: var(--text-0); }
+@media (max-width: 640px) {
+  .launch-count { gap: 8px; }
+  .launch-count li { flex: 1 1 0; min-width: 0; padding: 12px 4px 10px; }
+  .launch-count b { font-size: 1.6rem; }
+}
+@media (prefers-reduced-motion: reduce) { .launch-badge i { animation: none; } }

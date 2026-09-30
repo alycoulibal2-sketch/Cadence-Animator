@@ -1,0 +1,38 @@
+WEBVTT
+
+1
+00:00:04.474 --> 00:00:12.682
+Posing an arm joint by joint is slow. With inverse kinematics you drag the hand, and the shoulder and elbow follow.
+
+2
+00:00:13.066 --> 00:00:16.090
+Add an R15 rig and select the right hand.
+
+3
+00:00:17.532 --> 00:00:23.964
+Press T for the IK tool. The gizmo becomes a move handle, and the whole arm is the chain.
+
+4
+00:00:24.345 --> 00:00:31.161
+Drag the hand up and forward. The elbow bends and the shoulder turns on their own, and the pose is keyed.
+
+5
+00:00:31.542 --> 00:00:38.934
+It works the same for feet. Select the left foot, press T, and lift it. The knee bends the way a knee should.
+
+6
+00:00:39.314 --> 00:00:46.826
+Go to frame 24 and bring both back down. Two keys, and the arm and leg travel on natural arcs.
+
+7
+00:00:47.206 --> 00:00:50.590
+Space plays it. No joint was rotated by hand.
+
+8
+00:00:51.084 --> 00:00:58.380
+By default the IK chain reaches three joints up. You can change that from the command palette under IK chain length.
+
+9
+00:00:59.364 --> 00:01:05.244
+IK, onion skin, and the curve editor are all in the free app. Nothing here needs a key.
+

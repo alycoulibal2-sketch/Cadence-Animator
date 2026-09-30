@@ -1,4 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /account.html
+Disallow: /thanks.html
+Disallow: /parent.html
 
-Sitemap: https://cadenceanimator.js.org/sitemap.xml
+Sitemap: https://cadence.corvexsa.com/sitemap.xml

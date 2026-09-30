@@ -1,0 +1,50 @@
+WEBVTT
+
+1
+00:00:04.475 --> 00:00:10.619
+If you learned Moon Animator, your hands already know Cadence. Every keybind was kept on purpose.
+
+2
+00:00:11.000 --> 00:00:17.840
+Press the question mark to see the whole sheet. Numpad and top-row digits both work, exactly like Moon.
+
+3
+00:00:18.221 --> 00:00:21.557
+Nine opens the add menu. Let's take an R15.
+
+4
+00:00:21.938 --> 00:00:29.234
+W is move, E is rotate, T is inverse kinematics, and R cycles through the tools.
+
+5
+00:00:29.617 --> 00:00:38.761
+Select a part, rotate it, and press S to key the pose. Auto-key is already on, so A turns it off if you prefer to key by hand.
+
+6
+00:00:39.143 --> 00:00:44.063
+The arrow keys step one frame. Hold Shift to step five at a time.
+
+7
+00:00:44.443 --> 00:00:46.003
+Key a second pose here.
+
+8
+00:00:47.489 --> 00:00:53.633
+J and K jump between keyframes, Home and End jump to the start and the end.
+
+9
+00:00:54.014 --> 00:00:59.054
+N turns on onion skin for the selected part, so you can see the frames on either side.
+
+10
+00:00:59.435 --> 00:01:02.363
+Tab toggles looping, and Space plays.
+
+11
+00:01:03.512 --> 00:01:08.192
+F frames whatever is selected, and Control Z undoes anything.
+
+12
+00:01:09.173 --> 00:01:13.565
+Nothing to relearn. Open the sheet with the question mark whenever you need it.
+
