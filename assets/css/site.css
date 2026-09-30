@@ -662,7 +662,6 @@ kbd {
   align-items: center;
 }
 .hero-copy { min-width: 0; }
-/* 50 px, not 52: "Cadence animates it." in Segoe UI Bold must fit the 480 px column on one line. */
 .hero h1 { margin-top: 20px; font-size: clamp(2.125rem, 1.45rem + 2.5vw, 3.125rem); }
 .hero h1 .h1-line { display: block; }
 @media (min-width: 600px) { .hero h1 .h1-line { white-space: nowrap; } }
@@ -695,6 +694,9 @@ kbd {
   color: var(--text-2);
 }
 .ai-preview figcaption .pill-soon { margin-top: -2px; }
+.hero-app-preview picture { display: block; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--bg-1); box-shadow: var(--shadow-pop); }
+.hero-app-preview img { display: block; width: 100%; height: auto; }
+.hero-app-preview figcaption { justify-content: space-between; flex-wrap: wrap; }
 
 /* ---------------------------------------------------------------- the Cadence AI panel, drawn */
 
