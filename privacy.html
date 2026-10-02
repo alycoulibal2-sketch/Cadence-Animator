@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy — Cadence by Corvexsa</title>
-<meta name="description" content="Cadence's privacy policy in ten plain lines: no telemetry, no account, no analytics. What a key check sends, what the licence server keeps (nothing), and how Cadence AI will handle your words when it launches.">
+<meta name="description" content="Cadence's privacy policy in plain lines: no account, no names, and an anonymous count of visits and app use. What a key check sends, what the licence server keeps (nothing), and how Cadence AI will handle your words when it launches.">
 <meta name="theme-color" content="#0a0a0e">
 <link rel="canonical" href="https://cadence.corvexsa.com/privacy.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Cadence by Corvexsa">
 <meta property="og:title" content="Privacy — Cadence by Corvexsa">
-<meta property="og:description" content="Ten plain lines. No telemetry, no account, no analytics.">
+<meta property="og:description" content="Plain lines. No account, no names; an anonymous count of visits and app use.">
 <meta property="og:url" content="https://cadence.corvexsa.com/privacy.html">
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="assets/img/favicon.ico" sizes="32x32">
@@ -75,8 +75,8 @@
     </div>
 
     <ol class="lines">
-      <li><span>The app has no account, no sign-in and no telemetry. It never sends usage data, crash reports or identifiers anywhere.</span></li>
-      <li><span>This website has no analytics, no cookies and no trackers. It loads the Inter font from Google Fonts and asks the GitHub API for the latest release. The pricing page asks Cadence&rsquo;s licence server how many Founder places are left, and the account and thank-you pages ask it to check a key &mdash; only when you use them.</span></li>
+      <li><span>The app has no account and no sign-in, and never sends crash reports, your projects or anything about you. Versions after 0.14.0 send an anonymous usage count to Cadence&rsquo;s own counter (<code>cadence-stats.alyc70755.workers.dev</code>): a random install number the app makes for itself, the version, that the app opened, and every five minutes how many seconds you spent in the animator, VFX Studio and Cadence FX. No name, no email, no IP address is stored; only the country, worked out from the connection. It is how we know how many people use Cadence and which parts they use.</span></li>
+      <li><span>This website has no cookies and no outside trackers. It counts visits anonymously with Cadence&rsquo;s own counter: a random visit number that is forgotten when you close the tab, the pages you open, how long each is on screen, which country the visit came from, and clicks on a plan&rsquo;s buy button or a download. No names and no IP addresses are stored. It also loads the Inter font from Google Fonts and asks the GitHub API for the latest release. The pricing page asks Cadence&rsquo;s licence server how many Founder places are left, and the account and thank-you pages ask it to check a key &mdash; only when you use them.</span></li>
       <li><span>Your projects, autosaves, settings and a debug log live under <code>%APPDATA%\Cadence Animator</code> on your own machine, and nowhere else.</span></li>
       <li><span>When you load a rig, the app fetches meshes and textures from Roblox&rsquo;s asset servers, and looks a username up on <code>users.roblox.com</code> only when you type one. Roblox sees those requests, as it would from Studio.</span></li>
       <li><span>The installed build asks GitHub for the release list to notice updates. GitHub sees a request for a public page. Nothing downloads or installs without your click.</span></li>
@@ -84,10 +84,10 @@
       <li><span>If you enter a Pro key, the app sends that email and key to Cadence&rsquo;s licence server to check them: once when you enter them, then about once a week. The server keeps nothing &mdash; it works the key out again from the email and asks Stripe whether that email has a paid, unrefunded purchase.</span></li>
       <li><span>If you buy a plan, Stripe records the email you enter and the payment, as any card payment does. We never see your card, the licence server stores no list of buyers, and we don&rsquo;t send marketing email. (Payments for the new plans aren&rsquo;t open yet.)</span></li>
       <li><span><span class="pill-soon sm line-tag">When Cadence AI launches</span> Cadence AI is an online service that Corvexsa runs on its own computer &mdash; not a big AI company. When you ask it for an animation, the app sends your words, which rig, and for a follow-up the animation on screen, so it can write the plan; then they&rsquo;re thrown away, never stored. It keeps one thing: how many free AI animations your install used today, under a random install number, not your name. Your animations stay on your PC unless you send them to Studio.</span></li>
-      <li><span>There is no Cadence account to delete: the licence server stores nothing, and Stripe keeps the payment record, as payment law requires. Refunds are 14 days, no questions. The source code is public, so every line here can be checked; if it says otherwise, <a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/issues">open an issue</a> and it gets fixed in the open.</span></li>
+      <li><span>There is no Cadence account to delete: the usage counter holds only random numbers that can&rsquo;t be traced back to you, the licence server stores nothing, and Stripe keeps the payment record, as payment law requires. Refunds are 14 days, no questions. The source code is public, so every line here can be checked; if it says otherwise, <a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/issues">open an issue</a> and it gets fixed in the open.</span></li>
     </ol>
 
-    <p class="small muted" style="margin-top:22px">Last reviewed on 27 September 2026, against Cadence Animator 0.14.0. The <a href="safety.html">safety page</a> links each network and file claim to its source line.</p>
+    <p class="small muted" style="margin-top:22px">Last reviewed on 2 October 2026, when the anonymous usage count was added. The <a href="safety.html">safety page</a> links each network and file claim to its source line.</p>
   </div>
 </main>
 
@@ -139,5 +139,6 @@
 
 <script src="assets/js/config.js"></script>
 <script src="assets/js/site.js" defer></script>
+<script src="assets/js/stats.js" defer></script>
 </body>
 </html>

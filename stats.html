@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadence Stats</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0a0a0e">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<script>(function(){try{var t=localStorage.getItem('cadence-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t)}}catch(e){}})();</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&display=swap">
+<link rel="stylesheet" href="assets/css/site.css">
+<style>
+  /* Chart roles: the reference palette's first three slots, validated all-pairs on this
+     page's surfaces (dark #16161e, light #ececf2). Light orange/aqua sit under 3:1, so every
+     chart here also shows its numbers as text. */
+  :root { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --bar: #7c8cff; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme='dark']) { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --bar: #3d4bb8; }
+  }
+  :root[data-theme='light'] { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --bar: #3d4bb8; }
+
+  body { background: var(--bg-1); color: var(--text-0); margin: 0; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 16px 64px; }
+  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  header.top h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; }
+  .muted { color: var(--text-2); font-size: 13px; }
+  h2 { font-size: 18px; margin: 36px 0 12px; }
+  h3 { font-size: 14px; margin: 0 0 10px; color: var(--text-1); font-weight: 600; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .tile { background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile b { display: block; font-size: 28px; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .tile span { color: var(--text-2); font-size: 13px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+  .card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
+
+  /* Vertical bars, one per day. */
+  .cols { display: flex; align-items: flex-end; gap: 2px; height: 150px; border-bottom: 1px solid var(--border-strong); }
+  .cols .c { flex: 1; display: flex; flex-direction: column-reverse; gap: 2px; height: 100%; justify-content: flex-start; cursor: default; min-width: 3px; }
+  .cols .c:hover { background: var(--border-soft); }
+  .cols .seg { border-radius: 4px 4px 0 0; }
+  .cols .seg + .seg { border-radius: 4px 4px 0 0; }
+  .axis { display: flex; justify-content: space-between; color: var(--text-2); font-size: 12px; margin-top: 6px; }
+
+  /* Horizontal bars with the number beside them. */
+  .hb { display: grid; grid-template-columns: minmax(90px, 34%) 1fr auto; gap: 6px 10px; align-items: center; font-size: 13px; }
+  .hb .track { height: 10px; }
+  .hb .fill { height: 100%; border-radius: 0 4px 4px 0; background: var(--bar); min-width: 2px; }
+  .hb .num { font-variant-numeric: tabular-nums; color: var(--text-1); text-align: right; }
+  .hb .lab { color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .split { display: flex; height: 26px; gap: 2px; margin: 4px 0 12px; }
+  .split i { display: block; height: 100%; }
+  .split i:first-child { border-radius: 4px 0 0 4px; } .split i:last-child { border-radius: 0 4px 4px 0; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-1); margin-bottom: 10px; }
+  .legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--k); margin-right: 6px; vertical-align: -1px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 0; }
+  table.wide { min-width: 680px; }
+  thead th { text-align: left; color: var(--text-2); font-weight: 500; font-size: 12px; text-transform: none; letter-spacing: 0; padding: 6px 8px; border-bottom: 1px solid var(--border-strong); background: transparent; white-space: nowrap; }
+  td { vertical-align: middle; padding: 6px 8px; border-bottom: 1px solid var(--border-soft); font-variant-numeric: tabular-nums; }
+  td.r, th.r { text-align: right; }
+  .scroll { overflow-x: auto; }
+  .empty { color: var(--text-2); font-size: 13px; padding: 8px 0; }
+
+  #tip { position: fixed; pointer-events: none; background: var(--bg-5); color: var(--text-0); border: 1px solid var(--border-strong); border-radius: 6px; padding: 6px 9px; font-size: 12px; line-height: 1.45; z-index: 10; display: none; white-space: nowrap; }
+
+  form.gate { max-width: 380px; margin: 12vh auto; background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+  form.gate input { width: 100%; box-sizing: border-box; margin: 12px 0; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--bg-1); color: var(--text-0); font: inherit; }
+  .err { color: var(--bad-ink); font-size: 13px; }
+  button.link { background: none; border: 0; color: var(--accent-text); cursor: pointer; font: inherit; font-size: 13px; padding: 0; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div id="tip" role="tooltip"></div>
+
+<script>
+/* Cadence's private stats page. Reads the anonymous counter (services/stats on main) with the
+   key, and GitHub's own download counts. Opening it once also stops this browser being counted. */
+(function () {
+  'use strict';
+  var API = 'https://cadence-stats.alyc70755.workers.dev';
+  var GH = 'https://api.github.com/repos/alycoulibal2-sketch/Cadence-Animator/releases?per_page=100';
+  var app = document.getElementById('app');
+  var tip = document.getElementById('tip');
+
+  function store(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  store('cadence-stats-me', '1');
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function n(v) { return Number(v || 0).toLocaleString('en-US'); }
+  function dur(s) {
+    s = Math.round(s || 0);
+    if (s < 60) return s + 's';
+    if (s < 3600) return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+    return Math.floor(s / 3600) + 'h ' + Math.floor(s % 3600 / 60) + 'm';
+  }
+  function when(t) { return new Date(t * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+  var PLAN = { 'pro-yearly': 'Pro, yearly', 'pro-monthly': 'Pro, monthly', 'studio-yearly': 'Studio, yearly', 'studio-monthly': 'Studio, monthly', pro: 'Pro', studio: 'Studio', founders: 'Founders' };
+
+  // ------------------------------------------------ hover tooltips (any element with data-tip)
+  document.addEventListener('mousemove', function (e) {
+    var el = e.target.closest && e.target.closest('[data-tip]');
+    if (!el) { tip.style.display = 'none'; return; }
+    tip.innerHTML = el.getAttribute('data-tip');
+    tip.style.display = 'block';
+    var x = e.clientX + 14, w = tip.offsetWidth;
+    if (x + w > innerWidth - 8) x = e.clientX - w - 14;
+    tip.style.left = Math.max(8, x) + 'px';
+    tip.style.top = (e.clientY + 14) + 'px';
+  });
+
+  // ------------------------------------------------ chart pieces
+  function last30(rows, key) {           // one entry per day for the last 30 days, gaps filled with 0
+    var by = {}; (rows || []).forEach(function (r) { by[r.day] = r; });
+    var out = [];
+    for (var i = 29; i >= 0; i--) {
+      var d = new Date(Date.now() - i * 86400e3).toISOString().slice(0, 10);
+      out.push(by[d] || { day: d });
+    }
+    return out;
+  }
+  function dayLabel(d) { return new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }); }
+
+  // series: [{key, color, label, fmt}]
+  function columns(days, series, tipFn, fmt) {
+    var max = 0;
+    days.forEach(function (d) { var t = 0; series.forEach(function (s) { t += +d[s.key] || 0; }); max = Math.max(max, t); });
+    if (!max) return '<p class="empty">Nothing yet in the last 30 days.</p>';
+    var cols = days.map(function (d) {
+      var segs = series.map(function (s) {
+        var v = +d[s.key] || 0;
+        return v ? '<i class="seg" style="display:block;height:' + (v / max * 100) + '%;background:' + s.color + '"></i>' : '';
+      }).join('');
+      return '<div class="c" data-tip="' + esc(tipFn(d)) + '">' + segs + '</div>';
+    }).join('');
+    return '<div class="cols">' + cols + '</div><div class="axis"><span>' + dayLabel(days[0].day) + '</span><span>max ' + esc((fmt || n)(max)) + '</span><span>' + dayLabel(days[days.length - 1].day) + '</span></div>';
+  }
+  function hbars(rows, label, value, fmt) {
+    if (!rows || !rows.length) return '<p class="empty">Nothing yet.</p>';
+    var max = Math.max.apply(null, rows.map(value)) || 1;
+    return '<div class="hb">' + rows.map(function (r) {
+      return '<span class="lab" title="' + esc(label(r)) + '">' + esc(label(r)) + '</span><span class="track" data-tip="' + esc(label(r) + ': ' + (fmt || n)(value(r))) + '"><span class="fill" style="display:block;width:' + (value(r) / max * 100) + '%"></span></span><span class="num">' + (fmt || n)(value(r)) + '</span>';
+    }).join('') + '</div>';
+  }
+  function table(head, rows, wide) {
+    if (!rows.length) return '<p class="empty">Nothing yet.</p>';
+    return '<div class="scroll"><table' + (wide ? ' class="wide"' : '') + '><thead><tr>' + head.map(function (h) { return '<th' + (h.r ? ' class="r"' : '') + '>' + h.t + '</th>'; }).join('') +
+      '</tr></thead><tbody>' + rows.map(function (r) { return '<tr>' + r.map(function (c, i) { return '<td' + (head[i].r ? ' class="r"' : '') + '>' + c + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+  }
+  function tiles(list) {
+    return '<div class="tiles">' + list.map(function (t) { return '<div class="tile"><b>' + t[0] + '</b><span>' + t[1] + '</span></div>'; }).join('') + '</div>';
+  }
+
+  // ------------------------------------------------ the page
+  function render(s, gh) {
+    var w = s.web, a = s.app;
+    var buys = w.clicks.filter(function (c) { return c.kind === 'buy'; });
+    var dls = w.clicks.filter(function (c) { return c.kind === 'download'; });
+    var buyClicks = buys.reduce(function (t, c) { return t + c.clicks; }, 0);
+    var buyPeople = buys.reduce(function (t, c) { return t + c.people; }, 0);
+    var dlClicks = dls.reduce(function (t, c) { return t + c.clicks; }, 0);
+    var secA = +a.sec_animation || 0, secX = +a.sec_vfx || 0, secF = +a.sec_fx || 0, secT = secA + secX + secF;
+    var S = [
+      { key: 'sec_animation', color: 'var(--s1)', label: 'Animation' },
+      { key: 'sec_vfx', color: 'var(--s2)', label: 'VFX Studio' },
+      { key: 'sec_fx', color: 'var(--s3)', label: 'Cadence FX' },
+    ];
+    var bucketOrder = ['under 10s', '10-30s', '30s-1m', '1-3m', '3-10m', '10m+'];
+    var buckets = bucketOrder.map(function (b) { var r = (w.buckets || []).filter(function (x) { return x.bucket === b; })[0]; return { bucket: b, visits: r ? r.visits : 0 }; });
+    function pct(v) { return secT ? Math.round(v / secT * 100) + '%' : '0%'; }
+
+    app.innerHTML =
+      '<header class="top"><h1>Cadence stats</h1><span class="muted">Updated ' + when(s.generated) + ' · your own visits and your PC are not counted · <button class="link" id="refresh">Refresh</button> · <button class="link" id="logout">Forget key</button></span></header>' +
+      tiles([
+        [n(a.installs), 'people using the app'],
+        [n(a.active7), 'used it in the last 7 days'],
+        [n(w.visits), 'website visits'],
+        [dur(w.avg_seconds), 'average time per visit'],
+        [n(buyPeople), 'people clicked a buy button'],
+        [n(dlClicks), 'download clicks on the site'],
+        [gh == null ? '—' : n(gh), 'downloads on GitHub (all time)'],
+      ]) +
+
+      '<h2>The app: time spent in each section</h2>' +
+      '<div class="grid"><div class="card"><h3>All time, everyone together</h3>' +
+        '<div class="legend">' + S.map(function (x) { return '<span style="--k:' + x.color + '">' + x.label + '</span>'; }).join('') + '</div>' +
+        (secT ? '<div class="split">' + [secA, secX, secF].map(function (v, i) { return v ? '<i style="flex:' + v + ';background:' + S[i].color + '" data-tip="' + S[i].label + ': ' + dur(v) + ' (' + pct(v) + ')"></i>' : ''; }).join('') + '</div>' : '<p class="empty">No app time yet.</p>') +
+        table([{ t: 'Section' }, { t: 'Time', r: 1 }, { t: 'Share', r: 1 }, { t: 'Per person', r: 1 }],
+          [['Animation', dur(secA), pct(secA), dur(a.installs ? secA / a.installs : 0)],
+           ['VFX Studio', dur(secX), pct(secX), dur(a.installs ? secX / a.installs : 0)],
+           ['Cadence FX', dur(secF), pct(secF), dur(a.installs ? secF / a.installs : 0)],
+           ['<b>Total</b>', '<b>' + dur(secT) + '</b>', '', dur(a.installs ? secT / a.installs : 0)]]) +
+        '<p class="muted">' + n(a.used_animation) + ' people have animated · ' + n(a.used_vfx) + ' have used VFX (VFX Studio or Cadence FX) · ' + n(a.opens) + ' app opens in total.</p></div>' +
+      '<div class="card"><h3>App time per day, last 30 days</h3>' +
+        '<div class="legend">' + S.map(function (x) { return '<span style="--k:' + x.color + '">' + x.label + '</span>'; }).join('') + '</div>' +
+        columns(last30(a.days), S, function (d) { return '<b>' + dayLabel(d.day) + '</b><br>' + n(d.people) + ' people<br>Animation ' + dur(d.sec_animation) + '<br>VFX Studio ' + dur(d.sec_vfx) + '<br>Cadence FX ' + dur(d.sec_fx); }, dur) +
+      '</div></div>' +
+
+      '<h2>The app: people</h2>' +
+      '<div class="grid"><div class="card"><h3>People who opened the app, per day</h3>' +
+        columns(last30(a.days), [{ key: 'people', color: 'var(--bar)' }], function (d) { return '<b>' + dayLabel(d.day) + '</b><br>' + n(d.people) + ' people'; }) +
+        '<p class="muted">Active today ' + n(a.active1) + ' · last 7 days ' + n(a.active7) + ' · last 30 days ' + n(a.active30) + '</p></div>' +
+      '<div class="card"><h3>Versions</h3>' + hbars(a.versions, function (r) { return r.version; }, function (r) { return r.installs; }) +
+        '<h3 style="margin-top:16px">Countries</h3>' + hbars(a.countries, function (r) { return r.country; }, function (r) { return r.installs; }) + '</div></div>' +
+      '<div class="card" style="margin-top:12px"><h3>Each person (most recent first; the id is random, it isn\'t a name)</h3>' +
+        table([{ t: 'Person' }, { t: 'First opened' }, { t: 'Last seen' }, { t: 'Version' }, { t: 'Country' }, { t: 'Opens', r: 1 }, { t: 'Animation', r: 1 }, { t: 'VFX Studio', r: 1 }, { t: 'Cadence FX', r: 1 }],
+          (a.recent || []).map(function (r) { return ['#' + esc(r.id), when(r.first_seen), when(r.last_seen), esc(r.version || ''), esc(r.country || ''), n(r.opens), dur(r.sec_animation), dur(r.sec_vfx), dur(r.sec_fx)]; }), true) + '</div>' +
+
+      '<h2>The website</h2>' +
+      '<div class="grid"><div class="card"><h3>Visits per day, last 30 days</h3>' +
+        columns(last30(w.days), [{ key: 'visits', color: 'var(--bar)' }], function (d) { return '<b>' + dayLabel(d.day) + '</b><br>' + n(d.visits) + ' visits<br>' + dur(d.seconds) + ' on screen in total'; }) +
+        '<p class="muted">' + n(w.today) + ' visits today · ' + n(w.pages) + ' pages opened · ' + dur(w.seconds) + ' on screen in total</p></div>' +
+      '<div class="card"><h3>How long each visit stayed</h3>' + hbars(buckets, function (r) { return r.bucket; }, function (r) { return r.visits; }) + '</div></div>' +
+
+      '<div class="grid" style="margin-top:12px"><div class="card"><h3>Buy-button clicks, by plan</h3>' +
+        (buys.length ? table([{ t: 'Plan' }, { t: 'Clicks', r: 1 }, { t: 'People', r: 1 }], buys.map(function (c) { return [esc(PLAN[c.detail] || c.detail), n(c.clicks), n(c.people)]; })) : '<p class="empty">No buy clicks yet.</p>') +
+        '<p class="muted">' + n(buyClicks) + ' clicks in total. Payments open on 10 October, so until then a click shows interest.</p></div>' +
+      '<div class="card"><h3>Download clicks on the site</h3>' +
+        (dls.length ? table([{ t: 'Build' }, { t: 'Clicks', r: 1 }, { t: 'People', r: 1 }], dls.map(function (c) { return [c.detail === 'installer' ? 'Installer' : 'Portable', n(c.clicks), n(c.people)]; })) : '<p class="empty">No download clicks yet.</p>') +
+        '<p class="muted">GitHub counts every download of the app files, including ones that didn\'t come from this site: ' + (gh == null ? 'couldn\'t reach GitHub.' : n(gh) + ' all time.') + '</p></div></div>' +
+
+      '<div class="grid" style="margin-top:12px"><div class="card"><h3>First page of each visit</h3>' + hbars(w.topPages, function (r) { return r.page || '/'; }, function (r) { return r.visits; }) + '</div>' +
+      '<div class="card"><h3>Where visits came from</h3>' + hbars(w.referrers, function (r) { return r.referrer; }, function (r) { return r.visits; }) + '</div>' +
+      '<div class="card"><h3>Countries</h3>' + hbars(w.countries, function (r) { return r.country; }, function (r) { return r.visits; }) + '</div></div>' +
+
+      '<div class="card" style="margin-top:12px"><h3>Each visit (the latest 50)</h3>' +
+        table([{ t: 'Started' }, { t: 'First page' }, { t: 'Pages', r: 1 }, { t: 'Time on screen', r: 1 }, { t: 'From' }, { t: 'Country' }],
+          (w.recent || []).map(function (r) { return [when(r.started), esc(r.first_page || '/'), n(r.pages), dur(r.seconds), esc(r.referrer || 'direct'), esc(r.country || '')]; }), true) + '</div>';
+
+    document.getElementById('refresh').onclick = start;
+    document.getElementById('logout').onclick = function () { store('cadence-stats-key', null); gate(); };
+  }
+
+  function gate(msg) {
+    app.innerHTML = '<form class="gate" id="gate"><h1 style="font-size:20px;margin:0 0 4px">Cadence stats</h1><p class="muted">Private. Enter the stats key (it is in <code>cadence-stats-key.txt</code> on your PC).</p>' +
+      '<input type="password" id="key" autocomplete="current-password" placeholder="Stats key" required>' + (msg ? '<p class="err">' + esc(msg) + '</p>' : '') +
+      '<button class="btn btn-primary" type="submit">Open</button></form>';
+    document.getElementById('gate').onsubmit = function (e) { e.preventDefault(); store('cadence-stats-key', document.getElementById('key').value.trim()); start(); };
+    document.getElementById('key').focus();
+  }
+
+  function ghTotal() {
+    return fetch(GH, { headers: { Accept: 'application/vnd.github+json' } }).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (list) {
+      var t = 0; list.forEach(function (rel) { rel.assets.forEach(function (a) { if (/\.exe$/i.test(a.name)) t += a.download_count; }); }); return t;
+    }).catch(function () { return null; });
+  }
+
+  function start() {
+    var key = load('cadence-stats-key');
+    if (!key) return gate();
+    if (!app.querySelector('.tiles')) app.innerHTML = '<p class="muted">Loading…</p>';
+    Promise.all([
+      fetch(API + '/stats', { headers: { Authorization: 'Bearer ' + key } }).then(function (r) {
+        if (r.status === 401) { store('cadence-stats-key', null); throw new Error('That key is wrong.'); }
+        if (!r.ok) throw new Error('The counter answered ' + r.status + '.');
+        return r.json();
+      }),
+      ghTotal(),
+    ]).then(function (res) {
+      // A bug in drawing must not read as a network problem.
+      try { render(res[0], res[1]); } catch (err) { app.innerHTML = '<p class="err">The stats arrived but the page could not draw them: ' + esc(err.message) + '</p>'; console.error(err); }
+    }).catch(function (e) { gate(e instanceof TypeError || !e.message ? 'Couldn\'t reach the counter. Check the internet and try again.' : e.message); });
+  }
+  start();
+})();
+</script>
+</body>
+</html>

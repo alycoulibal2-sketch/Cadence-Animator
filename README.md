@@ -222,8 +222,11 @@ downloads, commits, last release); no page uses them at the moment. Downloads wo
 - **Do not state the maker's name or age anywhere on the site.**
 - **Third-party requests, complete list:** Google Fonts (one stylesheet; the Inter file is fetched
   only where Segoe UI is missing), the GitHub API (the latest release), and Cadence's licence API
-  (the Founders count on the pricing page; key checks on account and thanks, when used).
-  No analytics, no trackers, no CDN scripts. The SHA-256 verifier runs entirely in the browser.
+  (the Founders count on the pricing page; key checks on account and thanks, when used), and
+  Cadence's own anonymous counter (`assets/js/stats.js` -> `services/stats/` on main): visits, time
+  on screen, buy-button (`data-buy`) and download (`data-dl`) clicks. No cookies, no names, no IPs.
+  Keep `data-buy` on every plan button when payments open, or its clicks stop counting. The
+  private totals are at `stats.html` (key in `cadence-stats-key.txt`). No outside analytics, no CDN scripts. The SHA-256 verifier runs entirely in the browser.
 - **Downloads work with JavaScript off.** The hardcoded `href`s are the source of truth; `site.js`
   only ever retargets them at a *newer* release, never an older one. Every "not open yet" state is
   written in the HTML; scripts only ever upgrade it.

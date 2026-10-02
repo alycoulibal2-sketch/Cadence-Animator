@@ -112,11 +112,12 @@ cd Cadence-Animator &amp;&amp; npm install &amp;&amp; npm run dist</code></pre>
               <tr><th scope="row"><code>github.com</code></th><td>The update check reads the public release list. The download and the install are two separate clicks of yours; <code>autoDownload</code> and <code>autoInstallOnAppQuit</code> are both off.</td><td>A few seconds after launch and on Check for updates (installed build only)</td><td><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/blob/main/src/main.js">src/main.js</a> (<code>autoUpdater</code>)</td></tr>
               <tr><th scope="row"><code>*.trycloudflare.com</code></th><td>A temporary Cloudflare tunnel so your phone can reach the companion page, gated by a token in the URL. It ends when the app closes.</td><td>Only after you click Mobile. Off by default.</td><td><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/blob/main/src/mobileTunnel.js">src/mobileTunnel.js</a></td></tr>
               <tr><th scope="row"><code>cadence-license.onrender.com</code></th><td>Cadence&rsquo;s licence server checks a Pro key: the app sends the email and key you entered, and gets back whether they are valid. The server stores nothing.</td><td>Only if you enter a Pro key: once then, and about once a week after</td><td><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/blob/main/src/pro.js">src/pro.js</a> (<code>DEFAULT_LICENSE_API</code>, <code>REVERIFY_DAYS</code>)</td></tr>
+              <tr><th scope="row"><code>cadence-stats.alyc70755.workers.dev</code></th><td>Cadence&rsquo;s own anonymous usage counter. It receives a random install number, the version, &ldquo;the app opened&rdquo;, and the seconds spent in the animator, VFX Studio and Cadence FX. No name, email, project or IP address.</td><td>Once at launch, then every five minutes while you use the app (versions after 0.14.0)</td><td><a href="https://github.com/alycoulibal2-sketch/Cadence-Animator/blob/main/src/usage.js">src/usage.js</a></td></tr>
             </tbody>
           </table>
         </div>
         <p style="margin-top:14px">
-          <strong>What is not on the list:</strong> telemetry, analytics, crash reporting, an account
+          <strong>What is not on the list:</strong> crash reporting, outside analytics companies, an account
           server. None exist. The interface windows cannot make a request of their own
           at all: their Content-Security-Policy is <code>connect-src 'self'</code>, so even a bug in the
           UI could not phone anywhere.
@@ -282,5 +283,6 @@ font-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'n
 
 <script src="assets/js/config.js"></script>
 <script src="assets/js/site.js" defer></script>
+<script src="assets/js/stats.js" defer></script>
 </body>
 </html>

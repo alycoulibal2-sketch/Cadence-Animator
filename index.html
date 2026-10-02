@@ -97,7 +97,7 @@
       <ul class="trust-row" aria-label="At a glance">
         <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>Free for Windows</li>
         <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>No account needed</li>
-        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>No telemetry</li>
+        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>No personal data</li>
       </ul>
       <p class="hero-note">v<span data-version>0.14.0</span> &middot; Windows 10 and 11. Windows shows a warning the first time you run it &mdash; <a href="#smartscreen">what it means</a>.</p>
     </div>
@@ -406,7 +406,7 @@
     <div class="section-head">
       <h2 id="dlTitle">Get Cadence <span data-version>0.14.0</span></h2>
       <p class="section-sub">
-        Windows&nbsp;10 or 11, 64-bit. No account, no licence key, no telemetry. Files are served from
+        Windows&nbsp;10 or 11, 64-bit. No account, no licence key, no personal data. Files are served from
         the project&rsquo;s GitHub release &mdash; the same place the in-app updater looks &mdash; and every
         file&rsquo;s SHA-256 is printed here so you can <a href="safety.html#verify">check it before you run it</a>.
       </p>
@@ -571,7 +571,7 @@ cadence-animator</code></pre>
       </details>
       <details>
         <summary>What actually gets sent anywhere?</summary>
-        <div class="answer">Roblox&rsquo;s own servers, for the things that need them: looking up an avatar, fetching a mesh, texture or model asset, and reading a published animation. The update check asks GitHub. If you enter a Pro key, the app checks it with Cadence&rsquo;s licence server &mdash; once, then about once a week. The Studio bridge and the MCP server are loopback-only, and the phone companion is off unless you turn it on. There is no analytics or telemetry of any kind. When Cadence AI launches, your words will go to it to write the plan, and it will not store them. <a href="privacy.html">The privacy page is ten lines.</a></div>
+        <div class="answer">Roblox&rsquo;s own servers, for the things that need them: looking up an avatar, fetching a mesh, texture or model asset, and reading a published animation. The update check asks GitHub. If you enter a Pro key, the app checks it with Cadence&rsquo;s licence server &mdash; once, then about once a week. The Studio bridge and the MCP server are loopback-only, and the phone companion is off unless you turn it on. Newer versions also send an anonymous usage count &mdash; a random install number and the time spent animating or making VFX, never your name. When Cadence AI launches, your words will go to it to write the plan, and it will not store them. <a href="privacy.html">The privacy page is ten lines.</a></div>
       </details>
       <details>
         <summary>Is it finished?</summary>
@@ -631,6 +631,7 @@ cadence-animator</code></pre>
 
 <script src="assets/js/config.js"></script>
 <script src="assets/js/site.js" defer></script>
+<script src="assets/js/stats.js" defer></script>
 <script src="assets/js/launch.js" defer></script>
 </body>
 </html>
