@@ -1,5 +1,5 @@
-// Countdown to Cadence AI + subscriptions: 4 Nov 2026, 00:00 UAE = 20:00 UTC on the 3rd.
-// Without JS the band still reads "Launching 4 November".
+// Countdown to Cadence AI + subscriptions: 11 Nov 2026, 00:00 UAE = 20:00 UTC on the 10th.
+// Without JS the band still reads "Launching 11 November".
 (function () {
   var box = document.getElementById('launch');
   var count = document.getElementById('launch-count');

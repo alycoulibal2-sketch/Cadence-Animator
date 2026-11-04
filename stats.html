@@ -219,7 +219,7 @@
 
       '<div class="grid" style="margin-top:12px"><div class="card"><h3>Buy-button clicks, by plan</h3>' +
         (buys.length ? table([{ t: 'Plan' }, { t: 'Clicks', r: 1 }, { t: 'People', r: 1 }], buys.map(function (c) { return [esc(PLAN[c.detail] || c.detail), n(c.clicks), n(c.people)]; })) : '<p class="empty">No buy clicks yet.</p>') +
-        '<p class="muted">' + n(buyClicks) + ' clicks in total. Payments open on 4 November, so until then a click shows interest.</p></div>' +
+        '<p class="muted">' + n(buyClicks) + ' clicks in total. Payments open on 11 November, so until then a click shows interest.</p></div>' +
       '<div class="card"><h3>Download clicks on the site</h3>' +
         (dls.length ? table([{ t: 'Build' }, { t: 'Clicks', r: 1 }, { t: 'People', r: 1 }], dls.map(function (c) { return [c.detail === 'installer' ? 'Installer' : 'Portable', n(c.clicks), n(c.people)]; })) : '<p class="empty">No download clicks yet.</p>') +
         '<p class="muted">GitHub counts every download of the app files, including ones that didn\'t come from this site: ' + (gh == null ? 'couldn\'t reach GitHub.' : n(gh) + ' all time.') + '</p></div></div>' +
