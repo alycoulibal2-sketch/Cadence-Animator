@@ -85,7 +85,7 @@
     "publish": {
       "provider": "github",
       "owner": "alycoulibal2-sketch",
-      "repo": "Cadence-Animator",
+      "repo": "Cadence-Animator-Releases",
       "releaseType": "release"
     }
   }
