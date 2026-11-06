@@ -18,7 +18,7 @@
     "brand": "electron brand/build-icons.js && node brand/build-sheet.js"
   },
   "author": "alyco",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "devDependencies": {
     "electron": "^33.0.0",
     "electron-builder": "^25.1.8"

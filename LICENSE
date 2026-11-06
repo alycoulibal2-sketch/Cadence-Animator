@@ -1,21 +1,29 @@
-MIT License
+Cadence Animator — Proprietary Software Licence
 
-Copyright (c) 2026 alyco
+Copyright (c) 2026 alyco. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software, including its source code, object code, documentation, assets and every part of
+this repository (the "Software"), is proprietary and confidential.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+No licence or right is granted to you by this file or by access to the Software, except as
+expressly stated in a separate written agreement or in the terms of use of the official Cadence
+Animator application. Without prior written permission from the copyright holder you may not:
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+  1. copy, reproduce or redistribute the Software or any part of it;
+  2. modify, adapt, translate or create derivative works based on the Software;
+  3. sell, rent, lease, sublicense or otherwise transfer the Software or any part of it;
+  4. decompile, disassemble or reverse engineer the Software, except to the extent the law
+     applicable to you expressly permits it despite this restriction;
+  5. remove or alter any copyright, trademark or other notice in the Software.
+
+Animations, effects and other content you create with the official application belong to you.
+
+Earlier versions: copies of the Software that were obtained under the MIT License before
+6 November 2026 remain under the MIT License for those copies only. This licence applies to all
+versions and changes published on or after that date.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

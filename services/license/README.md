@@ -79,7 +79,7 @@ the owner can look the session up in the Stripe dashboard and run `/license` for
 
 ## Honesty notes
 
-- Cadence Animator is MIT-licensed. The Pro gate is in the shipped build's export path and can be
+- Cadence Animator is proprietary since 2026-11-06 (LICENSE; versions obtained under MIT before then stay MIT for those copies). The Pro gate is in the shipped build's export path and can be
   removed by anyone who builds from source; the site says so. Pro is priced as "pay the maker for the
   finished thing", not as copy protection.
 - Stripe requires the account holder to be 18+; the account is Trainis FZE-LLC's.
